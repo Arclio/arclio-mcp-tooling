@@ -1,0 +1,14 @@
+# .sops.yaml
+---
+creation_rules:
+  - path_regex: .*
+    age: >-
+      age1929glgzzhx93eem7pymx6qquu8hwdskfq8m3hjg3xckzdpkv0ehqqnd68l,
+      age1jaj2km8shmsdjj8t460ry0w30r8lq5asttfs20gtcslg48lmasdswfcmkh,
+      age1gj5ne3v200xw3e00vkgmz02zshjcpmwevjzjeys24x0j2fl6nvrq9uk6tj,
+      age1cvd3naa9cncpr47kvamtu4fpsu4geknp79g7rh35f4g3tl3kweuqlgtnuj,
+      age1yry56hafda8hgfrttgjzv6xrsxrkz2rdm8smjq685sscc3fu656qe69pvd,
+      age17q48jlr0epyjzks5e6mfh63fempg0d43m00tddyqmj726yaahgfsyr293c
+
+env_file:
+  - ./.env

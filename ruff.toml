@@ -1,0 +1,30 @@
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+# Line length and target version
+line-length = 100
+target-version = "py310"
+unsafe-fixes = true
+
+[lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "PT", "RET", "SIM"]
+ignore = ["E501", "B008", "N999"]
+fixable = ["ALL"]
+unfixable = []
+
+[lint.per-file-ignores]
+"tests/**/*.py" = [
+    "ARG001",  # unused function arguments - common in tests with fixtures
+    "ARG002",  # unused method arguments - common in tests with fixtures
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
