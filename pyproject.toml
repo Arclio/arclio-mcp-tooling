@@ -30,7 +30,8 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = [
     ".",
-    "packages/arclio-mcp-gsuite/src"
+    "packages/arclio-mcp-gsuite/src",
+    "packages/markdowndeck/src",
 ]
 markers = [
     "integration: integration tests (slow, may require credentials)",
@@ -41,10 +42,12 @@ markers = [
 # List all workspace packages
 members = [
     "packages/arclio-mcp-gsuite",
+    "packages/markdowndeck",
 ]
 
 [tool.uv.sources]
 arclio-mcp-gsuite = {workspace = true}
+markdowndeck = {path = "packages/markdowndeck"}
 
 [tool.hatch.build.targets.wheel]
 packages = ["packages/*"]
