@@ -12,15 +12,6 @@ import google.auth.exceptions
 import google.auth.transport.requests
 from google.oauth2.credentials import Credentials
 
-# Define scopes for all supported services
-SCOPES = [
-    "https://www.googleapis.com/auth/userinfo.email",
-    "https://mail.google.com/",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/presentations",
-]
-
 logger = logging.getLogger(__name__)
 
 
@@ -68,11 +59,8 @@ def get_credentials():
             client_id=client_id,
             client_secret=client_secret,
         )
-
-        # Force a token refresh to verify credentials are valid
-        # request = google.auth.transport.requests.Request()
-        # credentials.refresh(request)
-
+        # The google-auth library automatically handles token refreshing
+        # when needed during API requests using the provided refresh token.
 
     except google.auth.exceptions.RefreshError as e:
         logger.exception("Credentials refresh failed - token may be revoked or expired")
