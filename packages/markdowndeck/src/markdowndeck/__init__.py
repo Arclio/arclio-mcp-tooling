@@ -144,9 +144,7 @@ def markdown_to_requests(
 
             # Handle case where overflow creates multiple slides
             if isinstance(processed_slide, list):
-                logger.info(
-                    f"Slide {i + 1} overflow created {len(processed_slide)} slides"
-                )
+                logger.info(f"Slide {i + 1} overflow created {len(processed_slide)} slides")
                 processed_slides.extend(processed_slide)
             else:
                 processed_slides.append(processed_slide)

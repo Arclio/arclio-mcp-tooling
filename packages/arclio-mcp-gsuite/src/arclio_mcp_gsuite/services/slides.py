@@ -34,11 +34,7 @@ class SlidesService(BaseGoogleService):
             Presentation data dictionary or error information
         """
         try:
-            return (
-                self.service.presentations()
-                .get(presentationId=presentation_id)
-                .execute()
-            )
+            return self.service.presentations().get(presentationId=presentation_id).execute()
         except Exception as e:
             return self.handle_api_error("get_presentation", e)
 
@@ -58,9 +54,7 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_presentation", e)
 
-    def create_slide(
-        self, presentation_id: str, layout: str = "TITLE_AND_BODY"
-    ) -> dict[str, Any]:
+    def create_slide(self, presentation_id: str, layout: str = "TITLE_AND_BODY") -> dict[str, Any]:
         """
         Add a new slide to an existing presentation.
 
@@ -83,16 +77,12 @@ class SlidesService(BaseGoogleService):
                 }
             ]
 
-            logger.info(
-                f"Sending API request to create slide: {json.dumps(requests[0], indent=2)}"
-            )
+            logger.info(f"Sending API request to create slide: {json.dumps(requests[0], indent=2)}")
 
             # Execute the request
             response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": requests})
                 .execute()
             )
 
@@ -170,19 +160,13 @@ class SlidesService(BaseGoogleService):
                 },
             ]
 
-            logger.info(
-                f"Sending API request to create shape: {json.dumps(requests[0], indent=2)}"
-            )
-            logger.info(
-                f"Sending API request to insert text: {json.dumps(requests[1], indent=2)}"
-            )
+            logger.info(f"Sending API request to create shape: {json.dumps(requests[0], indent=2)}")
+            logger.info(f"Sending API request to insert text: {json.dumps(requests[1], indent=2)}")
 
             # Execute the request
             response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": requests})
                 .execute()
             )
 
@@ -266,9 +250,7 @@ class SlidesService(BaseGoogleService):
             # Execute creation request
             creation_response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": create_requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": create_requests})
                 .execute()
             )
 
@@ -397,9 +379,7 @@ class SlidesService(BaseGoogleService):
                             f"Sending API request to apply text styling with {len(style_requests)} style requests"
                         )
                         for i, req in enumerate(style_requests):
-                            logger.info(
-                                f"Style request {i + 1}: {json.dumps(req, indent=2)}"
-                            )
+                            logger.info(f"Style request {i + 1}: {json.dumps(req, indent=2)}")
 
                         # Execute style requests
                         style_response = (
@@ -416,9 +396,7 @@ class SlidesService(BaseGoogleService):
                             f"API response for text styling: {json.dumps(style_response, indent=2)}"
                         )
                     except Exception as style_error:
-                        logger.warning(
-                            f"Failed to apply text styles: {str(style_error)}"
-                        )
+                        logger.warning(f"Failed to apply text styles: {str(style_error)}")
                         logger.exception("Style application error details")
 
             return {
@@ -522,16 +500,12 @@ class SlidesService(BaseGoogleService):
             # Execute the request to create shape and insert text
             response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": requests})
                 .execute()
             )
 
             # Log the response
-            logger.info(
-                f"API response for bullet list creation: {json.dumps(response, indent=2)}"
-            )
+            logger.info(f"API response for bullet list creation: {json.dumps(response, indent=2)}")
 
             # Now add bullet formatting
             try:
@@ -540,9 +514,7 @@ class SlidesService(BaseGoogleService):
                     {
                         "createParagraphBullets": {
                             "objectId": element_id,
-                            "textRange": {
-                                "type": "ALL"
-                            },  # Apply to all text in the shape
+                            "textRange": {"type": "ALL"},  # Apply to all text in the shape
                             "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
                         }
                     }
@@ -567,9 +539,7 @@ class SlidesService(BaseGoogleService):
                     f"API response for bullet formatting: {json.dumps(bullet_response, indent=2)}"
                 )
             except Exception as bullet_error:
-                logger.warning(
-                    f"Failed to apply bullet formatting: {str(bullet_error)}"
-                )
+                logger.warning(f"Failed to apply bullet formatting: {str(bullet_error)}")
                 # No fallback here - the text is already added, just without bullets
 
             return {
@@ -622,17 +592,11 @@ class SlidesService(BaseGoogleService):
             # Process each slide section
             for section in slide_sections:
                 # Parse section to determine slide layout and content
-                initial_layout, elements = self.markdown_converter.parse_slide_markdown(
-                    section
-                )
+                initial_layout, elements = self.markdown_converter.parse_slide_markdown(section)
 
                 # Create the *first* slide for this section
-                slide_create_response = self.create_slide(
-                    presentation_id, initial_layout
-                )
-                if isinstance(
-                    slide_create_response, dict
-                ) and slide_create_response.get("error"):
+                slide_create_response = self.create_slide(presentation_id, initial_layout)
+                if isinstance(slide_create_response, dict) and slide_create_response.get("error"):
                     logger.error(f"Failed to create slide: {slide_create_response}")
                     continue  # Skip this section if first slide creation fails
 
@@ -661,12 +625,8 @@ class SlidesService(BaseGoogleService):
                         )
                         # Create a new slide (use BLANK layout for subsequent slides in a section)
                         new_slide_response = self.create_slide(presentation_id, "BLANK")
-                        if isinstance(
-                            new_slide_response, dict
-                        ) and new_slide_response.get("error"):
-                            logger.error(
-                                f"Failed to create overflow slide: {new_slide_response}"
-                            )
+                        if isinstance(new_slide_response, dict) and new_slide_response.get("error"):
+                            logger.error(f"Failed to create overflow slide: {new_slide_response}")
                             # Decide how to handle: skip element? break section?
                             continue  # Skip this element if new slide fails
 
@@ -736,9 +696,7 @@ class SlidesService(BaseGoogleService):
                         )
 
                     elif element_type == "notes":
-                        self.add_slide_notes(
-                            presentation_id, current_slide_id, element["content"]
-                        )
+                        self.add_slide_notes(presentation_id, current_slide_id, element["content"])
                         # Notes don't take up visual space, so don't increment Y
                         continue  # Skip Y increment for notes
 
@@ -765,9 +723,7 @@ class SlidesService(BaseGoogleService):
         try:
             # Get the presentation with slide details
             presentation = (
-                self.service.presentations()
-                .get(presentationId=presentation_id)
-                .execute()
+                self.service.presentations().get(presentationId=presentation_id).execute()
             )
 
             # Extract slide information
@@ -787,13 +743,9 @@ class SlidesService(BaseGoogleService):
                         if "textElements" in element["shape"]["text"]:
                             # Extract text content
                             text_parts = []
-                            for text_element in element["shape"]["text"][
-                                "textElements"
-                            ]:
+                            for text_element in element["shape"]["text"]["textElements"]:
                                 if "textRun" in text_element:
-                                    text_parts.append(
-                                        text_element["textRun"].get("content", "")
-                                    )
+                                    text_parts.append(text_element["textRun"].get("content", ""))
                             element_content = "".join(text_parts)
                     elif "image" in element:
                         element_type = "image"
@@ -815,10 +767,7 @@ class SlidesService(BaseGoogleService):
 
                 # Get speaker notes if present
                 notes = ""
-                if (
-                    "slideProperties" in slide
-                    and "notesPage" in slide["slideProperties"]
-                ):
+                if "slideProperties" in slide and "notesPage" in slide["slideProperties"]:
                     notes_page = slide["slideProperties"]["notesPage"]
                     if "pageElements" in notes_page:
                         for element in notes_page["pageElements"]:
@@ -828,9 +777,7 @@ class SlidesService(BaseGoogleService):
                                 and "textElements" in element["shape"]["text"]
                             ):
                                 note_parts = []
-                                for text_element in element["shape"]["text"][
-                                    "textElements"
-                                ]:
+                                for text_element in element["shape"]["text"]["textElements"]:
                                     if "textRun" in text_element:
                                         note_parts.append(
                                             text_element["textRun"].get("content", "")
@@ -866,22 +813,16 @@ class SlidesService(BaseGoogleService):
             # Define the delete request
             requests = [{"deleteObject": {"objectId": slide_id}}]
 
-            logger.info(
-                f"Sending API request to delete slide: {json.dumps(requests[0], indent=2)}"
-            )
+            logger.info(f"Sending API request to delete slide: {json.dumps(requests[0], indent=2)}")
 
             # Execute the request
             response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": requests})
                 .execute()
             )
 
-            logger.info(
-                f"API response for slide deletion: {json.dumps(response, indent=2)}"
-            )
+            logger.info(f"API response for slide deletion: {json.dumps(response, indent=2)}")
 
             return {
                 "presentationId": presentation_id,
@@ -958,9 +899,7 @@ class SlidesService(BaseGoogleService):
             # Extract the image ID from the response
             if "replies" in response and len(response["replies"]) > 0:
                 image_id = response["replies"][0].get("createImage", {}).get("objectId")
-                logger.info(
-                    f"API response for image creation: {json.dumps(response, indent=2)}"
-                )
+                logger.info(f"API response for image creation: {json.dumps(response, indent=2)}")
                 return {
                     "presentationId": presentation_id,
                     "slideId": slide_id,
@@ -1039,9 +978,7 @@ class SlidesService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(
-                f"API response for table creation: {json.dumps(response, indent=2)}"
-            )
+            logger.info(f"API response for table creation: {json.dumps(response, indent=2)}")
 
             # Populate the table if data is provided
             if data:
@@ -1127,15 +1064,11 @@ class SlidesService(BaseGoogleService):
             # Execute the request
             response = (
                 self.service.presentations()
-                .batchUpdate(
-                    presentationId=presentation_id, body={"requests": requests}
-                )
+                .batchUpdate(presentationId=presentation_id, body={"requests": requests})
                 .execute()
             )
 
-            logger.info(
-                f"API response for slide notes: {json.dumps(response, indent=2)}"
-            )
+            logger.info(f"API response for slide notes: {json.dumps(response, indent=2)}")
 
             return {
                 "presentationId": presentation_id,
@@ -1182,16 +1115,12 @@ class SlidesService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(
-                f"API response for slide duplication: {json.dumps(response, indent=2)}"
-            )
+            logger.info(f"API response for slide duplication: {json.dumps(response, indent=2)}")
 
             # Extract the duplicated slide ID
             new_slide_id = None
             if "replies" in response and len(response["replies"]) > 0:
-                new_slide_id = (
-                    response["replies"][0].get("duplicateObject", {}).get("objectId")
-                )
+                new_slide_id = response["replies"][0].get("duplicateObject", {}).get("objectId")
 
             return {
                 "presentationId": presentation_id,

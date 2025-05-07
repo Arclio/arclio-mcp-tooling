@@ -137,25 +137,21 @@ class ApiRequestGenerator:
             if background_value.startswith("#"):
                 # Convert hex to RGB
                 rgb = self._hex_to_rgb(background_value)
-                request["updateSlideProperties"]["slideProperties"][
-                    "slideBackgroundFill"
-                ] = {"solidFill": {"color": {"rgbColor": rgb}}}
+                request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
+                    "solidFill": {"color": {"rgbColor": rgb}}
+                }
             else:
                 # Named colors
-                request["updateSlideProperties"]["slideProperties"][
-                    "slideBackgroundFill"
-                ] = {
+                request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
                     "solidFill": {
-                        "color": {
-                            "opaqueColor": {"themeColor": background_value.upper()}
-                        }
+                        "color": {"opaqueColor": {"themeColor": background_value.upper()}}
                     }
                 }
         elif background_type == "image":
             # Handle image backgrounds
-            request["updateSlideProperties"]["slideProperties"][
-                "slideBackgroundFill"
-            ] = {"stretchedPictureFill": {"pictureId": background_value}}
+            request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
+                "stretchedPictureFill": {"pictureId": background_value}
+            }
 
         logger.debug(f"Created background request for slide: {slide.object_id}")
         return request
@@ -184,9 +180,7 @@ class ApiRequestGenerator:
                 element, slide_id, bullet_type="BULLET_DISC_CIRCLE_SQUARE"
             )
         if element.element_type == ElementType.ORDERED_LIST:
-            return self._generate_list_element_requests(
-                element, slide_id, bullet_type="NUMBERED"
-            )
+            return self._generate_list_element_requests(element, slide_id, bullet_type="NUMBERED")
         if element.element_type == ElementType.IMAGE:
             return self._generate_image_element_requests(element, slide_id)
         if element.element_type == ElementType.TABLE:
@@ -200,9 +194,7 @@ class ApiRequestGenerator:
         logger.warning(f"Unknown element type: {element.element_type}")
         return []
 
-    def _generate_text_element_requests(
-        self, element: TextElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_text_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
         """Generate requests for a text element (title, subtitle, or paragraph).
 
         Args:
@@ -304,11 +296,7 @@ class ApiRequestGenerator:
             requests.append(paragraph_style)
 
         # Apply custom styling from directives
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "color" in element.directives
-        ):
+        if hasattr(element, "directives") and element.directives and "color" in element.directives:
             # Apply text color if specified
             color_value = element.directives["color"]
             rgb = self._hex_to_rgb(color_value) if color_value.startswith("#") else None
@@ -350,17 +338,10 @@ class ApiRequestGenerator:
         ):
             background_directive = element.directives["background"]
             # Check if the directive is the tuple format from DirectiveParser
-            if (
-                isinstance(background_directive, tuple)
-                and len(background_directive) == 2
-            ):
+            if isinstance(background_directive, tuple) and len(background_directive) == 2:
                 bg_type, bg_value = background_directive
                 # Check if it's a color and the value is a string starting with #
-                if (
-                    bg_type == "color"
-                    and isinstance(bg_value, str)
-                    and bg_value.startswith("#")
-                ):
+                if bg_type == "color" and isinstance(bg_value, str) and bg_value.startswith("#"):
                     try:
                         rgb = self._hex_to_rgb(bg_value)
                         # Generate the API request to update the shape's background fill
@@ -512,11 +493,7 @@ class ApiRequestGenerator:
                     requests.append(style_request)
 
         # Apply custom styling from directives
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "color" in element.directives
-        ):
+        if hasattr(element, "directives") and element.directives and "color" in element.directives:
             # Apply text color if specified
             color_value = element.directives["color"]
             rgb = self._hex_to_rgb(color_value) if color_value.startswith("#") else None
@@ -534,9 +511,7 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_image_element_requests(
-        self, element: ImageElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_image_element_requests(self, element: ImageElement, slide_id: str) -> list[dict]:
         """Generate requests for an image element.
 
         Args:
@@ -588,9 +563,7 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_table_element_requests(
-        self, element: TableElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
         """Generate requests for a table element.
 
         Args:
@@ -720,11 +693,7 @@ class ApiRequestGenerator:
                     requests.append(insert_text_request)
 
         # Apply table styles if specified in directives
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "border" in element.directives
-        ):
+        if hasattr(element, "directives") and element.directives and "border" in element.directives:
             # Apply border style to all cells
             border_style_request = {
                 "updateTableBorderProperties": {
@@ -752,9 +721,7 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_code_element_requests(
-        self, element: CodeElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_code_element_requests(self, element: CodeElement, slide_id: str) -> list[dict]:
         """Generate requests for a code element.
 
         Args:
@@ -811,9 +778,7 @@ class ApiRequestGenerator:
                 "style": {
                     "fontFamily": "Courier New",
                     "backgroundColor": {
-                        "opaqueColor": {
-                            "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
-                        }
+                        "opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
                     },
                 },
                 "fields": "fontFamily,backgroundColor",
@@ -829,9 +794,7 @@ class ApiRequestGenerator:
                 "shapeProperties": {
                     "shapeBackgroundFill": {
                         "solidFill": {
-                            "color": {
-                                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
-                            }
+                            "color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
                         }
                     }
                 },
@@ -883,9 +846,7 @@ class ApiRequestGenerator:
                     "style": {
                         "fontFamily": "Arial",
                         "fontSize": {"magnitude": 10, "unit": "PT"},
-                        "foregroundColor": {
-                            "rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}
-                        },
+                        "foregroundColor": {"rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}},
                     },
                     "fields": "fontFamily,fontSize,foregroundColor",
                 }
@@ -907,9 +868,7 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_quote_element_requests(
-        self, element: TextElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_quote_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
         """Generate requests for a quote element.
 
         Args:
@@ -958,9 +917,7 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_footer_element_requests(
-        self, element: TextElement, slide_id: str
-    ) -> list[dict]:
+    def _generate_footer_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
         """Generate requests for a footer element.
 
         Args:
@@ -980,9 +937,7 @@ class ApiRequestGenerator:
                 "textRange": {"type": "ALL"},
                 "style": {
                     "fontSize": {"magnitude": 10, "unit": "PT"},
-                    "foregroundColor": {
-                        "rgbColor": {"red": 0.5, "green": 0.5, "blue": 0.5}
-                    },
+                    "foregroundColor": {"rgbColor": {"red": 0.5, "green": 0.5, "blue": 0.5}},
                 },
                 "fields": "fontSize,foregroundColor",
             }

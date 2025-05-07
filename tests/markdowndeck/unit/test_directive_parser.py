@@ -92,7 +92,7 @@ class TestDirectiveParser:
     # --- Test Converters Directly ---
 
     @pytest.mark.parametrize(
-        "value, expected",
+        ("value", "expected"),
         [
             ("1/2", 0.5),
             ("3/4", 0.75),
@@ -118,7 +118,7 @@ class TestDirectiveParser:
             parser._convert_dimension("50 %")  # Space not allowed
 
     @pytest.mark.parametrize(
-        "value, expected",
+        ("value", "expected"),
         [
             ("center", "center"),
             ("RIGHT", "right"),  # Case-insensitive
@@ -136,7 +136,7 @@ class TestDirectiveParser:
         assert parser._convert_alignment(value) == expected
 
     @pytest.mark.parametrize(
-        "value, expected_type, expected_value",
+        ("value", "expected_type", "expected_value"),
         [
             ("#ff0000", "color", "#ff0000"),
             ("white", "color", "white"),

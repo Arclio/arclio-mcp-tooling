@@ -275,9 +275,7 @@ class ContentParser:
                         alt_text=alt,
                     )
                     images.append(image)
-                    logger.debug(
-                        f"Created image element from direct token: {src} (alt: {alt})"
-                    )
+                    logger.debug(f"Created image element from direct token: {src} (alt: {alt})")
 
         return images
 
@@ -463,9 +461,7 @@ class ContentParser:
 
         # Create element
         element = ListElement(
-            element_type=(
-                ElementType.ORDERED_LIST if ordered else ElementType.BULLET_LIST
-            ),
+            element_type=(ElementType.ORDERED_LIST if ordered else ElementType.BULLET_LIST),
             items=items,
         )
 
@@ -519,9 +515,7 @@ class ContentParser:
                         for k in range(nested_start, end_index):
                             if tokens[k].type == tokens[j].type:
                                 nested_depth += 1
-                            elif tokens[k].type == tokens[j].type.replace(
-                                "_open", "_close"
-                            ):
+                            elif tokens[k].type == tokens[j].type.replace("_open", "_close"):
                                 nested_depth -= 1
                                 if nested_depth == 0:
                                     nested_end = k
@@ -552,9 +546,7 @@ class ContentParser:
                         for k in range(nested_start, end_index):
                             if tokens[k].type == tokens[j].type:
                                 nested_depth += 1
-                            elif tokens[k].type == tokens[j].type.replace(
-                                "_open", "_close"
-                            ):
+                            elif tokens[k].type == tokens[j].type.replace("_open", "_close"):
                                 nested_depth -= 1
                                 if nested_depth == 0:
                                     nested_end = k
@@ -660,11 +652,7 @@ class ContentParser:
                 # Get the header cell content
                 if i + 1 < end_index and tokens[i + 1].type == "inline":
                     current_row.append(tokens[i + 1].content)
-            elif (
-                token.type == "td_open"
-                and i + 1 < end_index
-                and tokens[i + 1].type == "inline"
-            ):
+            elif token.type == "td_open" and i + 1 < end_index and tokens[i + 1].type == "inline":
                 # Get the data cell content
                 current_row.append(tokens[i + 1].content)
 
@@ -717,16 +705,12 @@ class ContentParser:
                     format_type = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     format_type = TextFormatType.LINK
-                    value = (
-                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
-                    )
+                    value = child.attrs.get("href", "") if hasattr(child, "attrs") else ""
                 else:
                     format_type = None
 
                 if format_type:
-                    format_stack.append(
-                        (format_type, pos, value if base_type == "link" else True)
-                    )
+                    format_stack.append((format_type, pos, value if base_type == "link" else True))
 
             # Closing formatting tags
             elif child_type.endswith("_close"):
@@ -737,22 +721,10 @@ class ContentParser:
                         stack_type = format_info[0]
 
                         if (
-                            (
-                                base_type == "strong"
-                                and stack_type == TextFormatType.BOLD
-                            )
-                            or (
-                                base_type == "em"
-                                and stack_type == TextFormatType.ITALIC
-                            )
-                            or (
-                                base_type == "s"
-                                and stack_type == TextFormatType.STRIKETHROUGH
-                            )
-                            or (
-                                base_type == "link"
-                                and stack_type == TextFormatType.LINK
-                            )
+                            (base_type == "strong" and stack_type == TextFormatType.BOLD)
+                            or (base_type == "em" and stack_type == TextFormatType.ITALIC)
+                            or (base_type == "s" and stack_type == TextFormatType.STRIKETHROUGH)
+                            or (base_type == "link" and stack_type == TextFormatType.LINK)
                         ):
                             format_type, start_pos, value = format_stack.pop(i)
                             formatting.append(
@@ -770,9 +742,7 @@ class ContentParser:
                 start_pos = pos
                 end_pos = pos + len(child_content)
                 formatting.append(
-                    TextFormat(
-                        start=start_pos, end=end_pos, format_type=TextFormatType.CODE
-                    )
+                    TextFormat(start=start_pos, end=end_pos, format_type=TextFormatType.CODE)
                 )
                 pos = end_pos
                 continue

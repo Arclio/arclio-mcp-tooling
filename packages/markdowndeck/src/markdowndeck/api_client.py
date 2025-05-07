@@ -70,9 +70,7 @@ class ApiClient:
         Returns:
             Dictionary with presentation details
         """
-        logger.info(
-            f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
-        )
+        logger.info(f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides")
 
         # Step 1: Create the presentation
         presentation = self.create_presentation(deck.title, deck.theme_id)
@@ -89,7 +87,7 @@ class ApiClient:
 
         # Step 4: Execute each batch
         for i, batch in enumerate(batches):
-            logger.debug(f"Executing batch {i+1} of {len(batches)}")
+            logger.debug(f"Executing batch {i + 1} of {len(batches)}")
 
             # Check batch size and split if needed
             if len(batch["requests"]) > self.batch_size:
@@ -97,7 +95,7 @@ class ApiClient:
                 logger.debug(f"Split large batch into {len(sub_batches)} sub-batches")
 
                 for j, sub_batch in enumerate(sub_batches):
-                    logger.debug(f"Executing sub-batch {j+1} of {len(sub_batches)}")
+                    logger.debug(f"Executing sub-batch {j + 1} of {len(sub_batches)}")
                     self.execute_batch_update(sub_batch)
             else:
                 self.execute_batch_update(batch)
@@ -112,9 +110,7 @@ class ApiClient:
             "slideCount": len(updated_presentation.get("slides", [])),
         }
 
-        logger.info(
-            f"Presentation creation complete. Slide count: {result['slideCount']}"
-        )
+        logger.info(f"Presentation creation complete. Slide count: {result['slideCount']}")
         return result
 
     def create_presentation(self, title: str, theme_id: str | None = None) -> dict:
@@ -137,9 +133,7 @@ class ApiClient:
             # Include theme ID if provided
             if theme_id:
                 logger.debug(f"Creating presentation with theme ID: {theme_id}")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
                 # Apply theme in a separate request
                 self.slides_service.presentations().batchUpdate(
@@ -156,13 +150,9 @@ class ApiClient:
                 ).execute()
             else:
                 logger.debug("Creating presentation without theme")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
-            logger.info(
-                f"Created presentation with ID: {presentation['presentationId']}"
-            )
+            logger.info(f"Created presentation with ID: {presentation['presentationId']}")
             return presentation
         except HttpError as error:
             logger.error(f"Failed to create presentation: {error}")
@@ -183,11 +173,7 @@ class ApiClient:
         """
         try:
             logger.debug(f"Getting presentation: {presentation_id}")
-            return (
-                self.slides_service.presentations()
-                .get(presentationId=presentation_id)
-                .execute()
-            )
+            return self.slides_service.presentations().get(presentationId=presentation_id).execute()
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
@@ -225,9 +211,7 @@ class ApiClient:
                 if error.resp.status in [429, 500, 503]:  # Rate limit or server error
                     retries += 1
                     if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (
-                            2 ** (retries - 1)
-                        )  # Exponential backoff
+                        wait_time = self.retry_delay * (2 ** (retries - 1))  # Exponential backoff
                         logger.warning(
                             f"Rate limit or server error hit. Retrying in {wait_time} seconds..."
                         )
@@ -258,9 +242,7 @@ class ApiClient:
                     try:
                         self.slides_service.presentations().batchUpdate(
                             presentationId=presentation_id,
-                            body={
-                                "requests": [{"deleteObject": {"objectId": slide_id}}]
-                            },
+                            body={"requests": [{"deleteObject": {"objectId": slide_id}}]},
                         ).execute()
                         logger.debug(f"Deleted default slide: {slide_id}")
                     except HttpError as error:
@@ -308,9 +290,7 @@ class ApiClient:
         """
         try:
             logger.debug("Fetching available presentation themes")
-            (
-                self.slides_service.presentations().get(presentationId="p").execute()
-            )
+            (self.slides_service.presentations().get(presentationId="p").execute())
 
             # Themes are not directly accessible via the API
             # This is a stub for future implementation if Google adds this capability

@@ -65,9 +65,7 @@ class GmailService(BaseGoogleService):
                     request_params["pageToken"] = next_page_token
 
                 # Get this page of message IDs
-                result = (
-                    self.service.users().messages().list(**request_params).execute()
-                )
+                result = self.service.users().messages().list(**request_params).execute()
 
                 # Extract messages and nextPageToken
                 page_messages = result.get("messages", [])
@@ -81,10 +79,7 @@ class GmailService(BaseGoogleService):
                 for msg in page_messages:
                     try:
                         txt = (
-                            self.service.users()
-                            .messages()
-                            .get(userId="me", id=msg["id"])
-                            .execute()
+                            self.service.users().messages().get(userId="me", id=msg["id"]).execute()
                         )
                         parsed_message = self._parse_message(txt=txt, parse_body=False)
                         if parsed_message:
@@ -102,9 +97,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("query_emails", e)
 
-    def get_email_by_id(
-        self, email_id: str, parse_body: bool = True
-    ) -> dict[str, Any] | None:
+    def get_email_by_id(self, email_id: str, parse_body: bool = True) -> dict[str, Any] | None:
         """
         Fetch a complete email message by its ID.
 
@@ -117,9 +110,7 @@ class GmailService(BaseGoogleService):
         """
         try:
             # Fetch the complete message by ID
-            message = (
-                self.service.users().messages().get(userId="me", id=email_id).execute()
-            )
+            message = self.service.users().messages().get(userId="me", id=email_id).execute()
 
             # Parse the message
             return self._parse_message(txt=message, parse_body=parse_body)
@@ -141,9 +132,7 @@ class GmailService(BaseGoogleService):
         """
         try:
             # Fetch the complete message by ID
-            message = (
-                self.service.users().messages().get(userId="me", id=email_id).execute()
-            )
+            message = self.service.users().messages().get(userId="me", id=email_id).execute()
 
             # Parse the message
             parsed_email = self._parse_message(txt=message, parse_body=True)
@@ -194,9 +183,7 @@ class GmailService(BaseGoogleService):
                 mime_message["cc"] = ",".join(cc)
 
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
-                "utf-8"
-            )
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
 
             # Create the draft
             return (
@@ -280,9 +267,7 @@ class GmailService(BaseGoogleService):
                 mime_message["References"] = original_message["message_id"]
 
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
-                "utf-8"
-            )
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
 
             message_body = {"raw": raw_message}
 
@@ -293,10 +278,7 @@ class GmailService(BaseGoogleService):
             if send:
                 # Send the reply immediately
                 result = (
-                    self.service.users()
-                    .messages()
-                    .send(userId="me", body=message_body)
-                    .execute()
+                    self.service.users().messages().send(userId="me", body=message_body).execute()
                 )
             else:
                 # Save as draft
@@ -312,9 +294,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_reply", e)
 
-    def get_attachment(
-        self, message_id: str, attachment_id: str
-    ) -> dict[str, Any] | None:
+    def get_attachment(self, message_id: str, attachment_id: str) -> dict[str, Any] | None:
         """
         Retrieve a Gmail attachment by its ID.
 
@@ -455,9 +435,7 @@ class GmailService(BaseGoogleService):
             logger.error(f"Error extracting body: {str(e)}")
             return None
 
-    def bulk_delete_emails(
-        self, message_ids: list[str], user_id: str = "me"
-    ) -> dict[str, Any]:
+    def bulk_delete_emails(self, message_ids: list[str], user_id: str = "me") -> dict[str, Any]:
         """
         Delete multiple emails by their IDs using batch delete.
 
@@ -472,9 +450,7 @@ class GmailService(BaseGoogleService):
             return {"success": False, "message": "No message IDs provided"}
 
         # Validate message IDs
-        if not all(
-            isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids
-        ):
+        if not all(isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids):
             return {
                 "success": False,
                 "message": "Invalid message IDs - all IDs must be non-empty strings",

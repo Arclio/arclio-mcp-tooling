@@ -121,7 +121,9 @@ class TestLayoutProcessor:
         code_size = processor._estimate_content_size(code_text)
 
         # Text with table
-        table_text = "Table:\n| Header 1 | Header 2 |\n|-|-|\n| Cell 1 | Cell 2 |\n| Cell 3 | Cell 4 |"
+        table_text = (
+            "Table:\n| Header 1 | Header 2 |\n|-|-|\n| Cell 1 | Cell 2 |\n| Cell 3 | Cell 4 |"
+        )
         table_size = processor._estimate_content_size(table_text)
 
         # Check relative sizes
@@ -188,9 +190,7 @@ class TestLayoutProcessor:
             {"type": "section", "directives": {"height": 0.5}, "id": "section-2"},
         ]
 
-        positioned_sections = processor.calculate_section_positions(
-            sections, content_area
-        )
+        positioned_sections = processor.calculate_section_positions(sections, content_area)
 
         # Check positions
         assert positioned_sections[0]["position"] == (50, 100)
@@ -220,9 +220,7 @@ class TestLayoutProcessor:
             },
         ]
 
-        positioned_sections = processor.calculate_section_positions(
-            sections, content_area
-        )
+        positioned_sections = processor.calculate_section_positions(sections, content_area)
 
         # Check row position
         assert positioned_sections[0]["position"] == (50, 100)

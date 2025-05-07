@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
     name="query_gmail_emails",
     description="Query Gmail emails based on a search query.",
 )
-async def query_gmail_emails(
-    query: str, user_id: str, max_results: int = 100
-) -> dict[str, Any]:
+async def query_gmail_emails(query: str, user_id: str, max_results: int = 100) -> dict[str, Any]:
     """
     Query Gmail emails based on a search query.
 
@@ -90,9 +88,7 @@ async def get_gmail_email(email_id: str, user_id: str) -> dict[str, Any]:
     name="get_gmail_attachment",
     description="Retrieves a specific attachment from a Gmail message.",
 )
-async def get_gmail_attachment(
-    message_id: str, attachment_id: str, user_id: str
-) -> dict[str, Any]:
+async def get_gmail_attachment(message_id: str, attachment_id: str, user_id: str) -> dict[str, Any]:
     """
     Retrieves a specific attachment from a Gmail message.
 
@@ -105,16 +101,12 @@ async def get_gmail_attachment(
         A dictionary containing filename, mimeType, size, and base64 data.
     """
     # user_id assumed available in context
-    logger.info(
-        f"Executing get_gmail_attachment tool - Msg: {message_id}, Attach: {attachment_id}"
-    )
+    logger.info(f"Executing get_gmail_attachment tool - Msg: {message_id}, Attach: {attachment_id}")
     if not message_id or not attachment_id:
         raise ValueError("Message ID and Attachment ID cannot be empty")
 
     gmail_service = GmailService()
-    result = gmail_service.get_attachment(
-        message_id=message_id, attachment_id=attachment_id
-    )
+    result = gmail_service.get_attachment(message_id=message_id, attachment_id=attachment_id)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error getting attachment"
@@ -185,9 +177,7 @@ async def delete_gmail_draft(
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(
-        f"Executing delete_gmail_draft for user {user_id} with draft_id: '{draft_id}'"
-    )
+    logger.info(f"Executing delete_gmail_draft for user {user_id} with draft_id: '{draft_id}'")
     if not draft_id or not draft_id.strip():
         raise ValueError("Draft ID cannot be empty")
 
@@ -199,9 +189,7 @@ async def delete_gmail_draft(
         # Attempt to check if the service returned an error dict
         # (Assuming handle_api_error might return dict or False/None)
         # This part might need adjustment based on actual service error handling
-        error_info = getattr(
-            gmail_service, "last_error", None
-        )  # Hypothetical error capture
+        error_info = getattr(gmail_service, "last_error", None)  # Hypothetical error capture
         error_msg = "Failed to delete draft"
         if isinstance(error_info, dict) and error_info.get("error"):
             error_msg = error_info.get("message", error_msg)
@@ -247,9 +235,7 @@ async def reply_gmail_email(
     # TODO: Pass user_id if needed
 
     # First, get the original message details needed for reply headers
-    original_message = gmail_service.get_email_by_id(
-        original_message_id, parse_body=False
-    )
+    original_message = gmail_service.get_email_by_id(original_message_id, parse_body=False)
     if not original_message or (
         isinstance(original_message, dict) and original_message.get("error")
     ):

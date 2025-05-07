@@ -30,9 +30,7 @@ async def suggest_slide_content(
 
 
 @mcp.prompt()
-def create_slides_presentation(
-    title: str, user_id: str, ctx: Context = None
-) -> list[UserMessage]:
+def create_slides_presentation(title: str, user_id: str, ctx: Context = None) -> list[UserMessage]:
     """Creates a new Google Slides presentation with the specified title."""
     if ctx is None:
         # Context should be automatically injected by the MCP framework

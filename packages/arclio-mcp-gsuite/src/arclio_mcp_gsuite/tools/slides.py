@@ -97,9 +97,7 @@ async def create_presentation(
     Returns:
         Created presentation data or raises error.
     """
-    logger.info(
-        f"Executing create_presentation for user {user_id} with title: '{title}'"
-    )
+    logger.info(f"Executing create_presentation for user {user_id} with title: '{title}'")
     if not title or not title.strip():
         raise ValueError("Presentation title cannot be empty")
 
@@ -240,9 +238,7 @@ async def add_formatted_text_to_slide(
     Returns:
         Response data confirming text addition or raises error.
     """
-    logger.info(
-        f"Executing add_formatted_text_to_slide for user {user_id} on slide '{slide_id}'"
-    )
+    logger.info(f"Executing add_formatted_text_to_slide for user {user_id} on slide '{slide_id}'")
     if not presentation_id or not slide_id or text is None:
         raise ValueError("Presentation ID, Slide ID, and Text are required")
 
@@ -292,9 +288,7 @@ async def add_bulleted_list_to_slide(
     Returns:
         Response data confirming list addition or raises error.
     """
-    logger.info(
-        f"Executing add_bulleted_list_to_slide for user {user_id} on slide '{slide_id}'"
-    )
+    logger.info(f"Executing add_bulleted_list_to_slide for user {user_id} on slide '{slide_id}'")
     if not presentation_id or not slide_id or not items:
         raise ValueError("Presentation ID, Slide ID, and Items are required")
 
@@ -348,9 +342,7 @@ async def add_table_to_slide(
     Returns:
         Response data confirming table addition or raises error.
     """
-    logger.info(
-        f"Executing add_table_to_slide for user {user_id} on slide '{slide_id}'"
-    )
+    logger.info(f"Executing add_table_to_slide for user {user_id} on slide '{slide_id}'")
     if not presentation_id or not slide_id:
         raise ValueError("Presentation ID and Slide ID are required")
 
@@ -486,9 +478,7 @@ async def delete_slide(
 
     slides_service = SlidesService()
     # TODO: Pass user_id if needed
-    result = slides_service.delete_slide(
-        presentation_id=presentation_id, slide_id=slide_id
-    )
+    result = slides_service.delete_slide(presentation_id=presentation_id, slide_id=slide_id)
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error deleting slide"))
@@ -496,9 +486,7 @@ async def delete_slide(
     # Assume success if no error dict is returned (service might return empty dict or specific success info)
     if result is None:  # Handle case where service returns None on success
         result = {"success": True, "message": "Slide deleted successfully."}
-    elif not result.get(
-        "success", True
-    ):  # Handle case where service returns {"success": False}
+    elif not result.get("success", True):  # Handle case where service returns {"success": False}
         result["message"] = result.get("message", "Deletion reported as failed.")
 
     return result
@@ -554,8 +542,6 @@ async def create_presentation_from_markdown(
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(
-            result.get("message", "Error creating presentation from Markdown")
-        )
+        raise ValueError(result.get("message", "Error creating presentation from Markdown"))
 
     return result

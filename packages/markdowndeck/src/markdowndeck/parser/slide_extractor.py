@@ -32,7 +32,7 @@ class SlideExtractor:
             if not slide_content:
                 continue
 
-            logger.debug(f"Processing slide {i+1}")
+            logger.debug(f"Processing slide {i + 1}")
 
             # Process slide content
             processed_slide = self._process_slide_content(slide_content, i)

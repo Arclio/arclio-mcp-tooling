@@ -52,9 +52,7 @@ class DirectiveParser:
             return
 
         directive_text = match.group(0)
-        logger.debug(
-            f"Found directives block: {directive_text!r}"
-        )  # Use !r for clearer whitespace
+        logger.debug(f"Found directives block: {directive_text!r}")  # Use !r for clearer whitespace
 
         # Extract directives
         directives = {}
@@ -82,9 +80,7 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -102,9 +98,7 @@ class DirectiveParser:
         section["content"] = content[
             len(directive_text) :
         ].lstrip()  # Use lstrip to remove leading newline/space after directives
-        logger.debug(
-            f"Section content after directive removal: {section['content'][:50]}..."
-        )
+        logger.debug(f"Section content after directive removal: {section['content'][:50]}...")
 
     def _convert_dimension(self, value: str) -> float | int:  # Allow int for pixels
         """
@@ -128,17 +122,14 @@ class DirectiveParser:
                 if denom == 0:
                     raise ValueError("Dimension denominator cannot be zero")
                 return num / denom
-            else:
-                raise ValueError(f"Invalid fraction format: '{value}'")
+            raise ValueError(f"Invalid fraction format: '{value}'")
 
         # Handle percentage values (e.g., 50%)
         if value.endswith("%"):
             # Stricter check: ensure no space before %
             percentage_str = value.rstrip("%")
             if " " in percentage_str:
-                raise ValueError(
-                    f"Invalid percentage format (contains space): '{value}'"
-                )
+                raise ValueError(f"Invalid percentage format (contains space): '{value}'")
             try:
                 percentage = float(percentage_str)
                 return percentage / 100.0
@@ -215,9 +206,7 @@ class DirectiveParser:
             return ("color", value)
 
         # Handle URLs
-        url_match = re.fullmatch(
-            r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE
-        )
+        url_match = re.fullmatch(r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE)
         if url_match:
             url = url_match.group(1)
             return ("url", url)

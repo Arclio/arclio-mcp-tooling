@@ -123,16 +123,9 @@ class TestIntegration:
         assert len(deck.slides[0].sections[0]["subsections"]) == 2
 
         # Verify section directives
-        assert (
-            deck.slides[0].sections[0]["subsections"][0]["directives"]["width"] == 2 / 3
-        )
-        assert (
-            deck.slides[0].sections[0]["subsections"][0]["directives"]["align"]
-            == "center"
-        )
-        assert (
-            deck.slides[0].sections[0]["subsections"][1]["directives"]["width"] == 1 / 3
-        )
+        assert deck.slides[0].sections[0]["subsections"][0]["directives"]["width"] == 2 / 3
+        assert deck.slides[0].sections[0]["subsections"][0]["directives"]["align"] == "center"
+        assert deck.slides[0].sections[0]["subsections"][1]["directives"]["width"] == 1 / 3
 
         # Verify second slide vertical sections
         assert len(deck.slides[1].sections) == 2
@@ -165,14 +158,8 @@ class TestIntegration:
                 if "createShape" in request:
                     # Check that element positioning is reflected in the API request
                     assert "transform" in request["createShape"]["elementProperties"]
-                    assert (
-                        "translateX"
-                        in request["createShape"]["elementProperties"]["transform"]
-                    )
-                    assert (
-                        "translateY"
-                        in request["createShape"]["elementProperties"]["transform"]
-                    )
+                    assert "translateX" in request["createShape"]["elementProperties"]["transform"]
+                    assert "translateY" in request["createShape"]["elementProperties"]["transform"]
 
     def test_slide_with_notes_and_footer(self, parser, layout_manager, api_generator):
         """Test creating a slide with speaker notes and footer."""
@@ -229,9 +216,9 @@ class TestIntegration:
 
         assert speaker_notes_request is not None
         assert (
-            speaker_notes_request["updateSpeakerNotesProperties"][
-                "speakerNotesProperties"
-            ]["speakerNotesText"]
+            speaker_notes_request["updateSpeakerNotesProperties"]["speakerNotesProperties"][
+                "speakerNotesText"
+            ]
             == "These are speaker notes for the presenter"
         )
 

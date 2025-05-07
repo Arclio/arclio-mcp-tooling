@@ -29,14 +29,10 @@ class LayoutManager:
         self.slide_height = 405
 
         # Maximum content height
-        self.max_content_height = (
-            self.slide_height - self.margins["top"] - self.margins["bottom"]
-        )
+        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
 
         # Maximum content width
-        self.max_content_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
+        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
 
         # Default element sizes
         self.default_sizes = {
@@ -98,9 +94,7 @@ class LayoutManager:
                 return result
             updated_slide = result
 
-        logger.debug(
-            f"Position calculation completed for slide: {updated_slide.object_id}"
-        )
+        logger.debug(f"Position calculation completed for slide: {updated_slide.object_id}")
         return updated_slide
 
     def _calculate_flat_positions(self, slide: Slide) -> Slide:
@@ -229,9 +223,7 @@ class LayoutManager:
                 )
                 element.position = (self.margins["left"], bottom_position)
 
-    def _calculate_content_area(
-        self, slide: Slide
-    ) -> tuple[float, float, float, float]:
+    def _calculate_content_area(self, slide: Slide) -> tuple[float, float, float, float]:
         """Calculate the content area considering title, subtitle, and footer.
 
         Args:
@@ -327,9 +319,7 @@ class LayoutManager:
 
         for section in sections:
             # Calculate section width
-            section_width = width * float(
-                section["directives"].get("width", 1.0 / len(sections))
-            )
+            section_width = width * float(section["directives"].get("width", 1.0 / len(sections)))
 
             # Set position and size
             section["position"] = (current_x, top)
@@ -390,9 +380,7 @@ class LayoutManager:
                 # Distribute elements across subsections
                 subsection_elements = content_elements[start_idx:end_idx]
                 subsection_count = len(section["subsections"])
-                elements_per_subsection = max(
-                    1, len(subsection_elements) // subsection_count
-                )
+                elements_per_subsection = max(1, len(subsection_elements) // subsection_count)
 
                 for j, subsection in enumerate(section["subsections"]):
                     # Get subsection ID
@@ -400,23 +388,17 @@ class LayoutManager:
 
                     # Assign elements to this subsection
                     sub_start_idx = j * elements_per_subsection
-                    sub_end_idx = min(
-                        (j + 1) * elements_per_subsection, len(subsection_elements)
-                    )
+                    sub_end_idx = min((j + 1) * elements_per_subsection, len(subsection_elements))
 
                     # Handle last subsection (include any remaining elements)
                     if j == subsection_count - 1:
                         sub_end_idx = len(subsection_elements)
 
-                    element_map[subsection_id] = subsection_elements[
-                        sub_start_idx:sub_end_idx
-                    ]
+                    element_map[subsection_id] = subsection_elements[sub_start_idx:sub_end_idx]
 
         return element_map
 
-    def _find_section_by_id(
-        self, sections: list[dict], section_id: str
-    ) -> dict | None:
+    def _find_section_by_id(self, sections: list[dict], section_id: str) -> dict | None:
         """Find a section or subsection by ID.
 
         Args:
@@ -583,9 +565,7 @@ class LayoutManager:
         if element.element_type == ElementType.TEXT:
             # Calculate text height based on approximate characters per line
             text_element = element  # type: TextElement
-            chars_per_line = max(
-                1, int(element.size[0] / 8)
-            )  # Rough estimate: 8px per char
+            chars_per_line = max(1, int(element.size[0] / 8))  # Rough estimate: 8px per char
             line_count = max(1, len(text_element.text) / chars_per_line)
             # Height per line, minimum height
             return max(line_count * 20, 40)
@@ -604,9 +584,7 @@ class LayoutManager:
         """
         # Skip footer when checking for overflow
         non_footer_elements = [
-            element
-            for element in slide.elements
-            if element.element_type != ElementType.FOOTER
+            element for element in slide.elements if element.element_type != ElementType.FOOTER
         ]
 
         # Check each element
@@ -682,11 +660,7 @@ class LayoutManager:
             if current_y + element_height <= (
                 self.slide_height
                 - self.margins["bottom"]
-                - (
-                    footer_element.size[1] + self.vertical_spacing
-                    if footer_element
-                    else 0
-                )
+                - (footer_element.size[1] + self.vertical_spacing if footer_element else 0)
             ):
                 # Element fits, add it to first slide
                 element.position = (element.position[0], current_y)
@@ -734,11 +708,7 @@ class LayoutManager:
                 if current_y + element_height <= (
                     self.slide_height
                     - self.margins["bottom"]
-                    - (
-                        footer_element.size[1] + self.vertical_spacing
-                        if footer_element
-                        else 0
-                    )
+                    - (footer_element.size[1] + self.vertical_spacing if footer_element else 0)
                 ):
                     # Element fits, add it
                     element.position = (element.position[0], current_y)

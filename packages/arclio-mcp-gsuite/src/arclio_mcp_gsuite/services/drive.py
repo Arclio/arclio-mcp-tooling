@@ -83,9 +83,7 @@ class DriveService(BaseGoogleService):
                     # Escape single quotes for the query string
                     # Google Drive API requires escaping ' as \\' within a string literal
                     escaped_query = query.replace("'", "\\\\'")
-                    formatted_query = (
-                        f"fullText contains '{escaped_query}' and trashed = false"
-                    )
+                    formatted_query = f"fullText contains '{escaped_query}' and trashed = false"
 
             logger.info(
                 f"Searching Drive with formatted query: '{formatted_query}' and page size: {page_size}"
@@ -127,9 +125,7 @@ class DriveService(BaseGoogleService):
         try:
             # Get file metadata
             file_metadata = (
-                self.service.files()
-                .get(fileId=file_id, fields="mimeType, name")
-                .execute()
+                self.service.files().get(fileId=file_id, fields="mimeType, name").execute()
             )
 
             original_mime_type = file_metadata.get("mimeType")
@@ -147,9 +143,7 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("read_file", e)
 
-    def _export_google_file(
-        self, file_id: str, file_name: str, mime_type: str
-    ) -> dict[str, Any]:
+    def _export_google_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
         """Export a Google Workspace file in an appropriate format."""
         # Determine export format
         export_mime_type = None
@@ -174,9 +168,7 @@ class DriveService(BaseGoogleService):
 
         # Export the file
         try:
-            request = self.service.files().export_media(
-                fileId=file_id, mimeType=export_mime_type
-            )
+            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime_type)
 
             content_bytes = self._download_content(request)
             if isinstance(content_bytes, dict) and content_bytes.get("error"):

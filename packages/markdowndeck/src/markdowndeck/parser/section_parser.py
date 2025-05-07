@@ -22,9 +22,7 @@ class SectionParser:
         # Check if content has horizontal separators (***) and no vertical separators (---)
         # If so, treat the whole content as a row with subsections
         if "***" in content and "---" not in content:
-            horizontal_parts = self._split_content_by_pattern(
-                content, r"(?m)^\s*\*\*\*\s*$"
-            )
+            horizontal_parts = self._split_content_by_pattern(content, r"(?m)^\s*\*\*\*\s*$")
             if len(horizontal_parts) > 1:
                 # Create a row with subsections
                 subsections = []
@@ -76,12 +74,10 @@ class SectionParser:
             if not v_part:
                 continue
 
-            logger.debug(f"Processing vertical section {v_index+1}")
+            logger.debug(f"Processing vertical section {v_index + 1}")
 
             # Split into horizontal sections
-            horizontal_parts = self._split_content_by_pattern(
-                v_part, r"(?m)^\s*\*\*\*\s*$"
-            )
+            horizontal_parts = self._split_content_by_pattern(v_part, r"(?m)^\s*\*\*\*\s*$")
 
             if len(horizontal_parts) == 1:
                 # No horizontal splitting, single section
@@ -155,4 +151,3 @@ class SectionParser:
         # Remove directives
         directive_pattern = r"^\s*(\[.+?\])+\s*"
         return re.sub(directive_pattern, "", content, count=1).strip()
-

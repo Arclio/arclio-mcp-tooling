@@ -136,9 +136,7 @@ async def create_calendar_event(
     Returns:
         A dictionary containing the created event details.
     """
-    logger.info(
-        f"Executing create_calendar_event for user {user_id} on calendar '{calendar_id}'"
-    )
+    logger.info(f"Executing create_calendar_event for user {user_id} on calendar '{calendar_id}'")
     if not user_id:
         raise ValueError("user_id is required")
     if not summary or not start_time or not end_time:

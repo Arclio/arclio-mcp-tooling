@@ -41,9 +41,7 @@ def get_credentials() -> Credentials | None:
     service_account_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if service_account_file and os.path.exists(service_account_file):
         try:
-            logger.info(
-                f"Using service account credentials from {service_account_file}"
-            )
+            logger.info(f"Using service account credentials from {service_account_file}")
             return service_account.Credentials.from_service_account_file(
                 service_account_file, scopes=SCOPES
             )
@@ -70,9 +68,7 @@ def get_credentials() -> Credentials | None:
     token_path = Path.home() / ".markdowndeck" / "token.json"
     if token_path.exists():
         logger.info(f"Loading credentials from {token_path}")
-        creds = Credentials.from_authorized_user_info(
-            json.loads(token_path.read_text()), SCOPES
-        )
+        creds = Credentials.from_authorized_user_info(json.loads(token_path.read_text()), SCOPES)
 
     # If no valid credentials, run the OAuth flow
     if not creds or not creds.valid:
@@ -89,12 +85,8 @@ def get_credentials() -> Credentials | None:
                 )
                 return None
 
-            logger.info(
-                f"Running OAuth flow with credentials from {client_secrets_path}"
-            )
-            flow = InstalledAppFlow.from_client_secrets_file(
-                client_secrets_path, SCOPES
-            )
+            logger.info(f"Running OAuth flow with credentials from {client_secrets_path}")
+            flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
             creds = flow.run_local_server(port=0)
 
             # Save credentials for next time
@@ -205,9 +197,7 @@ def main() -> None:
         "-t", "--title", default="Markdown Presentation", help="Presentation title"
     )
     create_parser.add_argument("--theme", help="Google Slides theme ID")
-    create_parser.add_argument(
-        "-o", "--output", help="Save presentation ID to specified file"
-    )
+    create_parser.add_argument("-o", "--output", help="Save presentation ID to specified file")
     create_parser.set_defaults(func=create_presentation_command)
 
     # List themes command
@@ -215,9 +205,7 @@ def main() -> None:
     themes_parser.set_defaults(func=list_themes_command)
 
     # Verbose flag for all commands
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
 
     # Parse arguments
     args = parser.parse_args()

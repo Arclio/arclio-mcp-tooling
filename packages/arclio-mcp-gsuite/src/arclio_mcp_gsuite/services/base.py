@@ -40,30 +40,20 @@ class BaseGoogleService:
             self.service = build(service_name, api_version, credentials=credentials)
             logger.info(f"Initialized {service_name} service (v{api_version})")
         except ValueError as e:
-            logger.error(
-                f"Credential error during {service_name} service initialization: {e}"
-            )
+            logger.error(f"Credential error during {service_name} service initialization: {e}")
             raise RuntimeError(
                 f"Failed to initialize {service_name} service due to credential error: {e}"
             ) from e
         except HttpError as e:
-            logger.error(
-                f"HTTP error during {service_name} service initialization: {e}"
-            )
+            logger.error(f"HTTP error during {service_name} service initialization: {e}")
             raise RuntimeError(
                 f"Failed to initialize {service_name} service due to API error: {e}"
             ) from e
         except Exception as e:
-            logger.exception(
-                f"Unexpected error during {service_name} service initialization"
-            )
-            raise RuntimeError(
-                f"Unexpected error initializing {service_name} service: {e}"
-            ) from e
+            logger.exception(f"Unexpected error during {service_name} service initialization")
+            raise RuntimeError(f"Unexpected error initializing {service_name} service: {e}") from e
 
-    def handle_api_error(
-        self, operation: str, error: Exception
-    ) -> dict[str, Any] | None:
+    def handle_api_error(self, operation: str, error: Exception) -> dict[str, Any] | None:
         """
         Handle API errors uniformly across services.
 

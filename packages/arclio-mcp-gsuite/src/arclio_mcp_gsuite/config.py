@@ -27,8 +27,6 @@ def get_enabled_capabilities() -> set[str]:
         # Return empty set, but actual filtering is external
         return set()
 
-    capabilities = {
-        cap.strip().lower() for cap in capabilities_str.split(",") if cap.strip()
-    }
+    capabilities = {cap.strip().lower() for cap in capabilities_str.split(",") if cap.strip()}
     logger.info(f"Declared G Suite capabilities via env var: {capabilities}")
     return capabilities

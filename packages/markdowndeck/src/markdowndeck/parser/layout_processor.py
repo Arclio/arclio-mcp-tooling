@@ -63,9 +63,7 @@ class LayoutProcessor:
             return
 
         # Calculate total explicit width
-        total_explicit_width = sum(
-            float(s["directives"]["width"]) for s in explicit_sections
-        )
+        total_explicit_width = sum(float(s["directives"]["width"]) for s in explicit_sections)
 
         # Keep width within valid range
         total_explicit_width = min(1.0, max(0.0, total_explicit_width))
@@ -85,9 +83,7 @@ class LayoutProcessor:
             # Handle case when total exceeds 1.0 or no remaining width
             for section in implicit_sections:
                 section["directives"]["width"] = 0.0
-                logger.debug(
-                    f"Assigned zero width to section {section['id']} (no remaining space)"
-                )
+                logger.debug(f"Assigned zero width to section {section['id']} (no remaining space)")
 
     def _calculate_implicit_heights(self, sections: list[dict]) -> None:
         """
@@ -105,9 +101,7 @@ class LayoutProcessor:
             return
 
         # Calculate total explicit height
-        total_explicit_height = sum(
-            float(s["directives"]["height"]) for s in explicit_sections
-        )
+        total_explicit_height = sum(float(s["directives"]["height"]) for s in explicit_sections)
 
         # Keep height within valid range
         total_explicit_height = min(1.0, max(0.0, total_explicit_height))
@@ -119,8 +113,7 @@ class LayoutProcessor:
         if remaining_height > 0 and implicit_sections:
             # Estimate content size based on content length as a heuristic
             content_sizes = [
-                self._estimate_content_size(s.get("content", ""))
-                for s in implicit_sections
+                self._estimate_content_size(s.get("content", "")) for s in implicit_sections
             ]
             total_content_size = sum(content_sizes) or 1  # Avoid division by zero
 
@@ -163,9 +156,7 @@ class LayoutProcessor:
             size += rows * 30  # Add extra size for tables
 
         # Lists take more space
-        list_items = (
-            content.count("\n* ") + content.count("\n- ") + content.count("\n1. ")
-        )
+        list_items = content.count("\n* ") + content.count("\n- ") + content.count("\n1. ")
         size += list_items * 20
 
         return size
@@ -191,9 +182,7 @@ class LayoutProcessor:
 
         # Count element types
         has_title = any(get_element_type(e) == ElementType.TITLE for e in elements)
-        has_subtitle = any(
-            get_element_type(e) == ElementType.SUBTITLE for e in elements
-        )
+        has_subtitle = any(get_element_type(e) == ElementType.SUBTITLE for e in elements)
         has_image = any(get_element_type(e) == ElementType.IMAGE for e in elements)
         has_table = any(get_element_type(e) == ElementType.TABLE for e in elements)
         has_list = any(
@@ -209,13 +198,7 @@ class LayoutProcessor:
 
         # Determine layout based on content
         if has_title:
-            if (
-                has_subtitle
-                and not has_image
-                and not has_table
-                and not has_list
-                and not has_code
-            ):
+            if has_subtitle and not has_image and not has_table and not has_list and not has_code:
                 return SlideLayout.TITLE
             if has_subtitle and (has_list or has_table or has_code):
                 return SlideLayout.TITLE_AND_BODY
@@ -297,9 +280,7 @@ class LayoutProcessor:
 
         for section in sections:
             # Calculate section width
-            section_width = width * float(
-                section["directives"].get("width", 1.0 / len(sections))
-            )
+            section_width = width * float(section["directives"].get("width", 1.0 / len(sections)))
 
             # Set position and size
             section["position"] = (current_x, top)

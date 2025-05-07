@@ -57,9 +57,7 @@ class MarkdownSlidesConverter:
         normalized_content = markdown_content.replace("\r\n", "\n").replace("\r", "\n")
 
         # Log input
-        logger.info(
-            f"Splitting markdown of length {len(normalized_content)} into slides"
-        )
+        logger.info(f"Splitting markdown of length {len(normalized_content)} into slides")
         # logger.debug(f"Normalized content preview:\n{normalized_content[:500]}...") # Optional: log content preview
 
         # First, try splitting by horizontal rule markers (---, ***) respecting blank lines around them
@@ -74,9 +72,7 @@ class MarkdownSlidesConverter:
 
         # If we found multiple sections using horizontal rules, use them
         if len(sections_by_hr) > 1:
-            logger.info(
-                f"Split by horizontal rule (---, ***) into {len(sections_by_hr)} sections"
-            )
+            logger.info(f"Split by horizontal rule (---, ***) into {len(sections_by_hr)} sections")
             return [s.strip() for s in sections_by_hr if s.strip()]
 
         # If HR split didn't work, try splitting by H2 headers (##)
@@ -92,16 +88,12 @@ class MarkdownSlidesConverter:
                 processed_sections_by_h2.append(sections_by_h2[0])
             # For subsequent sections, prepend '## ' if split occurred
             for section in sections_by_h2[1:]:
-                if (
-                    section.strip()
-                ):  # Avoid adding prefix to potentially empty trailing sections
+                if section.strip():  # Avoid adding prefix to potentially empty trailing sections
                     processed_sections_by_h2.append(f"## {section}")
 
         # If we found multiple sections using h2 headers, use them
         if len(processed_sections_by_h2) > 1:
-            logger.info(
-                f"Split by H2 headers (##) into {len(processed_sections_by_h2)} sections"
-            )
+            logger.info(f"Split by H2 headers (##) into {len(processed_sections_by_h2)} sections")
             return [s.strip() for s in processed_sections_by_h2 if s.strip()]
 
         # If we get here, we couldn't find multiple slides, so return the whole content as one slide
@@ -110,9 +102,7 @@ class MarkdownSlidesConverter:
         )
         return [normalized_content.strip()] if normalized_content.strip() else []
 
-    def parse_slide_markdown(
-        self, markdown_section: str
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def parse_slide_markdown(self, markdown_section: str) -> tuple[str, list[dict[str, Any]]]:
         """
         Parse a markdown section into slide elements with proper formatting.
 
@@ -127,9 +117,7 @@ class MarkdownSlidesConverter:
 
         try:
             # Convert markdown to HTML
-            html = markdown.markdown(
-                markdown_section, extensions=self.markdown_extensions
-            )
+            html = markdown.markdown(markdown_section, extensions=self.markdown_extensions)
 
             # Log the generated HTML
             logger.info(f"Generated HTML of length {len(html)}")
@@ -235,9 +223,7 @@ class MarkdownSlidesConverter:
                         }
                     )
                     has_bullets = True
-                    current_y += (
-                        max(200, len(list_items) * 25) + 20
-                    )  # Add padding between elements
+                    current_y += max(200, len(list_items) * 25) + 20  # Add padding between elements
                     list_elem.extract()
 
             # Process images
@@ -315,13 +301,9 @@ class MarkdownSlidesConverter:
             )
 
             # Check for speaker notes (special syntax: <!-- notes: ... -->)
-            notes_match = re.search(
-                r"<!--\s*notes:\s*(.*?)\s*-->", markdown_section, re.DOTALL
-            )
+            notes_match = re.search(r"<!--\s*notes:\s*(.*?)\s*-->", markdown_section, re.DOTALL)
             if notes_match:
-                elements.append(
-                    {"type": "notes", "content": notes_match.group(1).strip()}
-                )
+                elements.append({"type": "notes", "content": notes_match.group(1).strip()})
 
             return layout, elements
         except Exception as e:
@@ -459,12 +441,8 @@ class MarkdownSlidesConverter:
 
                 # Let's try the simplified approach first based on user code:
                 plain_equivalent_before = text_before
-                plain_equivalent_before = re.sub(
-                    r"\*\*(.*?)\*\*", r"\1", plain_equivalent_before
-                )
-                plain_equivalent_before = re.sub(
-                    r"\*(.*?)\*", r"\1", plain_equivalent_before
-                )
+                plain_equivalent_before = re.sub(r"\*\*(.*?)\*\*", r"\1", plain_equivalent_before)
+                plain_equivalent_before = re.sub(r"\*(.*?)\*", r"\1", plain_equivalent_before)
                 # plain_equivalent_before = re.sub(r"`(.*?)`", r"\1", plain_equivalent_before)
                 return len(plain_equivalent_before)
 
@@ -494,10 +472,7 @@ class MarkdownSlidesConverter:
                 is_part_of_bold = False
                 for bold_match in bold_matches:
                     # Check if italic is *inside* bold markers
-                    if (
-                        bold_match.start() < match.start()
-                        and match.end() < bold_match.end()
-                    ):
+                    if bold_match.start() < match.start() and match.end() < bold_match.end():
                         is_part_of_bold = True
                         break
 
@@ -522,9 +497,7 @@ class MarkdownSlidesConverter:
                     )
 
             # Add logger info if needed
-            logger.info(
-                f"Generated {len(style_requests)} style requests for element {element_id}"
-            )
+            logger.info(f"Generated {len(style_requests)} style requests for element {element_id}")
             return plain_text, style_requests
 
         except Exception as e:
@@ -535,8 +508,6 @@ class MarkdownSlidesConverter:
                 [],
             )
 
-    def generate_slide_requests(
-        self, presentation_id: str, elements: list[dict]
-    ) -> list[dict]:
+    def generate_slide_requests(self, presentation_id: str, elements: list[dict]) -> list[dict]:
         # Implementation of generate_slide_requests method
         pass

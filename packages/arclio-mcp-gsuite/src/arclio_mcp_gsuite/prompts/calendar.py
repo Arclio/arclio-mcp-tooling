@@ -32,9 +32,7 @@ async def draft_calendar_agenda(
     #     event_details = f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
 
     # Simulate details for now
-    event_details = (
-        f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
-    )
+    event_details = f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
 
     return [
         UserMessage(

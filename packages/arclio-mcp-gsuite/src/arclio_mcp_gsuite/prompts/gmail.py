@@ -19,16 +19,12 @@ async def summarize_recent_emails(
     if ctx is None:
         # This should ideally not happen if context injection works,
         # but handle defensively for direct calls or tests.
-        logger.error(
-            "Context (ctx) is required for summarize_recent_emails but was not provided."
-        )
+        logger.error("Context (ctx) is required for summarize_recent_emails but was not provided.")
         # Return an error message or raise an exception?
         # Raising seems more appropriate for a required dependency.
         raise ValueError("Context (ctx) is required for this prompt.")
 
-    logger.info(
-        f"Executing summarize_recent_emails prompt for query: '{query}', max: {max_emails}"
-    )
+    logger.info(f"Executing summarize_recent_emails prompt for query: '{query}', max: {max_emails}")
 
     email_context = "No emails found or error fetching emails."
     try:
@@ -69,7 +65,5 @@ async def summarize_recent_emails(
         email_context = "Error: An unexpected error occurred while fetching emails."
 
     return [
-        UserMessage(
-            f"Please summarize the key points from these recent emails:\n\n{email_context}"
-        )
+        UserMessage(f"Please summarize the key points from these recent emails:\n\n{email_context}")
     ]

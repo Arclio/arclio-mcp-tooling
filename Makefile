@@ -1,27 +1,40 @@
-.PHONY: help install setup setup-dev clean lint fix format test build publish encrypt-root decrypt-root encrypt-pkg decrypt-pkg encrypt decrypt
+.PHONY: help setup clean lint format fix test test-unit test-integration build publish add \
+        encrypt-root decrypt-root encrypt-pkg decrypt-pkg encrypt decrypt init-key \
+        run-gsuite
+
 .DEFAULT_GOAL := help
 
-# Default Python interpreter
+# --- Environment Variables ---
+# Attempt to load .env file if it exists
+# This ensures variables like UV_PYPI_TOKEN are available to make recipes
+# if they are defined in a .env file at the root of the project.
+# Make sure this .env file is gitignored if it contains secrets.
+# If using SOPS, 'make decrypt' should generate the .env file.
+ifneq (,$(wildcard ./.env))
+    include .env
+    # Corrected line: Robustly export variables from .env, excluding comments and empty lines.
+    export $$(shell grep -Ev '^\s*(#|$$$$)' .env | cut -d= -f1 | tr '\n' ' ')
+endif
+
+# --- Environment & Tools ---
 PYTHON := python3
-# Virtual environment directory
-VENV := .venv
-# Source directories
-PACKAGES_DIR := packages
-TESTS_DIR := tests
+VENV_DIR := .venv
+# Tools are activated within recipes using '. $(VENV_DIR)/bin/activate && $(TOOL)'
+UV := uv
+PIP := pip
+RUFF := ruff
+PYTEST := pytest
+SOPS := sops
 
-# Package names (abbreviated and full)
-GSUITE := arclio-mcp-gsuite
+# --- Directories ---
+PACKAGES_ROOT_DIR := packages
+TESTS_ROOT_DIR := tests
 
-# Package abbreviations for easy reference in commands
-PKG_MAPPINGS := gsuite:$(GSUITE)
+# --- Package Definitions ---
+# List package *directory names* under packages/
+PKG_NAMES := arclio-mcp-gsuite markdowndeck
 
-# Auto-discover all packages
-PACKAGES := $(GSUITE)
-
-# Package directories
-GSUITE_DIR := $(PACKAGES_DIR)/$(GSUITE)
-
-# Color codes
+# --- Color Codes ---
 GREEN  := $(shell tput -Txterm setaf 2)
 YELLOW := $(shell tput -Txterm setaf 3)
 CYAN   := $(shell tput -Txterm setaf 6)
@@ -30,305 +43,364 @@ MAGENTA := $(shell tput -Txterm setaf 5)
 RED    := $(shell tput -Txterm setaf 1)
 WHITE  := $(shell tput -Txterm setaf 7)
 BOLD   := $(shell tput -Txterm bold)
-UNDERLINE := $(shell tput -Txterm smul)
 RESET  := $(shell tput -Txterm sgr0)
 
-# Create virtual environment
-venv:
-	@echo "${CYAN}Creating virtual environment...${RESET}"
-	$(PYTHON) -m venv $(VENV)
-	$(VENV)/bin/pip install --upgrade pip
-	@echo "${GREEN}Virtual environment created successfully${RESET}"
+# --- Helper for Argument Parsing ---
+TARGET_ARGS = $(filter-out $@,$(MAKECMDGOALS))
+FIRST_TARGET_ARG = $(firstword $(TARGET_ARGS))
 
-# Install dependencies
-install: venv
-	@echo "${CYAN}Installing dependencies...${RESET}"
-	$(VENV)/bin/pip install -e .
-	@echo "${GREEN}Dependencies installed successfully${RESET}"
+# --- Core Setup ---
+$(VENV_DIR)/bin/activate:
+	@echo "${CYAN}Creating virtual environment and installing uv...${RESET}"
+	$(PYTHON) -m venv $(VENV_DIR)
+	"$(VENV_DIR)/bin/$(PIP)" install --upgrade pip
+	"$(VENV_DIR)/bin/$(PIP)" install uv
+	@touch "$(VENV_DIR)/bin/activate"
+	@echo "${GREEN}Virtual environment and uv installed successfully.${RESET}"
+	@echo "${YELLOW}Run 'source $(VENV_DIR)/bin/activate' to activate the virtual environment for subsequent manual commands.${RESET}"
+	@echo "${YELLOW}Makefile commands will attempt to activate it implicitly where needed.${RESET}"
 
-# Install development dependencies
-setup-dev: install
-	@echo "${CYAN}Installing development dependencies...${RESET}"
-	$(VENV)/bin/pip install -e ".[dev]"
-	@echo "${GREEN}Development dependencies installed successfully${RESET}"
+setup: $(VENV_DIR)/bin/activate
+	@echo "${CYAN}Syncing all workspace packages and dependencies with uv...${RESET}"
+	. "$(VENV_DIR)/bin/activate"; $(UV) sync --all-packages --no-install-workspace --extra dev
+	@echo "${GREEN}Monorepo setup and sync complete.${RESET}"
 
-# Setup the monorepo - install uv and sync all packages
-setup: venv
-	@echo "${CYAN}Setting up monorepo...${RESET}"
-	$(VENV)/bin/pip install uv
-	$(VENV)/bin/uv sync --all-packages --no-install-workspace --extra dev
-	@echo "${GREEN}Monorepo setup complete${RESET}"
-
-# Clean build artifacts and cache files
+# --- Cleaning ---
 clean:
-	@echo "${CYAN}Cleaning build artifacts and cache files...${RESET}"
-	rm -rf dist build *.egg-info .pytest_cache .coverage htmlcov
+	@echo "${CYAN}Cleaning build artifacts, cache files, and virtual environment...${RESET}"
+	rm -rf dist build *.egg-info .pytest_cache .coverage htmlcov coverage.xml
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
-	rm -rf $(VENV) .ruff_cache
-	@echo "${GREEN}Cleanup complete${RESET}"
+	rm -rf "$(VENV_DIR)" .ruff_cache
+	@echo "${GREEN}Cleanup complete.${RESET}"
 
-# Linting and formatting
-lint:
-	@echo "${CYAN}Running linters...${RESET}"
-	$(VENV)/bin/ruff check $(PACKAGES_DIR) $(TESTS_DIR)
-	@echo "${GREEN}Linting complete${RESET}"
+# --- Code Quality ---
+lint format fix: setup
+	@ACTION=$@; \
+	TARGET_PKG_NAME=$(FIRST_TARGET_ARG); \
+	CMD_PATH=""; \
+	MSG_SUFFIX=""; \
+	if [ -n "$$TARGET_PKG_NAME" ] && [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_NAME " ]]; then \
+		CMD_PATH_PKG="$(PACKAGES_ROOT_DIR)/$$TARGET_PKG_NAME"; \
+		CMD_PATH_TESTS="$(TESTS_ROOT_DIR)/$$TARGET_PKG_NAME"; \
+		if [ -d "$$CMD_PATH_PKG" ]; then CMD_PATH="$$CMD_PATH $$CMD_PATH_PKG"; fi; \
+		if [ -d "$$CMD_PATH_TESTS" ]; then CMD_PATH="$$CMD_PATH $$CMD_PATH_TESTS"; fi; \
+		if [ -z "$$CMD_PATH" ]; then \
+			echo "${RED}No source or test directory found for package '$$TARGET_PKG_NAME'. Action: $$ACTION ${RESET}"; exit 1; \
+		fi; \
+		MSG_SUFFIX="for package $$TARGET_PKG_NAME"; \
+	elif [ -n "$$TARGET_PKG_NAME" ]; then \
+		echo "${RED}Unknown package '$$TARGET_PKG_NAME' for $$ACTION. Known: $(PKG_NAMES)${RESET}"; exit 1; \
+	else \
+		CMD_PATH="$(PACKAGES_ROOT_DIR) $(TESTS_ROOT_DIR)"; \
+		MSG_SUFFIX="for all packages"; \
+	fi; \
+	echo "${CYAN}Running $$ACTION $$MSG_SUFFIX on paths:$$CMD_PATH...${RESET}"; \
+	. "$(VENV_DIR)/bin/activate"; \
+	if [ "$$ACTION" = "lint" ]; then \
+		$(RUFF) check $$CMD_PATH; \
+	elif [ "$$ACTION" = "format" ]; then \
+		$(RUFF) format $$CMD_PATH; \
+	elif [ "$$ACTION" = "fix" ]; then \
+		$(RUFF) check --fix $$CMD_PATH; \
+	fi; \
+	echo "${GREEN}$$ACTION $$MSG_SUFFIX complete.${RESET}"
 
-fix:
-	@echo "${CYAN}Fixing linting issues...${RESET}"
-	$(VENV)/bin/ruff check --fix $(PACKAGES_DIR) $(TESTS_DIR)
-	@echo "${GREEN}Fixes applied${RESET}"
 
-format:
-	@echo "${CYAN}Formatting code...${RESET}"
-	$(VENV)/bin/ruff format $(PACKAGES_DIR) $(TESTS_DIR)
-	@echo "${GREEN}Formatting complete${RESET}"
+# --- Testing ---
+test test-unit test-integration: setup
+	@CMD_NAME=$@; \
+	TARGET_PKG_NAME=$(FIRST_TARGET_ARG); \
+	TEST_PATH="$(TESTS_ROOT_DIR)"; \
+	MARKER_ARG=""; \
+	PKG_MSG_SUFFIX="for all packages"; \
+	TYPE_MSG_SUFFIX=""; \
+	if [ "$$CMD_NAME" = "test-unit" ]; then MARKER_ARG="-m unit"; TYPE_MSG_SUFFIX="unit "; fi; \
+	if [ "$$CMD_NAME" = "test-integration" ]; then MARKER_ARG="-m integration"; export RUN_INTEGRATION_TESTS=${RUN_INTEGRATION_TESTS:-0}; TYPE_MSG_SUFFIX="integration "; fi; \
+	if [ -n "$$TARGET_PKG_NAME" ] && [ "$$TARGET_PKG_NAME" != "test" ] && [ "$$TARGET_PKG_NAME" != "test-unit" ] && [ "$$TARGET_PKG_NAME" != "test-integration" ]; then \
+		if [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_NAME " ]]; then \
+			TEST_PATH="$(TESTS_ROOT_DIR)/$$TARGET_PKG_NAME"; \
+			if [ ! -d "$$TEST_PATH" ]; then \
+				echo "${RED}Test directory '$$TEST_PATH' not found for package '$$TARGET_PKG_NAME'.${RESET}"; \
+				echo "${YELLOW}Expected test directory naming to match package directory name: $(PKG_NAMES)${RESET}"; \
+				exit 1; \
+			fi; \
+			PKG_MSG_SUFFIX="for package $$TARGET_PKG_NAME"; \
+		else \
+			echo "${RED}Unknown package '$$TARGET_PKG_NAME' for testing. Available: $(PKG_NAMES)${RESET}"; exit 1; \
+		fi; \
+	fi; \
+	echo "${CYAN}Running $${TYPE_MSG_SUFFIX}tests $$PKG_MSG_SUFFIX (from path: $$TEST_PATH)...${RESET}"; \
+	. "$(VENV_DIR)/bin/activate"; $(PYTEST) $$TEST_PATH $$MARKER_ARG; \
+	echo "${GREEN}Tests $$PKG_MSG_SUFFIX completed.${RESET}"
 
-# Testing
-test: install-all
-	@echo "${CYAN}Running all tests...${RESET}"
-	$(VENV)/bin/uv run pytest $(TESTS_DIR)
-	@echo "${GREEN}Tests completed${RESET}"
 
-# Run unit tests only
-test-unit: install-all
-	@echo "${CYAN}Running unit tests...${RESET}"
-	$(VENV)/bin/uv run pytest $(TESTS_DIR)/arclio_mcp_gsuite/unit
-	@echo "${GREEN}Unit tests completed${RESET}"
+# --- Building Packages ---
+build: clean setup
+	@TARGET_PKG_NAME=$(FIRST_TARGET_ARG); \
+	PACKAGES_TO_BUILD=""; \
+	if [ -z "$$TARGET_PKG_NAME" ] || [ "$$TARGET_PKG_NAME" = "build" ]; then \
+		echo "${CYAN}Building all packages...${RESET}"; \
+		PACKAGES_TO_BUILD="$(PKG_NAMES)"; \
+	elif [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_NAME " ]]; then \
+		echo "${CYAN}Building package: $$TARGET_PKG_NAME...${RESET}"; \
+		PACKAGES_TO_BUILD="$$TARGET_PKG_NAME"; \
+	else \
+		echo "${RED}Unknown package '$$TARGET_PKG_NAME' for build. Available: $(PKG_NAMES)${RESET}"; exit 1; \
+	fi; \
+	for pkg_name in $$PACKAGES_TO_BUILD; do \
+		echo "${MAGENTA}Building $$pkg_name...${RESET}"; \
+		pkg_dir_path_relative="$(PACKAGES_ROOT_DIR)/$$pkg_name"; \
+		dist_output_dir_abs="$$(pwd)/dist/$$pkg_name"; \
+		mkdir -p "$$dist_output_dir_abs"; \
+		echo "${YELLOW}Building '$$pkg_name' from directory '$$pkg_dir_path_relative'. Output will be in '$$dist_output_dir_abs'.${RESET}"; \
+		activate_script_path_relative_to_pkg_dir="../../$(VENV_DIR)/bin/activate"; \
+		if ( \
+			cd "$$pkg_dir_path_relative" && \
+			echo "  Current directory for build: $$(pwd)" && \
+			echo "  Activating venv from: $$activate_script_path_relative_to_pkg_dir" && \
+			. "$$activate_script_path_relative_to_pkg_dir" && \
+			echo "  Using uv: $$(which uv)" && \
+			echo "  Using python: $$(which python)" && \
+			$(UV) build --verbose -o "$$dist_output_dir_abs" \
+		); then \
+			echo "${GREEN}Successfully built $$pkg_name.${RESET}"; \
+		else \
+			echo "${RED}Failed to build $$pkg_name. See errors above.${RESET}"; \
+			exit 1; \
+		fi; \
+	done; \
+	echo "${GREEN}Build process completed.${RESET}"
 
-# Run integration tests only
-test-integration: install-all
-	@echo "${CYAN}Running integration tests...${RESET}"
-	$(VENV)/bin/uv run pytest $(TESTS_DIR)/arclio_mcp_gsuite/integration
-	@echo "${GREEN}Integration tests completed${RESET}"
 
-# Pattern rule for package-specific tests
-test-%:
-	@echo "${CYAN}Running tests for $*...${RESET}"
-	$(VENV)/bin/uv run pytest $(TESTS_DIR)/$(subst -,_,$*)
-	@echo "${GREEN}Tests for $* completed${RESET}"
+# --- Publishing Packages ---
+# Usage: make publish [package_name]
+publish: setup
+	@echo "${MAGENTA}Starting publish process...${RESET}"; \
+	if [ -z "$${UV_PYPI_TOKEN}" ]; then \
+		echo "${RED}Error: UV_PYPI_TOKEN is not set or is empty in the environment.${RESET}"; \
+		echo "${YELLOW}Please ensure it's correctly defined in your .env file (run 'make decrypt' if using SOPS) or exported directly.${RESET}"; \
+		exit 1; \
+	fi; \
+	echo "${CYAN}Initial Makefile check: UV_PYPI_TOKEN appears to be set (length: $$(echo -n "$${UV_PYPI_TOKEN}" | wc -c)).${RESET}"; \
+	TARGET_PKG_NAME=$(FIRST_TARGET_ARG); \
+	PACKAGES_TO_PUBLISH_LIST=""; \
+	if [ -z "$$TARGET_PKG_NAME" ] || [ "$$TARGET_PKG_NAME" = "publish" ]; then \
+		echo "${CYAN}Preparing to publish all built packages...${RESET}"; \
+		PACKAGES_TO_PUBLISH_LIST="$(PKG_NAMES)"; \
+	elif [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_NAME " ]]; then \
+		echo "${CYAN}Preparing to publish package: $$TARGET_PKG_NAME...${RESET}"; \
+		PACKAGES_TO_PUBLISH_LIST="$$TARGET_PKG_NAME"; \
+	else \
+		echo "${RED}Unknown package '$$TARGET_PKG_NAME' for publish. Available: $(PKG_NAMES)${RESET}"; \
+		exit 1; \
+	fi; \
+	found_any_build_to_publish=false; \
+	overall_publish_failed=false; \
+	for pkg_name_iter in $$PACKAGES_TO_PUBLISH_LIST; do \
+		echo "${BLUE}Processing package '$$pkg_name_iter' for publishing...${RESET}"; \
+		if [ -d "dist/$$pkg_name_iter" ] && [ -n "$$(ls -A "dist/$$pkg_name_iter"/*.whl 2>/dev/null)" ]; then \
+			echo "  Found build artifacts in dist/$$pkg_name_iter/"; \
+			_publish_command_str="$(UV) publish"; \
+			if [ -n "$${UV_REPOSITORY_URL}" ]; then \
+				_publish_command_str="$$_publish_command_str --repository-url \"$${UV_REPOSITORY_URL}\""; \
+			fi; \
+			_publish_command_str="$$_publish_command_str --token \"$${UV_PYPI_TOKEN}\" \"dist/$$pkg_name_iter\"/*.whl \"dist/$$pkg_name_iter\"/*.tar.gz"; \
+			echo "  Publish command to be run: $$_publish_command_str"; \
+			( \
+				set -e; \
+				echo "  Entering subshell for publishing '$$pkg_name_iter'..."; \
+				. "$(VENV_DIR)/bin/activate"; \
+				echo "  Inside subshell, UV_PYPI_TOKEN (first 10 chars): $$(echo -n \"$${UV_PYPI_TOKEN}\" | cut -c 1-10)..."; \
+				echo "  Inside subshell, UV_REPOSITORY_URL: '$${UV_REPOSITORY_URL}'"; \
+				eval "$$_publish_command_str"; \
+				_publish_exit_code=$$?; \
+				if [ $$_publish_exit_code -eq 0 ]; then \
+					echo "${GREEN}Publish command for '$$pkg_name_iter' completed successfully in subshell.${RESET}"; \
+				else \
+					echo "${RED}Publish command for '$$pkg_name_iter' failed in subshell (exit code: $$_publish_exit_code).${RESET}"; \
+				fi; \
+				exit $$_publish_exit_code; \
+			) || overall_publish_failed=true; \
+			found_any_build_to_publish=true; \
+		else \
+			echo "${YELLOW}No build found for $$pkg_name_iter in dist/$$pkg_name_iter. Skipping.${RESET}"; \
+		fi; \
+	done; \
+	if [ "$$found_any_build_to_publish" = "false" ] && [ -n "$$PACKAGES_TO_PUBLISH_LIST" ]; then \
+		echo "${RED}No packages were found in dist/ to publish from the specified selection. Run 'make build ...' first.${RESET}"; \
+		exit 1; \
+	fi; \
+	if [ "$$overall_publish_failed" = "true" ]; then \
+		echo "${RED}One or more packages failed to publish. Review logs above.${RESET}"; \
+		exit 1; \
+	fi; \
+	if [ "$$found_any_build_to_publish" = "true" ] && [ "$$overall_publish_failed" = "false" ]; then \
+		echo "${GREEN}Publish process completed for all attempted packages. Review logs for details.${RESET}"; \
+	fi
 
-# Build all packages
-build: clean
-	@echo "${CYAN}Building all packages...${RESET}"
-	mkdir -p dist
-	$(VENV)/bin/uv build -p $(GSUITE_DIR) -o dist
-	@echo "${GREEN}All packages built successfully${RESET}"
 
-# Publish all packages
-publish: build
-	@echo "${CYAN}Publishing all packages...${RESET}"
-	$(VENV)/bin/uv publish dist/arclio_mcp_gsuite-*.whl
-	@echo "${GREEN}All packages published successfully${RESET}"
-
-# Add a dependency to a package using positional arguments (make add gsuite pydantic)
+# --- Dependency Management ---
 add: setup
-	@if [ -z "$(word 2,$(MAKECMDGOALS))" ]; then \
-		echo "${RED}Error: Package name is required.${RESET}"; \
-		echo "${YELLOW}Usage: make add <package_abbrev> <dependency_spec>${RESET}"; \
+	@ARGS_AFTER_ADD="$(TARGET_ARGS)"; \
+	num_args=$$(echo $$ARGS_AFTER_ADD | wc -w); \
+	if [ "$$num_args" -lt 2 ]; then \
+		echo "${RED}Error: Package name (for uv --package) and dependency specification are required.${RESET}"; \
+		echo "${YELLOW}Usage: make add <uv_project_name> <dependency_spec>${RESET}"; \
+		echo "${YELLOW}Example: make add arclio-mcp-gsuite pydantic==2.5.0${RESET}"; \
 		exit 1; \
-	fi
-	@if [ -z "$(word 3,$(MAKECMDGOALS))" ]; then \
-		echo "${RED}Error: Dependency specification is required.${RESET}"; \
-		echo "${YELLOW}Usage: make add <package_abbrev> <dependency_spec>${RESET}"; \
-		exit 1; \
-	fi
-	@pkg="$(word 2,$(MAKECMDGOALS))"; \
-	dep="$(word 3,$(MAKECMDGOALS))"; \
-	case "$$pkg" in \
-		gsuite) pkg_full="$(GSUITE)" ;; \
-		*) echo "${RED}Unknown package abbreviation: $$pkg${RESET}"; exit 1 ;; \
-	esac; \
-	echo "${CYAN}Adding dependency '$$dep' to package '$$pkg_full'...${RESET}"; \
-	$(VENV)/bin/uv add "$$dep" --package "$$pkg_full"; \
-	echo "${GREEN}Dependency added successfully${RESET}"
+	fi; \
+	pkg_for_uv=$$(echo $$ARGS_AFTER_ADD | awk '{print $$1}'); \
+	dep_spec=$$(echo $$ARGS_AFTER_ADD | cut -d' ' -f2-); \
+	echo "${CYAN}Adding dependency '$$dep_spec' to package '$$pkg_for_uv'...${RESET}"; \
+	. "$(VENV_DIR)/bin/activate"; $(UV) add "$$dep_spec" --package "$$pkg_for_uv"; \
+	echo "${GREEN}Dependency '$$dep_spec' added successfully to $$pkg_for_uv${RESET}"
 
-# Make the positional arguments not be interpreted as targets
-%:
-	@:
 
-# Install packages in development mode
-install-all: setup
-	@echo "${CYAN}Installing all packages in development mode...${RESET}"
-	$(VENV)/bin/uv pip install -e $(GSUITE_DIR)
-	@echo "${GREEN}All packages installed in development mode${RESET}"
-
-# Run the MCP server
-run-gsuite:
+# --- Running Servers ---
+run-gsuite: setup
 	@echo "${CYAN}Running arclio-mcp-gsuite server...${RESET}"
-	$(VENV)/bin/python -m arclio_mcp_gsuite
-	@echo "${GREEN}Server executed${RESET}"
+	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m arclio_mcp_gsuite
+	@echo "${GREEN}Server executed.${RESET}"
 
-# Encrypt root .env to .env.sops
-encrypt-root: setup
-	@if [ ! -f ".env" ]; then \
-		echo "${RED}Error: Root .env file not found${RESET}"; \
-		exit 1; \
-	fi
-	@if [ -z "$$SOPS_AGE_KEY_FILE" ]; then \
-		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Try: source ~/.zshrc ${RESET}"; \
-		exit 1; \
-	fi
-	@echo "${CYAN}Encrypting root .env to .env.sops...${RESET}"
-	@SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" sops --input-type dotenv --output-type yaml -e .env > .env.sops
-	@echo "${GREEN}Root encryption complete${RESET}"
-
-# Decrypt root .env.sops to .env
-decrypt-root: setup
-	@if [ ! -f ".env.sops" ]; then \
-		echo "${RED}Error: Root .env.sops file not found${RESET}"; \
-		exit 1; \
-	fi
-	@if [ -z "$$SOPS_AGE_KEY_FILE" ]; then \
-		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Try: source ~/.zshrc ${RESET}"; \
-		exit 1; \
-	fi
-	@echo "${CYAN}Decrypting root .env.sops to .env...${RESET}"
-	@SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" sops --input-type yaml --output-type dotenv -d .env.sops > .env 2>/tmp/sops_error || { \
-		echo "${RED}Root decryption failed. Error:${RESET}"; \
-		cat /tmp/sops_error; \
-		exit 1; \
-	}
-	@echo "${GREEN}Root decryption complete${RESET}"
-
-# Encrypt package .env to .env.sops
-# Usage: make encrypt-pkg PKG=gsuite
-encrypt-pkg: setup
-	@if [ -z "$(PKG)" ]; then \
-		echo "${RED}Error: PKG argument is required.${RESET}"; \
-		echo "${YELLOW}Usage: make encrypt-pkg PKG=gsuite${RESET}"; \
-		exit 1; \
-	fi
-	@pkg="$(PKG)"; \
-	case "$$pkg" in \
-		gsuite) pkg_dir="$(GSUITE_DIR)" ;; \
-		*) echo "${RED}Unknown package abbreviation: $$pkg${RESET}"; exit 1 ;; \
-	esac; \
-	if [ ! -f "$$pkg_dir/.env" ]; then \
-		echo "${RED}Error: .env file not found for package $$pkg${RESET}"; \
-		exit 1; \
+# --- SOPS Encryption/Decryption ---
+encrypt-pkg decrypt-pkg: setup
+	@CMD_NAME=$@; \
+	TARGET_PKG_DIR_NAME="$(PKG_DIR)"; \
+	if [ -z "$$TARGET_PKG_DIR_NAME" ]; then \
+		echo "${RED}Error: PKG_DIR argument is required (e.g., PKG_DIR=arclio-mcp-gsuite).${RESET}"; exit 1; \
 	fi; \
+	if ! [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_DIR_NAME " ]]; then \
+		echo "${RED}Unknown package directory '$$TARGET_PKG_DIR_NAME'. Available: $(PKG_NAMES)${RESET}"; exit 1; \
+	fi; \
+	pkg_path="$(PACKAGES_ROOT_DIR)/$$TARGET_PKG_DIR_NAME"; \
+	env_file="$$pkg_path/.env"; \
+	sops_file="$$pkg_path/.env.sops"; \
 	if [ -z "$$SOPS_AGE_KEY_FILE" ]; then \
-		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Try: source ~/.zshrc ${RESET}"; \
-		exit 1; \
+		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Try: source ~/.zshrc or ensure .env is loaded if defined there.${RESET}"; exit 1; \
 	fi; \
-	echo "${CYAN}Encrypting $$pkg_dir/.env to $$pkg_dir/.env.sops...${RESET}"; \
-	SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" sops --input-type dotenv --output-type yaml -e $$pkg_dir/.env > $$pkg_dir/.env.sops; \
-	echo "${GREEN}Package $$pkg encryption complete${RESET}"
-
-# Usage: make decrypt-pkg PKG=gsuite
-decrypt-pkg: setup
-	@if [ -z "$(PKG)" ]; then \
-		echo "${RED}Error: PKG argument is required.${RESET}"; \
-		echo "${YELLOW}Usage: make decrypt-pkg PKG=gsuite${RESET}"; \
-		exit 1; \
+	if [ "$$CMD_NAME" = "encrypt-pkg" ]; then \
+		if [ ! -f "$$env_file" ]; then \
+			echo "${YELLOW}Skipping encryption for $$TARGET_PKG_DIR_NAME: .env file not found at $$env_file${RESET}"; exit 0; \
+		fi; \
+		echo "${CYAN}Encrypting $$env_file to $$sops_file...${RESET}"; \
+		SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) --input-type dotenv --output-type yaml -e "$$env_file" > "$$sops_file"; \
+		echo "${GREEN}Package $$TARGET_PKG_DIR_NAME encryption complete.${RESET}"; \
+	elif [ "$$CMD_NAME" = "decrypt-pkg" ]; then \
+		if [ ! -f "$$sops_file" ]; then \
+			echo "${YELLOW}Skipping decryption for $$TARGET_PKG_DIR_NAME: .env.sops file not found at $$sops_file${RESET}"; exit 0; \
+		fi; \
+		echo "${CYAN}Decrypting $$sops_file to $$env_file...${RESET}"; \
+		SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) --input-type yaml --output-type dotenv -d "$$sops_file" > "$$env_file" 2>/tmp/sops_error || { \
+			echo "${RED}Package $$TARGET_PKG_DIR_NAME decryption failed. Error:${RESET}"; \
+			cat /tmp/sops_error; rm -f /tmp/sops_error; \
+			exit 1; \
+		}; \
+		rm -f /tmp/sops_error; \
+		echo "${GREEN}Package $$TARGET_PKG_DIR_NAME decryption complete.${RESET}"; \
 	fi
-	@pkg="$(PKG)"; \
-	case "$$pkg" in \
-		gsuite) pkg_dir="$(GSUITE_DIR)" ;; \
-		*) echo "${RED}Unknown package abbreviation: $$pkg${RESET}"; exit 1 ;; \
-	esac; \
-	if [ ! -f "$$pkg_dir/.env.sops" ]; then \
-		echo "${RED}Error: .env.sops file not found for package $$pkg${RESET}"; \
-		exit 1; \
-	fi; \
-	if [ -z "$$SOPS_AGE_KEY_FILE" ]; then \
-		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Try: source ~/.zshrc ${RESET}"; \
-		exit 1; \
-	fi; \
-	echo "${CYAN}Decrypting $$pkg_dir/.env.sops to $$pkg_dir/.env...${RESET}"; \
-	SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" sops --input-type yaml --output-type dotenv -d $$pkg_dir/.env.sops > $$pkg_dir/.env 2>/tmp/sops_error || { \
-		echo "${RED}Package $$pkg decryption failed. Error:${RESET}"; \
-		cat /tmp/sops_error; \
-		exit 1; \
-	}; \
-	echo "${GREEN}Package $$pkg decryption complete${RESET}"
 
-# Encrypt all .env files in the monorepo
+encrypt-root decrypt-root: setup
+	@CMD_NAME=$@; \
+	env_file=".env"; \
+	sops_file=".env.sops"; \
+	if [ -z "$$SOPS_AGE_KEY_FILE" ]; then \
+		echo "${RED}Error: SOPS_AGE_KEY_FILE not set. Ensure .env is loaded if defined there, or export it directly.${RESET}"; exit 1; \
+	fi; \
+	if [ "$$CMD_NAME" = "encrypt-root" ]; then \
+		if [ ! -f "$$env_file" ]; then \
+			echo "${YELLOW}Root .env file not found, skipping encryption.${RESET}"; exit 0; \
+		fi; \
+		echo "${CYAN}Encrypting root .env to .env.sops...${RESET}"; \
+		SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) --input-type dotenv --output-type yaml -e "$$env_file" > "$$sops_file"; \
+		echo "${GREEN}Root encryption complete.${RESET}"; \
+	elif [ "$$CMD_NAME" = "decrypt-root" ]; then \
+		if [ ! -f "$$sops_file" ]; then \
+			echo "${YELLOW}Root .env.sops file not found, skipping decryption.${RESET}"; exit 0; \
+		fi; \
+		echo "${CYAN}Decrypting root .env.sops to .env...${RESET}"; \
+		SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) --input-type yaml --output-type dotenv -d "$$sops_file" > "$$env_file" 2>/tmp/sops_error || { \
+			echo "${RED}Root decryption failed. Error:${RESET}"; cat /tmp/sops_error; rm -f /tmp/sops_error; exit 1; \
+		}; \
+		rm -f /tmp/sops_error; \
+		echo "${GREEN}Root decryption complete.${RESET}"; \
+	fi
+
 encrypt: encrypt-root
 	@echo "${CYAN}Encrypting all package .env files...${RESET}"
-	@make encrypt-pkg PKG=gsuite 2>/dev/null || echo "${YELLOW}Skipping gsuite (no .env file)${RESET}"
-	@echo "${GREEN}All encryption complete${RESET}"
+	@for pkg_dir in $(PKG_NAMES); do \
+		make encrypt-pkg PKG_DIR=$$pkg_dir; \
+	done
+	@echo "${GREEN}All encryption tasks complete.${RESET}"
 
-# Decrypt all .env.sops files in the monorepo
 decrypt: decrypt-root
 	@echo "${CYAN}Decrypting all package .env.sops files...${RESET}"
-	@make decrypt-pkg PKG=gsuite 2>/dev/null || echo "${YELLOW}Skipping gsuite (no .env.sops file)${RESET}"
-	@echo "${GREEN}All decryption complete${RESET}"
+	@for pkg_dir in $(PKG_NAMES); do \
+		make decrypt-pkg PKG_DIR=$$pkg_dir; \
+	done
+	@echo "${GREEN}All decryption tasks complete.${RESET}"
 
-# Initialize a new age key if needed
 init-key:
 	@if [ -f "$$HOME/.config/sops/key.txt" ]; then \
-		echo "${YELLOW}Key already exists at $$HOME/.config/sops/key.txt${RESET}"; \
-		echo "${YELLOW}To create a new key, first move or delete the existing one${RESET}"; \
+		echo "${YELLOW}Key already exists at $$HOME/.config/sops/key.txt. To create a new key, first move or delete the existing one.${RESET}"; \
 		exit 1; \
 	fi
-	@mkdir -p $$HOME/.config/sops
+	@mkdir -p "$$HOME/.config/sops"
 	@echo "${CYAN}Generating new age key...${RESET}"
-	@age-keygen -o $$HOME/.config/sops/key.txt
+	@age-keygen -o "$$HOME/.config/sops/key.txt"
 	@echo "${GREEN}Key generated. Add this public key to .sops.yaml:${RESET}"
-	@age-keygen -y $$HOME/.config/sops/key.txt | sed 's/^public key: //'
-	@echo "${YELLOW}Then add to your shell profile: export SOPS_AGE_KEY_FILE=\$$HOME/.config/sops/key.txt${RESET}"
+	@age-keygen -y "$$HOME/.config/sops/key.txt" | sed 's/^public key: //'
+	@echo "${YELLOW}Then add to your shell profile (e.g., ~/.zshrc): export SOPS_AGE_KEY_FILE=\$$HOME/.config/sops/key.txt${RESET}"
 
-# Help message with examples and tips
+# --- Help ---
 help:
-	@echo "$(BOLD)$(BLUE)╔══════════════════════════════════════════════════════════╗$(RESET)"
-	@echo "$(BOLD)$(BLUE)║$(RESET) $(BOLD)$(MAGENTA)               ARCLIO MCP TOOLING COMMANDS              $(BLUE)║$(RESET)"
-	@echo "$(BOLD)$(BLUE)╚══════════════════════════════════════════════════════════╝$(RESET)"
+	@echo "$${BOLD}$${BLUE}╔══════════════════════════════════════════════════════════╗$${RESET}"
+	@echo "$${BOLD}$${BLUE}║$${RESET} $${BOLD}$${MAGENTA}               ARCLIO MCP TOOLING COMMANDS               $${BLUE}║$${RESET}"
+	@echo "$${BOLD}$${BLUE}╚══════════════════════════════════════════════════════════╝$${RESET}"
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗦𝗲𝘁𝘂𝗽:$(RESET)                                                  $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make setup$(RESET)              Setup the monorepo for development"
-	@echo "  $(GREEN)make install$(RESET)            Install dependencies in a virtual environment"
-	@echo "  $(GREEN)make setup-dev$(RESET)          Install development dependencies"
+	@echo "$${BOLD}$${CYAN}Usage: make <command> [package_name] [other_args...]$${RESET}"
+	@echo "$${YELLOW}Note: For commands expecting a package_name, it should be one of: $(PKG_NAMES)$${RESET}"
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗗𝗲𝘃𝗲𝗹𝗼𝗽𝗺𝗲𝗻𝘁:$(RESET)                                            $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make lint$(RESET)               Run linters on all packages"
-	@echo "  $(GREEN)make format$(RESET)             Format code in all packages"
-	@echo "  $(GREEN)make fix$(RESET)                Fix linting issues automatically"
+	@echo "$${BOLD}$${WHITE}Core Setup:$${RESET}"
+	@echo "  $${GREEN}make setup$${RESET}                     Setup monorepo: creates venv, installs uv, syncs all deps."
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗧𝗲𝘀𝘁𝗶𝗻𝗴:$(RESET)                                                $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make test$(RESET)               Run all tests"
-	@echo "  $(GREEN)make test-unit$(RESET)          Run only unit tests"
-	@echo "  $(GREEN)make test-integration$(RESET)   Run only integration tests"
-	@echo "  $(GREEN)make test-gsuite$(RESET)        Run tests for arclio-mcp-gsuite package"
+	@echo "$${BOLD}$${WHITE}Code Quality:$${RESET} $${YELLOW}(Optional package_name is one of: $(PKG_NAMES))$${RESET}"
+	@echo "  $${GREEN}make lint [package_name]$${RESET}        Run linters (Ruff check)."
+	@echo "  $${GREEN}make format [package_name]$${RESET}      Format code (Ruff format)."
+	@echo "  $${GREEN}make fix [package_name]$${RESET}         Fix linting issues automatically."
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗣𝗮𝗰𝗸𝗮𝗴𝗲 𝗠𝗮𝗻𝗮𝗴𝗲𝗺𝗲𝗻𝘁:$(RESET)                                     $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make add gsuite pydantic$(RESET) Add dependency to arclio-mcp-gsuite package"
-	@echo "  $(GREEN)make install-all$(RESET)        Install all packages in development mode"
+	@echo "$${BOLD}$${WHITE}Testing:$${RESET} $${YELLOW}(Optional package_name is one of: $(PKG_NAMES))$${RESET}"
+	@echo "  $${GREEN}make test [package_name]$${RESET}         Run all tests (for all or specified package)."
+	@echo "  $${GREEN}make test-unit [package_name]$${RESET}    Run unit tests (for all or specified package)."
+	@echo "  $${GREEN}make test-integration [package_name]$${RESET} Run integration tests (for all or specified package)."
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗥𝘂𝗻𝗻𝗶𝗻𝗴:$(RESET)                                                $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make run-gsuite$(RESET)         Run arclio-mcp-gsuite MCP server"
+	@echo "$${BOLD}$${WHITE}Building Packages:$${RESET} $${YELLOW}(Optional package_name is one of: $(PKG_NAMES))$${RESET}"
+	@echo "  $${GREEN}make build [package_name]$${RESET}        Build all packages or a specific one."
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗕𝘂𝗶𝗹𝗱𝗶𝗻𝗴:$(RESET)                                               $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make build$(RESET)              Build all packages"
-	@echo "  $(GREEN)make publish$(RESET)            Publish all packages"
+	@echo "$${BOLD}$${WHITE}Publishing Packages:$${RESET} $${YELLOW}(Optional package_name; UV_PYPI_TOKEN must be set; UV_REPOSITORY_URL for TestPyPI)$${RESET}"
+	@echo "  $${GREEN}make publish [package_name]$${RESET}      Publish all built packages or a specific one."
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗨𝘁𝗶𝗹𝗶𝘁𝗶𝗲𝘀:$(RESET)                                              $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make clean$(RESET)              Clean build artifacts and cache files"
+	@echo "$${BOLD}$${WHITE}Dependency Management:$${RESET}"
+	@echo "  $${GREEN}make add <uv_pkg_name> <dep_spec>$${RESET} Add dependency to a package."
+	@echo "    $${YELLOW}Example: make add arclio-mcp-gsuite pydantic==2.5.0$${RESET}"
 	@echo ""
-	@echo "$(BOLD)$(CYAN)┌─────────────────────────────────────────────────────────┐$(RESET)"
-	@echo "$(BOLD)$(CYAN)│$(RESET) $(BOLD)$(WHITE)𝗦𝗢𝗣𝗦:$(RESET)                                                   $(BOLD)$(CYAN)│$(RESET)"
-	@echo "$(BOLD)$(CYAN)└─────────────────────────────────────────────────────────┘$(RESET)"
-	@echo "  $(GREEN)make encrypt-root$(RESET)       Encrypt root .env to .env.sops"
-	@echo "  $(GREEN)make decrypt-root$(RESET)       Decrypt root .env.sops to .env"
-	@echo "  $(GREEN)make encrypt-pkg PKG=gsuite$(RESET) Encrypt package .env file"
-	@echo "  $(GREEN)make decrypt-pkg PKG=gsuite$(RESET) Decrypt package .env.sops file"
-	@echo "  $(GREEN)make encrypt$(RESET)            Encrypt all .env files in the monorepo"
-	@echo "  $(GREEN)make decrypt$(RESET)            Decrypt all .env.sops files in the monorepo"
-	@echo "  $(GREEN)make init-key$(RESET)           Generate a new age key for SOPS"
+	@echo "$${BOLD}$${WHITE}Running Servers:$${RESET}"
+	@echo "  $${GREEN}make run-gsuite$${RESET}                  Run the arclio-mcp-gsuite server."
 	@echo ""
-	@echo "$(BOLD)$(MAGENTA)Happy coding! 🚀$(RESET)"
+	@echo "$${BOLD}$${WHITE}Secrets Management (SOPS):$${RESET}"
+	@echo "  $${GREEN}make encrypt-root / decrypt-root$${RESET} Encrypt/decrypt root .env file."
+	@echo "  $${GREEN}make encrypt-pkg PKG_DIR=<name>$${RESET}  Encrypt .env for package (e.g., PKG_DIR=arclio-mcp-gsuite)."
+	@echo "  $${GREEN}make decrypt-pkg PKG_DIR=<name>$${RESET}  Decrypt .env.sops for package."
+	@echo "  $${GREEN}make encrypt / decrypt$${RESET}            Run root and all package SOPS operations."
+	@echo "  $${GREEN}make init-key$${RESET}                    Generate a new age key for SOPS."
+	@echo ""
+	@echo "$${BOLD}$${WHITE}Utilities:$${RESET}"
+	@echo "  $${GREEN}make clean$${RESET}                      Clean build artifacts, caches, and venv."
+	@echo ""
+	@echo "$${BOLD}$${MAGENTA}Happy coding! 🚀$${RESET}"
+
+# Variables for specific targets like encrypt-pkg/decrypt-pkg
+PKG_DIR := $(PKG_DIR)
+# Fallback for targets that don't use pattern matching but might take optional args
+%:
+	@:

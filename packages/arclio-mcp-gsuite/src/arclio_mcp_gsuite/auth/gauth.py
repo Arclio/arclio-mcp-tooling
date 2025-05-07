@@ -35,21 +35,13 @@ def get_credentials():
     refresh_token = os.environ.get("GSUITE_REFRESH_TOKEN")
 
     if not client_id:
-        raise ValueError(
-            "Environment variable 'GSUITE_CLIENT_ID' is required but not set."
-        )
+        raise ValueError("Environment variable 'GSUITE_CLIENT_ID' is required but not set.")
     if not client_secret:
-        raise ValueError(
-            "Environment variable 'GSUITE_CLIENT_SECRET' is required but not set."
-        )
+        raise ValueError("Environment variable 'GSUITE_CLIENT_SECRET' is required but not set.")
     if not refresh_token:
-        raise ValueError(
-            "Environment variable 'GSUITE_REFRESH_TOKEN' is required but not set."
-        )
+        raise ValueError("Environment variable 'GSUITE_REFRESH_TOKEN' is required but not set.")
 
-    logger.info(
-        "Successfully retrieved G Suite credentials from environment variables."
-    )
+    logger.info("Successfully retrieved G Suite credentials from environment variables.")
 
     try:
         return Credentials(
