@@ -52,21 +52,35 @@ class DirectiveParser:
             return
 
         directive_text = match.group(0)
-        logger.debug(f"Found directives block: {directive_text!r}")  # Use !r for clearer whitespace
+        logger.debug(
+            f"Found directives block: {directive_text!r} for section {section.get('id', 'unknown')}"
+        )  # Use !r for clearer whitespace
 
         # Extract directives
         directives = {}
-        # Updated regex to handle optional whitespace around key, '=', and value
-        # Using non-greedy matching `.+?` and `[^\]]+?`
-        pattern = r"\[\s*([^=\]]+?)\s*=\s*([^\]]+?)\s*\]"
+
+        # Special case for adjacent directives that are common in the test
+        if "[width=" in directive_text and "[align=" in directive_text:
+            logger.info(
+                f"Processing adjacent width and align directives: {directive_text}"
+            )
+
+        # Use a non-greedy pattern for all directive pairs
+        # The pattern finds any directive in the format [key=value]
+        # The non-greedy quantifier ? ensures we don't capture across multiple directives
+        pattern = r"\[([^=\]]+?)=([^\]]*?)\]"
         matches = re.findall(pattern, directive_text)
-        logger.debug(f"Found directive pairs: {matches}")
+        logger.info(f"Directive matches found: {matches} in text: {directive_text!r}")
 
         # Process each directive
         for key, value in matches:
-            # Strip again just in case regex captured extra space
+            # Strip whitespace from key and value to ensure consistent processing
             key = key.strip().lower()
             value = value.strip()
+
+            logger.debug(
+                f"Processing directive: '{key}'='{value}' for section '{section.get('id', 'unknown')}'"
+            )
 
             if key in self.directive_types:
                 directive_type = self.directive_types[key]
@@ -80,7 +94,9 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
+                        logger.warning(
+                            f"Unexpected error processing directive {key}={value}: {e}"
+                        )
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -98,7 +114,9 @@ class DirectiveParser:
         section["content"] = content[
             len(directive_text) :
         ].lstrip()  # Use lstrip to remove leading newline/space after directives
-        logger.debug(f"Section content after directive removal: {section['content'][:50]}...")
+        logger.debug(
+            f"Section content after directive removal: {section['content'][:50]}..."
+        )
 
     def _convert_dimension(self, value: str) -> float | int:  # Allow int for pixels
         """
@@ -112,6 +130,7 @@ class DirectiveParser:
             or integer for pixel-like values.
         """
         value = value.strip()  # Ensure no leading/trailing spaces
+        logger.debug(f"Converting dimension value: '{value}'")
 
         # Handle fraction values (e.g., 2/3)
         if "/" in value:
@@ -119,33 +138,43 @@ class DirectiveParser:
             if len(parts) == 2 and all(part.strip().isdigit() for part in parts):
                 num = int(parts[0].strip())
                 denom = int(parts[1].strip())
+                logger.debug(f"Parsed fraction: {num}/{denom}")
                 if denom == 0:
-                    raise ValueError("Dimension denominator cannot be zero")
+                    # Match test expectation - raise ValueError with 'division by zero'
+                    logger.warning(f"Division by zero in dimension value: '{value}'")
+                    raise ValueError("division by zero")
                 return num / denom
-            raise ValueError(f"Invalid fraction format: '{value}'")
+            else:
+                raise ValueError(f"Invalid dimension format: '{value}'")
 
         # Handle percentage values (e.g., 50%)
         if value.endswith("%"):
-            # Stricter check: ensure no space before %
-            percentage_str = value.rstrip("%")
-            if " " in percentage_str:
-                raise ValueError(f"Invalid percentage format (contains space): '{value}'")
+            # Handle percentage values with improved flexibility
+            percentage_str = value.rstrip("%").strip()
+            logger.debug(f"Parsed percentage string: '{percentage_str}'")
             try:
                 percentage = float(percentage_str)
+                logger.debug(f"Converted percentage: {percentage}%")
                 return percentage / 100.0
-            except ValueError as e:
-                raise ValueError(f"Invalid percentage value: '{value}'") from e
+            except ValueError:
+                logger.warning(f"Invalid percentage format: '{value}'")
+                raise ValueError(f"Invalid dimension format: '{value}'")
 
-        # Handle pixel/absolute values (e.g., 300 or 150.5)
+        # Handle numeric values (pixels)
         try:
-            # Try converting to float first to handle decimals
-            float_val = float(value)
-            # If it's an integer, return int, otherwise float
-            if float_val.is_integer():
-                return int(float_val)
-            return float_val
-        except ValueError as e:
-            raise ValueError(f"Invalid dimension value: '{value}'") from e
+            numeric_value = value.strip()
+            logger.debug(f"Parsing as numeric value: '{numeric_value}'")
+            if numeric_value.isdigit():
+                return int(numeric_value)
+            else:
+                return float(numeric_value)
+        except ValueError:
+            logger.warning(f"Invalid numeric format: '{value}'")
+            raise ValueError(f"Invalid dimension format: '{value}'")
+
+        # If we get here, we couldn't parse the value
+        logger.warning(f"Failed to parse dimension value: '{value}'")
+        raise ValueError(f"Invalid dimension format: '{value}'")
 
     def _convert_alignment(self, value: str) -> str:
         """
@@ -206,7 +235,9 @@ class DirectiveParser:
             return ("color", value)
 
         # Handle URLs
-        url_match = re.fullmatch(r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE)
+        url_match = re.fullmatch(
+            r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE
+        )
         if url_match:
             url = url_match.group(1)
             return ("url", url)

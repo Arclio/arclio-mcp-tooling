@@ -29,10 +29,14 @@ class LayoutManager:
         self.slide_height = 405
 
         # Maximum content height
-        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
+        self.max_content_height = (
+            self.slide_height - self.margins["top"] - self.margins["bottom"]
+        )
 
         # Maximum content width
-        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
+        self.max_content_width = (
+            self.slide_width - self.margins["left"] - self.margins["right"]
+        )
 
         # Default element sizes
         self.default_sizes = {
@@ -94,7 +98,9 @@ class LayoutManager:
                 return result
             updated_slide = result
 
-        logger.debug(f"Position calculation completed for slide: {updated_slide.object_id}")
+        logger.debug(
+            f"Position calculation completed for slide: {updated_slide.object_id}"
+        )
         return updated_slide
 
     def _calculate_flat_positions(self, slide: Slide) -> Slide:
@@ -217,13 +223,16 @@ class LayoutManager:
                 if not hasattr(element, "size") or not element.size:
                     element.size = self.default_sizes[ElementType.FOOTER]
 
-                # Position at the bottom - ensure Y position is at least 320 for tests
-                bottom_position = max(
-                    320, self.slide_height - self.margins["bottom"] - element.size[1]
+                # Position at the actual bottom of the slide
+                bottom_position = (
+                    self.slide_height - self.margins["bottom"] - element.size[1]
                 )
                 element.position = (self.margins["left"], bottom_position)
+                logger.debug(f"Positioned footer at y={bottom_position}")
 
-    def _calculate_content_area(self, slide: Slide) -> tuple[float, float, float, float]:
+    def _calculate_content_area(
+        self, slide: Slide
+    ) -> tuple[float, float, float, float]:
         """Calculate the content area considering title, subtitle, and footer.
 
         Args:
@@ -319,7 +328,9 @@ class LayoutManager:
 
         for section in sections:
             # Calculate section width
-            section_width = width * float(section["directives"].get("width", 1.0 / len(sections)))
+            section_width = width * float(
+                section["directives"].get("width", 1.0 / len(sections))
+            )
 
             # Set position and size
             section["position"] = (current_x, top)
@@ -380,7 +391,9 @@ class LayoutManager:
                 # Distribute elements across subsections
                 subsection_elements = content_elements[start_idx:end_idx]
                 subsection_count = len(section["subsections"])
-                elements_per_subsection = max(1, len(subsection_elements) // subsection_count)
+                elements_per_subsection = max(
+                    1, len(subsection_elements) // subsection_count
+                )
 
                 for j, subsection in enumerate(section["subsections"]):
                     # Get subsection ID
@@ -388,13 +401,17 @@ class LayoutManager:
 
                     # Assign elements to this subsection
                     sub_start_idx = j * elements_per_subsection
-                    sub_end_idx = min((j + 1) * elements_per_subsection, len(subsection_elements))
+                    sub_end_idx = min(
+                        (j + 1) * elements_per_subsection, len(subsection_elements)
+                    )
 
                     # Handle last subsection (include any remaining elements)
                     if j == subsection_count - 1:
                         sub_end_idx = len(subsection_elements)
 
-                    element_map[subsection_id] = subsection_elements[sub_start_idx:sub_end_idx]
+                    element_map[subsection_id] = subsection_elements[
+                        sub_start_idx:sub_end_idx
+                    ]
 
         return element_map
 
@@ -565,7 +582,9 @@ class LayoutManager:
         if element.element_type == ElementType.TEXT:
             # Calculate text height based on approximate characters per line
             text_element = element  # type: TextElement
-            chars_per_line = max(1, int(element.size[0] / 8))  # Rough estimate: 8px per char
+            chars_per_line = max(
+                1, int(element.size[0] / 8)
+            )  # Rough estimate: 8px per char
             line_count = max(1, len(text_element.text) / chars_per_line)
             # Height per line, minimum height
             return max(line_count * 20, 40)
@@ -584,7 +603,9 @@ class LayoutManager:
         """
         # Skip footer when checking for overflow
         non_footer_elements = [
-            element for element in slide.elements if element.element_type != ElementType.FOOTER
+            element
+            for element in slide.elements
+            if element.element_type != ElementType.FOOTER
         ]
 
         # Check each element
@@ -660,7 +681,11 @@ class LayoutManager:
             if current_y + element_height <= (
                 self.slide_height
                 - self.margins["bottom"]
-                - (footer_element.size[1] + self.vertical_spacing if footer_element else 0)
+                - (
+                    footer_element.size[1] + self.vertical_spacing
+                    if footer_element
+                    else 0
+                )
             ):
                 # Element fits, add it to first slide
                 element.position = (element.position[0], current_y)
@@ -708,7 +733,11 @@ class LayoutManager:
                 if current_y + element_height <= (
                     self.slide_height
                     - self.margins["bottom"]
-                    - (footer_element.size[1] + self.vertical_spacing if footer_element else 0)
+                    - (
+                        footer_element.size[1] + self.vertical_spacing
+                        if footer_element
+                        else 0
+                    )
                 ):
                     # Element fits, add it
                     element.position = (element.position[0], current_y)
@@ -718,14 +747,49 @@ class LayoutManager:
                     # Element doesn't fit, save for next slide
                     remaining_for_next.append(element)
 
-            # If there are still remaining elements, we need another continuation slide
+            # If there are still remaining elements, recursively create more continuation slides
             if remaining_for_next:
-                # This is a simplified approach - in a real implementation,
-                # you would recursively create more continuation slides as needed
-                logger.warning(
-                    f"Some elements ({len(remaining_for_next)}) don't fit on continuation slide. "
-                    "Consider breaking content into more slides manually."
+                logger.info(
+                    f"Creating additional continuation slides for {len(remaining_for_next)} elements"
                 )
+
+                # Create a new slide with the remaining elements
+                next_slide = Slide(
+                    elements=[],
+                    layout=slide.layout,
+                    notes=slide.notes,
+                    object_id=f"{slide.object_id}_cont2",
+                    footer=slide.footer,
+                    background=slide.background,
+                )
+
+                # Add the title with "(cont.)" if original had a title
+                if title_element:
+                    next_title = TextElement(
+                        element_type=ElementType.TITLE,
+                        text=f"{title_element.text} (cont.)",
+                        position=title_element.position,
+                        size=title_element.size,
+                    )
+                    next_slide.elements.append(next_title)
+
+                # Add the footer if present
+                if footer_element:
+                    next_slide.elements.append(footer_element)
+
+                # Add the remaining elements
+                for element in remaining_for_next:
+                    next_slide.elements.append(element)
+
+                # Recursively handle the overflow for the next slide
+                additional_slides = self._handle_overflow(next_slide)
+
+                # If the result is a single slide, make it a list
+                if not isinstance(additional_slides, list):
+                    additional_slides = [additional_slides]
+
+                # Return all slides in sequence
+                return [first_slide, cont_slide] + additional_slides
 
             # Return the list of slides
             return [first_slide, cont_slide]

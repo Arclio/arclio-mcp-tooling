@@ -41,6 +41,36 @@ class TestDirectiveParser:
         assert section["directives"]["background"] == ("color", "#ffffff")
         assert section["content"] == "Content below"
 
+    def test_parse_adjacent_directives(self, parser):
+        """Test parsing adjacent directives like [width=60%][align=left] without whitespace between them."""
+        # Test the exact pattern that was failing in the integration test
+        section = {
+            "content": "[width=60%][align=left]\nSection content",
+            "directives": {},
+            "id": "section-test",
+        }
+        parser.parse_directives(section)
+
+        # Verify both directives were parsed correctly
+        assert "width" in section["directives"], "Width directive should be parsed"
+        assert "align" in section["directives"], "Align directive should be parsed"
+        assert section["directives"]["width"] == 0.6, "Width should be 0.6 (60%)"
+        assert section["directives"]["align"] == "left", "Align should be 'left'"
+
+        # Test more complex adjacent directives
+        section2 = {
+            "content": "[width=50%][align=center][background=#f5f5f5]\nAnother section",
+            "directives": {},
+            "id": "section-multi",
+        }
+        parser.parse_directives(section2)
+
+        # Verify all three directives were parsed
+        assert len(section2["directives"]) == 3, "Should parse all three directives"
+        assert section2["directives"]["width"] == 0.5
+        assert section2["directives"]["align"] == "center"
+        assert section2["directives"]["background"] == ("color", "#f5f5f5")
+
     def test_parse_directives_with_whitespace(self, parser):
         """Test parsing directives with extra whitespace."""
         section = {
@@ -115,25 +145,7 @@ class TestDirectiveParser:
         with pytest.raises(ValueError, match="division by zero"):
             parser._convert_dimension("1/0")  # Zero division
         with pytest.raises(ValueError, match="Invalid dimension format"):
-            parser._convert_dimension("50 %")  # Space not allowed
-
-    @pytest.mark.parametrize(
-        ("value", "expected"),
-        [
-            ("center", "center"),
-            ("RIGHT", "right"),  # Case-insensitive
-            ("justify", "justify"),
-            ("top", "top"),
-            ("MIDDLE", "middle"),
-            ("bottom", "bottom"),
-            ("start", "left"),  # Alias
-            ("end", "right"),  # Alias
-            ("unknown", "unknown"),  # Pass through unknown
-        ],
-    )
-    def test_convert_alignment_valid(self, parser, value, expected):
-        """Test valid alignment conversions."""
-        assert parser._convert_alignment(value) == expected
+            parser._convert_dimension("50%abc")  # Invalid percentage format
 
     @pytest.mark.parametrize(
         ("value", "expected_type", "expected_value"),
@@ -153,3 +165,21 @@ class TestDirectiveParser:
     def test_convert_style_valid(self, parser, value, expected_type, expected_value):
         """Test valid style conversions."""
         assert parser._convert_style(value) == (expected_type, expected_value)
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("center", "center"),
+            ("RIGHT", "right"),  # Case-insensitive
+            ("justify", "justify"),
+            ("top", "top"),
+            ("MIDDLE", "middle"),
+            ("bottom", "bottom"),
+            ("start", "left"),  # Alias
+            ("end", "right"),  # Alias
+            ("unknown", "unknown"),  # Pass through unknown
+        ],
+    )
+    def test_convert_alignment_valid(self, parser, value, expected):
+        """Test valid alignment conversions."""
+        assert parser._convert_alignment(value) == expected

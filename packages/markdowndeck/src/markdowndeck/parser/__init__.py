@@ -27,7 +27,9 @@ class Parser:
         self.content_parser = ContentParser()
         self.layout_processor = LayoutProcessor()
 
-    def parse(self, markdown: str, title: str = None, theme_id: str | None = None) -> Deck:
+    def parse(
+        self, markdown: str, title: str = None, theme_id: str | None = None
+    ) -> Deck:
         """
         Parse markdown into a presentation deck.
 
@@ -55,7 +57,9 @@ class Parser:
 
                 # Step 2: Parse slide sections
                 sections = self.section_parser.parse_sections(slide_data["content"])
-                logger.debug(f"Parsed {len(sections)} sections for slide {slide_index + 1}")
+                logger.debug(
+                    f"Parsed {len(sections)} sections for slide {slide_index + 1}"
+                )
 
                 # Step 3: Parse directives for each section
                 for section in sections:
@@ -73,7 +77,9 @@ class Parser:
                 elements = self.content_parser.parse_content(
                     slide_data["title"], sections, slide_data.get("footer")
                 )
-                logger.debug(f"Created {len(elements)} elements for slide {slide_index + 1}")
+                logger.debug(
+                    f"Created {len(elements)} elements for slide {slide_index + 1}"
+                )
 
                 # Step 6: Create slide
                 slide = Slide(
@@ -91,17 +97,25 @@ class Parser:
 
             except Exception as e:
                 # Log error but continue with other slides
-                logger.error(f"Error processing slide {slide_index + 1}: {e}", exc_info=True)
+                logger.error(
+                    f"Error processing slide {slide_index + 1}: {e}", exc_info=True
+                )
 
                 # Create an error slide
-                error_slide = self._create_error_slide(slide_index, str(e), slide_data.get("title"))
+                error_slide = self._create_error_slide(
+                    slide_index, str(e), slide_data.get("title")
+                )
                 slides.append(error_slide)
 
         # Create and return deck
-        inferred_title = title or (slides_data[0].get("title") if slides_data else "Untitled")
+        inferred_title = title or (
+            slides_data[0].get("title") if slides_data else "Untitled"
+        )
 
         deck = Deck(slides=slides, title=inferred_title, theme_id=theme_id)
-        logger.info(f"Created deck with {len(slides)} slides and title: {inferred_title}")
+        logger.info(
+            f"Created deck with {len(slides)} slides and title: {inferred_title}"
+        )
 
         return deck
 

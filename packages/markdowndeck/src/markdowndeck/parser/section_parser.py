@@ -22,7 +22,9 @@ class SectionParser:
         # Check if content has horizontal separators (***) and no vertical separators (---)
         # If so, treat the whole content as a row with subsections
         if "***" in content and "---" not in content:
-            horizontal_parts = self._split_content_by_pattern(content, r"(?m)^\s*\*\*\*\s*$")
+            horizontal_parts = self._split_content_by_pattern(
+                content, r"(?m)^\s*\*\*\*\s*$"
+            )
             if len(horizontal_parts) > 1:
                 # Create a row with subsections
                 subsections = []
@@ -38,7 +40,9 @@ class SectionParser:
                         "id": f"section-0-{h_index}",
                     }
                     subsections.append(subsection)
-                    logger.debug(f"Added subsection: {subsection['id']}")
+                    logger.debug(
+                        f"Added subsection: {subsection['id']} with content: {h_part[:50]}..."
+                    )
 
                 # Create the row section
                 row_section = {
@@ -77,7 +81,9 @@ class SectionParser:
             logger.debug(f"Processing vertical section {v_index + 1}")
 
             # Split into horizontal sections
-            horizontal_parts = self._split_content_by_pattern(v_part, r"(?m)^\s*\*\*\*\s*$")
+            horizontal_parts = self._split_content_by_pattern(
+                v_part, r"(?m)^\s*\*\*\*\s*$"
+            )
 
             if len(horizontal_parts) == 1:
                 # No horizontal splitting, single section
@@ -133,7 +139,9 @@ class SectionParser:
         Returns:
             List of content parts
         """
+        # Use re.split to split the content
         parts = re.split(pattern, content)
+        # Keep all non-empty parts (after stripping whitespace)
         return [part for part in parts if part.strip()]
 
     def extract_content_without_directives(self, section: dict) -> str:
