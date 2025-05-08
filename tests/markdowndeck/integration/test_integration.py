@@ -123,16 +123,9 @@ class TestIntegration:
         assert len(deck.slides[0].sections[0]["subsections"]) == 2
 
         # Verify section directives
-        assert (
-            deck.slides[0].sections[0]["subsections"][0]["directives"]["width"] == 2 / 3
-        )
-        assert (
-            deck.slides[0].sections[0]["subsections"][0]["directives"]["align"]
-            == "center"
-        )
-        assert (
-            deck.slides[0].sections[0]["subsections"][1]["directives"]["width"] == 1 / 3
-        )
+        assert deck.slides[0].sections[0]["subsections"][0]["directives"]["width"] == 2 / 3
+        assert deck.slides[0].sections[0]["subsections"][0]["directives"]["align"] == "center"
+        assert deck.slides[0].sections[0]["subsections"][1]["directives"]["width"] == 1 / 3
 
         # Verify second slide vertical sections
         assert len(deck.slides[1].sections) == 2
@@ -165,14 +158,8 @@ class TestIntegration:
                 if "createShape" in request:
                     # Check that element positioning is reflected in the API request
                     assert "transform" in request["createShape"]["elementProperties"]
-                    assert (
-                        "translateX"
-                        in request["createShape"]["elementProperties"]["transform"]
-                    )
-                    assert (
-                        "translateY"
-                        in request["createShape"]["elementProperties"]["transform"]
-                    )
+                    assert "translateX" in request["createShape"]["elementProperties"]["transform"]
+                    assert "translateY" in request["createShape"]["elementProperties"]["transform"]
 
     def test_slide_with_notes_and_footer(self, parser, layout_manager, api_generator):
         """Test creating a slide with speaker notes and footer."""
@@ -220,9 +207,9 @@ class TestIntegration:
 
         # Allow for small rounding differences
         position_diff = abs(footer_element.position[1] - expected_bottom_position)
-        assert (
-            position_diff < 1
-        ), f"Footer Y position {footer_element.position[1]} should be at the slide bottom {expected_bottom_position}"
+        assert position_diff < 1, (
+            f"Footer Y position {footer_element.position[1]} should be at the slide bottom {expected_bottom_position}"
+        )
 
         # Step 3: Generate API requests
         presentation_id = "test_presentation_id"
@@ -237,9 +224,7 @@ class TestIntegration:
 
         assert speaker_notes_request is not None
         assert (
-            speaker_notes_request["updateNotesProperties"]["notesProperties"][
-                "speakerNotesText"
-            ]
+            speaker_notes_request["updateNotesProperties"]["notesProperties"]["speakerNotesText"]
             == "These are speaker notes for the presenter"
         )
 
@@ -562,9 +547,7 @@ RizzBuzz / Arcleo - Internal Use Only"""
         deck = parser.parse(markdown, "Complex Multi-Slide Test")
 
         # Basic verification
-        assert (
-            len(deck.slides) == 12
-        ), "Should parse exactly 12 slides based on === separators"
+        assert len(deck.slides) == 12, "Should parse exactly 12 slides based on === separators"
         assert deck.title == "Complex Multi-Slide Test"
 
         # ---------- Slide 1: Mid-Sprint Meeting ----------
@@ -593,9 +576,7 @@ RizzBuzz / Arcleo - Internal Use Only"""
         for element in slide2.elements:
             if element.element_type == ElementType.BULLET_LIST:
                 bullet_list_found = True
-                assert (
-                    len(element.items) >= 6
-                ), "Should have at least 6 items in the agenda list"
+                assert len(element.items) >= 6, "Should have at least 6 items in the agenda list"
 
                 # Verify specific items exist
                 agenda_items = [item.text for item in element.items]
@@ -616,16 +597,12 @@ RizzBuzz / Arcleo - Internal Use Only"""
         print(slides_raw[2])
 
         print("\nFirst section content from parsing:")
-        print(
-            f"Raw content before directive parsing: {slide3.sections[0]['content'][:100]}"
-        )
+        print(f"Raw content before directive parsing: {slide3.sections[0]['content'][:100]}")
 
         # Check complex layout with row and two subsections
         assert len(slide3.sections) == 1, "Should have one main section"
         assert slide3.sections[0]["type"] == "row", "Section should be of type 'row'"
-        assert (
-            len(slide3.sections[0]["subsections"]) == 2
-        ), "Row should have exactly 2 subsections"
+        assert len(slide3.sections[0]["subsections"]) == 2, "Row should have exactly 2 subsections"
 
         # Check the first subsection (Major Accomplishments)
         first_subsection = slide3.sections[0]["subsections"][0]
@@ -635,18 +612,14 @@ RizzBuzz / Arcleo - Internal Use Only"""
         # Now that we understand the issue, we will test only the width directive
         # and add a note about the need to fix the parser to handle adjacent directives properly
         # The issue is that the [width=60%][align=left] directives are getting split
-        print(
-            "NOTE: The 'align=left' directive is missing because the directive parser"
-        )
-        print(
-            "isn't properly handling adjacent directives in the first subsection of slide 3."
-        )
+        print("NOTE: The 'align=left' directive is missing because the directive parser")
+        print("isn't properly handling adjacent directives in the first subsection of slide 3.")
         print("This is identified as a bug to fix in the directive parser.")
 
         # Continue with content checking
-        assert (
-            "Major Accomplishments" in first_subsection["content"]
-        ), "Content should contain 'Major Accomplishments'"
+        assert "Major Accomplishments" in first_subsection["content"], (
+            "Content should contain 'Major Accomplishments'"
+        )
 
         # Check the second subsection (In Progress)
         second_subsection = slide3.sections[0]["subsections"][1]
@@ -655,9 +628,7 @@ RizzBuzz / Arcleo - Internal Use Only"""
             "color",
             "#f5f5f5",
         ), "Background should be #f5f5f5"
-        assert (
-            "In Progress" in second_subsection["content"]
-        ), "Content should contain 'In Progress'"
+        assert "In Progress" in second_subsection["content"], "Content should contain 'In Progress'"
 
         # ---------- Slide 4: Current Status with image ----------
         slide4 = deck.slides[3]
@@ -670,12 +641,12 @@ RizzBuzz / Arcleo - Internal Use Only"""
         for element in slide4.elements:
             if element.element_type == ElementType.IMAGE:
                 image_found = True
-                assert (
-                    "placeholder" in element.url.lower()
-                ), "Image URL should contain 'placeholder'"
-                assert (
-                    "project board status" in element.alt_text.lower()
-                ), "Alt text should describe the image"
+                assert "placeholder" in element.url.lower(), (
+                    "Image URL should contain 'placeholder'"
+                )
+                assert "project board status" in element.alt_text.lower(), (
+                    "Alt text should describe the image"
+                )
                 break
         assert image_found, "Image element not found in slide 4"
 
@@ -685,12 +656,8 @@ RizzBuzz / Arcleo - Internal Use Only"""
             print(f"Section {i}: {section.get('directives', {})}")
 
         # Document known directive parsing issue
-        print(
-            "NOTE: The directive parser is missing the [align=center] directive for slide 4"
-        )
-        print(
-            "This is part of the same issue with adjacent directives identified earlier"
-        )
+        print("NOTE: The directive parser is missing the [align=center] directive for slide 4")
+        print("This is part of the same issue with adjacent directives identified earlier")
 
         # Continue testing the slide content rather than failing on the missing directive
 
@@ -705,23 +672,17 @@ RizzBuzz / Arcleo - Internal Use Only"""
 
         # First section should have height, center alignment, and fontsize
         vertical_section = next(
-            (
-                s
-                for s in slide6.sections
-                if s["type"] == "section" and "height" in s["directives"]
-            ),
+            (s for s in slide6.sections if s["type"] == "section" and "height" in s["directives"]),
             None,
         )
-        assert (
-            vertical_section is not None
-        ), "Vertical section with height directive not found"
+        assert vertical_section is not None, "Vertical section with height directive not found"
 
         # Use a more lenient check for height with an acceptable range
         height_value = vertical_section["directives"]["height"]
         print(f"Vertical section height: {height_value}")
-        assert (
-            0.25 <= height_value <= 0.35
-        ), f"Height should be approximately 30%, got {height_value}"
+        assert 0.25 <= height_value <= 0.35, (
+            f"Height should be approximately 30%, got {height_value}"
+        )
 
         # Print all directives for diagnostic purposes
         print(f"Vertical section directives: {vertical_section['directives']}")
@@ -730,21 +691,15 @@ RizzBuzz / Arcleo - Internal Use Only"""
         print(
             "NOTE: The directive parser might be missing [align=center] or [fontsize=32] directives"
         )
-        print(
-            "This is part of the same issue with adjacent directives identified earlier"
-        )
+        print("This is part of the same issue with adjacent directives identified earlier")
 
         # Check align directive with leniency if present
         if "align" in vertical_section["directives"]:
-            assert (
-                vertical_section["directives"]["align"] == "center"
-            ), "Alignment should be center"
+            assert vertical_section["directives"]["align"] == "center", "Alignment should be center"
 
         # Check fontsize directive with leniency if present
         if "fontsize" in vertical_section["directives"]:
-            assert (
-                vertical_section["directives"]["fontsize"] == 32
-            ), "Font size should be 32"
+            assert vertical_section["directives"]["fontsize"] == 32, "Font size should be 32"
 
         # Check for row with three equal subsections
         row_section = next(
@@ -759,21 +714,21 @@ RizzBuzz / Arcleo - Internal Use Only"""
 
         # Each subsection should have width=33% and align=center
         for i, subsection in enumerate(row_section["subsections"]):
-            assert (
-                "width" in subsection["directives"]
-            ), f"Subsection {i + 1} missing width directive"
-            assert (
-                abs(subsection["directives"]["width"] - 0.33) < 0.01
-            ), f"Subsection {i + 1} width should be ~33%"
-            assert (
-                subsection["directives"]["align"] == "center"
-            ), f"Subsection {i + 1} alignment should be center"
+            assert "width" in subsection["directives"], (
+                f"Subsection {i + 1} missing width directive"
+            )
+            assert abs(subsection["directives"]["width"] - 0.33) < 0.01, (
+                f"Subsection {i + 1} width should be ~33%"
+            )
+            assert subsection["directives"]["align"] == "center", (
+                f"Subsection {i + 1} alignment should be center"
+            )
 
             # Verify each subsection has the correct heading (1, 2, 3)
             pillar_num = i + 1
-            assert (
-                f"{pillar_num}. " in subsection["content"]
-            ), f"Subsection content should mention pillar {pillar_num}"
+            assert f"{pillar_num}. " in subsection["content"], (
+                f"Subsection content should mention pillar {pillar_num}"
+            )
 
         # ---------- Slide 12: Questions & Discussion ----------
         slide12 = deck.slides[11]
@@ -782,18 +737,14 @@ RizzBuzz / Arcleo - Internal Use Only"""
         assert slide12.footer == "RizzBuzz / Arcleo - Internal Use Only"
 
         # Check for [height=80%][align=center][fontsize=42] directive
-        height_section = next(
-            (s for s in slide12.sections if "height" in s["directives"]), None
-        )
+        height_section = next((s for s in slide12.sections if "height" in s["directives"]), None)
         assert height_section is not None, "Section with height directive not found"
         assert height_section["directives"]["height"] == 0.8, "Height should be 80%"
-        assert (
-            height_section["directives"]["align"] == "center"
-        ), "Alignment should be center"
+        assert height_section["directives"]["align"] == "center", "Alignment should be center"
         assert height_section["directives"]["fontsize"] == 42, "Font size should be 42"
-        assert (
-            "Thank you for your attention!" in height_section["content"]
-        ), "Content missing thank you message"
+        assert "Thank you for your attention!" in height_section["content"], (
+            "Content missing thank you message"
+        )
 
         # ---------- Verify footer text is not in any element's content ----------
         for i, slide in enumerate(deck.slides):
@@ -810,6 +761,6 @@ RizzBuzz / Arcleo - Internal Use Only"""
                             ElementType.TITLE,
                             ElementType.SUBTITLE,
                         ):
-                            assert (
-                                footer_text not in element.text
-                            ), f"Footer text found in element content in slide {i + 1}"
+                            assert footer_text not in element.text, (
+                                f"Footer text found in element content in slide {i + 1}"
+                            )

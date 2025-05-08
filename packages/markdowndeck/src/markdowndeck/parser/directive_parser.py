@@ -61,9 +61,7 @@ class DirectiveParser:
 
         # Special case for adjacent directives that are common in the test
         if "[width=" in directive_text and "[align=" in directive_text:
-            logger.info(
-                f"Processing adjacent width and align directives: {directive_text}"
-            )
+            logger.info(f"Processing adjacent width and align directives: {directive_text}")
 
         # Use a non-greedy pattern for all directive pairs
         # The pattern finds any directive in the format [key=value]
@@ -94,9 +92,7 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -114,9 +110,7 @@ class DirectiveParser:
         section["content"] = content[
             len(directive_text) :
         ].lstrip()  # Use lstrip to remove leading newline/space after directives
-        logger.debug(
-            f"Section content after directive removal: {section['content'][:50]}..."
-        )
+        logger.debug(f"Section content after directive removal: {section['content'][:50]}...")
 
     def _convert_dimension(self, value: str) -> float | int:  # Allow int for pixels
         """
@@ -144,8 +138,7 @@ class DirectiveParser:
                     logger.warning(f"Division by zero in dimension value: '{value}'")
                     raise ValueError("division by zero")
                 return num / denom
-            else:
-                raise ValueError(f"Invalid dimension format: '{value}'")
+            raise ValueError(f"Invalid dimension format: '{value}'")
 
         # Handle percentage values (e.g., 50%)
         if value.endswith("%"):
@@ -166,8 +159,7 @@ class DirectiveParser:
             logger.debug(f"Parsing as numeric value: '{numeric_value}'")
             if numeric_value.isdigit():
                 return int(numeric_value)
-            else:
-                return float(numeric_value)
+            return float(numeric_value)
         except ValueError:
             logger.warning(f"Invalid numeric format: '{value}'")
             raise ValueError(f"Invalid dimension format: '{value}'")
@@ -235,9 +227,7 @@ class DirectiveParser:
             return ("color", value)
 
         # Handle URLs
-        url_match = re.fullmatch(
-            r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE
-        )
+        url_match = re.fullmatch(r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE)
         if url_match:
             url = url_match.group(1)
             return ("url", url)
