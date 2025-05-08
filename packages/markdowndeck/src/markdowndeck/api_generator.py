@@ -127,8 +127,8 @@ class ApiRequestGenerator:
         request = {
             "updateSlideProperties": {
                 "objectId": slide.object_id,
-                "fields": "slideBackgroundFill",
-                "slideProperties": {"slideBackgroundFill": {}},
+                "fields": "backgroundFill",
+                "slideProperties": {"backgroundFill": {}},
             }
         }
 
@@ -137,19 +137,23 @@ class ApiRequestGenerator:
             if background_value.startswith("#"):
                 # Convert hex to RGB
                 rgb = self._hex_to_rgb(background_value)
-                request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
-                    "solidFill": {"color": {"rgbColor": rgb}}
-                }
+                request["updateSlideProperties"]["slideProperties"][
+                    "backgroundFill"
+                ] = {"solidFill": {"color": {"opaqueColor": {"rgbColor": rgb}}}}
             else:
                 # Named colors
-                request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
+                request["updateSlideProperties"]["slideProperties"][
+                    "backgroundFill"
+                ] = {
                     "solidFill": {
-                        "color": {"opaqueColor": {"themeColor": background_value.upper()}}
+                        "color": {
+                            "opaqueColor": {"themeColor": background_value.upper()}
+                        }
                     }
                 }
         elif background_type == "image":
             # Handle image backgrounds
-            request["updateSlideProperties"]["slideProperties"]["slideBackgroundFill"] = {
+            request["updateSlideProperties"]["slideProperties"]["backgroundFill"] = {
                 "stretchedPictureFill": {"pictureId": background_value}
             }
 
@@ -180,7 +184,9 @@ class ApiRequestGenerator:
                 element, slide_id, bullet_type="BULLET_DISC_CIRCLE_SQUARE"
             )
         if element.element_type == ElementType.ORDERED_LIST:
-            return self._generate_list_element_requests(element, slide_id, bullet_type="NUMBERED")
+            return self._generate_list_element_requests(
+                element, slide_id, bullet_type="NUMBERED"
+            )
         if element.element_type == ElementType.IMAGE:
             return self._generate_image_element_requests(element, slide_id)
         if element.element_type == ElementType.TABLE:
@@ -194,7 +200,9 @@ class ApiRequestGenerator:
         logger.warning(f"Unknown element type: {element.element_type}")
         return []
 
-    def _generate_text_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
+    def _generate_text_element_requests(
+        self, element: TextElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for a text element (title, subtitle, or paragraph).
 
         Args:
@@ -246,17 +254,13 @@ class ApiRequestGenerator:
         # Apply text formatting if present
         if hasattr(element, "formatting") and element.formatting:
             for text_format in element.formatting:
-                style_request = {
-                    "updateTextStyle": {
-                        "objectId": element.object_id,
-                        "textRange": {
-                            "startIndex": text_format.start,
-                            "endIndex": text_format.end,
-                        },
-                        "style": self._format_to_style(text_format),
-                        "fields": self._format_to_fields(text_format),
-                    }
-                }
+                style_request = self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style=self._format_to_style(text_format),
+                    fields=self._format_to_fields(text_format),
+                    start_index=text_format.start,
+                    end_index=text_format.end,
+                )
                 requests.append(style_request)
 
             # Apply paragraph style if this is a title or subtitle
@@ -296,20 +300,22 @@ class ApiRequestGenerator:
             requests.append(paragraph_style)
 
         # Apply custom styling from directives
-        if hasattr(element, "directives") and element.directives and "color" in element.directives:
+        if (
+            hasattr(element, "directives")
+            and element.directives
+            and "color" in element.directives
+        ):
             # Apply text color if specified
             color_value = element.directives["color"]
             rgb = self._hex_to_rgb(color_value) if color_value.startswith("#") else None
 
             if rgb:
-                style_request = {
-                    "updateTextStyle": {
-                        "objectId": element.object_id,
-                        "textRange": {"type": "ALL"},
-                        "style": {"foregroundColor": {"rgbColor": rgb}},
-                        "fields": "foregroundColor",
-                    }
-                }
+                style_request = self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style={"foregroundColor": {"opaqueColor": {"rgbColor": rgb}}},
+                    fields="foregroundColor",
+                    range_type="ALL",
+                )
                 requests.append(style_request)
 
         # Apply font size if specified
@@ -320,14 +326,12 @@ class ApiRequestGenerator:
         ):
             font_size = element.directives["fontsize"]
             if isinstance(font_size, int | float):
-                style_request = {
-                    "updateTextStyle": {
-                        "objectId": element.object_id,
-                        "textRange": {"type": "ALL"},
-                        "style": {"fontSize": {"magnitude": font_size, "unit": "PT"}},
-                        "fields": "fontSize",
-                    }
-                }
+                style_request = self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style={"fontSize": {"magnitude": font_size, "unit": "PT"}},
+                    fields="fontSize",
+                    range_type="ALL",
+                )
                 requests.append(style_request)
 
         # Apply background color if specified
@@ -338,10 +342,17 @@ class ApiRequestGenerator:
         ):
             background_directive = element.directives["background"]
             # Check if the directive is the tuple format from DirectiveParser
-            if isinstance(background_directive, tuple) and len(background_directive) == 2:
+            if (
+                isinstance(background_directive, tuple)
+                and len(background_directive) == 2
+            ):
                 bg_type, bg_value = background_directive
                 # Check if it's a color and the value is a string starting with #
-                if bg_type == "color" and isinstance(bg_value, str) and bg_value.startswith("#"):
+                if (
+                    bg_type == "color"
+                    and isinstance(bg_value, str)
+                    and bg_value.startswith("#")
+                ):
                     try:
                         rgb = self._hex_to_rgb(bg_value)
                         # Generate the API request to update the shape's background fill
@@ -352,7 +363,9 @@ class ApiRequestGenerator:
                                 "fields": "shapeBackgroundFill.solidFill.color",
                                 "shapeProperties": {
                                     "shapeBackgroundFill": {
-                                        "solidFill": {"color": {"rgbColor": rgb}}
+                                        "solidFill": {
+                                            "color": {"opaqueColor": {"rgbColor": rgb}}
+                                        }
                                     }
                                 },
                             }
@@ -479,39 +492,39 @@ class ApiRequestGenerator:
                     adjusted_start = start + text_format.start
                     adjusted_end = start + text_format.end
 
-                    style_request = {
-                        "updateTextStyle": {
-                            "objectId": element.object_id,
-                            "textRange": {
-                                "startIndex": adjusted_start,
-                                "endIndex": adjusted_end,
-                            },
-                            "style": self._format_to_style(text_format),
-                            "fields": self._format_to_fields(text_format),
-                        }
-                    }
+                    style_request = self._apply_text_formatting(
+                        element_id=element.object_id,
+                        style=self._format_to_style(text_format),
+                        fields=self._format_to_fields(text_format),
+                        start_index=adjusted_start,
+                        end_index=adjusted_end,
+                    )
                     requests.append(style_request)
 
         # Apply custom styling from directives
-        if hasattr(element, "directives") and element.directives and "color" in element.directives:
+        if (
+            hasattr(element, "directives")
+            and element.directives
+            and "color" in element.directives
+        ):
             # Apply text color if specified
             color_value = element.directives["color"]
             rgb = self._hex_to_rgb(color_value) if color_value.startswith("#") else None
 
             if rgb:
-                style_request = {
-                    "updateTextStyle": {
-                        "objectId": element.object_id,
-                        "textRange": {"type": "ALL"},
-                        "style": {"foregroundColor": {"rgbColor": rgb}},
-                        "fields": "foregroundColor",
-                    }
-                }
+                style_request = self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style={"foregroundColor": {"opaqueColor": {"rgbColor": rgb}}},
+                    fields="foregroundColor",
+                    range_type="ALL",
+                )
                 requests.append(style_request)
 
         return requests
 
-    def _generate_image_element_requests(self, element: ImageElement, slide_id: str) -> list[dict]:
+    def _generate_image_element_requests(
+        self, element: ImageElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for an image element.
 
         Args:
@@ -563,7 +576,9 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
+    def _generate_table_element_requests(
+        self, element: TableElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for a table element.
 
         Args:
@@ -629,18 +644,16 @@ class ApiRequestGenerator:
 
             # Set header style (bold)
             for col_index in range(min(len(element.headers), col_count)):
-                style_request = {
-                    "updateTextStyle": {
-                        "objectId": element.object_id,
-                        "cellLocation": {
-                            "rowIndex": row_index,
-                            "columnIndex": col_index,
-                        },
-                        "style": {"bold": True},
-                        "fields": "bold",
-                        "textRange": {"type": "ALL"},
-                    }
-                }
+                style_request = self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style={"bold": True},
+                    fields="bold",
+                    range_type="ALL",
+                    cell_location={
+                        "rowIndex": row_index,
+                        "columnIndex": col_index,
+                    },
+                )
                 requests.append(style_request)
 
                 # Add cell fill for header
@@ -693,7 +706,11 @@ class ApiRequestGenerator:
                     requests.append(insert_text_request)
 
         # Apply table styles if specified in directives
-        if hasattr(element, "directives") and element.directives and "border" in element.directives:
+        if (
+            hasattr(element, "directives")
+            and element.directives
+            and "border" in element.directives
+        ):
             # Apply border style to all cells
             border_style_request = {
                 "updateTableBorderProperties": {
@@ -721,7 +738,9 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_code_element_requests(self, element: CodeElement, slide_id: str) -> list[dict]:
+    def _generate_code_element_requests(
+        self, element: CodeElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for a code element.
 
         Args:
@@ -771,19 +790,19 @@ class ApiRequestGenerator:
         requests.append(insert_text_request)
 
         # Add code formatting (monospace font, background)
-        style_request = {
-            "updateTextStyle": {
-                "objectId": element.object_id,
-                "textRange": {"type": "ALL"},
-                "style": {
-                    "fontFamily": "Courier New",
-                    "backgroundColor": {
-                        "opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
-                    },
+        style_request = self._apply_text_formatting(
+            element_id=element.object_id,
+            style={
+                "fontFamily": "Courier New",
+                "backgroundColor": {
+                    "opaqueColor": {
+                        "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                    }
                 },
-                "fields": "fontFamily,backgroundColor",
-            }
-        }
+            },
+            fields="fontFamily,backgroundColor",
+            range_type="ALL",
+        )
         requests.append(style_request)
 
         # Add shape background
@@ -794,7 +813,9 @@ class ApiRequestGenerator:
                 "shapeProperties": {
                     "shapeBackgroundFill": {
                         "solidFill": {
-                            "color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
+                            "color": {
+                                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                            }
                         }
                     }
                 },
@@ -839,18 +860,20 @@ class ApiRequestGenerator:
             requests.append(insert_label_request)
 
             # Style label
-            style_label_request = {
-                "updateTextStyle": {
-                    "objectId": label_id,
-                    "textRange": {"type": "ALL"},
-                    "style": {
-                        "fontFamily": "Arial",
-                        "fontSize": {"magnitude": 10, "unit": "PT"},
-                        "foregroundColor": {"rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}},
+            style_label_request = self._apply_text_formatting(
+                element_id=label_id,
+                style={
+                    "fontFamily": "Arial",
+                    "fontSize": {"magnitude": 10, "unit": "PT"},
+                    "foregroundColor": {
+                        "opaqueColor": {
+                            "rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}
+                        }
                     },
-                    "fields": "fontFamily,fontSize,foregroundColor",
-                }
-            }
+                },
+                fields="fontFamily,fontSize,foregroundColor",
+                range_type="ALL",
+            )
             requests.append(style_label_request)
 
             # Center text in label
@@ -868,7 +891,9 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_quote_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
+    def _generate_quote_element_requests(
+        self, element: TextElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for a quote element.
 
         Args:
@@ -882,17 +907,15 @@ class ApiRequestGenerator:
         requests = self._generate_text_element_requests(element, slide_id)
 
         # Add blockquote styling
-        style_request = {
-            "updateTextStyle": {
-                "objectId": element.object_id,
-                "textRange": {"type": "ALL"},
-                "style": {
-                    "italic": True,
-                    "fontFamily": "Georgia",
-                },
-                "fields": "italic,fontFamily",
-            }
-        }
+        style_request = self._apply_text_formatting(
+            element_id=element.object_id,
+            style={
+                "italic": True,
+                "fontFamily": "Georgia",
+            },
+            fields="italic,fontFamily",
+            range_type="ALL",
+        )
         requests.append(style_request)
 
         # Add indentation
@@ -917,7 +940,9 @@ class ApiRequestGenerator:
 
         return requests
 
-    def _generate_footer_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
+    def _generate_footer_element_requests(
+        self, element: TextElement, slide_id: str
+    ) -> list[dict]:
         """Generate requests for a footer element.
 
         Args:
@@ -931,17 +956,17 @@ class ApiRequestGenerator:
         requests = self._generate_text_element_requests(element, slide_id)
 
         # Add footer styling
-        style_request = {
-            "updateTextStyle": {
-                "objectId": element.object_id,
-                "textRange": {"type": "ALL"},
-                "style": {
-                    "fontSize": {"magnitude": 10, "unit": "PT"},
-                    "foregroundColor": {"rgbColor": {"red": 0.5, "green": 0.5, "blue": 0.5}},
+        style_request = self._apply_text_formatting(
+            element_id=element.object_id,
+            style={
+                "fontSize": {"magnitude": 10, "unit": "PT"},
+                "foregroundColor": {
+                    "opaqueColor": {"rgbColor": {"red": 0.5, "green": 0.5, "blue": 0.5}}
                 },
-                "fields": "fontSize,foregroundColor",
-            }
-        }
+            },
+            fields="fontSize,foregroundColor",
+            range_type="ALL",
+        )
         requests.append(style_request)
 
         return requests
@@ -956,14 +981,78 @@ class ApiRequestGenerator:
             Dictionary with the update speaker notes request
         """
         return {
-            "updateSpeakerNotesProperties": {
+            "updateNotesProperties": {
                 "objectId": slide.object_id,
-                "speakerNotesProperties": {
+                "notesProperties": {
                     "speakerNotesText": slide.notes,
                 },
                 "fields": "speakerNotesText",
             }
         }
+
+    def _apply_text_formatting(
+        self,
+        element_id,
+        style,
+        fields,
+        range_type=None,
+        start_index=None,
+        end_index=None,
+        cell_location=None,
+    ):
+        """Helper method to create properly formatted text style requests.
+
+        Args:
+            element_id: ID of the element to update
+            style: Style dictionary to apply
+            fields: Fields to update
+            range_type: Type of range (e.g., "ALL") or None for specific indices
+            start_index: Start index for specific range
+            end_index: End index for specific range
+            cell_location: Location of a cell in a table (dict with rowIndex and columnIndex)
+
+        Returns:
+            Dictionary with the update text style request
+        """
+        # Safety check - prevent accidental mixing of range_type with indices
+        if range_type and (start_index is not None or end_index is not None):
+            logger.warning(
+                f"Mixed text range specification detected: range_type={range_type} with "
+                f"start_index={start_index}, end_index={end_index}. Defaulting to range_type only."
+            )
+            # Force indices to None to avoid mixing
+            start_index = None
+            end_index = None
+
+        request = {
+            "updateTextStyle": {
+                "objectId": element_id,
+                "style": style,
+                "fields": fields,
+            }
+        }
+
+        # We need to be explicit and never mix type and indices in the textRange
+        # The Google Slides API treats unspecified type as RANGE_TYPE_UNSPECIFIED
+        # which causes conflicts if indices are also present
+        if range_type:
+            # Use type-based range (e.g., "ALL")
+            request["updateTextStyle"]["textRange"] = {"type": range_type}
+        elif start_index is not None and end_index is not None:
+            # Use index-based range, with NO type field at all
+            request["updateTextStyle"]["textRange"] = {
+                "startIndex": start_index,
+                "endIndex": end_index,
+            }
+        else:
+            # Default to ALL if neither is specified
+            request["updateTextStyle"]["textRange"] = {"type": "ALL"}
+
+        # Add cell location for table text styling if provided
+        if cell_location:
+            request["updateTextStyle"]["cellLocation"] = cell_location
+
+        return request
 
     def _format_to_style(self, text_format: TextFormat) -> dict:
         """Convert TextFormat to Google Slides TextStyle.
@@ -999,7 +1088,7 @@ class ApiRequestGenerator:
         ):
             # Handle color formatting
             rgb = self._hex_to_rgb(text_format.value)
-            style["foregroundColor"] = {"rgbColor": rgb}
+            style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
 
         return style
 
