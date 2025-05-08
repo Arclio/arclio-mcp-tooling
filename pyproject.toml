@@ -47,7 +47,8 @@ members = [
 
 [tool.uv.sources]
 arclio-mcp-gsuite = {workspace = true}
-markdowndeck = {path = "packages/markdowndeck"}
+markdowndeck = { workspace = true }
+
 
 [tool.hatch.build.targets.wheel]
 packages = ["packages/*"]

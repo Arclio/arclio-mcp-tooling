@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arclio-mcp-gsuite"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for Google Workspace integration"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},
@@ -19,10 +19,14 @@ dependencies = [
     "google-auth-httplib2>=0.1.0",
     "pytz>=2023.3",
     "python-dotenv>=1.0.0",
-    "mcp[cli] @ git+https://github.com/modelcontextprotocol/python-sdk.git",
     "markdown>=3.5.0",
     "beautifulsoup4>=4.12.0",
+    "mcp>=1.7.0",
+    "markdowndeck>=0.1.0",
 ]
+
+[project.scripts]
+arclio-gsuite-worker = "arclio_mcp_gsuite.__main__:main"
 
 [project.optional-dependencies]
 dev = []

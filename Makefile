@@ -1,6 +1,6 @@
 .PHONY: help setup clean lint format fix test test-unit test-integration build publish add \
         encrypt-root decrypt-root encrypt-pkg decrypt-pkg encrypt decrypt init-key \
-        run-gsuite
+        run-gsuite install-editable
 
 .DEFAULT_GOAL := help
 
@@ -64,6 +64,27 @@ setup: $(VENV_DIR)/bin/activate
 	@echo "${CYAN}Syncing all workspace packages and dependencies with uv...${RESET}"
 	. "$(VENV_DIR)/bin/activate"; $(UV) sync --all-packages --no-install-workspace --extra dev
 	@echo "${GREEN}Monorepo setup and sync complete.${RESET}"
+
+
+install-editable: setup
+	@PKGS_TO_INSTALL="$(PKGS)"; \
+	if [ -z "$$PKGS_TO_INSTALL" ]; then \
+		echo "${RED}Error: PKGS argument is required. Provide space-separated package dir names.${RESET}"; \
+		echo "${YELLOW}Example: make install-editable PKGS=\"arclio-mcp-gsuite markdowndeck\"${RESET}"; \
+		exit 1; \
+	fi; \
+	INSTALL_PATHS=""; \
+	for pkg_name in $$PKGS_TO_INSTALL; do \
+		pkg_path="$(PACKAGES_ROOT_DIR)/$$pkg_name"; \
+		if [ ! -d "$$pkg_path" ]; then \
+			echo "${RED}Error: Package directory '$$pkg_path' not found for package '$$pkg_name'.${RESET}"; \
+			exit 1; \
+		fi; \
+		INSTALL_PATHS="$$INSTALL_PATHS -e $$pkg_path"; \
+	done; \
+	echo "${CYAN}Installing packages editable:$$INSTALL_PATHS...${RESET}"; \
+	. "$(VENV_DIR)/bin/activate"; $(UV) pip install $$INSTALL_PATHS; \
+	echo "${GREEN}Editable installation complete.${RESET}"
 
 # --- Cleaning ---
 clean:

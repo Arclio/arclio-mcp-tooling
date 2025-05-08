@@ -136,6 +136,9 @@ pip install -e .
 
 # Or via pip (when available)
 pip install arclio-mcp-gsuite
+
+# For development with CLI tools
+pip install "arclio-mcp-gsuite[dev]"
 ```
 
 ### OAuth Setup

@@ -7,6 +7,9 @@ import logging
 import re
 from typing import Any
 
+from markdowndeck import create_presentation
+
+from arclio_mcp_gsuite.auth import gauth
 from arclio_mcp_gsuite.services.base import BaseGoogleService
 from arclio_mcp_gsuite.utils.markdown_slides import MarkdownSlidesConverter
 
@@ -556,7 +559,7 @@ class SlidesService(BaseGoogleService):
         self, title: str, markdown_content: str
     ) -> dict[str, Any]:
         """
-        Create a Google Slides presentation from Markdown content.
+        Create a Google Slides presentation from Markdown content using markdowndeck.
 
         Args:
             title: Title of the presentation
@@ -566,145 +569,22 @@ class SlidesService(BaseGoogleService):
             Created presentation data
         """
         try:
-            # Step 1: Create a new presentation
-            presentation = self.create_presentation(title)
-            presentation_id = presentation["presentationId"]
+            logger.info(f"Creating presentation from markdown: '{title}'")
 
-            # Step 2: Parse the markdown into slide sections
-            slide_sections = self.markdown_converter.split_slides(markdown_content)
+            # Get credentials
+            credentials = gauth.get_credentials()
 
-            # Skip empty slide sections
-            slide_sections = [s for s in slide_sections if s.strip()]
+            # Use markdowndeck to create the presentation
+            result = create_presentation(
+                markdown=markdown_content, title=title, credentials=credentials
+            )
 
-            # Track created slide IDs
-            slide_ids = []
+            logger.info(
+                f"Successfully created presentation with ID: {result.get('presentationId')}"
+            )
 
-            # Delete the default first slide if it exists
-            default_slides = presentation.get("slides", [])
-            if default_slides:
-                default_slide_id = default_slides[0].get("objectId")
-                if default_slide_id:
-                    try:
-                        self.delete_slide(presentation_id, default_slide_id)
-                    except Exception as e:
-                        logger.warning(f"Failed to delete default slide: {str(e)}")
-
-            # Process each slide section
-            for section in slide_sections:
-                # Parse section to determine slide layout and content
-                initial_layout, elements = self.markdown_converter.parse_slide_markdown(section)
-
-                # Create the *first* slide for this section
-                slide_create_response = self.create_slide(presentation_id, initial_layout)
-                if isinstance(slide_create_response, dict) and slide_create_response.get("error"):
-                    logger.error(f"Failed to create slide: {slide_create_response}")
-                    continue  # Skip this section if first slide creation fails
-
-                current_slide_id = slide_create_response.get("slideId")
-                if not current_slide_id:
-                    logger.error("No slide ID returned from create_slide")
-                    continue
-
-                slide_ids.append(current_slide_id)
-
-                # Vertical Overflow Logic
-                current_slide_y = 50  # Initial Y position for content on a slide
-                max_slide_height = 500  # Max Y coordinate before creating a new slide
-                vertical_padding = 20  # Space between elements
-
-                # Process each element based on its type
-                for element in elements:
-                    element_type = element.get("type")
-                    element_height = element.get("size", (0, 0))[1]
-                    element_x = element.get("position", (100, 0))[0]  # Keep original X
-
-                    # Check for vertical overflow BEFORE placing the element
-                    if current_slide_y + element_height > max_slide_height:
-                        logger.info(
-                            f"Vertical overflow detected. Creating new slide. Current Y: {current_slide_y}, Element Height: {element_height}"
-                        )
-                        # Create a new slide (use BLANK layout for subsequent slides in a section)
-                        new_slide_response = self.create_slide(presentation_id, "BLANK")
-                        if isinstance(new_slide_response, dict) and new_slide_response.get("error"):
-                            logger.error(f"Failed to create overflow slide: {new_slide_response}")
-                            # Decide how to handle: skip element? break section?
-                            continue  # Skip this element if new slide fails
-
-                        new_slide_id = new_slide_response.get("slideId")
-                        if not new_slide_id:
-                            logger.error("No slide ID returned for overflow slide")
-                            continue  # Skip element
-
-                        current_slide_id = new_slide_id
-                        slide_ids.append(current_slide_id)
-                        current_slide_y = 50  # Reset Y for the new slide
-
-                    # Calculate final position for the element on the current slide
-                    final_position = (element_x, current_slide_y)
-
-                    if element_type == "title":
-                        self.add_formatted_text(
-                            presentation_id,
-                            current_slide_id,  # Use current slide ID
-                            element["content"],
-                            position=final_position,
-                            size=element.get("size", (600, 50)),
-                        )
-
-                    elif element_type == "subtitle":
-                        self.add_formatted_text(
-                            presentation_id,
-                            current_slide_id,  # Use current slide ID
-                            element["content"],
-                            position=final_position,
-                            size=element.get("size", (600, 40)),
-                        )
-
-                    elif element_type == "text":
-                        self.add_formatted_text(
-                            presentation_id,
-                            current_slide_id,  # Use current slide ID
-                            element["content"],
-                            position=final_position,
-                            size=element.get("size", (600, 100)),
-                        )
-
-                    elif element_type in ["bullets", "numbered"]:
-                        items = element.get("items", [])
-                        # Check if items list is not empty before accessing items[0]
-                        if items and isinstance(items[0], dict):
-                            # Handle nested lists - convert to flat for now
-                            flat_items = []
-                            for item in items:
-                                if isinstance(item, dict):
-                                    flat_items.append(item["text"])
-                                    for child in item.get("children", []):
-                                        if isinstance(child, dict):
-                                            flat_items.append(f"    {child['text']}")
-                                        else:
-                                            flat_items.append(f"    {child}")
-                                else:
-                                    flat_items.append(item)
-                            items = flat_items
-
-                        self.add_bulleted_list(
-                            presentation_id,
-                            current_slide_id,  # Use current slide ID
-                            items,
-                            position=final_position,
-                            size=element.get("size", (600, 200)),
-                        )
-
-                    elif element_type == "notes":
-                        self.add_slide_notes(presentation_id, current_slide_id, element["content"])
-                        # Notes don't take up visual space, so don't increment Y
-                        continue  # Skip Y increment for notes
-
-                    # Increment Y position for the next element on the current slide
-                    current_slide_y += element_height + vertical_padding
-
-            # Return the updated presentation
-            return self.get_presentation(presentation_id)
+            # The presentation data is already in the expected format from markdowndeck
+            return result
 
         except Exception as e:
             logger.exception(f"Error creating presentation from markdown: {str(e)}")

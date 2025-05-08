@@ -110,11 +110,11 @@ class TestDirectiveParser:
 
     def test_convert_dimension_invalid(self, parser):
         """Test invalid dimension conversions."""
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid dimension format"):
             parser._convert_dimension("abc")
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="division by zero"):
             parser._convert_dimension("1/0")  # Zero division
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid dimension format"):
             parser._convert_dimension("50 %")  # Space not allowed
 
     @pytest.mark.parametrize(

@@ -97,7 +97,9 @@ async def create_presentation(
     Returns:
         Created presentation data or raises error.
     """
-    logger.info(f"Executing create_presentation for user {user_id} with title: '{title}'")
+    logger.info(
+        f"Executing create_presentation for user {user_id} with title: '{title}'"
+    )
     if not title or not title.strip():
         raise ValueError("Presentation title cannot be empty")
 
@@ -238,7 +240,9 @@ async def add_formatted_text_to_slide(
     Returns:
         Response data confirming text addition or raises error.
     """
-    logger.info(f"Executing add_formatted_text_to_slide for user {user_id} on slide '{slide_id}'")
+    logger.info(
+        f"Executing add_formatted_text_to_slide for user {user_id} on slide '{slide_id}'"
+    )
     if not presentation_id or not slide_id or text is None:
         raise ValueError("Presentation ID, Slide ID, and Text are required")
 
@@ -288,7 +292,9 @@ async def add_bulleted_list_to_slide(
     Returns:
         Response data confirming list addition or raises error.
     """
-    logger.info(f"Executing add_bulleted_list_to_slide for user {user_id} on slide '{slide_id}'")
+    logger.info(
+        f"Executing add_bulleted_list_to_slide for user {user_id} on slide '{slide_id}'"
+    )
     if not presentation_id or not slide_id or not items:
         raise ValueError("Presentation ID, Slide ID, and Items are required")
 
@@ -342,7 +348,9 @@ async def add_table_to_slide(
     Returns:
         Response data confirming table addition or raises error.
     """
-    logger.info(f"Executing add_table_to_slide for user {user_id} on slide '{slide_id}'")
+    logger.info(
+        f"Executing add_table_to_slide for user {user_id} on slide '{slide_id}'"
+    )
     if not presentation_id or not slide_id:
         raise ValueError("Presentation ID and Slide ID are required")
 
@@ -478,7 +486,9 @@ async def delete_slide(
 
     slides_service = SlidesService()
     # TODO: Pass user_id if needed
-    result = slides_service.delete_slide(presentation_id=presentation_id, slide_id=slide_id)
+    result = slides_service.delete_slide(
+        presentation_id=presentation_id, slide_id=slide_id
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error deleting slide"))
@@ -486,7 +496,9 @@ async def delete_slide(
     # Assume success if no error dict is returned (service might return empty dict or specific success info)
     if result is None:  # Handle case where service returns None on success
         result = {"success": True, "message": "Slide deleted successfully."}
-    elif not result.get("success", True):  # Handle case where service returns {"success": False}
+    elif not result.get(
+        "success", True
+    ):  # Handle case where service returns {"success": False}
         result["message"] = result.get("message", "Deletion reported as failed.")
 
     return result
@@ -494,7 +506,7 @@ async def delete_slide(
 
 @mcp.tool(
     name="create_presentation_from_markdown",
-    description="Creates a Google Slides presentation from structured Markdown content with enhanced formatting support.",
+    description="Creates a Google Slides presentation from structured Markdown content with enhanced formatting support using markdowndeck.",
 )
 async def create_presentation_from_markdown(
     title: str,
@@ -502,38 +514,43 @@ async def create_presentation_from_markdown(
     user_id: str,
 ) -> dict[str, Any]:
     """
-    Creates a Google Slides presentation from rich Markdown content.
+    Creates a Google Slides presentation from rich Markdown content using markdowndeck.
 
-    Args:
-        title: The title for the new presentation.
-        markdown_content: The Markdown content defining the slides.
-           Slides are separated by --- or *** on its own line.
-           Formatting supports:
-           # Title
-           ## Subtitle
-           *italic* or _italic_
-           **bold** or __bold__
-           * or - for bullet points
-           1. 2. 3. for numbered lists
-           ![alt text](image URL) for images
-           <!-- notes: speaker notes content --> for presenter notes
-           Tables with | column | headers | and rows
-        user_id: The email address of the Google account (passed by Hub, required).
+        ⚠️ IMPORTANT: Before generating markdown content, you MUST first call:
 
-    Returns:
-        A dictionary containing the created presentation details or an error.
+           slides://markdown_formatting_guide
+
+        This resource provides essential documentation on the expected markdown format with detailed examples.
+        Without consulting this guide, your markdown formatting may not render correctly.
+
+        Args:
+            title: The title for the new presentation.
+            markdown_content: The Markdown content defining the slides.
+               Basic structure example:
+               ```
+               # First Slide Title
+
+               Content for first slide
+
+               ===
+
+               # Second Slide Title
+
+               Content for second slide
+               ```
+               For advanced formatting options including layout control, sections, and styling,
+               consult the slides://markdown_formatting_guide resource.
+
+            user_id: The email address of the Google account (passed by Hub, required).
+
+        Returns:
+            A dictionary containing the created presentation details or an error.
     """
     logger.info(
         f"Executing create_presentation_from_markdown for user {user_id} with title '{title}'"
     )
     if not title or not markdown_content:
         raise ValueError("Title and Markdown content are required")
-
-    # Log the received markdown content (add this)
-    logger.info("Received markdown content:")
-    logger.info("----- MARKDOWN CONTENT START -----")
-    logger.info(markdown_content)
-    logger.info("----- MARKDOWN CONTENT END -----")
 
     slides_service = SlidesService()
 
@@ -542,6 +559,8 @@ async def create_presentation_from_markdown(
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(result.get("message", "Error creating presentation from Markdown"))
+        raise ValueError(
+            result.get("message", "Error creating presentation from Markdown")
+        )
 
     return result
