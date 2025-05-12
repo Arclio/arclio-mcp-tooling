@@ -177,10 +177,30 @@ class OverflowHandler:
                     )
                     element = deepcopy(remaining_elements[0])
 
-                    # Adjust height to fit in fixed body zone
-                    max_height = self.body_bottom - self.body_top - 5  # 5 points buffer
+                    # IMPROVED: More aggressive size reduction for oversized elements
+                    max_height = (
+                        self.body_bottom - self.body_top - 10
+                    )  # 10 points buffer
                     if element.size[1] > max_height:
-                        element.size = (element.size[0], max_height)
+                        # Scale height while preserving aspect ratio if possible
+                        if hasattr(element, "size") and element.size[0] > 0:
+                            scale_factor = max_height / element.size[1]
+                            # Preserve aspect ratio for images, tables, etc.
+                            if element.element_type in [
+                                ElementType.IMAGE,
+                                ElementType.TABLE,
+                                ElementType.CODE,
+                            ]:
+                                new_width = element.size[0] * scale_factor
+                                element.size = (new_width, max_height)
+                            else:
+                                element.size = (element.size[0], max_height)
+                        else:
+                            element.size = (element.size[0], max_height)
+
+                        logger.debug(
+                            f"Resized oversized element to fit: new height={max_height}"
+                        )
 
                     # Position at top of body zone
                     if hasattr(element, "position") and element.position:
@@ -277,16 +297,16 @@ class OverflowHandler:
 
     def _get_body_zone_boundaries(self, slide: Slide) -> tuple[float, float]:
         """
-        Return the fixed top and bottom y-coordinates of the body zone.
+        Get the top and bottom boundaries of the fixed body zone.
 
         Args:
-            slide: The slide (not used in fixed body zone model, but kept for compatibility)
+            slide: The slide to get body zone boundaries for
 
         Returns:
-            Tuple of (body_top, body_bottom) y-coordinates
+            Tuple of (body_top, body_bottom)
         """
-        # FIXED: Always return the fixed body zone boundaries - must match PositionCalculator exactly
-        return (self.body_top, self.body_bottom)
+        # FIXED: Always use the consistent fixed zone boundaries
+        return self.body_top, self.body_bottom
 
     def _get_body_elements(self, slide: Slide) -> list[Element]:
         """

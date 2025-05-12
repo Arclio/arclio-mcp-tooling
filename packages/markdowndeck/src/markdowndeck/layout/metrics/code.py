@@ -10,7 +10,9 @@ from markdowndeck.models import (
 logger = logging.getLogger(__name__)
 
 
-def calculate_code_element_height(element: CodeElement | dict, available_width: float) -> float:
+def calculate_code_element_height(
+    element: CodeElement | dict, available_width: float
+) -> float:
     """
     Calculate the height needed for a code element.
 
@@ -22,7 +24,9 @@ def calculate_code_element_height(element: CodeElement | dict, available_width: 
         Calculated height in points.
     """
     code_element = (
-        cast(CodeElement, element) if isinstance(element, CodeElement) else CodeElement(**element)
+        cast(CodeElement, element)
+        if isinstance(element, CodeElement)
+        else CodeElement(**element)
     )
     code_content = code_element.code
     language = code_element.language
@@ -30,34 +34,42 @@ def calculate_code_element_height(element: CodeElement | dict, available_width: 
     if not code_content:
         return 30  # Min height for an empty code block
 
-    # Heuristics for code rendering
-    # Monospace fonts are typically wider but more consistent.
-    avg_char_width_monospace_pt = 8.0  # Slightly wider than proportional text avg
-    line_height_monospace_pt = 16.0  # Typically a bit less than body text due to density
-    padding_code_block_pt = 10.0  # Top and bottom padding for the block
+    # OPTIMIZED: Reduced parameters for more efficient space usage
+    avg_char_width_monospace_pt = 7.5  # Reduced from 8.0
+    line_height_monospace_pt = 14.0  # Reduced from 16.0
+    padding_code_block_pt = 8.0  # Reduced from 10.0
+
+    # OPTIMIZED: Reduced or eliminated language label height
     language_label_height_pt = 0.0
+    if language and language.lower() not in ("text", "plaintext", "plain"):
+        language_label_height_pt = 12.0  # Reduced from 15.0
 
-    if language and language.lower() != "text":
-        language_label_height_pt = 15.0  # Small space for a language label if rendered
+    # OPTIMIZED: Reduced internal padding for more usable width
+    effective_code_width = max(
+        1.0, available_width - (2 * 6)
+    )  # Reduced from 8pt L/R padding
 
-    # Effective width for code content inside the block
-    effective_code_width = max(1.0, available_width - (2 * 8))  # Assume 8pt L/R internal padding
-
+    # Count lines more efficiently
     num_lines = 0
     for line_text in code_content.split("\n"):
         if not line_text:  # Preserve empty lines in code
             num_lines += 1
         else:
-            chars_per_line = max(1, int(effective_code_width / avg_char_width_monospace_pt))
+            # OPTIMIZED: More accurate character counting
+            chars_per_line = max(
+                1, int(effective_code_width / avg_char_width_monospace_pt)
+            )
             num_lines += (len(line_text) + chars_per_line - 1) // chars_per_line
 
+    # Calculate total height with reduced padding
     calculated_height = (
         (num_lines * line_height_monospace_pt)
-        + (2 * padding_code_block_pt)
+        + padding_code_block_pt  # Single padding (not 2x)
         + language_label_height_pt
     )
 
-    final_height = max(calculated_height, 40.0)  # Min height for a code block with some content
+    # OPTIMIZED: Reduced minimum height
+    final_height = max(calculated_height, 35.0)  # Reduced from 40.0
     logger.debug(
         f"Code block calculated height: {final_height:.2f}pt "
         f"(lines={num_lines}, lang_label={language_label_height_pt:.0f}, width={available_width:.2f})"

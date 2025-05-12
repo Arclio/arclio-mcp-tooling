@@ -603,12 +603,31 @@ class PositionCalculator:
             if i < len(elements) - 1:
                 total_height_with_spacing += self.vertical_spacing
 
-        # Check if content exceeds section height
+        # IMPROVEMENT: If content exceeds section height, consider adjusting elements to fit
         if total_height_with_spacing > area_height:
             logger.warning(
                 f"Total content height ({total_height_with_spacing:.1f}) exceeds section height ({area_height:.1f}). "
                 f"Some elements may not be fully visible."
             )
+
+            # ADDED: Scale down all elements proportionally if they exceed section height
+            if (
+                total_height_with_spacing > area_height * 1.1
+            ):  # Only scale if significantly exceeding
+                scale_factor = (
+                    area_height - 5
+                ) / total_height_with_spacing  # 5pt buffer
+                for i, height in enumerate(elements_heights):
+                    elements_heights[i] = height * scale_factor
+                    elements[i].size = (
+                        elements[i].size[0],
+                        elements[i].size[1] * scale_factor,
+                    )
+                # Update total height after scaling
+                total_height_with_spacing = area_height - 5
+                logger.debug(
+                    f"Scaled down elements by factor {scale_factor:.2f} to fit section"
+                )
 
         # Apply vertical alignment
         valign = directives.get("valign", "top").lower()

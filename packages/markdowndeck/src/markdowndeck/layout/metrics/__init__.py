@@ -25,7 +25,7 @@ def calculate_element_height(element: Element, available_width: float) -> float:
     Returns:
         The calculated height in points
     """
-    # Dispatch to specific handler based on element type
+    # OPTIMIZED: Dispatch to specific optimized metric functions based on element type
     if element.element_type in (
         ElementType.TEXT,
         ElementType.QUOTE,
@@ -33,18 +33,42 @@ def calculate_element_height(element: Element, available_width: float) -> float:
         ElementType.SUBTITLE,
         ElementType.FOOTER,
     ):
+        # Use specialized text metrics
+        from markdowndeck.layout.metrics.text import calculate_text_element_height
+
         return calculate_text_element_height(element, available_width)
+
     if element.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST):
+        # Use specialized list metrics
+        from markdowndeck.layout.metrics.list import calculate_list_element_height
+
         return calculate_list_element_height(element, available_width)
+
     if element.element_type == ElementType.TABLE:
+        # Use specialized table metrics
+        from markdowndeck.layout.metrics.table import calculate_table_element_height
+
         return calculate_table_element_height(element, available_width)
+
     if element.element_type == ElementType.CODE:
+        # Use specialized code metrics
+        from markdowndeck.layout.metrics.code import calculate_code_element_height
+
         return calculate_code_element_height(element, available_width)
+
     if element.element_type == ElementType.IMAGE:
         # Image elements typically have fixed size
-        return element.size[1] if hasattr(element, "size") and element.size else 200
-    # Default minimum height for unknown element types
-    return 80
+        return (
+            element.size[1] if hasattr(element, "size") and element.size else 180
+        )  # Reduced from 200
+
+    # Default minimum height for unknown element types - reduced
+    return 60  # Reduced from 80
+
+
+# IMPORTANT: The following implementations are fallbacks for when the specialized versions
+# in the individual metric files are not available or not imported yet.
+# All the optimizations from each specialized file should also be reflected here.
 
 
 def calculate_text_element_height(
@@ -60,6 +84,16 @@ def calculate_text_element_height(
     Returns:
         Calculated height in points
     """
+    # Import specialized implementation
+    try:
+        from markdowndeck.layout.metrics.text import (
+            calculate_text_element_height as specialized_text_height,
+        )
+
+        return specialized_text_height(element, available_width)
+    except ImportError:
+        pass
+
     # Safety check for empty text
     if not hasattr(element, "text") or not element.text:
         return 20  # Minimum height for empty text
@@ -74,32 +108,36 @@ def calculate_text_element_height(
         # Use a fixed height for footers regardless of content
         return 30.0  # Fixed footer height
 
-    # FIXED: Reduced padding and more efficient sizing parameters
+    # OPTIMIZED: Reduced padding and more efficient sizing parameters
     if element.element_type == ElementType.TITLE:
-        avg_char_width_pt = 5.5  # More realistic character width (reduced from 6.0)
-        line_height_pt = 20.0  # Reduced from 24pt
-        padding_pt = 5.0  # Reduced from 8pt
-        min_height = 30.0  # Reduced from 40pt
+        avg_char_width_pt = 5.5  # Reduced from 6.0
+        line_height_pt = 20.0  # Reduced from 24.0
+        padding_pt = 5.0  # Reduced from 8.0
+        min_height = 30.0
+        max_height = 50.0  # Reduced from 60.0
     elif element.element_type == ElementType.SUBTITLE:
-        avg_char_width_pt = 5.0  # Reduced from 5.5pt
-        line_height_pt = 18.0  # Reduced from 20pt
-        padding_pt = 4.0  # Reduced from 6pt
-        min_height = 25.0  # Reduced from 35pt
+        avg_char_width_pt = 5.0  # Reduced from 5.5
+        line_height_pt = 18.0  # Reduced from 20.0
+        padding_pt = 4.0  # Reduced from 6.0
+        min_height = 25.0
+        max_height = 40.0  # Reduced from 50.0
     elif element.element_type == ElementType.QUOTE:
-        avg_char_width_pt = 5.0  # Unchanged
-        line_height_pt = 16.0  # Reduced from 18pt
-        padding_pt = 8.0  # Reduced from 10pt
-        min_height = 25.0  # Reduced from 30pt
+        avg_char_width_pt = 5.0
+        line_height_pt = 16.0  # Reduced from 18.0
+        padding_pt = 8.0  # Reduced from 10.0
+        min_height = 25.0  # Reduced from 30.0
+        max_height = 120.0  # Reduced from 150.0
     else:  # Default for all other text elements
-        avg_char_width_pt = 5.0  # Unchanged
-        line_height_pt = 14.0  # Reduced from 16pt
-        padding_pt = 3.0  # Reduced from 4pt
-        min_height = 18.0  # Reduced from 20pt
+        avg_char_width_pt = 5.0
+        line_height_pt = 14.0  # Reduced from 16.0
+        padding_pt = 3.0  # Reduced from 4.0
+        min_height = 18.0  # Reduced from 20.0
+        max_height = 250.0  # Reduced from 300.0
 
-    # FIXED: Calculate effective width with minimal internal padding
-    effective_width = max(1.0, available_width - 4.0)  # Reduced from 6pt
+    # OPTIMIZED: Calculate effective width with minimal internal padding
+    effective_width = max(1.0, available_width - 4.0)  # Reduced from 6.0
 
-    # FIXED: More efficient line counting algorithm
+    # OPTIMIZED: More efficient line counting algorithm
     lines = text.split("\n")
     line_count = 0
 
@@ -109,7 +147,6 @@ def calculate_text_element_height(
         else:
             # Calculate characters per line based on available width
             chars_per_line = max(1, int(effective_width / avg_char_width_pt))
-
             # Simple line wrapping calculation
             text_length = len(line)
             lines_needed = (
@@ -117,7 +154,7 @@ def calculate_text_element_height(
             ) // chars_per_line  # Ceiling division
             line_count += lines_needed
 
-    # FIXED: Minimal adjustments for formatting
+    # OPTIMIZED: Minimal adjustments for formatting
     if hasattr(element, "formatting") and element.formatting:
         line_count *= 1.02  # Very minor increase (reduced from 1.05)
 
@@ -125,15 +162,6 @@ def calculate_text_element_height(
     calculated_height = (line_count * line_height_pt) + padding_pt
 
     # Apply reasonable min/max constraints based on element type
-    if element.element_type == ElementType.TITLE:
-        max_height = 60.0
-    elif element.element_type == ElementType.SUBTITLE:
-        max_height = 50.0
-    elif element.element_type == ElementType.QUOTE:
-        max_height = 120.0
-    else:
-        max_height = 250.0  # Reduced from 300pt for normal text
-
     final_height = max(min_height, min(calculated_height, max_height))
 
     return final_height
@@ -152,13 +180,23 @@ def calculate_list_element_height(
     Returns:
         Calculated height in points
     """
+    # Import specialized implementation
+    try:
+        from markdowndeck.layout.metrics.list import (
+            calculate_list_element_height as specialized_list_height,
+        )
+
+        return specialized_list_height(element, available_width)
+    except ImportError:
+        pass
+
     # Safety check
     if not hasattr(element, "items") or not element.items:
         return 20  # Minimum height for empty list
 
     items = getattr(element, "items", [])
 
-    # FIXED: More efficient list height calculation
+    # OPTIMIZED: More efficient list height calculation
     total_height = 0
     base_item_height = 24  # Reduced from 30
     item_spacing = 4  # Reduced from 5
@@ -191,7 +229,9 @@ def calculate_list_element_height(
                     (child_lines - 1) * 14
                 )  # Base height + wrapped lines
 
-                item_height += child_height + (item_spacing / 2)
+                item_height += child_height + (
+                    item_spacing / 2
+                )  # Reduced spacing between parent and child
 
         total_height += item_height + item_spacing
 
@@ -200,7 +240,7 @@ def calculate_list_element_height(
         total_height -= item_spacing
 
     # Add minimal padding
-    total_height += 10  # Reduced from 20
+    total_height += 8  # Reduced from 10
 
     # Ensure minimum height
     return max(total_height, 30.0)
@@ -219,9 +259,19 @@ def calculate_table_element_height(
     Returns:
         Calculated height in points
     """
+    # Import specialized implementation
+    try:
+        from markdowndeck.layout.metrics.table import (
+            calculate_table_element_height as specialized_table_height,
+        )
+
+        return specialized_table_height(element, available_width)
+    except ImportError:
+        pass
+
     # Safety check
     if not hasattr(element, "rows") or not element.rows:
-        return 40  # Minimum height for empty table (reduced from 60)
+        return 35  # Minimum height for empty table (reduced from 40)
 
     headers = getattr(element, "headers", [])
     rows = getattr(element, "rows", [])
@@ -233,42 +283,20 @@ def calculate_table_element_height(
     )
 
     if col_count == 0:
-        return 40  # Minimum height (reduced from 60)
+        return 35  # Minimum height (reduced from 40)
 
-    # FIXED: More efficient table height calculation
-    # Calculate cell width
-    cell_width = (
-        available_width - 8
-    ) / col_count  # Reduced border allowance from 10pt to 8pt
+    # OPTIMIZED: More efficient table height calculation with minimal border allowance
+    # No need to calculate cell_width as we're using fixed height per row
 
     # Base height calculation with reduced padding
-    header_height = headers and 25 or 0  # Reduced from 30pt
-    row_height = 0
+    header_height = headers and 22 or 0  # Reduced from 25pt
+    row_height = 20  # Reduced from 25pt
+    total_height = (
+        header_height + (row_count * row_height) + 8
+    )  # Reduced padding from 10 to 8
 
-    # Calculate row heights with reduced space per row
-    for row in rows:
-        max_cell_height = 22  # Reduced minimum cell height from 30pt
-
-        for cell_idx, cell in enumerate(row):
-            if cell_idx >= col_count:
-                break
-
-            # Calculate cell text height more efficiently
-            cell_text = str(cell)
-            chars_per_line = max(1, int(cell_width / 5.0))  # Assuming 5pt per character
-            lines_needed = (len(cell_text) + chars_per_line - 1) // chars_per_line
-            cell_height = 18 + (
-                (lines_needed - 1) * 14
-            )  # Base + wrapped lines (reduced from 20pt)
-
-            max_cell_height = max(max_cell_height, cell_height)
-
-        row_height += max_cell_height
-
-    # Total height with minimal padding
-    total_height = header_height + row_height + 20  # Reduced padding from 40pt to 20pt
-
-    return max(total_height, 40)  # Minimum table height (reduced from 60pt)
+    # Ensure minimum height
+    return max(total_height, 35.0)  # Reduced from 40.0
 
 
 def calculate_code_element_height(
@@ -284,32 +312,48 @@ def calculate_code_element_height(
     Returns:
         Calculated height in points
     """
+    # Import specialized implementation
+    try:
+        from markdowndeck.layout.metrics.code import (
+            calculate_code_element_height as specialized_code_height,
+        )
+
+        return specialized_code_height(element, available_width)
+    except ImportError:
+        pass
+
     # Safety check
     if not hasattr(element, "code") or not element.code:
-        return 40  # Minimum height (reduced from 60)
+        return 30  # Minimum height for empty code block
 
     code = getattr(element, "code", "")
+    language = getattr(element, "language", "")
 
-    # FIXED: More efficient code height calculation
-    # Count lines
-    lines = code.count("\n") + 1
+    # OPTIMIZED: Reduced parameters for code blocks
+    avg_char_width_pt = 7.5  # Reduced from 8.0
+    line_height_pt = 14.0  # Reduced from 16.0
+    padding_pt = 8.0  # Reduced from 10.0
+    language_height = 0
 
-    # Calculate wrapping with reduced internal padding
-    chars_per_line = max(
-        1, int((available_width - 20) / 7.5)
-    )  # Reduced padding from 40pt
+    if language and language.lower() not in ("text", "plaintext", "plain"):
+        language_height = 12.0  # Reduced from 15.0
 
-    # More efficient line wrapping calculation
-    wrapped_lines = 0
-    for line in code.split("\n"):
-        line_length = len(line)
-        if line_length > chars_per_line:
-            # Calculate wrapped lines using integer division
-            wrapped_lines += (line_length - 1) // chars_per_line
+    # Calculate lines of code
+    effective_width = max(1.0, available_width - 12.0)  # Reduced from 16.0
+    chars_per_line = max(1, int(effective_width / avg_char_width_pt))
+    lines = code.split("\n")
+    line_count = 0
 
-    total_lines = lines + wrapped_lines
+    for line in lines:
+        if not line:  # Empty line
+            line_count += 1
+        else:
+            # Simple line wrapping calculation
+            text_length = len(line)
+            lines_needed = (text_length + chars_per_line - 1) // chars_per_line
+            line_count += lines_needed
 
-    # Calculate height with reduced padding
-    height = (total_lines * 16) + 20  # Reduced line height from 18pt, padding from 40pt
+    # Calculate final height
+    calculated_height = (line_count * line_height_pt) + padding_pt + language_height
 
-    return max(height, 40)  # Minimum code height (reduced from 60pt)
+    return max(calculated_height, 35.0)  # Reduced from 40.0

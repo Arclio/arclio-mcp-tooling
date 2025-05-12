@@ -46,44 +46,36 @@ def calculate_text_element_height(
         # Use a fixed height for footers regardless of content
         return 30.0  # Fixed footer height
 
-    # Set base parameters based on element type - REVISED VALUES BASED ON REAL PRESENTATION TOOLS
+    # OPTIMIZED: Reduced parameters for all element types
     if element_type == ElementType.TITLE:
-        avg_char_width_pt = (
-            6.0  # More realistic character width for titles (using ~24pt font)
-        )
-        line_height_pt = 24.0  # Slightly reduced from 28pt
-        padding_pt = 8.0  # Reduced from 15pt
-        min_height = 30.0  # Reduced from 40pt
-        max_height = 60.0  # Maintained max height
+        avg_char_width_pt = 5.5  # Reduced from 6.0
+        line_height_pt = 20.0  # Reduced from 24.0
+        padding_pt = 5.0  # Reduced from 8.0
+        min_height = 30.0  # Reduced from 40.0
+        max_height = 50.0  # Reduced from 60.0
     elif element_type == ElementType.SUBTITLE:
-        avg_char_width_pt = (
-            5.5  # More realistic character width for subtitles (using ~20pt font)
-        )
-        line_height_pt = 20.0  # Reduced from 24pt
-        padding_pt = 6.0  # Reduced from 12pt
-        min_height = 25.0  # Reduced from 35pt
-        max_height = 50.0  # Maintained max height
+        avg_char_width_pt = 5.0  # Reduced from 5.5
+        line_height_pt = 18.0  # Reduced from 20.0
+        padding_pt = 4.0  # Reduced from 6.0
+        min_height = 25.0  # Reduced from 35.0
+        max_height = 40.0  # Reduced from 50.0
     elif element_type == ElementType.QUOTE:
-        avg_char_width_pt = 5.0  # More realistic character width for quotes
-        line_height_pt = 18.0  # Reduced from 20pt
-        padding_pt = 10.0  # Reduced from 20pt
-        min_height = 30.0  # Reduced from 40pt
-        max_height = 150.0  # Reduced from 200pt
+        avg_char_width_pt = 5.0  # Unchanged
+        line_height_pt = 16.0  # Reduced from 18.0
+        padding_pt = 8.0  # Reduced from 10.0
+        min_height = 25.0  # Reduced from 30.0
+        max_height = 120.0  # Reduced from 150.0
     else:  # Default for all other text elements
-        avg_char_width_pt = (
-            5.0  # More realistic character width for body text (using ~14-16pt font)
-        )
-        line_height_pt = 16.0  # Reduced from 18pt
-        padding_pt = 4.0  # Reduced from 10pt
-        min_height = 20.0  # Reduced from 30pt
-        max_height = 300.0  # Reduced from 500pt
+        avg_char_width_pt = 5.0  # Unchanged
+        line_height_pt = 14.0  # Reduced from 16.0
+        padding_pt = 3.0  # Reduced from 4.0
+        min_height = 18.0  # Reduced from 20.0
+        max_height = 250.0  # Reduced from 300.0
 
-    # Calculate effective width (accounting for internal padding)
-    effective_width = max(
-        1.0, available_width - 6.0
-    )  # Reduced internal padding from 10pt to 6pt
+    # OPTIMIZED: Calculate effective width with minimal internal padding
+    effective_width = max(1.0, available_width - 4.0)  # Reduced from 6.0
 
-    # Use word-based line counting for more accurate wrap calculation
+    # OPTIMIZED: More efficient line counting algorithm
     lines = text_content.split("\n")
     line_count = 0
 
@@ -91,40 +83,24 @@ def calculate_text_element_height(
         if not line.strip():  # Empty line
             line_count += 1
         else:
-            # Split into words and calculate word-based wrapping
-            words = line.split()
-            if not words:
-                line_count += 1
-                continue
+            # Calculate characters per line based on available width
+            chars_per_line = max(1, int(effective_width / avg_char_width_pt))
 
-            current_line_width = 0
-            for word in words:
-                # Average word length (including trailing space)
-                word_width = (
-                    len(word) * avg_char_width_pt + avg_char_width_pt
-                )  # Add space
+            # Simple line wrapping calculation
+            text_length = len(line)
+            lines_needed = (
+                text_length + chars_per_line - 1
+            ) // chars_per_line  # Ceiling division
+            line_count += lines_needed
 
-                if current_line_width + word_width <= effective_width:
-                    # Word fits on current line
-                    current_line_width += word_width
-                else:
-                    # Word requires a new line
-                    line_count += 1
-                    current_line_width = word_width
-
-            # Count the last line
-            line_count += 1
-
-    # Adjust for formatting if needed (reduced impact)
+    # OPTIMIZED: Minimal adjustments for formatting
     if formatting and any(fmt.format_type == TextFormatType.CODE for fmt in formatting):
-        line_count *= 1.05  # Reduced from 10% to 5% height increase for code formatting
+        line_count *= 1.02  # Very minor increase (reduced from 1.05)
 
-    # Calculate final height with padding
-    calculated_height = (
-        line_count * line_height_pt
-    ) + padding_pt  # Reduced from 2*padding_pt
+    # Calculate final height with minimal padding
+    calculated_height = (line_count * line_height_pt) + padding_pt  # Single padding
 
-    # Apply min/max constraints
+    # Apply reasonable min/max constraints
     final_height = max(min_height, min(calculated_height, max_height))
 
     logger.debug(

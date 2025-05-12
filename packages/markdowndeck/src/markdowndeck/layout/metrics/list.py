@@ -1,17 +1,17 @@
 """List element metrics for layout calculations."""
 
 import logging
-from typing import cast  # Added cast
+from typing import cast
 
 from markdowndeck.layout.metrics.text import (
     calculate_text_element_height,
-)  # Use the refined text height calculator
+)
 from markdowndeck.models import (
     ElementType,
     ListElement,
     ListItem,
     TextElement,
-)  # ListItem needs TextElement for text processing if complex
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +39,8 @@ def calculate_list_element_height(
         return 20  # Minimal height for an empty list
 
     total_height = 0.0
-    item_spacing = 5  # Spacing between list items
-    base_level_padding = 10  # Padding at the top/bottom of the list
+    item_spacing = 4  # Reduced from 5 (which was already reduced from original)
+    base_level_padding = 6  # Reduced from 10
 
     for item in list_element.items:
         total_height += _calculate_single_item_total_height(
@@ -68,14 +68,13 @@ def _calculate_single_item_total_height(
     """
     Calculates the total height for a single list item, including its text and any nested children.
     """
-    indent_per_level = 20  # Points of indentation per nesting level
+    indent_per_level = 16  # Reduced from 20 points of indentation per nesting level
     current_item_indent = level * indent_per_level
     item_text_width = max(
-        10.0, available_width - current_item_indent - 10
-    )  # Subtract indent and some bullet padding
+        10.0, available_width - current_item_indent - 8
+    )  # Reduced from 10 (marker padding)
 
-    # Use the text_element_height_calculator for the item's text
-    # Create a temporary TextElement for height calculation
+    # Use the optimized text_element_height calculator for the item's text
     temp_text_element = TextElement(
         element_type=ElementType.TEXT,
         text=item.text,
@@ -91,11 +90,9 @@ def _calculate_single_item_total_height(
             children_height += _calculate_single_item_total_height(
                 child_item, available_width, level + 1, item_spacing
             )
-        # If there are children, the current item's spacing might already be part of the first child's height calculation
-        # or we ensure there's at least some spacing before children start.
-        # For simplicity, we sum them up. If the text height itself has padding, this might be generous.
+
         current_item_total_height += (
             children_height - item_spacing
-        )  # Avoid double counting spacing if children height includes it.
+        )  # Avoid double counting spacing
 
     return current_item_total_height
