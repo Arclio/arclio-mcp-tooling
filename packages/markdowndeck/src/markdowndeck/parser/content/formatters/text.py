@@ -30,13 +30,6 @@ class TextFormatter(BaseFormatter):
         if token.type == "paragraph_open":
             # Check if it's NOT an image-only paragraph.
             # This relies on ImageFormatter running first and "consuming" image-only paragraphs.
-            # If ImageFormatter did not consume it, then TextFormatter can.
-            # A more robust `can_handle` would peek, but that makes it complex.
-            # We assume the dispatch order in ContentParser handles this.
-            # The `process` method below will also return None if it turns out to be image-only,
-            # although that's less efficient than `can_handle` doing it.
-
-            # Let's try a simple peek:
             if (
                 len(leading_tokens) > 1 and leading_tokens[1].type == "inline"
             ):  # leading_tokens[0] is current token
@@ -55,9 +48,6 @@ class TextFormatter(BaseFormatter):
                         return False  # This is an image-only paragraph, ImageFormatter should take it.
             return True  # It's a paragraph, and not clearly image-only from this limited peek.
         return False
-
-    # _process_heading, _process_paragraph, _process_quote methods remain largely the same
-    # as in Batch 1, but now they are part of this class and use self.element_factory.
 
     def process(
         self,
@@ -94,6 +84,7 @@ class TextFormatter(BaseFormatter):
         start_index: int,
         directives: dict[str, Any],
         is_section_heading: bool = False,
+        is_subtitle: bool = False,  # Added parameter
     ) -> tuple[TextElement | None, int]:
         """
         Process a heading token into an appropriate element.
@@ -103,6 +94,7 @@ class TextFormatter(BaseFormatter):
             start_index: Starting token index
             directives: Directives to apply
             is_section_heading: Whether this heading is a section-level heading
+            is_subtitle: Whether this heading should be a subtitle
         """
         open_token = tokens[start_index]
         level = int(open_token.tag[1])
@@ -127,49 +119,48 @@ class TextFormatter(BaseFormatter):
 
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
 
-        # MODIFIED: Use the is_section_heading parameter to determine type
-        if level == 1 or (level == 2 and not is_section_heading):
-            # Only top-level H1 and the first H2 should be title/subtitle
-            element_type = ElementType.SUBTITLE if level == 2 else ElementType.TITLE
-            default_alignment = (
-                AlignmentType.CENTER if level == 1 else AlignmentType.LEFT
-            )
+        # CRITICAL FIX: Improved heading classification to handle all cases correctly
+        if level == 1:
+            # H1 headers are always treated as titles
+            element_type = ElementType.TITLE
+            default_alignment = AlignmentType.CENTER
+        elif is_subtitle or (level == 2 and not is_section_heading):
+            # Explicit subtitle flag or first H2 that's not a section heading
+            element_type = ElementType.SUBTITLE
+            default_alignment = AlignmentType.CENTER
         else:
-            # All other headings (including section H2s and all H3-H6) are regular text
+            # All other headings (section H2s and all H3+) become text elements with styling
             element_type = ElementType.TEXT
             default_alignment = AlignmentType.LEFT
 
             # Add styling for section headings based on level
-            if not directives.get("fontsize"):
-                if level == 2:
-                    directives["fontsize"] = 18  # Larger font for H2 section headings
-                elif level == 3:
-                    directives["fontsize"] = 16  # Medium font for H3 headings
+            if level == 2:  # It's a section H2, make it prominent
+                directives["fontsize"] = 18
+                directives["margin_bottom"] = 10
+            elif level == 3:
+                directives["fontsize"] = 16
+                directives["margin_bottom"] = 8
 
-            # Add spacing below heading
-            if not directives.get("margin_bottom"):
-                directives["margin_bottom"] = 6
-
+        # Get alignment from directives or use default
         horizontal_alignment = AlignmentType(
             directives.get("align", default_alignment.value)
         )
 
+        # Create the appropriate element based on element_type
         element: TextElement | None = None
-        if element_type in (ElementType.TITLE, ElementType.SUBTITLE):
-            element = (
-                self.element_factory.create_subtitle_element(
-                    text=text_content,
-                    formatting=formatting,
-                    alignment=horizontal_alignment,
-                    directives=directives.copy(),
-                )
-                if element_type == ElementType.SUBTITLE
-                else self.element_factory.create_title_element(
-                    text=text_content,
-                    formatting=formatting,
-                )
+        if element_type == ElementType.TITLE:
+            element = self.element_factory.create_title_element(
+                text=text_content,
+                formatting=formatting,
             )
-        else:
+        elif element_type == ElementType.SUBTITLE:
+            element = self.element_factory.create_subtitle_element(
+                text=text_content,
+                formatting=formatting,
+                alignment=horizontal_alignment,
+                directives=directives.copy(),
+            )
+        else:  # ElementType.TEXT for section headers
             element = self.element_factory.create_text_element(
                 text=text_content,
                 formatting=formatting,
@@ -178,7 +169,9 @@ class TextFormatter(BaseFormatter):
             )
 
         logger.debug(
-            f"Created heading element (type: {element_type}, level: {level}, is_section_heading: {is_section_heading}) from token index {start_index} to {end_idx}"
+            f"Created heading element (type: {element_type}, level: {level}, "
+            f"is_section_heading: {is_section_heading}, is_subtitle: {is_subtitle}, "
+            f"text: '{text_content[:30]}') from token index {start_index} to {end_idx}"
         )
         return element, end_idx
 

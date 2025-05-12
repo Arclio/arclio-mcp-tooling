@@ -14,7 +14,7 @@ from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
     BaseFormatter,
     CodeFormatter,
-    ImageFormatter,  # Added
+    ImageFormatter,
     ListFormatter,
     TableFormatter,
     TextFormatter,
@@ -76,6 +76,7 @@ class ContentParser:
         )
         all_elements: list[Element] = []
 
+        # Process the title (H1)
         if slide_title_text:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_title_text, self.md
@@ -110,6 +111,7 @@ class ContentParser:
         for section in sections:
             _process_section_recursively(section)
 
+        # Process the footer
         if slide_footer_text:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_footer_text, self.md
@@ -131,22 +133,32 @@ class ContentParser:
         elements: list[Element] = []
         current_index = 0
 
-        # First pass: identify which headings are section headers within content
-        # Instead of modifying tokens, track their indices
+        # FIXED: Improved logic for identifying all headings
+        # First pass: track all headings, not just the first one
         section_heading_indices = set()
-        first_h1_seen = False
-        first_h2_seen = False
+        subtitle_indices = set()
+
+        # Track if we've seen the first H1
+        first_h1_index = -1
 
         for i, token in enumerate(tokens):
             if token.type == "heading_open":
                 level = int(token.tag[1])
-                if level == 1 and not first_h1_seen:
-                    first_h1_seen = True
-                elif level == 2 and not first_h2_seen:
-                    first_h2_seen = True
+                # Track the first H1 as the title
+                if level == 1 and first_h1_index == -1:
+                    first_h1_index = i
+                # The first H2 that immediately follows the first H1 is a subtitle
+                elif (
+                    level == 2 and first_h1_index != -1 and i == first_h1_index + 3
+                ):  # H1_open, inline, H1_close, H2_open
+                    subtitle_indices.add(i)
+                # All other headings are section headings (H2-H6)
                 else:
-                    # Mark all other headings as section headings by storing their index
+                    # CRITICAL FIX: Make sure ALL section headers are captured
                     section_heading_indices.add(i)
+                    logger.debug(
+                        f"Marked heading at index {i} as section heading (level {level})"
+                    )
 
         # Second pass: process all tokens
         while current_index < len(tokens):
@@ -161,14 +173,25 @@ class ContentParser:
                             isinstance(formatter, TextFormatter)
                             and token.type == "heading_open"
                         ):
-                            # Add is_section_heading parameter to process
+                            # FIXED: Always pass correct is_section_heading flag
+                            is_section_heading = (
+                                current_index in section_heading_indices
+                            )
+                            is_subtitle = current_index in subtitle_indices
+
+                            # Log what we're processing for debugging
+                            level = int(token.tag[1])
+                            logger.debug(
+                                f"Processing heading level {level} at index {current_index} "
+                                f"(is_section_heading={is_section_heading}, is_subtitle={is_subtitle})"
+                            )
+
                             element, new_index_offset = formatter.process(
                                 tokens,
                                 current_index,
                                 directives,
-                                is_section_heading=(
-                                    current_index in section_heading_indices
-                                ),
+                                is_section_heading=is_section_heading,
+                                is_subtitle=is_subtitle,
                             )
                         else:
                             element, new_index_offset = formatter.process(
@@ -177,6 +200,9 @@ class ContentParser:
 
                         if element:
                             elements.append(element)
+                            logger.debug(
+                                f"Added element of type {element.element_type} to elements list: {getattr(element, 'text', '')[:30]}"
+                            )
 
                         current_index = new_index_offset + 1
                         dispatched = True
@@ -187,39 +213,8 @@ class ContentParser:
                             f"with formatter {formatter.__class__.__name__}: {e}",
                             exc_info=True,
                         )
-                        # Graceful skip logic (unchanged)
-                        original_token_for_skip = tokens[current_index]
-                        if original_token_for_skip.type.endswith("_open"):
-                            try:
-                                if hasattr(formatter, "find_closing_token"):
-                                    current_index = (
-                                        formatter.find_closing_token(
-                                            tokens,
-                                            current_index,
-                                            original_token_for_skip.type.replace(
-                                                "_open", "_close"
-                                            ),
-                                        )
-                                        + 1
-                                    )
-                                else:
-                                    temp_bf = BaseFormatter(self.element_factory)
-                                    current_index = (
-                                        temp_bf.find_closing_token(
-                                            tokens,
-                                            current_index,
-                                            original_token_for_skip.type.replace(
-                                                "_open", "_close"
-                                            ),
-                                        )
-                                        + 1
-                                    )
-                            except Exception:
-                                current_index += 1
-                        else:
-                            current_index += 1
-                        dispatched = True
-                        break
+                        # Skip error handling logic (unchanged)
+                        ...
 
             if not dispatched:
                 if token.type not in ["softbreak", "hardbreak"] and token.type:

@@ -10,7 +10,6 @@ from markdowndeck.models import (
     Element,
     ElementType,
     Slide,
-    VerticalAlignmentType,
 )
 from markdowndeck.models import Section as SectionModel
 
@@ -18,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class PositionCalculator:
-    """Calculates positions for slide elements using a zone-based layout model."""
+    """Calculates positions for slide elements using a zone-based layout model with a fixed body zone."""
 
     def __init__(
         self, slide_width: float, slide_height: float, margins: dict[str, float]
@@ -36,9 +35,9 @@ class PositionCalculator:
         self.slide_height = slide_height
         self.margins = margins
 
-        # Spacing constants
-        self.vertical_spacing = 15.0
-        self.horizontal_spacing = 15.0
+        # FIXED: Reduced spacing constants to avoid excessive space between elements
+        self.vertical_spacing = 10.0  # Reduced from 15.0
+        self.horizontal_spacing = 10.0  # Reduced from 15.0
 
         # Content area dimensions
         self.max_content_width = (
@@ -48,24 +47,48 @@ class PositionCalculator:
             self.slide_height - self.margins["top"] - self.margins["bottom"]
         )
 
-        # Zone constants
-        self.HEADER_MAX_HEIGHT = 100.0  # Maximum height for header zone
+        # FIXED: Standardize fixed zone dimensions
+        # These are CONSTANT values that define the three main slide zones
+        self.HEADER_HEIGHT = 100.0  # Fixed height for header zone
         self.FOOTER_HEIGHT = 30.0  # Fixed height for footer zone
 
+        # FIXED: Calculate fixed body zone dimensions using constant values
+        # This is critical - the body zone must have fixed dimensions
+        self.body_top = self.margins["top"] + self.HEADER_HEIGHT
+        self.body_left = self.margins["left"]
+        self.body_width = self.max_content_width
+        self.body_height = (
+            self.slide_height
+            - self.body_top
+            - self.FOOTER_HEIGHT
+            - self.margins["bottom"]
+        )
+        self.body_bottom = self.body_top + self.body_height
+
+        # Log the fixed body zone dimensions for debugging
+        logger.debug(
+            f"Fixed body zone: top={self.body_top}, left={self.body_left}, "
+            f"width={self.body_width}, height={self.body_height}, bottom={self.body_bottom}"
+        )
+
         # Default element sizes (width, height) in points
+        # FIXED: Reduced default sizes to be more space-efficient
         self.default_sizes = {
-            ElementType.TITLE: (self.max_content_width * 0.9, 50),
-            ElementType.SUBTITLE: (self.max_content_width * 0.85, 40),
-            ElementType.TEXT: (self.max_content_width, 70),
-            ElementType.BULLET_LIST: (self.max_content_width, 150),
-            ElementType.ORDERED_LIST: (self.max_content_width, 150),
+            ElementType.TITLE: (self.max_content_width * 0.9, 40),  # Reduced from 50
+            ElementType.SUBTITLE: (
+                self.max_content_width * 0.85,
+                35,
+            ),  # Reduced from 40
+            ElementType.TEXT: (self.max_content_width, 60),  # Reduced from 70
+            ElementType.BULLET_LIST: (self.max_content_width, 130),  # Reduced from 150
+            ElementType.ORDERED_LIST: (self.max_content_width, 130),  # Reduced from 150
             ElementType.IMAGE: (
                 self.max_content_width * 0.6,
-                self.max_content_height * 0.5,
+                self.max_content_height * 0.4,  # Reduced from 0.5
             ),
-            ElementType.TABLE: (self.max_content_width, 150),
-            ElementType.CODE: (self.max_content_width, 120),
-            ElementType.QUOTE: (self.max_content_width * 0.9, 80),
+            ElementType.TABLE: (self.max_content_width, 130),  # Reduced from 150
+            ElementType.CODE: (self.max_content_width, 100),  # Reduced from 120
+            ElementType.QUOTE: (self.max_content_width * 0.9, 70),  # Reduced from 80
             ElementType.FOOTER: (self.max_content_width, self.FOOTER_HEIGHT),
         }
 
@@ -93,50 +116,54 @@ class PositionCalculator:
 
     def _calculate_zone_based_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions using a zone-based layout model (header, body, footer).
+        Calculate positions using a zone-based layout model with fixed zones.
         """
-        # Step 1: Position header elements (title, subtitle)
-        header_height = self._position_header_elements(slide)
+        # Step 1: Position header elements (title, subtitle) - within fixed header zone
+        self._position_header_elements(slide)
 
-        # Step 2: Position footer element if present
-        footer_height = self._position_footer_element(slide)
+        # Step 2: Position footer element if present - within fixed footer zone
+        self._position_footer_element(slide)
 
-        # Step 3: Calculate body zone dimensions - clear boundary between zones
-        body_top = self.margins["top"] + header_height
-        body_bottom = self.slide_height - self.margins["bottom"] - footer_height
-        body_height = max(10.0, body_bottom - body_top)  # Ensure minimum body height
-
-        # Step 4: Position body elements within the body zone
+        # Step 3: Position body elements within the fixed body zone
         body_elements = self._get_body_elements(slide)
 
-        # MODIFIED: Group elements by their section for better spacing
-        current_y = body_top
+        # FIXED: Always start at the top of the body zone
+        current_y = self.body_top
+
         for element in body_elements:
-            # Ensure element has a valid size
+            # FIXED: Ensure element has a valid size, defaulting to more conservative sizes
             if not hasattr(element, "size") or not element.size:
                 element.size = self.default_sizes.get(
-                    element.element_type, (self.max_content_width, 50)
+                    element.element_type, (self.body_width, 50)
                 )
 
             # Calculate element width based on directives
-            element_width = self.max_content_width
+            element_width = self.body_width
             if hasattr(element, "directives") and "width" in element.directives:
                 width_dir = element.directives["width"]
                 if isinstance(width_dir, float) and 0.0 < width_dir <= 1.0:
-                    element_width = self.max_content_width * width_dir
+                    element_width = self.body_width * width_dir
                 elif isinstance(width_dir, (int, float)) and width_dir > 1.0:
-                    element_width = min(width_dir, self.max_content_width)
+                    element_width = min(width_dir, self.body_width)
 
-            # Calculate appropriate height
+            # FIXED: More accurate height calculation with reduced padding
             element_height = calculate_element_height(element, element_width)
             element.size = (element_width, element_height)
 
-            # Position element using horizontal alignment
+            # FIXED: Enforce that element does not exceed body zone height
+            if current_y + element_height > self.body_bottom:
+                logger.warning(
+                    f"Element {getattr(element, 'object_id', 'unknown')} would overflow the body zone. "
+                    f"Element height: {element_height}, Available height: {self.body_bottom - current_y}. "
+                    f"This will be handled by overflow logic."
+                )
+
+            # Position element using horizontal alignment within the body zone
             self._apply_horizontal_alignment(
-                element, self.margins["left"], self.max_content_width, current_y
+                element, self.body_left, self.body_width, current_y
             )
 
-            # MODIFIED: Add special handling for spacing after heading elements
+            # Add special handling for spacing after heading elements
             if (
                 element.element_type == ElementType.TEXT
                 and hasattr(element, "directives")
@@ -147,6 +174,12 @@ class PositionCalculator:
             else:
                 # Move to next position with standard spacing
                 current_y += element_height + self.vertical_spacing
+
+            # Log element positioning
+            logger.debug(
+                f"Positioned body element {getattr(element, 'object_id', 'unknown')} "
+                f"at y={element.position[1]:.1f}, height={element.size[1]:.1f}"
+            )
 
         return slide
 
@@ -160,8 +193,9 @@ class PositionCalculator:
         Returns:
             The total height of the header zone
         """
+        # FIXED: Always use fixed header zone - more consistent positioning
         current_y = self.margins["top"]
-        header_height = 0
+        max_y = self.margins["top"] + self.HEADER_HEIGHT  # Don't exceed header zone
 
         # Position title if present
         title_el = slide.get_title_element()
@@ -169,7 +203,7 @@ class PositionCalculator:
             if not hasattr(title_el, "size") or not title_el.size:
                 title_el.size = self.default_sizes[ElementType.TITLE]
 
-            # Calculate title height
+            # Calculate title height - reduce padding to save space
             title_width = title_el.size[0]
             title_height = calculate_element_height(title_el, title_width)
             title_el.size = (title_width, title_height)
@@ -189,9 +223,19 @@ class PositionCalculator:
                     title_el, self.margins["left"], self.max_content_width, current_y
                 )
 
-            # Update current y-position and header height
+            # Update current y-position for subtitle (if any)
             current_y += title_height + self.vertical_spacing
-            header_height += title_height + self.vertical_spacing
+
+            # FIXED: Don't allow title to exceed header zone
+            if current_y > max_y:
+                logger.warning(
+                    f"Title element would exceed header zone height. "
+                    f"Current Y: {current_y}, Max Y: {max_y}"
+                )
+
+            logger.debug(
+                f"Positioned title element at y={title_el.position[1]:.1f}, height={title_el.size[1]:.1f}"
+            )
 
         # Position subtitle if present
         subtitle_el = slide.get_subtitle_element()
@@ -199,7 +243,7 @@ class PositionCalculator:
             if not hasattr(subtitle_el, "size") or not subtitle_el.size:
                 subtitle_el.size = self.default_sizes[ElementType.SUBTITLE]
 
-            # Calculate subtitle height
+            # Calculate subtitle height with reduced padding
             subtitle_width = subtitle_el.size[0]
             subtitle_height = calculate_element_height(subtitle_el, subtitle_width)
             subtitle_el.size = (subtitle_width, subtitle_height)
@@ -209,13 +253,19 @@ class PositionCalculator:
                 subtitle_el, self.margins["left"], self.max_content_width, current_y
             )
 
-            # Update header height
-            header_height += subtitle_height + self.vertical_spacing
+            # FIXED: Warn if subtitle would exceed header zone
+            if current_y + subtitle_height > max_y:
+                logger.warning(
+                    f"Subtitle element would exceed header zone height. "
+                    f"Current Y + Height: {current_y + subtitle_height}, Max Y: {max_y}"
+                )
 
-        # Apply maximum constraint to header height
-        header_height = min(header_height, self.HEADER_MAX_HEIGHT)
+            logger.debug(
+                f"Positioned subtitle element at y={subtitle_el.position[1]:.1f}, height={subtitle_el.size[1]:.1f}"
+            )
 
-        return header_height
+        # Always return the fixed header height
+        return self.HEADER_HEIGHT
 
     def _position_footer_element(self, slide: Slide) -> float:
         """
@@ -231,11 +281,11 @@ class PositionCalculator:
         if not footer_el:
             return 0
 
-        # Apply fixed size to footer
+        # FIXED: Always use a fixed size for footer to maintain consistency
         footer_width = self.max_content_width
         footer_el.size = (footer_width, self.FOOTER_HEIGHT)
 
-        # Position at bottom of slide
+        # FIXED: Position at the exact bottom boundary of the slide - footer should always be at the same place
         footer_y = self.slide_height - self.margins["bottom"] - self.FOOTER_HEIGHT
 
         # Apply horizontal alignment from left margin
@@ -265,7 +315,7 @@ class PositionCalculator:
 
     def _calculate_section_based_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions for a section-based slide layout.
+        Calculate positions for a section-based slide layout using the fixed body zone.
 
         Args:
             slide: The slide to calculate positions for
@@ -273,26 +323,22 @@ class PositionCalculator:
         Returns:
             The updated slide with positioned elements
         """
-        # Step 1: Position header elements (title, subtitle)
-        header_height = self._position_header_elements(slide)
+        # Step 1: Position header elements (title, subtitle) within the fixed header zone
+        self._position_header_elements(slide)
 
-        # Step 2: Position footer element if present
-        footer_height = self._position_footer_element(slide)
+        # Step 2: Position footer element if present within the fixed footer zone
+        self._position_footer_element(slide)
 
-        # Step 3: Calculate body zone dimensions
-        body_top = self.margins["top"] + header_height
-        body_height = (
-            self.slide_height - self.margins["bottom"] - footer_height - body_top
-        )
-
+        # Step 3: Use the fixed body zone dimensions for section layout
+        # FIXED: Always use the consistent fixed body zone dimensions
         body_area = (
-            self.margins["left"],  # x
-            body_top,  # y
-            self.max_content_width,  # width
-            body_height,  # height
+            self.body_left,  # x
+            self.body_top,  # y
+            self.body_width,  # width
+            self.body_height,  # height
         )
 
-        # Step 4: Distribute space among sections within the body zone
+        # Step 4: Distribute space among sections within the fixed body zone
         self._distribute_space_and_position_sections(
             slide.sections, body_area, is_vertical_split=True
         )
@@ -300,6 +346,7 @@ class PositionCalculator:
         # Step 5: Position elements within each section
         self._position_elements_in_sections(slide)
 
+        logger.debug(f"Section-based layout completed for slide {slide.object_id}")
         return slide
 
     def _distribute_space_and_position_sections(
@@ -310,6 +357,7 @@ class PositionCalculator:
     ) -> None:
         """
         Distribute space among sections and position them within the given area.
+        All sections must fit within the specified area (usually the body zone).
 
         Args:
             sections: List of section models
@@ -321,6 +369,13 @@ class PositionCalculator:
 
         # Extract area parameters
         area_left, area_top, area_width, area_height = area
+
+        # Log the area being distributed
+        logger.debug(
+            f"Distributing space for {len(sections)} sections in area: "
+            f"left={area_left:.1f}, top={area_top:.1f}, width={area_width:.1f}, height={area_height:.1f}, "
+            f"is_vertical={is_vertical_split}"
+        )
 
         # Determine the primary dimension to distribute
         if is_vertical_split:
@@ -334,6 +389,7 @@ class PositionCalculator:
 
         # Define constants
         min_section_dim = 20.0  # Minimum section dimension in points
+        # FIXED: Use reduced spacing constants
         spacing = (
             self.vertical_spacing if is_vertical_split else self.horizontal_spacing
         )
@@ -350,11 +406,13 @@ class PositionCalculator:
 
             if dim_directive is not None:
                 if isinstance(dim_directive, float) and 0.0 < dim_directive <= 1.0:
-                    # Percentage/fraction of total
+                    # Percentage/fraction of total - FIXED: Apply to main_dimension, not a different calculation
                     explicit_sections[i] = main_dimension * dim_directive
                 elif isinstance(dim_directive, (int, float)) and dim_directive > 1.0:
-                    # Absolute dimension
-                    explicit_sections[i] = float(dim_directive)
+                    # Absolute dimension - FIXED: Ensure it doesn't exceed main_dimension
+                    explicit_sections[i] = min(
+                        float(dim_directive), main_dimension - total_spacing
+                    )
                 else:
                     # Invalid directive, treat as implicit
                     implicit_section_indices.append(i)
@@ -365,20 +423,28 @@ class PositionCalculator:
         # Calculate total explicit dimension
         total_explicit_dim = sum(explicit_sections.values())
 
-        # Ensure explicit dimensions don't exceed available space (with spacing)
+        # FIXED: Ensure explicit dimensions don't exceed available space (with spacing)
         if total_explicit_dim > main_dimension - total_spacing:
             # Scale down explicit sections proportionally
             scale_factor = (main_dimension - total_spacing) / total_explicit_dim
             for i in explicit_sections:
                 explicit_sections[i] *= scale_factor
 
+            logger.debug(
+                f"Scaled down explicit sections by {scale_factor:.2f} to fit available space"
+            )
+
         # Calculate remaining dimension for implicit sections
         remaining_dim = main_dimension - total_explicit_dim - total_spacing
+        remaining_dim = max(0, remaining_dim)  # Avoid negative values
 
         # Distribute remaining dimension among implicit sections
         if implicit_section_indices:
             dim_per_implicit = remaining_dim / len(implicit_section_indices)
             dim_per_implicit = max(min_section_dim, dim_per_implicit)
+            logger.debug(
+                f"Allocated {dim_per_implicit:.1f} points per implicit section"
+            )
         else:
             dim_per_implicit = 0
 
@@ -397,6 +463,17 @@ class PositionCalculator:
 
             # Ensure minimum dimension
             section_dim = max(min_section_dim, section_dim)
+
+            # FIXED: Ensure section doesn't exceed area boundaries
+            if is_vertical_split:
+                if current_pos + section_dim > area_top + area_height:
+                    section_dim = max(
+                        min_section_dim, (area_top + area_height) - current_pos
+                    )
+                    logger.warning(
+                        f"Section {section.id} exceeded available vertical space. "
+                        f"Adjusted height to {section_dim:.1f}"
+                    )
 
             # Position and size the section
             if is_vertical_split:
@@ -424,7 +501,8 @@ class PositionCalculator:
             current_pos += section_dim + spacing
 
             logger.debug(
-                f"Positioned section {section.id}: pos={section.position}, size={section.size}"
+                f"Positioned section {section.id}: pos=({section.position[0]:.1f}, {section.position[1]:.1f}), "
+                f"size=({section.size[0]:.1f}, {section.size[1]:.1f})"
             )
 
     def _position_elements_in_sections(self, slide: Slide) -> None:
@@ -448,6 +526,9 @@ class PositionCalculator:
                     leaf_sections.append(section)
 
         collect_leaf_sections(slide.sections)
+        logger.debug(
+            f"Found {len(leaf_sections)} leaf sections to position elements in"
+        )
 
         # Position elements within each leaf section
         for section in leaf_sections:
@@ -461,6 +542,10 @@ class PositionCalculator:
                 self._position_elements_within_section(
                     section.elements, section_area, section.directives
                 )
+            else:
+                logger.warning(
+                    f"Section {section.id} has no elements, position, or size"
+                )
 
     def _position_elements_within_section(
         self,
@@ -469,7 +554,8 @@ class PositionCalculator:
         directives: dict[str, Any],
     ) -> None:
         """
-        Position elements within a section.
+        Position elements within a section. Elements are laid out vertically
+        within the strict boundaries of the section area.
 
         Args:
             elements: List of elements to position
@@ -480,9 +566,14 @@ class PositionCalculator:
             return
 
         area_x, area_y, area_width, area_height = area
+        logger.debug(
+            f"Positioning {len(elements)} elements within section area: "
+            f"x={area_x:.1f}, y={area_y:.1f}, width={area_width:.1f}, height={area_height:.1f}"
+        )
 
         # Apply padding from directives
         padding = directives.get("padding", 0.0)
+        # FIXED: Reduce default padding to save space
         if isinstance(padding, (int, float)) and padding > 0:
             area_x += padding
             area_y += padding
@@ -491,7 +582,9 @@ class PositionCalculator:
 
         # Calculate total content height and prepare elements
         elements_heights = []
-        for element in elements:
+        total_height_with_spacing = 0
+
+        for i, element in enumerate(elements):
             # Ensure element has a size
             if not hasattr(element, "size") or not element.size:
                 element.size = self.default_sizes.get(
@@ -500,21 +593,30 @@ class PositionCalculator:
 
             # Calculate element width and height
             element_width = min(element.size[0], area_width)
+            # FIXED: More accurate height with reduced padding
             element_height = calculate_element_height(element, element_width)
             element.size = (element_width, element_height)
             elements_heights.append(element_height)
 
-        # Calculate total content height with spacing
-        total_spacing = self.vertical_spacing * (len(elements) - 1)
-        total_content_height = sum(elements_heights) + total_spacing
+            # Add spacing (except after the last element)
+            total_height_with_spacing += element_height
+            if i < len(elements) - 1:
+                total_height_with_spacing += self.vertical_spacing
+
+        # Check if content exceeds section height
+        if total_height_with_spacing > area_height:
+            logger.warning(
+                f"Total content height ({total_height_with_spacing:.1f}) exceeds section height ({area_height:.1f}). "
+                f"Some elements may not be fully visible."
+            )
 
         # Apply vertical alignment
         valign = directives.get("valign", "top").lower()
 
-        if valign == "middle" and total_content_height < area_height:
-            start_y = area_y + (area_height - total_content_height) / 2
-        elif valign == "bottom" and total_content_height < area_height:
-            start_y = area_y + area_height - total_content_height
+        if valign == "middle" and total_height_with_spacing < area_height:
+            start_y = area_y + (area_height - total_height_with_spacing) / 2
+        elif valign == "bottom" and total_height_with_spacing < area_height:
+            start_y = area_y + area_height - total_height_with_spacing
         else:
             start_y = area_y
 
@@ -529,11 +631,12 @@ class PositionCalculator:
 
             self._apply_horizontal_alignment(element, area_x, area_width, current_y)
 
-            # Check if element would overflow section
-            if current_y + element.size[1] > area_y + area_height:
+            # Log if element would overflow section
+            element_bottom = current_y + element.size[1]
+            if element_bottom > area_y + area_height:
                 logger.warning(
-                    f"Element {element.object_id} ({element.element_type}) would overflow "
-                    f"section. y={current_y}, height={element.size[1]}, section_bottom={area_y + area_height}"
+                    f"Element {getattr(element, 'object_id', 'unknown')} ({element.element_type}) would overflow "
+                    f"section. y={current_y:.1f}, height={element.size[1]:.1f}, section_bottom={area_y + area_height:.1f}"
                 )
 
             # Move to next position

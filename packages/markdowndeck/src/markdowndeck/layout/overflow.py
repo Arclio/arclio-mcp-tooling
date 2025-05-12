@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 
 
 class OverflowHandler:
-    """Detects and handles overflow content, creating continuation slides when needed."""
+    """Detects and handles overflow content using a fixed body zone model."""
 
     def __init__(
         self, slide_width: float, slide_height: float, margins: dict[str, float]
     ):
         """
-        Initialize the overflow handler.
+        Initialize the overflow handler with fixed body zone dimensions.
 
         Args:
             slide_width: Width of the slide in points
@@ -32,15 +32,36 @@ class OverflowHandler:
         self.slide_width = slide_width
         self.slide_height = slide_height
         self.margins = margins
-        self.vertical_spacing = 15.0
 
-        # Zone constants (must match PositionCalculator)
-        self.HEADER_MAX_HEIGHT = 100.0
-        self.FOOTER_HEIGHT = 30.0
+        # FIXED: Reduced vertical spacing to match PositionCalculator
+        self.vertical_spacing = 10.0  # Reduced from 15.0
+
+        # FIXED: Fixed zone constants - MUST EXACTLY MATCH PositionCalculator
+        self.HEADER_HEIGHT = 100.0  # Fixed height for header zone
+        self.FOOTER_HEIGHT = 30.0  # Fixed height for footer zone
+
+        # FIXED: Calculate fixed body zone boundaries in EXACTLY the same way as PositionCalculator
+        self.body_top = self.margins["top"] + self.HEADER_HEIGHT
+        self.body_left = self.margins["left"]
+        self.body_width = (
+            self.slide_width - self.margins["left"] - self.margins["right"]
+        )
+        self.body_height = (
+            self.slide_height
+            - self.body_top
+            - self.FOOTER_HEIGHT
+            - self.margins["bottom"]
+        )
+        self.body_bottom = self.body_top + self.body_height
+
+        logger.debug(
+            f"Fixed body zone for overflow detection: top={self.body_top}, "
+            f"bottom={self.body_bottom}, height={self.body_height}"
+        )
 
     def has_overflow(self, slide: Slide) -> bool:
         """
-        Check if any body elements overflow the slide's body zone.
+        Check if any body elements overflow the slide's fixed body zone.
 
         Args:
             slide: The slide to check for overflow
@@ -48,8 +69,8 @@ class OverflowHandler:
         Returns:
             True if overflow is detected, False otherwise
         """
-        # Calculate body zone boundaries
-        body_top, body_bottom = self._get_body_zone_boundaries(slide)
+        # FIXED: Use the fixed body zone boundary for bottom check - this should match PositionCalculator
+        body_bottom = self.body_bottom
 
         # Check each body element for overflow
         for element in self._get_body_elements(slide):
@@ -60,7 +81,7 @@ class OverflowHandler:
                 or not element.size
             ):
                 logger.warning(
-                    f"Element {element.object_id} type {element.element_type} lacks position/size for overflow check."
+                    f"Element {getattr(element, 'object_id', 'unknown')} type {element.element_type} lacks position/size for overflow check."
                 )
                 continue
 
@@ -70,8 +91,8 @@ class OverflowHandler:
             # Check if element extends beyond body zone
             if element_bottom > body_bottom + 1:  # 1 point tolerance
                 logger.debug(
-                    f"Overflow detected: Element {element.object_id} ({element.element_type}) "
-                    f"extends to y={element_bottom:.2f}, exceeding body zone bottom at y={body_bottom:.2f}"
+                    f"Overflow detected: Element {getattr(element, 'object_id', 'unknown')} ({element.element_type}) "
+                    f"extends to y={element_bottom:.2f}, exceeding fixed body zone bottom at y={body_bottom:.2f}"
                 )
                 return True
 
@@ -80,6 +101,7 @@ class OverflowHandler:
     def handle_overflow(self, original_slide: Slide) -> list[Slide]:
         """
         Handle overflow by creating continuation slides as needed.
+        Ensures all content stays within fixed body zones.
 
         Args:
             original_slide: The slide to handle overflow for
@@ -98,9 +120,9 @@ class OverflowHandler:
 
         # Process elements until all are placed
         while remaining_elements:
-            # Calculate body zone for current slide
-            body_top, body_bottom = self._get_body_zone_boundaries(current_slide)
-            body_height = body_bottom - body_top
+            # FIXED: Always use the fixed body zone boundaries
+            body_top = self.body_top
+            body_bottom = self.body_bottom
 
             # Try to place elements in the current slide
             elements_to_place = []
@@ -115,7 +137,8 @@ class OverflowHandler:
 
                 element_height = element.size[1]
 
-                # Check if this element fits in the body zone
+                # FIXED: Check if this element fits in the fixed body zone
+                # This is critical - only add an element if it fits in the available space
                 if current_y + element_height <= body_bottom:
                     # Element fits - add it to this slide
                     copied_element = deepcopy(element)
@@ -126,7 +149,7 @@ class OverflowHandler:
                         copied_element.position = (x_pos, current_y)
                     else:
                         # Default positioning if none exists
-                        copied_element.position = (self.margins["left"], current_y)
+                        copied_element.position = (self.body_left, current_y)
 
                     elements_to_place.append(copied_element)
                     current_y += element_height + self.vertical_spacing
@@ -140,22 +163,31 @@ class OverflowHandler:
             # Remove placed elements from remaining list
             if elements_to_place:
                 remaining_elements = remaining_elements[len(elements_to_place) :]
+                logger.debug(
+                    f"Placed {len(elements_to_place)} elements on slide {current_slide.object_id}. "
+                    f"{len(remaining_elements)} elements remaining."
+                )
             else:
-                # Safety check: if we couldn't place any elements, force the first one
-                # to avoid infinite loop, even though it will overflow
+                # FIXED: If element is clearly too large for a slide, reduce its size to ensure it can be placed
+                # This is a safety mechanism to prevent infinite loops
                 if remaining_elements:
                     logger.warning(
-                        f"Could not fit element {getattr(remaining_elements[0], 'object_id', 'unknown')} "
-                        f"on slide {current_slide.object_id}. It may be too large for a single slide."
+                        f"Element {getattr(remaining_elements[0], 'object_id', 'unknown')} appears too large "
+                        f"for a single slide. Adjusting size to fit."
                     )
                     element = deepcopy(remaining_elements[0])
+
+                    # Adjust height to fit in fixed body zone
+                    max_height = self.body_bottom - self.body_top - 5  # 5 points buffer
+                    if element.size[1] > max_height:
+                        element.size = (element.size[0], max_height)
 
                     # Position at top of body zone
                     if hasattr(element, "position") and element.position:
                         x_pos = element.position[0]
                         element.position = (x_pos, body_top)
                     else:
-                        element.position = (self.margins["left"], body_top)
+                        element.position = (self.body_left, body_top)
 
                     current_slide.elements.append(element)
                     remaining_elements = remaining_elements[1:]
@@ -172,6 +204,9 @@ class OverflowHandler:
                 )
                 result_slides.append(current_slide)
 
+        logger.info(
+            f"Created {len(result_slides)} slides from original slide {original_slide.object_id}"
+        )
         return result_slides
 
     def _create_base_slide(
@@ -207,13 +242,13 @@ class OverflowHandler:
         if title_el:
             if is_first:
                 # Copy original title for first slide
-                # Copy original title for first slide
                 new_slide.elements.append(deepcopy(title_el))
             else:
                 # Create continuation title
                 cont_title = deepcopy(title_el)
 
                 if isinstance(cont_title, TextElement):
+                    # FIXED: Make continuation title more identifiable
                     cont_title.text = f"{original_slide.title or 'Content'} (continued)"
 
                 # Assign a new ID to avoid conflicts
@@ -242,38 +277,16 @@ class OverflowHandler:
 
     def _get_body_zone_boundaries(self, slide: Slide) -> tuple[float, float]:
         """
-        Calculate the top and bottom y-coordinates of the body zone.
+        Return the fixed top and bottom y-coordinates of the body zone.
 
         Args:
-            slide: The slide to calculate body zone boundaries for
+            slide: The slide (not used in fixed body zone model, but kept for compatibility)
 
         Returns:
             Tuple of (body_top, body_bottom) y-coordinates
         """
-        # Start with default values
-        body_top = self.margins["top"]
-        body_bottom = self.slide_height - self.margins["bottom"] - self.FOOTER_HEIGHT
-
-        # Adjust top boundary based on title/subtitle
-        title_el = slide.get_title_element()
-        if title_el and hasattr(title_el, "position") and hasattr(title_el, "size"):
-            body_top = max(
-                body_top,
-                title_el.position[1] + title_el.size[1] + self.vertical_spacing,
-            )
-
-        subtitle_el = slide.get_subtitle_element()
-        if (
-            subtitle_el
-            and hasattr(subtitle_el, "position")
-            and hasattr(subtitle_el, "size")
-        ):
-            body_top = max(
-                body_top,
-                subtitle_el.position[1] + subtitle_el.size[1] + self.vertical_spacing,
-            )
-
-        return (body_top, body_bottom)
+        # FIXED: Always return the fixed body zone boundaries - must match PositionCalculator exactly
+        return (self.body_top, self.body_bottom)
 
     def _get_body_elements(self, slide: Slide) -> list[Element]:
         """
