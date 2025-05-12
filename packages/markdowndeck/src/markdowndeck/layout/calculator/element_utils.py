@@ -1,0 +1,152 @@
+"""Element positioning and grouping utilities for layout calculations."""
+
+import logging
+
+from markdowndeck.models import (
+    AlignmentType,
+    Element,
+    ElementType,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def apply_horizontal_alignment(
+    element: Element,
+    area_x: float,
+    area_width: float,
+    y_pos: float,
+) -> None:
+    """
+    Apply horizontal alignment to an element within an area.
+
+    Args:
+        element: Element to align
+        area_x: X-coordinate of the area
+        area_width: Width of the area
+        y_pos: Y-coordinate for the element
+    """
+    element_width = element.size[0]
+    alignment = getattr(element, "horizontal_alignment", AlignmentType.LEFT)
+
+    if alignment == AlignmentType.CENTER:
+        x_pos = area_x + (area_width - element_width) / 2
+    elif alignment == AlignmentType.RIGHT:
+        x_pos = area_x + area_width - element_width
+    else:  # LEFT or JUSTIFY
+        x_pos = area_x
+
+    element.position = (x_pos, y_pos)
+
+
+def mark_related_elements(elements: list[Element]) -> None:
+    """
+    Mark related elements that should be kept together during layout and overflow.
+
+    Args:
+        elements: List of elements to process
+    """
+    if not elements:
+        return
+
+    # Pattern 1: Text heading followed by a list or table
+    for i in range(len(elements) - 1):
+        current = elements[i]
+        next_elem = elements[i + 1]
+
+        # Check if current is a text element (potential heading)
+        if current.element_type == ElementType.TEXT:
+            # Check if next is a list or table
+            if next_elem.element_type in (
+                ElementType.BULLET_LIST,
+                ElementType.ORDERED_LIST,
+                ElementType.TABLE,
+            ):
+                # Mark these elements as related
+                current.related_to_next = True
+                next_elem.related_to_prev = True
+                logger.debug(
+                    f"Marked elements as related: {getattr(current, 'object_id', 'unknown')} -> "
+                    f"{getattr(next_elem, 'object_id', 'unknown')}"
+                )
+
+    # Pattern 2: Heading followed by subheading
+    for i in range(len(elements) - 1):
+        current = elements[i]
+        next_elem = elements[i + 1]
+
+        if (
+            current.element_type == ElementType.TEXT
+            and next_elem.element_type == ElementType.TEXT
+        ):
+            # Check if both have text content
+            if (
+                hasattr(current, "text")
+                and hasattr(next_elem, "text")
+                and current.text
+                and next_elem.text
+            ):
+                # Check if current looks like a heading (starts with #, ##, etc)
+                current_text = current.text.strip()
+                next_text = next_elem.text.strip()
+
+                # Simple heuristic: if both start with # and current has fewer #s,
+                # consider them related (heading + subheading)
+                if (
+                    current_text.startswith("#")
+                    and next_text.startswith("#")
+                    and current_text.count("#") < next_text.count("#")
+                ):
+                    current.related_to_next = True
+                    next_elem.related_to_prev = True
+                    logger.debug(
+                        f"Marked heading and subheading as related: "
+                        f"{getattr(current, 'object_id', 'unknown')} -> "
+                        f"{getattr(next_elem, 'object_id', 'unknown')}"
+                    )
+
+    # Pattern 3: Sequential paragraphs (consecutive text elements)
+    for i in range(len(elements) - 1):
+        current = elements[i]
+        next_elem = elements[i + 1]
+
+        if (
+            current.element_type == ElementType.TEXT
+            and next_elem.element_type == ElementType.TEXT
+        ):
+            # Check if neither appears to be a heading
+            if (
+                hasattr(current, "text")
+                and hasattr(next_elem, "text")
+                and not current.text.strip().startswith("#")
+                and not next_elem.text.strip().startswith("#")
+            ):
+                # Mark consecutive paragraphs as related
+                current.related_to_next = True
+                next_elem.related_to_prev = True
+                logger.debug(
+                    f"Marked consecutive paragraphs as related: "
+                    f"{getattr(current, 'object_id', 'unknown')} -> "
+                    f"{getattr(next_elem, 'object_id', 'unknown')}"
+                )
+
+    # OPTIMIZATION: Pattern 4: Images followed by captions (text elements)
+    for i in range(len(elements) - 1):
+        current = elements[i]
+        next_elem = elements[i + 1]
+
+        if (
+            current.element_type == ElementType.IMAGE
+            and next_elem.element_type == ElementType.TEXT
+        ):
+            # Mark image and caption as related
+            current.related_to_next = True
+            next_elem.related_to_prev = True
+            # Improve caption positioning
+            if hasattr(next_elem, "directives"):
+                next_elem.directives["caption"] = True
+            logger.debug(
+                f"Marked image and caption as related: "
+                f"{getattr(current, 'object_id', 'unknown')} -> "
+                f"{getattr(next_elem, 'object_id', 'unknown')}"
+            )

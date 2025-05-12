@@ -41,12 +41,14 @@ def calculate_table_element_height(
     if num_cols == 0:
         return 30
 
-    # Estimate column width (simple equal distribution for now)
-    # Subtract some padding/border allowance from available_width
-    effective_table_width = max(20.0, available_width - 10.0)
+    # OPTIMIZED: More efficient use of space for tables
+    # Use more of the available width and reduce spacing
+    effective_table_width = max(20.0, available_width - 8.0)  # Reduced from 10.0
     col_width_estimate = effective_table_width / num_cols
-    min_cell_height = 20.0  # Min height for any cell
-    cell_vertical_padding = 5.0  # Padding within a cell (top & bottom combined)
+    # OPTIMIZED: Reduced minimum cell height
+    min_cell_height = 18.0  # Reduced from 20.0
+    # OPTIMIZED: Reduced cell padding
+    cell_vertical_padding = 3.0  # Reduced from 5.0
 
     total_height = 0.0
 
@@ -54,10 +56,10 @@ def calculate_table_element_height(
     if table_element.headers:
         max_header_cell_content_height = 0
         for header_text in table_element.headers:
-            # Create a temporary TextElement for robust height calculation
+            # Create a temporary TextElement for height calculation
             temp_text_el = TextElement(
                 element_type=ElementType.TEXT, text=str(header_text)
-            )  # Assuming headers are simple text
+            )
             cell_content_height = calculate_text_element_height(
                 temp_text_el, col_width_estimate
             )
@@ -85,10 +87,11 @@ def calculate_table_element_height(
             min_cell_height, max_row_cell_content_height + cell_vertical_padding
         )
 
-    # Add some overall table padding/border allowance
-    total_height += 10.0
+    # OPTIMIZED: Reduced table padding/borders
+    total_height += 8.0  # Reduced from 10.0
 
-    final_height = max(total_height, 40.0)  # Min height for a table with some content
+    # OPTIMIZED: Reduced minimum height for tables
+    final_height = max(total_height, 35.0)  # Reduced from 40.0
     logger.debug(
         f"Table calculated height: {final_height:.2f} for width {available_width:.2f}"
     )
@@ -105,10 +108,12 @@ def estimate_table_columns_width(
     """
     if col_count <= 0:
         return []
-    col_width = (available_width - 10) / col_count
+    # OPTIMIZED: Reduce border allowance to gain more usable width
+    col_width = (available_width - 8) / col_count  # Reduced from 10
     if has_header and col_count > 1:
         widths = [col_width] * col_count
-        widths[0] = col_width * 1.2
+        # OPTIMIZED: More balanced column proportions
+        widths[0] = col_width * 1.15  # Reduced from 1.2
         reduction = (widths[0] - col_width) / max(
             1, (col_count - 1)
         )  # Avoid division by zero if col_count is 1

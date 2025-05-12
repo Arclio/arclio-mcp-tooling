@@ -2,7 +2,7 @@
 
 import logging
 
-from markdowndeck.layout.calculator import PositionCalculator
+from markdowndeck.layout.calculator.base import PositionCalculator
 from markdowndeck.layout.overflow import OverflowHandler
 from markdowndeck.models import Slide
 

@@ -33,14 +33,14 @@ class OverflowHandler:
         self.slide_height = slide_height
         self.margins = margins
 
-        # FIXED: Reduced vertical spacing to match PositionCalculator
-        self.vertical_spacing = 10.0  # Reduced from 15.0
+        # OPTIMIZATION: Reduced vertical spacing to match PositionCalculator
+        self.vertical_spacing = 8.0  # Reduced from 10.0
 
-        # FIXED: Fixed zone constants - MUST EXACTLY MATCH PositionCalculator
-        self.HEADER_HEIGHT = 100.0  # Fixed height for header zone
-        self.FOOTER_HEIGHT = 30.0  # Fixed height for footer zone
+        # OPTIMIZATION: Fixed zone constants - MUST EXACTLY MATCH PositionCalculator
+        self.HEADER_HEIGHT = 90.0  # Reduced from 100.0 to match PositionCalculator
+        self.FOOTER_HEIGHT = 30.0
 
-        # FIXED: Calculate fixed body zone boundaries in EXACTLY the same way as PositionCalculator
+        # OPTIMIZATION: Calculate fixed body zone boundaries in EXACTLY the same way as PositionCalculator
         self.body_top = self.margins["top"] + self.HEADER_HEIGHT
         self.body_left = self.margins["left"]
         self.body_width = (
@@ -69,7 +69,7 @@ class OverflowHandler:
         Returns:
             True if overflow is detected, False otherwise
         """
-        # FIXED: Use the fixed body zone boundary for bottom check - this should match PositionCalculator
+        # Use the fixed body zone boundary for bottom check
         body_bottom = self.body_bottom
 
         # Check each body element for overflow
@@ -120,42 +120,157 @@ class OverflowHandler:
 
         # Process elements until all are placed
         while remaining_elements:
-            # FIXED: Always use the fixed body zone boundaries
+            # Always use the fixed body zone boundaries
             body_top = self.body_top
             body_bottom = self.body_bottom
 
             # Try to place elements in the current slide
             elements_to_place = []
-            current_y = body_top
+            # OPTIMIZATION: Apply same adjustment as in zone_layout.py
+            body_top_adjustment = 5.0
+            current_y = body_top - body_top_adjustment
 
-            for element in remaining_elements:
-                if not hasattr(element, "size") or not element.size:
-                    logger.warning(
-                        f"Element {getattr(element, 'object_id', 'unknown')} has no size, cannot place in overflow."
-                    )
-                    continue
+            # First analyze elements to identify logical groups that should stay together
+            i = 0
+            while i < len(remaining_elements):
+                element = remaining_elements[i]
 
-                element_height = element.size[1]
+                # Check if this element is related to the next one
+                keep_with_next = (
+                    hasattr(element, "keep_with_next") and element.keep_with_next
+                )
 
-                # FIXED: Check if this element fits in the fixed body zone
-                # This is critical - only add an element if it fits in the available space
-                if current_y + element_height <= body_bottom:
-                    # Element fits - add it to this slide
-                    copied_element = deepcopy(element)
+                # If it's related and not the last element, calculate the combined height
+                combined_height = 0
+                group_elements = []
 
-                    # Preserve horizontal alignment but update vertical position
-                    if hasattr(copied_element, "position") and copied_element.position:
-                        x_pos = copied_element.position[0]
-                        copied_element.position = (x_pos, current_y)
+                if keep_with_next and i < len(remaining_elements) - 1:
+                    # Start a new logical group
+                    j = i
+                    while j < len(remaining_elements):
+                        current_element = remaining_elements[j]
+                        if (
+                            not hasattr(current_element, "size")
+                            or not current_element.size
+                        ):
+                            logger.warning(
+                                f"Element {getattr(current_element, 'object_id', 'unknown')} has no size"
+                            )
+                            j += 1
+                            continue
+
+                        # Add this element to the current group
+                        group_elements.append(current_element)
+                        combined_height += current_element.size[1]
+
+                        # Add spacing between elements
+                        if j < len(remaining_elements) - 1:
+                            combined_height += self.vertical_spacing
+
+                        # Check if we should continue the group
+                        keep_group_going = (
+                            j < len(remaining_elements) - 1
+                            and hasattr(current_element, "keep_with_next")
+                            and current_element.keep_with_next
+                        )
+
+                        if not keep_group_going:
+                            break
+
+                        j += 1
+
+                    # Move i to the end of the group
+                    i = j + 1
+
+                    # Check if the entire group fits
+                    if current_y + combined_height <= body_bottom:
+                        # If the group fits, add all its elements
+                        for group_element in group_elements:
+                            # Create a copy of the element for the new slide
+                            copied_element = deepcopy(group_element)
+
+                            # Update the position to the current y
+                            if (
+                                hasattr(copied_element, "position")
+                                and copied_element.position
+                            ):
+                                x_pos = copied_element.position[0]
+                                copied_element.position = (x_pos, current_y)
+                            else:
+                                copied_element.position = (self.body_left, current_y)
+
+                            # Add to elements to place
+                            elements_to_place.append(copied_element)
+
+                            # Update current_y for the next element
+                            # OPTIMIZATION: Apply same spacing optimizations as in zone_layout.py
+                            next_spacing = self.vertical_spacing
+                            # Reduce spacing before related elements
+                            if (
+                                hasattr(copied_element, "related_to_next")
+                                and copied_element.related_to_next
+                            ):
+                                next_spacing *= 0.7  # Reduce spacing by 30%
+
+                            current_y += copied_element.size[1] + next_spacing
+
+                        # Remove the spacing after the last element
+                        if elements_to_place:
+                            current_y -= self.vertical_spacing
                     else:
-                        # Default positioning if none exists
-                        copied_element.position = (self.body_left, current_y)
-
-                    elements_to_place.append(copied_element)
-                    current_y += element_height + self.vertical_spacing
+                        # Group doesn't fit, don't add anything and move to next slide
+                        logger.debug(
+                            f"Logical group of {len(group_elements)} elements doesn't fit "
+                            f"(height={combined_height:.1f}, available={body_bottom - current_y:.1f}). "
+                            f"Moving group to next slide."
+                        )
+                        break
                 else:
-                    # This element doesn't fit - keep for next slide
-                    break
+                    # Handle individual element
+                    if not hasattr(element, "size") or not element.size:
+                        logger.warning(
+                            f"Element {getattr(element, 'object_id', 'unknown')} has no size, cannot place in overflow."
+                        )
+                        i += 1
+                        continue
+
+                    element_height = element.size[1]
+
+                    # Check if this element fits in the fixed body zone
+                    if current_y + element_height <= body_bottom:
+                        # Element fits - add it to this slide
+                        copied_element = deepcopy(element)
+
+                        # Preserve horizontal alignment but update vertical position
+                        if (
+                            hasattr(copied_element, "position")
+                            and copied_element.position
+                        ):
+                            x_pos = copied_element.position[0]
+                            copied_element.position = (x_pos, current_y)
+                        else:
+                            # Default positioning if none exists
+                            copied_element.position = (self.body_left, current_y)
+
+                        elements_to_place.append(copied_element)
+
+                        # OPTIMIZATION: Apply same spacing optimizations as in zone_layout.py
+                        next_spacing = self.vertical_spacing
+                        # Reduce spacing before related elements
+                        if (
+                            i < len(remaining_elements) - 1
+                            and hasattr(element, "related_to_next")
+                            and element.related_to_next
+                        ):
+                            next_spacing *= 0.7  # Reduce spacing by 30%
+
+                        current_y += element_height + next_spacing
+                    else:
+                        # This element doesn't fit - keep for next slide
+                        break
+
+                    # Move to next element
+                    i += 1
 
             # Add elements to current slide
             current_slide.elements.extend(elements_to_place)
@@ -168,7 +283,7 @@ class OverflowHandler:
                     f"{len(remaining_elements)} elements remaining."
                 )
             else:
-                # FIXED: If element is clearly too large for a slide, reduce its size to ensure it can be placed
+                # If element is clearly too large for a slide, reduce its size to ensure it can be placed
                 # This is a safety mechanism to prevent infinite loops
                 if remaining_elements:
                     logger.warning(
@@ -177,7 +292,7 @@ class OverflowHandler:
                     )
                     element = deepcopy(remaining_elements[0])
 
-                    # IMPROVED: More aggressive size reduction for oversized elements
+                    # More aggressive size reduction for oversized elements
                     max_height = (
                         self.body_bottom - self.body_top - 10
                     )  # 10 points buffer
@@ -268,7 +383,7 @@ class OverflowHandler:
                 cont_title = deepcopy(title_el)
 
                 if isinstance(cont_title, TextElement):
-                    # FIXED: Make continuation title more identifiable
+                    # Make continuation title more identifiable
                     cont_title.text = f"{original_slide.title or 'Content'} (continued)"
 
                 # Assign a new ID to avoid conflicts
@@ -294,19 +409,6 @@ class OverflowHandler:
                 new_slide.footer = footer_text
 
         return new_slide
-
-    def _get_body_zone_boundaries(self, slide: Slide) -> tuple[float, float]:
-        """
-        Get the top and bottom boundaries of the fixed body zone.
-
-        Args:
-            slide: The slide to get body zone boundaries for
-
-        Returns:
-            Tuple of (body_top, body_bottom)
-        """
-        # FIXED: Always use the consistent fixed zone boundaries
-        return self.body_top, self.body_bottom
 
     def _get_body_elements(self, slide: Slide) -> list[Element]:
         """

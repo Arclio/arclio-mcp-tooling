@@ -35,6 +35,11 @@ def calculate_text_element_height(
         "formatting",
         element.get("formatting") if isinstance(element, dict) else [],
     )
+    directives = getattr(
+        element,
+        "directives",
+        element.get("directives") if isinstance(element, dict) else {},
+    )
 
     # Handle empty content
     if not text_content:
@@ -72,6 +77,37 @@ def calculate_text_element_height(
         min_height = 18.0  # Reduced from 20.0
         max_height = 250.0  # Reduced from 300.0
 
+    # FIXED: Adjust minimum height based on font size directive
+    if directives and "fontsize" in directives:
+        try:
+            fontsize = float(directives["fontsize"])
+            # Ensure minimum height is at least 120% of font size plus padding
+            font_based_min_height = fontsize * 1.2 + padding_pt
+            min_height = max(min_height, font_based_min_height)
+            # Also scale line height based on font size
+            line_height_pt = max(line_height_pt, fontsize * 1.1)
+            logger.debug(
+                f"Adjusted min height to {min_height} based on fontsize={fontsize}"
+            )
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
+
+    # For headings (determined by leading #), ensure reasonable minimum height
+    if text_content.strip().startswith("#"):
+        heading_level = 0
+        for char in text_content.strip():
+            if char == "#":
+                heading_level += 1
+            else:
+                break
+
+        if 1 <= heading_level <= 6:
+            heading_min_height = 30 - (heading_level * 2)  # h1=28, h2=26, etc.
+            min_height = max(min_height, heading_min_height)
+            logger.debug(
+                f"Set minimum height {min_height} for heading level {heading_level}"
+            )
+
     # OPTIMIZED: Calculate effective width with minimal internal padding
     effective_width = max(1.0, available_width - 4.0)  # Reduced from 6.0
 
@@ -91,7 +127,7 @@ def calculate_text_element_height(
             lines_needed = (
                 text_length + chars_per_line - 1
             ) // chars_per_line  # Ceiling division
-            line_count += lines_needed
+            line_count += max(1, lines_needed)  # Ensure at least 1 line
 
     # OPTIMIZED: Minimal adjustments for formatting
     if formatting and any(fmt.format_type == TextFormatType.CODE for fmt in formatting):
@@ -100,8 +136,18 @@ def calculate_text_element_height(
     # Calculate final height with minimal padding
     calculated_height = (line_count * line_height_pt) + padding_pt  # Single padding
 
+    # FIXED: Ensure absolute minimum height for all text elements
+    calculated_height = max(calculated_height, min_height)
+
     # Apply reasonable min/max constraints
     final_height = max(min_height, min(calculated_height, max_height))
+
+    # Verify height is reasonable (at least 8px for any visible text)
+    if final_height < 8.0 and text_content.strip():
+        final_height = max(final_height, 16.0)
+        logger.warning(
+            f"Adjusted unrealistically small text height from {final_height} to minimum 16pt"
+        )
 
     logger.debug(
         f"Calculated height for {element_type}: {final_height:.2f}pt "
