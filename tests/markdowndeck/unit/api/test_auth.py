@@ -45,9 +45,7 @@ class TestAuthGetCredentialsFromEnv:
     """Tests for get_credentials_from_env."""
 
     @patch("os.path.exists", return_value=True)
-    @patch(
-        "markdowndeck.api.auth.service_account.Credentials.from_service_account_file"
-    )
+    @patch("markdowndeck.api.auth.service_account.Credentials.from_service_account_file")
     def test_service_account_creds_valid(
         self,
         mock_from_sac: MagicMock,
@@ -86,7 +84,6 @@ class TestAuthGetCredentialsFromEnv:
             ),
             patch("markdowndeck.api.auth.Credentials", return_value=mock_creds),
         ):
-
             result = get_credentials_from_env()
 
             # Verify the mock credential was returned
@@ -177,9 +174,7 @@ class TestAuthGetCredentialsFromTokenFile:
 
         mock_google_creds.refresh.side_effect = refresh_side_effect
         mock_from_auth_user.return_value = mock_google_creds
-        mock_read_text.return_value = (
-            '{"token": "expired", "refresh_token": "can_refresh"}'
-        )
+        mock_read_text.return_value = '{"token": "expired", "refresh_token": "can_refresh"}'
 
         fake_token_path = Path("/fake/token.json")
         creds = get_credentials_from_token_file(fake_token_path)
@@ -213,9 +208,7 @@ class TestAuthGetCredentialsFromTokenFile:
         "markdowndeck.api.auth.Path.read_text",
         side_effect=json.JSONDecodeError("err", "doc", 0),
     )
-    def test_token_file_malformed_json(
-        self, mock_read_text: MagicMock, mock_exists: MagicMock
-    ):
+    def test_token_file_malformed_json(self, mock_read_text: MagicMock, mock_exists: MagicMock):
         assert get_credentials_from_token_file(Path("/fake/token.json")) is None
 
 
@@ -243,9 +236,7 @@ class TestAuthRunOauthFlow:
         mock_from_secrets.return_value = mock_flow_instance
 
         secrets_path = Path("/fake/secrets.json")
-        with patch(
-            "pathlib.Path.home", return_value=Path("/fakehome")
-        ):  # Mock home for token path
+        with patch("pathlib.Path.home", return_value=Path("/fakehome")):  # Mock home for token path
             creds = run_oauth_flow(secrets_path)
 
         assert creds == mock_google_creds
@@ -263,13 +254,9 @@ class TestAuthRunOauthFlow:
 
     @patch("markdowndeck.api.auth.Path.exists", return_value=True)
     @patch("markdowndeck.api.auth.InstalledAppFlow.from_client_secrets_file")
-    def test_oauth_flow_failure(
-        self, mock_from_secrets: MagicMock, mock_exists: MagicMock
-    ):
+    def test_oauth_flow_failure(self, mock_from_secrets: MagicMock, mock_exists: MagicMock):
         mock_flow_instance = MagicMock(spec=InstalledAppFlow)
-        mock_flow_instance.run_local_server.side_effect = Exception(
-            "OAuth server error"
-        )
+        mock_flow_instance.run_local_server.side_effect = Exception("OAuth server error")
         mock_from_secrets.return_value = mock_flow_instance
 
         assert run_oauth_flow(Path("/fake/secrets.json")) is None
@@ -279,9 +266,7 @@ class TestAuthGetCredentialsOrchestration:
     """Tests for the main get_credentials orchestrator."""
 
     @patch("markdowndeck.api.auth.get_credentials_from_env")
-    def test_priority_env_creds(
-        self, mock_get_env: MagicMock, mock_google_creds: MagicMock
-    ):
+    def test_priority_env_creds(self, mock_get_env: MagicMock, mock_google_creds: MagicMock):
         mock_get_env.return_value = mock_google_creds
         assert get_credentials() == mock_google_creds
         mock_get_env.assert_called_once()

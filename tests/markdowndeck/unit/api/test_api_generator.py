@@ -143,17 +143,12 @@ class TestApiRequestGenerator:
             "blue": 1.0,
         }  # Shorthand
 
-    def test_create_slide_request(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
+    def test_create_slide_request(self, generator: ApiRequestGenerator, sample_slide: Slide):
         request = generator._create_slide_request(sample_slide)
         assert "createSlide" in request
         cs_data = request["createSlide"]
         assert cs_data["objectId"] == sample_slide.object_id
-        assert (
-            cs_data["slideLayoutReference"]["predefinedLayout"]
-            == sample_slide.layout.value
-        )
+        assert cs_data["slideLayoutReference"]["predefinedLayout"] == sample_slide.layout.value
 
     def test_create_slide_request_generates_id(self, generator: ApiRequestGenerator):
         slide = Slide(layout=SlideLayout.TITLE_ONLY)  # No object_id provided
@@ -172,9 +167,9 @@ class TestApiRequestGenerator:
         assert "updateSlideProperties" in request
         fill = request["updateSlideProperties"]["slideProperties"]["backgroundFill"]
         assert "solidFill" in fill
-        assert fill["solidFill"]["color"]["opaqueColor"][
-            "rgbColor"
-        ] == generator._hex_to_rgb("#ABCDEF")
+        assert fill["solidFill"]["color"]["opaqueColor"]["rgbColor"] == generator._hex_to_rgb(
+            "#ABCDEF"
+        )
 
     def test_create_background_request_theme_color(
         self, generator: ApiRequestGenerator, sample_slide: Slide
@@ -202,18 +197,13 @@ class TestApiRequestGenerator:
 
     def test_create_notes_request(self, generator: ApiRequestGenerator):
         notes = "These are my notes"
-        slide_with_notes = Slide(
-            layout="title", notes=notes, object_id="slide123", elements=[]
-        )
+        slide_with_notes = Slide(layout="title", notes=notes, object_id="slide123", elements=[])
         request = generator._create_notes_request(slide_with_notes)
         assert "updateSlideProperties" in request
         unp_data = request["updateSlideProperties"]
         assert unp_data["objectId"] == "slide123"
         assert (
-            unp_data["slideProperties"]["notesPage"]["notesProperties"][
-                "speakerNotesText"
-            ]
-            == notes
+            unp_data["slideProperties"]["notesPage"]["notesProperties"]["speakerNotesText"] == notes
         )
         assert unp_data["fields"] == "notesPage.notesProperties.speakerNotesText"
 
@@ -222,42 +212,27 @@ class TestApiRequestGenerator:
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         title_element = sample_slide.elements[0]
-        requests = generator._generate_text_element_requests(
-            title_element, sample_slide.object_id
-        )
-        assert (
-            len(requests) >= 2
-        )  # createShape, insertText, possibly updateParagraphStyle
+        requests = generator._generate_text_element_requests(title_element, sample_slide.object_id)
+        assert len(requests) >= 2  # createShape, insertText, possibly updateParagraphStyle
         assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
         assert requests[1]["insertText"]["text"] == title_element.text
         # Check for paragraph style for title
-        paragraph_style_req = next(
-            (r for r in requests if "updateParagraphStyle" in r), None
-        )
+        paragraph_style_req = next((r for r in requests if "updateParagraphStyle" in r), None)
         assert paragraph_style_req is not None
-        assert (
-            paragraph_style_req["updateParagraphStyle"]["style"]["alignment"]
-            == "CENTER"
-        )
+        assert paragraph_style_req["updateParagraphStyle"]["style"]["alignment"] == "CENTER"
 
     @pytest.mark.parametrize("sample_slide", ["with_formatted_text"], indirect=True)
     def test_generate_text_element_requests_with_formatting(
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         text_element = sample_slide.elements[0]
-        requests = generator._generate_text_element_requests(
-            text_element, sample_slide.object_id
-        )
+        requests = generator._generate_text_element_requests(text_element, sample_slide.object_id)
         # Expected: createShape, insertText, updateTextStyle (bold), updateTextStyle (italic), updateParagraphStyle
         assert len(requests) == 5
         update_style_requests = [r for r in requests if "updateTextStyle" in r]
         assert len(update_style_requests) == 2
-        assert any(
-            r["updateTextStyle"]["style"].get("bold") for r in update_style_requests
-        )
-        assert any(
-            r["updateTextStyle"]["style"].get("italic") for r in update_style_requests
-        )
+        assert any(r["updateTextStyle"]["style"].get("bold") for r in update_style_requests)
+        assert any(r["updateTextStyle"]["style"].get("italic") for r in update_style_requests)
 
     @pytest.mark.parametrize("sample_slide", ["with_bullet_list"], indirect=True)
     def test_generate_list_element_requests(
@@ -270,22 +245,15 @@ class TestApiRequestGenerator:
         # createShape, insertText, createParagraphBullets
         assert len(requests) >= 3
         assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
-        assert (
-            "Item 1\nItem 2" in requests[1]["insertText"]["text"]
-        )  # Check combined text
-        assert (
-            requests[2]["createParagraphBullets"]["bulletPreset"]
-            == "BULLET_DISC_CIRCLE_SQUARE"
-        )
+        assert "Item 1\nItem 2" in requests[1]["insertText"]["text"]  # Check combined text
+        assert requests[2]["createParagraphBullets"]["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
 
     @pytest.mark.parametrize("sample_slide", ["with_image"], indirect=True)
     def test_generate_image_element_requests(
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         image_element = cast(ImageElement, sample_slide.elements[0])
-        requests = generator._generate_image_element_requests(
-            image_element, sample_slide.object_id
-        )
+        requests = generator._generate_image_element_requests(image_element, sample_slide.object_id)
         assert len(requests) == 2  # createImage, updateImageProperties (for alt text)
         assert "createImage" in requests[0]
         assert requests[0]["createImage"]["url"] == image_element.url
@@ -300,9 +268,7 @@ class TestApiRequestGenerator:
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         code_element = cast(CodeElement, sample_slide.elements[0])
-        requests = generator._generate_code_element_requests(
-            code_element, sample_slide.object_id
-        )
+        requests = generator._generate_code_element_requests(code_element, sample_slide.object_id)
         # createShape, insertText, updateTextStyle (font, bg), updateShapeProperties (bg), createShape (label), insertText(label), style(label), center(label)
         assert len(requests) == 8
         assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
@@ -323,9 +289,7 @@ class TestApiRequestGenerator:
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         table_element = cast(TableElement, sample_slide.elements[0])
-        requests = generator._generate_table_element_requests(
-            table_element, sample_slide.object_id
-        )
+        requests = generator._generate_table_element_requests(table_element, sample_slide.object_id)
         # createTable, insertText (H1), updateTextStyle (H1 bold), updateTableCellProperties (H1 fill), insertText(C1)
         assert len(requests) >= 5
         assert "createTable" in requests[0]
@@ -345,9 +309,7 @@ class TestApiRequestGenerator:
         }
 
     def test_apply_text_formatting_all_range(self, generator: ApiRequestGenerator):
-        req = generator._apply_text_formatting(
-            "el1", {"italic": True}, "italic", range_type="ALL"
-        )
+        req = generator._apply_text_formatting("el1", {"italic": True}, "italic", range_type="ALL")
         assert req["updateTextStyle"]["textRange"] == {"type": "ALL"}
         assert "startIndex" not in req["updateTextStyle"]["textRange"]
 

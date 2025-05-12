@@ -1,7 +1,8 @@
 """Element positioning functions for the PositionCalculator."""
 
 import logging
-from markdowndeck.models import ElementType, AlignmentType
+
+from markdowndeck.models import AlignmentType, ElementType
 
 logger = logging.getLogger(__name__)
 
@@ -16,9 +17,7 @@ def position_header_elements(calculator, slide):
     """
     # Get title and subtitle elements if present
     title_elements = [e for e in slide.elements if e.element_type == ElementType.TITLE]
-    subtitle_elements = [
-        e for e in slide.elements if e.element_type == ElementType.SUBTITLE
-    ]
+    subtitle_elements = [e for e in slide.elements if e.element_type == ElementType.SUBTITLE]
 
     # Position title
     if title_elements:
@@ -28,10 +27,7 @@ def position_header_elements(calculator, slide):
         title.size = (title_width, title_height)
 
         # Center the title horizontally
-        title_x = (
-            calculator.margins["left"]
-            + (calculator.max_content_width - title_width) / 2
-        )
+        title_x = calculator.margins["left"] + (calculator.max_content_width - title_width) / 2
         title_y = calculator.margins["top"] + 20  # Position from top margin
         title.position = (title_x, title_y)
 
@@ -44,8 +40,7 @@ def position_header_elements(calculator, slide):
 
         # Center the subtitle horizontally
         subtitle_x = (
-            calculator.margins["left"]
-            + (calculator.max_content_width - subtitle_width) / 2
+            calculator.margins["left"] + (calculator.max_content_width - subtitle_width) / 2
         )
 
         # Position below title if title exists, otherwise from top margin
@@ -66,9 +61,7 @@ def position_footer_element(calculator, slide):
         slide: The slide to position footer element for
     """
     # Get footer element if present
-    footer_elements = [
-        e for e in slide.elements if e.element_type == ElementType.FOOTER
-    ]
+    footer_elements = [e for e in slide.elements if e.element_type == ElementType.FOOTER]
 
     if footer_elements:
         footer = footer_elements[0]
@@ -83,14 +76,10 @@ def position_footer_element(calculator, slide):
         if alignment == AlignmentType.LEFT:
             footer_x = calculator.margins["left"]
         elif alignment == AlignmentType.RIGHT:
-            footer_x = (
-                calculator.slide_width - calculator.margins["right"] - footer_width
-            )
+            footer_x = calculator.slide_width - calculator.margins["right"] - footer_width
         else:  # CENTER
             footer_x = calculator.margins["left"]  # Start position
 
         # Position at the bottom of the slide
-        footer_y = (
-            calculator.slide_height - calculator.margins["bottom"] - footer_height
-        )
+        footer_y = calculator.slide_height - calculator.margins["bottom"] - footer_height
         footer.position = (footer_x, footer_y)

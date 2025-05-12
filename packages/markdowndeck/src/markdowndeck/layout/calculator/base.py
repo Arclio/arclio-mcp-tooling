@@ -3,31 +3,29 @@
 import logging
 from copy import deepcopy
 
-from markdowndeck.models import (
-    ElementType,
-    Slide,
-)
-
-from markdowndeck.layout.constants import (
-    HEADER_HEIGHT,
-    FOOTER_HEIGHT,
-    VERTICAL_SPACING,
-    HORIZONTAL_SPACING,
-    TITLE_WIDTH_FRACTION,
-    SUBTITLE_WIDTH_FRACTION,
-    QUOTE_WIDTH_FRACTION,
-    IMAGE_WIDTH_FRACTION,
-)
-
-from markdowndeck.layout.calculator.zone_layout import (
-    calculate_zone_based_positions,
+from markdowndeck.layout.calculator.element_layout import (
+    position_footer_element,
+    position_header_elements,
 )
 from markdowndeck.layout.calculator.section_layout import (
     calculate_section_based_positions,
 )
-from markdowndeck.layout.calculator.element_layout import (
-    position_header_elements,
-    position_footer_element,
+from markdowndeck.layout.calculator.zone_layout import (
+    calculate_zone_based_positions,
+)
+from markdowndeck.layout.constants import (
+    FOOTER_HEIGHT,
+    HEADER_HEIGHT,
+    HORIZONTAL_SPACING,
+    IMAGE_WIDTH_FRACTION,
+    QUOTE_WIDTH_FRACTION,
+    SUBTITLE_WIDTH_FRACTION,
+    TITLE_WIDTH_FRACTION,
+    VERTICAL_SPACING,
+)
+from markdowndeck.models import (
+    ElementType,
+    Slide,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,9 +34,7 @@ logger = logging.getLogger(__name__)
 class PositionCalculator:
     """Calculates positions for slide elements using a zone-based layout model with a fixed body zone."""
 
-    def __init__(
-        self, slide_width: float, slide_height: float, margins: dict[str, float]
-    ):
+    def __init__(self, slide_width: float, slide_height: float, margins: dict[str, float]):
         """
         Initialize the position calculator with slide dimensions and margins.
 
@@ -57,12 +53,8 @@ class PositionCalculator:
         self.horizontal_spacing = HORIZONTAL_SPACING
 
         # Content area dimensions
-        self.max_content_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
-        self.max_content_height = (
-            self.slide_height - self.margins["top"] - self.margins["bottom"]
-        )
+        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
+        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
 
         # Fixed zone dimensions
         self.HEADER_HEIGHT = HEADER_HEIGHT
@@ -73,10 +65,7 @@ class PositionCalculator:
         self.body_left = self.margins["left"]
         self.body_width = self.max_content_width
         self.body_height = (
-            self.slide_height
-            - self.body_top
-            - self.FOOTER_HEIGHT
-            - self.margins["bottom"]
+            self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
         )
         self.body_bottom = self.body_top + self.body_height
 
@@ -129,9 +118,7 @@ class PositionCalculator:
 
         # Determine if this slide uses section-based layout
         if updated_slide.sections:
-            logger.debug(
-                f"Using section-based layout for slide {updated_slide.object_id}"
-            )
+            logger.debug(f"Using section-based layout for slide {updated_slide.object_id}")
             return calculate_section_based_positions(self, updated_slide)
 
         logger.debug(f"Using zone-based layout for slide {updated_slide.object_id}")

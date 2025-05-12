@@ -1,15 +1,15 @@
 from copy import deepcopy
 from unittest.mock import MagicMock, patch
-import pytest
 
+import pytest
 from markdowndeck import create_presentation, get_themes, markdown_to_requests
 from markdowndeck.api.api_generator import ApiRequestGenerator
 from markdowndeck.models import (
     Deck,
     ElementType,
     Slide,
-    TextElement,
     SlideLayout,
+    TextElement,
 )  # For constructing expected Deck
 
 
@@ -48,8 +48,7 @@ This is a paragraph.
         create_slide_req = next((r for r in requests if "createSlide" in r), None)
         assert create_slide_req is not None
         assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            is not None
+            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] is not None
         )  # Layout determined by parser
 
         # Check for title element creation (simplified check)
@@ -64,8 +63,7 @@ This is a paragraph.
                 r
                 for r in requests
                 if "insertText" in r
-                and r["insertText"]["objectId"]
-                == title_shape_req["createShape"]["objectId"]
+                and r["insertText"]["objectId"] == title_shape_req["createShape"]["objectId"]
             ),
             None,
         )
@@ -73,9 +71,7 @@ This is a paragraph.
         assert title_text_req["insertText"]["text"] == "Simple Title"
 
         # Check for list presence (simplified)
-        list_bullets_req = next(
-            (r for r in requests if "createParagraphBullets" in r), None
-        )
+        list_bullets_req = next((r for r in requests if "createParagraphBullets" in r), None)
         assert list_bullets_req is not None
 
     def test_markdown_to_requests_complex_layout_slide(self):
@@ -118,11 +114,9 @@ My Complex Footer
             None,
         )
         assert bg_req is not None
-        assert bg_req["updateSlideProperties"]["slideProperties"]["backgroundFill"][
-            "solidFill"
-        ]["color"]["opaqueColor"]["rgbColor"] == ApiRequestGenerator()._hex_to_rgb(
-            "#112233"
-        )
+        assert bg_req["updateSlideProperties"]["slideProperties"]["backgroundFill"]["solidFill"][
+            "color"
+        ]["opaqueColor"]["rgbColor"] == ApiRequestGenerator()._hex_to_rgb("#112233")
 
         # Notes request - removed check for notesPage key
 
@@ -193,9 +187,9 @@ My Complex Footer
     @patch("markdowndeck.api.api_client.ApiClient")
     def test_create_presentation_orchestration(
         self,
-        MockApiClient: MagicMock,
-        MockLayoutManager: MagicMock,
-        MockParser: MagicMock,
+        mock_api_client: MagicMock,
+        mock_layout_manager: MagicMock,
+        mock_parser: MagicMock,
     ):
         markdown = "# Test"
         title = "Test Presentation"
@@ -224,7 +218,7 @@ My Complex Footer
         mock_credentials.create_scoped.return_value = mock_auth
 
         # Configure parser mocks
-        mock_parser_instance = MockParser.return_value
+        mock_parser_instance = mock_parser.return_value
         mock_deck = Deck(
             title=title,
             slides=[
@@ -237,7 +231,7 @@ My Complex Footer
         mock_parser_instance.parse.return_value = mock_deck
 
         # Configure layout mocks
-        mock_layout_manager_instance = MockLayoutManager.return_value
+        mock_layout_manager_instance = mock_layout_manager.return_value
         # Return a new slide with positioned elements (don't need exact position)
         processed_slide = deepcopy(mock_deck.slides[0])
         processed_slide.elements[0].position = (
@@ -251,47 +245,46 @@ My Complex Footer
         mock_layout_manager_instance.calculate_positions.return_value = processed_slide
 
         # Configure API client mocks
-        mock_api_client_instance = MockApiClient.return_value
+        mock_api_client_instance = mock_api_client.return_value
         mock_api_client_instance.create_presentation_from_deck.return_value = {
             "presentationId": "xyz"
         }
 
         # Ensure we're patching the actual imports used by markdowndeck.__init__
-        with patch("markdowndeck.__init__.ApiClient", MockApiClient):
-            # Skip actual API calls for test, using proper response mock
-            with patch(
+        with (
+            patch("markdowndeck.__init__.ApiClient", mock_api_client),
+            patch(
                 "googleapiclient.http._retry_request",
                 return_value=(mock_response, '{"presentationId": "xyz"}'),
-            ):
-                # Now patch the universe domain comparison to avoid the error
-                with patch(
-                    "google.api_core.universe.compare_domains",
-                    return_value=True,
-                ):
-                    # Just call the function, no need to capture result in skipped test
-                    create_presentation(markdown, title, credentials=mock_credentials)
+            ),
+            patch(
+                "google.api_core.universe.compare_domains",
+                return_value=True,
+            ),
+        ):
+            # Just call the function, no need to capture result in skipped test
+            create_presentation(markdown, title, credentials=mock_credentials)
 
         # Skip verification since we're marking this test as skipped
 
     # --- Tests for get_themes (mocked) ---
     @pytest.mark.skip(reason="Import patching issues with ApiClient - skip for now")
     @patch("markdowndeck.api.api_client.ApiClient")
-    def test_get_themes_calls_api_client(self, MockApiClient: MagicMock):
+    def test_get_themes_calls_api_client(self, mock_api_client: MagicMock):
         mock_credentials = MagicMock()
         # Set up the mock instance
         mock_api_client_instance = MagicMock()
-        MockApiClient.return_value = mock_api_client_instance
+        mock_api_client.return_value = mock_api_client_instance
 
         expected_themes = [{"id": "T1", "name": "Theme 1"}]
         mock_api_client_instance.get_available_themes.return_value = expected_themes
 
         # We need to patch the actual import path used in the function
         # Patch the ApiClient import in __init__.py
-        with patch("markdowndeck.ApiClient", MockApiClient):
+        with patch("markdowndeck.ApiClient", mock_api_client):
             # Just call the function, no need to capture result in skipped test
             get_themes(credentials=mock_credentials)
 
-        # Verify the API client was used correctly
         # Skip assertions since we're marking this test as skipped
 
     @pytest.fixture
@@ -318,23 +311,19 @@ My Complex Footer
     def test_notes_included_in_api_requests(self, deck_with_notes):
         """Test that slide notes are included in the API requests."""
         api_generator = ApiRequestGenerator()
-        batches = api_generator.generate_batch_requests(
-            deck_with_notes, "presentation_id"
-        )
+        batches = api_generator.generate_batch_requests(deck_with_notes, "presentation_id")
         # Find any batch that contains a notes request
         all_requests = []
         for batch in batches:
             all_requests.extend(batch["requests"])
 
         # Find the notes request
-        notes_req = next(
-            (r for r in all_requests if "updateSlideProperties" in r), None
-        )
+        notes_req = next((r for r in all_requests if "updateSlideProperties" in r), None)
         assert notes_req is not None
         # Check the notes text
         assert (
-            notes_req["updateSlideProperties"]["slideProperties"]["notesPage"][
-                "notesProperties"
-            ]["speakerNotesText"]
+            notes_req["updateSlideProperties"]["slideProperties"]["notesPage"]["notesProperties"][
+                "speakerNotesText"
+            ]
             == "These are my notes"
         )

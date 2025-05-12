@@ -3,20 +3,18 @@
 import logging
 import re
 
-from markdowndeck.models import ElementType, TextElement, TextFormatType
 from markdowndeck.layout.constants import (
-    TITLE_PADDING,
-    SUBTITLE_PADDING,
-    QUOTE_PADDING,
     DEFAULT_TEXT_PADDING,
+    QUOTE_PADDING,
+    SUBTITLE_PADDING,
+    TITLE_PADDING,
 )
+from markdowndeck.models import ElementType, TextElement, TextFormatType
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_text_element_height(
-    element: TextElement | dict, available_width: float
-) -> float:
+def calculate_text_element_height(element: TextElement | dict, available_width: float) -> float:
     """
     Calculate the height needed for a text element based on its content.
 
@@ -92,9 +90,7 @@ def calculate_text_element_height(
             min_height = max(min_height, font_based_min_height)
             # Also scale line height based on font size
             line_height_pt = max(line_height_pt, fontsize * 1.1)
-            logger.debug(
-                f"Adjusted min height to {min_height} based on fontsize={fontsize}"
-            )
+            logger.debug(f"Adjusted min height to {min_height} based on fontsize={fontsize}")
         except (ValueError, TypeError):
             logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
 
@@ -110,9 +106,7 @@ def calculate_text_element_height(
         if 1 <= heading_level <= 6:
             heading_min_height = 30 - (heading_level * 2)  # h1=28, h2=26, etc.
             min_height = max(min_height, heading_min_height)
-            logger.debug(
-                f"Set minimum height {min_height} for heading level {heading_level}"
-            )
+            logger.debug(f"Set minimum height {min_height} for heading level {heading_level}")
 
     # OPTIMIZED: Calculate effective width with minimal internal padding
     effective_width = max(1.0, available_width - 4.0)  # Reduced from 6.0
@@ -130,9 +124,7 @@ def calculate_text_element_height(
 
             # Simple line wrapping calculation
             text_length = len(line)
-            lines_needed = (
-                text_length + chars_per_line - 1
-            ) // chars_per_line  # Ceiling division
+            lines_needed = (text_length + chars_per_line - 1) // chars_per_line  # Ceiling division
             line_count += max(1, lines_needed)  # Ensure at least 1 line
 
     # OPTIMIZED: Minimal adjustments for formatting

@@ -2,19 +2,17 @@
 
 import logging
 
-from markdowndeck.layout.metrics import calculate_element_height
-from markdowndeck.models import (
-    ElementType,
+from markdowndeck.layout.calculator.element_utils import (
+    adjust_vertical_spacing,
+    apply_horizontal_alignment,
+    mark_related_elements,
 )
 from markdowndeck.layout.constants import (
     BODY_TOP_ADJUSTMENT,
-    VERTICAL_SPACING_REDUCTION,
 )
-
-from markdowndeck.layout.calculator.element_utils import (
-    apply_horizontal_alignment,
-    mark_related_elements,
-    adjust_vertical_spacing,
+from markdowndeck.layout.metrics import calculate_element_height
+from markdowndeck.models import (
+    ElementType,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,7 +58,7 @@ def calculate_zone_based_positions(calculator, slide):
             width_dir = element.directives["width"]
             if isinstance(width_dir, float) and 0.0 < width_dir <= 1.0:
                 element_width = calculator.body_width * width_dir
-            elif isinstance(width_dir, (int, float)) and width_dir > 1.0:
+            elif isinstance(width_dir, int | float) and width_dir > 1.0:
                 element_width = min(width_dir, calculator.body_width)
 
         # More accurate height calculation with reduced padding
@@ -82,9 +80,7 @@ def calculate_zone_based_positions(calculator, slide):
             )
 
         # Position element using horizontal alignment within the body zone
-        apply_horizontal_alignment(
-            element, calculator.body_left, calculator.body_width, current_y
-        )
+        apply_horizontal_alignment(element, calculator.body_left, calculator.body_width, current_y)
 
         # Add special handling for spacing after heading elements
         if (

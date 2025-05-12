@@ -44,9 +44,7 @@ class SectionParser:
             if len(normalized_content) > 100
             else normalized_content
         )
-        logger.debug(
-            f"Parsing content ({len(normalized_content)} chars): {content_preview}"
-        )
+        logger.debug(f"Parsing content ({len(normalized_content)} chars): {content_preview}")
 
         return self._parse_vertical_sections(normalized_content)
 
@@ -68,9 +66,7 @@ class SectionParser:
 
         final_sections = []
         if not vertical_parts:
-            if content and not re.fullmatch(
-                vertical_separator + r"\s*", content, re.MULTILINE
-            ):
+            if content and not re.fullmatch(vertical_separator + r"\s*", content, re.MULTILINE):
                 vertical_parts = [content]
                 logger.debug(
                     "No vertical parts found but content exists. Creating a single section."
@@ -88,15 +84,11 @@ class SectionParser:
             # This ensures H2/H3 headers are preserved when they start a section
             # Log first few characters for debugging
             v_part_preview = (
-                v_part_content[:50] + "..."
-                if len(v_part_content) > 50
-                else v_part_content
+                v_part_content[:50] + "..." if len(v_part_content) > 50 else v_part_content
             )
             logger.debug(f"Processing vertical part {v_idx + 1}: {v_part_preview}")
 
-            horizontal_sections = self._parse_horizontal_sections(
-                v_part_content, f"v{v_idx}"
-            )
+            horizontal_sections = self._parse_horizontal_sections(v_part_content, f"v{v_idx}")
 
             if len(horizontal_sections) > 1:
                 # This vertical part contains multiple horizontal subsections, so it's a "row"
@@ -166,9 +158,7 @@ class SectionParser:
             # CRITICAL FIX: Preserve the full content including any headers
             # Log the content for debugging
             h_part_preview = (
-                h_part_content[:50] + "..."
-                if len(h_part_content) > 50
-                else h_part_content
+                h_part_content[:50] + "..." if len(h_part_content) > 50 else h_part_content
             )
             logger.debug(f"Processing horizontal part {h_idx + 1}: {h_part_preview}")
 
@@ -209,9 +199,7 @@ class SectionParser:
                 self._log_section_hierarchy(section.subsections, indent + 1)
             else:
                 content_preview = (
-                    section.content[:30] + "..."
-                    if len(section.content) > 30
-                    else section.content
+                    section.content[:30] + "..." if len(section.content) > 30 else section.content
                 )
                 content_preview = content_preview.replace("\n", "\\n")
                 logger.debug(f"{indent_str}Section {section.id}: '{content_preview}'")

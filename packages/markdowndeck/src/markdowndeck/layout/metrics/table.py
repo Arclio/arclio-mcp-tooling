@@ -15,9 +15,7 @@ from markdowndeck.models import (
 logger = logging.getLogger(__name__)
 
 
-def calculate_table_element_height(
-    element: TableElement | dict, available_width: float
-) -> float:
+def calculate_table_element_height(element: TableElement | dict, available_width: float) -> float:
     """
     Calculate the height needed for a table element.
 
@@ -57,44 +55,28 @@ def calculate_table_element_height(
         max_header_cell_content_height = 0
         for header_text in table_element.headers:
             # Create a temporary TextElement for height calculation
-            temp_text_el = TextElement(
-                element_type=ElementType.TEXT, text=str(header_text)
-            )
-            cell_content_height = calculate_text_element_height(
-                temp_text_el, col_width_estimate
-            )
+            temp_text_el = TextElement(element_type=ElementType.TEXT, text=str(header_text))
+            cell_content_height = calculate_text_element_height(temp_text_el, col_width_estimate)
             max_header_cell_content_height = max(
                 max_header_cell_content_height, cell_content_height
             )
-        total_height += max(
-            min_cell_height, max_header_cell_content_height + cell_vertical_padding
-        )
+        total_height += max(min_cell_height, max_header_cell_content_height + cell_vertical_padding)
 
     # Calculate height for data rows
     for row_data in table_element.rows:
         max_row_cell_content_height = 0
         for cell_text in row_data:
-            temp_text_el = TextElement(
-                element_type=ElementType.TEXT, text=str(cell_text)
-            )
-            cell_content_height = calculate_text_element_height(
-                temp_text_el, col_width_estimate
-            )
-            max_row_cell_content_height = max(
-                max_row_cell_content_height, cell_content_height
-            )
-        total_height += max(
-            min_cell_height, max_row_cell_content_height + cell_vertical_padding
-        )
+            temp_text_el = TextElement(element_type=ElementType.TEXT, text=str(cell_text))
+            cell_content_height = calculate_text_element_height(temp_text_el, col_width_estimate)
+            max_row_cell_content_height = max(max_row_cell_content_height, cell_content_height)
+        total_height += max(min_cell_height, max_row_cell_content_height + cell_vertical_padding)
 
     # OPTIMIZED: Reduced table padding/borders
     total_height += 8.0  # Reduced from 10.0
 
     # OPTIMIZED: Reduced minimum height for tables
     final_height = max(total_height, 35.0)  # Reduced from 40.0
-    logger.debug(
-        f"Table calculated height: {final_height:.2f} for width {available_width:.2f}"
-    )
+    logger.debug(f"Table calculated height: {final_height:.2f} for width {available_width:.2f}")
     return final_height
 
 

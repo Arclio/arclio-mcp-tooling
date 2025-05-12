@@ -11,9 +11,7 @@ class TestTableMetrics:
         assert height >= 30  # Min height
 
     def test_calculate_table_height_header_only(self):
-        element = TableElement(
-            headers=["H1", "H2"], rows=[], element_type=ElementType.TABLE
-        )
+        element = TableElement(headers=["H1", "H2"], rows=[], element_type=ElementType.TABLE)
         height = calculate_table_element_height(element, 500)
         # Current implementation uses more compact spacing, so minimum height is decreased
         assert height > 20  # Reduced expectation to accommodate more compact layout
@@ -21,9 +19,7 @@ class TestTableMetrics:
     def test_calculate_table_height_header_and_rows(self):
         headers = ["Header"]
         rows = [["Row1Cell1"], ["Row2Cell1"]]
-        element = TableElement(
-            headers=headers, rows=rows, element_type=ElementType.TABLE
-        )
+        element = TableElement(headers=headers, rows=rows, element_type=ElementType.TABLE)
         height = calculate_table_element_height(element, 200)
         # The current implementation uses more compact spacing
         # Because the calculation is complex (involves text wrapping, cell padding, etc.),
@@ -34,9 +30,7 @@ class TestTableMetrics:
         headers = ["Col A"]
         short_cell_row = [["Short"]]
         long_cell_row = [
-            [
-                "This cell has a lot of text that should wrap multiple times and make the row taller."
-            ]
+            ["This cell has a lot of text that should wrap multiple times and make the row taller."]
         ]
 
         element_short = TableElement(
@@ -62,12 +56,8 @@ class TestTableMetrics:
             ],
             ["Another short", "Also short"],
         ]
-        element = TableElement(
-            headers=headers, rows=rows, element_type=ElementType.TABLE
-        )
-        height = calculate_table_element_height(
-            element, 400
-        )  # available_width for table
+        element = TableElement(headers=headers, rows=rows, element_type=ElementType.TABLE)
+        height = calculate_table_element_height(element, 400)  # available_width for table
 
         # Height of first row will be determined by the longer cell.
         # Height of second row by its own content.

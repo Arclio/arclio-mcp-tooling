@@ -66,12 +66,8 @@ class TestTextMetrics:
         expected_min_height_ballpark,
     ):
         element = TextElement(element_type=el_type, text=text)
-        if (
-            el_type == ElementType.TEXT and "inline code" in text
-        ):  # Add dummy formatting
-            element.formatting = [
-                TextFormat(start=10, end=22, format_type=TextFormatType.CODE)
-            ]
+        if el_type == ElementType.TEXT and "inline code" in text:  # Add dummy formatting
+            element.formatting = [TextFormat(start=10, end=22, format_type=TextFormatType.CODE)]
 
         height = calculate_text_element_height(element, available_width)
         assert height >= 0
@@ -92,9 +88,7 @@ class TestTextMetrics:
         height_wide = calculate_text_element_height(element, 500)
         height_narrow = calculate_text_element_height(element, 200)
 
-        assert (
-            height_narrow > height_wide
-        )  # Narrower width should result in taller height
+        assert height_narrow > height_wide  # Narrower width should result in taller height
 
     def test_formatting_impact_on_height(self):
         """Test that text formatting is considered in height calculation if implemented."""

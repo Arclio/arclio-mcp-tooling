@@ -16,9 +16,7 @@ from markdowndeck.models import (
 logger = logging.getLogger(__name__)
 
 
-def calculate_list_element_height(
-    element: ListElement | dict, available_width: float
-) -> float:
+def calculate_list_element_height(element: ListElement | dict, available_width: float) -> float:
     """
     Calculate the height needed for a list element.
 
@@ -30,9 +28,7 @@ def calculate_list_element_height(
         Calculated height in points.
     """
     list_element = (
-        cast(ListElement, element)
-        if isinstance(element, ListElement)
-        else ListElement(**element)
+        cast(ListElement, element) if isinstance(element, ListElement) else ListElement(**element)
     )
 
     if not list_element.items:
@@ -43,9 +39,7 @@ def calculate_list_element_height(
     base_level_padding = 6  # Reduced from 10
 
     for item in list_element.items:
-        total_height += _calculate_single_item_total_height(
-            item, available_width, 0, item_spacing
-        )
+        total_height += _calculate_single_item_total_height(item, available_width, 0, item_spacing)
 
     # Add spacing for the last item if there are items
     if list_element.items:
@@ -91,8 +85,6 @@ def _calculate_single_item_total_height(
                 child_item, available_width, level + 1, item_spacing
             )
 
-        current_item_total_height += (
-            children_height - item_spacing
-        )  # Avoid double counting spacing
+        current_item_total_height += children_height - item_spacing  # Avoid double counting spacing
 
     return current_item_total_height

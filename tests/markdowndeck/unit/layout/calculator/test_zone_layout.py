@@ -21,13 +21,9 @@ class TestZoneLayout:
 
     @pytest.fixture
     def calculator(self, default_margins: dict[str, float]) -> PositionCalculator:
-        return PositionCalculator(
-            slide_width=720, slide_height=405, margins=default_margins
-        )
+        return PositionCalculator(slide_width=720, slide_height=405, margins=default_margins)
 
-    def test_calculate_zone_based_positions_title_only(
-        self, calculator: PositionCalculator
-    ):
+    def test_calculate_zone_based_positions_title_only(self, calculator: PositionCalculator):
         """Test that a slide with only a title is positioned correctly."""
         title = TextElement(element_type=ElementType.TITLE, text="Title")
         slide = Slide(elements=[deepcopy(title)])
@@ -39,18 +35,14 @@ class TestZoneLayout:
             e for e in result_slide.elements if e.element_type == ElementType.TITLE
         )
         assert positioned_title.position is not None
-        assert positioned_title.position[1] == pytest.approx(
-            calculator.margins["top"] + 20
-        )
+        assert positioned_title.position[1] == pytest.approx(calculator.margins["top"] + 20)
         # Title should be horizontally centered
         assert positioned_title.position[0] == pytest.approx(
             calculator.margins["left"]
             + (calculator.max_content_width - positioned_title.size[0]) / 2
         )
 
-    def test_calculate_zone_based_positions_body_elements(
-        self, calculator: PositionCalculator
-    ):
+    def test_calculate_zone_based_positions_body_elements(self, calculator: PositionCalculator):
         """Test that body elements are positioned correctly within the body zone."""
         title = TextElement(element_type=ElementType.TITLE, text="Title")
         text1 = TextElement(element_type=ElementType.TEXT, text="Body text 1")
@@ -60,9 +52,7 @@ class TestZoneLayout:
         result_slide = calculate_zone_based_positions(calculator, slide)
 
         # Get the positioned body elements
-        body_elements = [
-            e for e in result_slide.elements if e.element_type == ElementType.TEXT
-        ]
+        body_elements = [e for e in result_slide.elements if e.element_type == ElementType.TEXT]
         assert len(body_elements) == 2
 
         # Body elements should be within body zone, accounting for BODY_TOP_ADJUSTMENT
@@ -77,9 +67,7 @@ class TestZoneLayout:
         # Elements should be stacked vertically
         assert body_elements[0].position[1] < body_elements[1].position[1]
 
-    def test_calculate_zone_based_positions_with_footer(
-        self, calculator: PositionCalculator
-    ):
+    def test_calculate_zone_based_positions_with_footer(self, calculator: PositionCalculator):
         """Test that a slide with a footer positions the footer correctly."""
         title = TextElement(element_type=ElementType.TITLE, text="Title")
         text = TextElement(element_type=ElementType.TEXT, text="Body text")
@@ -96,15 +84,11 @@ class TestZoneLayout:
 
         # Footer should be at the bottom - margins - footer height
         expected_footer_y = (
-            calculator.slide_height
-            - calculator.margins["bottom"]
-            - positioned_footer.size[1]
+            calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
         )
         assert positioned_footer.position[1] == pytest.approx(expected_footer_y)
 
-    def test_calculate_zone_based_positions_element_alignment(
-        self, calculator: PositionCalculator
-    ):
+    def test_calculate_zone_based_positions_element_alignment(self, calculator: PositionCalculator):
         """Test that elements with different alignments are positioned correctly."""
         # Create elements with different alignments
         text_left = TextElement(
@@ -123,9 +107,7 @@ class TestZoneLayout:
             horizontal_alignment=AlignmentType.RIGHT,
         )
 
-        slide = Slide(
-            elements=[deepcopy(text_left), deepcopy(text_center), deepcopy(text_right)]
-        )
+        slide = Slide(elements=[deepcopy(text_left), deepcopy(text_center), deepcopy(text_right)])
 
         result_slide = calculate_zone_based_positions(calculator, slide)
 
@@ -137,18 +119,12 @@ class TestZoneLayout:
         assert left_element.position[0] == calculator.body_left
 
         # Verify center alignment
-        center_element = next(
-            e for e in positioned_elements if e.text == "Center aligned"
-        )
-        center_x = (
-            calculator.body_left + (calculator.body_width - center_element.size[0]) / 2
-        )
+        center_element = next(e for e in positioned_elements if e.text == "Center aligned")
+        center_x = calculator.body_left + (calculator.body_width - center_element.size[0]) / 2
         assert center_element.position[0] == pytest.approx(center_x)
 
         # Verify right alignment
-        right_element = next(
-            e for e in positioned_elements if e.text == "Right aligned"
-        )
+        right_element = next(e for e in positioned_elements if e.text == "Right aligned")
         right_x = calculator.body_left + calculator.body_width - right_element.size[0]
         assert right_element.position[0] == pytest.approx(right_x)
 
@@ -165,9 +141,7 @@ class TestZoneLayout:
             element_type=ElementType.TEXT, text="Fixed width", directives={"width": 200}
         )
 
-        slide = Slide(
-            elements=[deepcopy(text_full), deepcopy(text_half), deepcopy(text_fixed)]
-        )
+        slide = Slide(elements=[deepcopy(text_full), deepcopy(text_half), deepcopy(text_fixed)])
 
         result_slide = calculate_zone_based_positions(calculator, slide)
 

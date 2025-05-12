@@ -49,9 +49,7 @@ class TableFormatter(BaseFormatter):
                 current_row_cells = []
             elif token.type == "tr_close":
                 if current_row_cells:
-                    if (
-                        in_header_row
-                    ):  # This should ideally only happen once for the table
+                    if in_header_row:  # This should ideally only happen once for the table
                         headers = list(current_row_cells)
                     else:
                         rows.append(list(current_row_cells))
@@ -60,10 +58,7 @@ class TableFormatter(BaseFormatter):
                 # Content of a cell is in the next inline token
                 cell_content_idx = i + 1
                 cell_text = ""
-                if (
-                    cell_content_idx < end_index
-                    and tokens[cell_content_idx].type == "inline"
-                ):
+                if cell_content_idx < end_index and tokens[cell_content_idx].type == "inline":
                     # Extract plain text from the inline token using the helper method
                     cell_text = self._get_plain_text_from_inline_token(
                         tokens[cell_content_idx]

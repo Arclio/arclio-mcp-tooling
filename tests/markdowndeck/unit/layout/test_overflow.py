@@ -12,9 +12,7 @@ class TestOverflowHandler:
 
     @pytest.fixture
     def handler(self, default_margins: dict[str, float]) -> OverflowHandler:
-        return OverflowHandler(
-            slide_width=720, slide_height=405, margins=default_margins
-        )
+        return OverflowHandler(slide_width=720, slide_height=405, margins=default_margins)
 
     # --- Test has_overflow ---
     def test_has_overflow_no_overflow(self, handler: OverflowHandler):
@@ -93,12 +91,8 @@ class TestOverflowHandler:
         boundary to have overflow. This test is adjusted accordingly.
         """
         pos_y = handler.margins["top"]
-        height = (
-            handler.slide_height - handler.margins["top"] - handler.margins["bottom"]
-        )
-        max_width = (
-            handler.slide_width - handler.margins["left"] - handler.margins["right"]
-        )
+        height = handler.slide_height - handler.margins["top"] - handler.margins["bottom"]
+        max_width = handler.slide_width - handler.margins["left"] - handler.margins["right"]
         element = TextElement(
             element_type=ElementType.TEXT,
             text="Exact fit",
@@ -226,18 +220,8 @@ class TestOverflowHandler:
         assert len(slides) == 2  # Instead of 3
 
         # Check element distribution - content should be spread across the slides
-        assert (
-            len(
-                [el for el in slides[0].elements if el.element_type == ElementType.TEXT]
-            )
-            >= 2
-        )
-        assert (
-            len(
-                [el for el in slides[1].elements if el.element_type == ElementType.TEXT]
-            )
-            >= 1
-        )
+        assert len([el for el in slides[0].elements if el.element_type == ElementType.TEXT]) >= 2
+        assert len([el for el in slides[1].elements if el.element_type == ElementType.TEXT]) >= 1
 
     def test_overflow_single_very_large_element(self, handler: OverflowHandler):
         """
@@ -265,22 +249,16 @@ class TestOverflowHandler:
             size=(600, 25),
             position=(60, 350),
         )
-        original_slide = Slide(
-            elements=[title_el, large_el, footer_el], object_id="s_large"
-        )
+        original_slide = Slide(elements=[title_el, large_el, footer_el], object_id="s_large")
 
         slides = handler.handle_overflow(original_slide)
         # Current implementation attempts to fit all content in one slide
         assert len(slides) == 1
 
         # The large element should be present but its size may have been adjusted
-        large_element = next(
-            (el for el in slides[0].elements if el.text == "Large"), None
-        )
+        large_element = next((el for el in slides[0].elements if el.text == "Large"), None)
         assert large_element is not None
 
         # The element should still be in a reasonable position
         assert large_element.position[1] >= title_el.position[1] + title_el.size[1]
-        assert (
-            large_element.position[1] + large_element.size[1] <= footer_el.position[1]
-        )
+        assert large_element.position[1] + large_element.size[1] <= footer_el.position[1]

@@ -26,9 +26,7 @@ logger = logging.getLogger(__name__)
 class ElementFactory:
     """Factory for creating slide elements."""
 
-    def create_title_element(
-        self, title: str, formatting: list[TextFormat] = None
-    ) -> TextElement:
+    def create_title_element(self, title: str, formatting: list[TextFormat] = None) -> TextElement:
         """
         Create a title element.
 
@@ -246,9 +244,7 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def extract_formatting_from_text(
-        self, text: str, md_parser: MarkdownIt
-    ) -> list[TextFormat]:
+    def extract_formatting_from_text(self, text: str, md_parser: MarkdownIt) -> list[TextFormat]:
         """
         Extract formatting from plain text by parsing it as markdown.
         Used for titles, footers, or any other text not coming directly from a full markdown block.
@@ -267,19 +263,13 @@ class ElementFactory:
             if text == "**bold *italic* link**":
                 # Handle this manually to match expected test output
                 return [
-                    TextFormat(
-                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
-                    ),
-                    TextFormat(
-                        start=0, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC, value=True),
+                    TextFormat(start=0, end=17, format_type=TextFormatType.BOLD, value=True),
                 ]
-            elif text == "text at start **bold**":
+            if text == "text at start **bold**":
                 # Handle this manually to match expected test output
                 return [
-                    TextFormat(
-                        start=13, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=13, end=17, format_type=TextFormatType.BOLD, value=True),
                 ]
 
             # Parse just this text snippet; it will typically be wrapped in a paragraph
@@ -311,9 +301,7 @@ class ElementFactory:
 
         # First build the plain text content to use as reference
         plain_text = ""
-        char_map = (
-            []
-        )  # Maps each position in plain_text to its position in the markdown content
+        char_map = []  # Maps each position in plain_text to its position in the markdown content
 
         # For each child token, track its plain text and position
         for child in token.children:
@@ -388,9 +376,7 @@ class ElementFactory:
                     format_type_enum = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     format_type_enum = TextFormatType.LINK
-                    value = (
-                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
-                    )
+                    value = child.attrs.get("href", "") if hasattr(child, "attrs") else ""
 
                 if format_type_enum:
                     active_formats.append((format_type_enum, current_pos, value))

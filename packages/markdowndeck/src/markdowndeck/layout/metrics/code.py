@@ -10,9 +10,7 @@ from markdowndeck.models import (
 logger = logging.getLogger(__name__)
 
 
-def calculate_code_element_height(
-    element: CodeElement | dict, available_width: float
-) -> float:
+def calculate_code_element_height(element: CodeElement | dict, available_width: float) -> float:
     """
     Calculate the height needed for a code element.
 
@@ -24,9 +22,7 @@ def calculate_code_element_height(
         Calculated height in points.
     """
     code_element = (
-        cast(CodeElement, element)
-        if isinstance(element, CodeElement)
-        else CodeElement(**element)
+        cast(CodeElement, element) if isinstance(element, CodeElement) else CodeElement(**element)
     )
     code_content = code_element.code
     language = code_element.language
@@ -45,9 +41,7 @@ def calculate_code_element_height(
         language_label_height_pt = 12.0  # Reduced from 15.0
 
     # OPTIMIZED: Reduced internal padding for more usable width
-    effective_code_width = max(
-        1.0, available_width - (2 * 6)
-    )  # Reduced from 8pt L/R padding
+    effective_code_width = max(1.0, available_width - (2 * 6))  # Reduced from 8pt L/R padding
 
     # Count lines more efficiently
     num_lines = 0
@@ -56,9 +50,7 @@ def calculate_code_element_height(
             num_lines += 1
         else:
             # OPTIMIZED: More accurate character counting
-            chars_per_line = max(
-                1, int(effective_code_width / avg_char_width_monospace_pt)
-            )
+            chars_per_line = max(1, int(effective_code_width / avg_char_width_monospace_pt))
             num_lines += (len(line_text) + chars_per_line - 1) // chars_per_line
 
     # Calculate total height with reduced padding

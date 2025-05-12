@@ -34,9 +34,7 @@ class TestContentSplitter:
         placeholder = list(blocks.keys())[0]
         assert placeholder in protected_content
         assert f"```python\n{code}\n```" == blocks[placeholder]
-        assert (
-            "def hello()" not in protected_content
-        )  # Original code should be replaced
+        assert "def hello()" not in protected_content  # Original code should be replaced
 
         restored_content = splitter._restore_blocks(protected_content, blocks)
         assert restored_content == content
@@ -51,9 +49,7 @@ class TestContentSplitter:
         restored_content = splitter._restore_blocks(protected_content, blocks)
         assert restored_content == content
 
-    def test_code_block_with_internal_separator_like_patterns(
-        self, splitter: ContentSplitter
-    ):
+    def test_code_block_with_internal_separator_like_patterns(self, splitter: ContentSplitter):
         content = "Section A\n```\n---\n***\n```\nSection B"
         protected_content, blocks = splitter._protect_blocks(
             content, splitter.code_block_regex, "CODE"
@@ -162,17 +158,13 @@ Part 4
         assert "~~~ Separator D ~~~" in vertical_split.parts[2]  # Code block preserved
 
         # Now test splitting one of those parts horizontally
-        horizontal_split = splitter.split_by_separator(
-            vertical_split.parts[1], r"^\s*\*\*\*\s*$"
-        )
+        horizontal_split = splitter.split_by_separator(vertical_split.parts[1], r"^\s*\*\*\*\s*$")
         assert len(horizontal_split.parts) == 2
         assert "Part 2" in horizontal_split.parts[0]
         assert "Code C" in horizontal_split.parts[0]
         assert "Part 3" in horizontal_split.parts[1]
 
-    def test_invalid_regex_pattern_for_separator(
-        self, splitter: ContentSplitter, caplog
-    ):
+    def test_invalid_regex_pattern_for_separator(self, splitter: ContentSplitter, caplog):
         content = "Some content"
         invalid_pattern = "["  # Invalid regex
         # Mark test as expected to fail due to known bug in ContentSplitter's error handling

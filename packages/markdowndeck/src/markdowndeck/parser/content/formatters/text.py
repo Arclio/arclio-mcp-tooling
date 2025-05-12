@@ -35,17 +35,16 @@ class TextFormatter(BaseFormatter):
             ):  # leading_tokens[0] is current token
                 inline_children = getattr(leading_tokens[1], "children", [])
                 if inline_children:
-                    image_children = [
-                        child for child in inline_children if child.type == "image"
-                    ]
+                    image_children = [child for child in inline_children if child.type == "image"]
                     other_content = [
                         child
                         for child in inline_children
-                        if child.type != "image"
-                        and (child.type != "text" or child.content.strip())
+                        if child.type != "image" and (child.type != "text" or child.content.strip())
                     ]
                     if len(image_children) > 0 and not other_content:
-                        return False  # This is an image-only paragraph, ImageFormatter should take it.
+                        return (
+                            False  # This is an image-only paragraph, ImageFormatter should take it.
+                        )
             return True  # It's a paragraph, and not clearly image-only from this limited peek.
         return False
 
@@ -100,22 +99,15 @@ class TextFormatter(BaseFormatter):
         level = int(open_token.tag[1])
 
         inline_token_index = start_index + 1
-        if not (
-            inline_token_index < len(tokens)
-            and tokens[inline_token_index].type == "inline"
-        ):
-            logger.warning(
-                f"No inline content found for heading at index {start_index}"
-            )
+        if not (inline_token_index < len(tokens) and tokens[inline_token_index].type == "inline"):
+            logger.warning(f"No inline content found for heading at index {start_index}")
             end_idx = self.find_closing_token(tokens, start_index, "heading_close")
             return None, end_idx
 
         inline_token = tokens[inline_token_index]
         # Use helper method to get plain text instead of raw markdown
         text_content = self._get_plain_text_from_inline_token(inline_token)
-        formatting = self.element_factory._extract_formatting_from_inline_token(
-            inline_token
-        )
+        formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
 
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
 
@@ -142,9 +134,7 @@ class TextFormatter(BaseFormatter):
                 directives["margin_bottom"] = 8
 
         # Get alignment from directives or use default
-        horizontal_alignment = AlignmentType(
-            directives.get("align", default_alignment.value)
-        )
+        horizontal_alignment = AlignmentType(directives.get("align", default_alignment.value))
 
         # Create the appropriate element based on element_type
         element: TextElement | None = None
@@ -179,10 +169,7 @@ class TextFormatter(BaseFormatter):
         self, tokens: list[Token], start_index: int, directives: dict[str, Any]
     ) -> tuple[TextElement | None, int]:
         inline_token_index = start_index + 1
-        if not (
-            inline_token_index < len(tokens)
-            and tokens[inline_token_index].type == "inline"
-        ):
+        if not (inline_token_index < len(tokens) and tokens[inline_token_index].type == "inline"):
             logger.debug(
                 f"No inline content found for paragraph at index {start_index}, could be empty or just structural."
             )
@@ -192,22 +179,17 @@ class TextFormatter(BaseFormatter):
         inline_token = tokens[inline_token_index]
         # Use helper method to get plain text instead of raw markdown
         text_content = self._get_plain_text_from_inline_token(inline_token)
-        formatting = self.element_factory._extract_formatting_from_inline_token(
-            inline_token
-        )
+        formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
 
         end_idx = self.find_closing_token(tokens, start_index, "paragraph_close")
 
         # Double check if it's an image-only paragraph, ImageFormatter should have caught this if ordered correctly.
         if hasattr(inline_token, "children") and inline_token.children:
-            image_children = [
-                child for child in inline_token.children if child.type == "image"
-            ]
+            image_children = [child for child in inline_token.children if child.type == "image"]
             other_content_present = any(
                 child
                 for child in inline_token.children
-                if child.type != "image"
-                and (child.type != "text" or child.content.strip())
+                if child.type != "image" and (child.type != "text" or child.content.strip())
             )
             if len(image_children) > 0 and not other_content_present:
                 logger.debug(
@@ -221,9 +203,7 @@ class TextFormatter(BaseFormatter):
             logger.debug(f"Skipping empty paragraph at index {start_index}")
             return None, end_idx
 
-        horizontal_alignment = AlignmentType(
-            directives.get("align", AlignmentType.LEFT.value)
-        )
+        horizontal_alignment = AlignmentType(directives.get("align", AlignmentType.LEFT.value))
 
         element = self.element_factory.create_text_element(
             text=text_content,
@@ -231,9 +211,7 @@ class TextFormatter(BaseFormatter):
             alignment=horizontal_alignment,
             directives=directives.copy(),
         )
-        logger.debug(
-            f"Created paragraph element from token index {start_index} to {end_idx}"
-        )
+        logger.debug(f"Created paragraph element from token index {start_index} to {end_idx}")
         return element, end_idx
 
     def _process_quote(
@@ -250,17 +228,12 @@ class TextFormatter(BaseFormatter):
             token_i = tokens[i]
             if token_i.type == "paragraph_open":
                 para_inline_idx = i + 1
-                if (
-                    para_inline_idx < end_idx
-                    and tokens[para_inline_idx].type == "inline"
-                ):
+                if para_inline_idx < end_idx and tokens[para_inline_idx].type == "inline":
                     inline_token = tokens[para_inline_idx]
                     # Use helper method to get plain text instead of raw markdown
                     text_part = self._get_plain_text_from_inline_token(inline_token)
-                    part_formatting = (
-                        self.element_factory._extract_formatting_from_inline_token(
-                            inline_token
-                        )
+                    part_formatting = self.element_factory._extract_formatting_from_inline_token(
+                        inline_token
                     )
 
                     if quote_text_parts:  # Add newline if not the first paragraph
@@ -285,9 +258,7 @@ class TextFormatter(BaseFormatter):
         if not final_quote_text.strip():
             return None, end_idx
 
-        horizontal_alignment = AlignmentType(
-            directives.get("align", AlignmentType.LEFT.value)
-        )
+        horizontal_alignment = AlignmentType(directives.get("align", AlignmentType.LEFT.value))
 
         element = self.element_factory.create_quote_element(
             text=final_quote_text,
@@ -295,7 +266,5 @@ class TextFormatter(BaseFormatter):
             alignment=horizontal_alignment,
             directives=directives.copy(),
         )
-        logger.debug(
-            f"Created blockquote element from token index {start_index} to {end_idx}"
-        )
+        logger.debug(f"Created blockquote element from token index {start_index} to {end_idx}")
         return element, end_idx

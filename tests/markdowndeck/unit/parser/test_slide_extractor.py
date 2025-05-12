@@ -50,9 +50,7 @@ class TestSlideExtractor:
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
         assert slides[0]["title"] == "Only Title"
-        assert (
-            slides[0]["content"] == ""
-        )  # Content should be empty after title extraction
+        assert slides[0]["content"] == ""  # Content should be empty after title extraction
 
     def test_slide_with_title_and_footer(self, extractor: SlideExtractor):
         """Test a slide with title, content, and footer."""
@@ -87,10 +85,7 @@ More content on the same slide.
 """
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
-        assert (
-            "Code block content\n===\nThis is not a slide separator."
-            in slides[0]["content"]
-        )
+        assert "Code block content\n===\nThis is not a slide separator." in slides[0]["content"]
 
     def test_multiple_code_blocks_and_separators(self, extractor: SlideExtractor):
         markdown = """

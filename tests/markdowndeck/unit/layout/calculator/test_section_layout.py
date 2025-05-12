@@ -1,11 +1,11 @@
 import pytest
 from markdowndeck.layout.calculator import PositionCalculator
 from markdowndeck.layout.calculator.section_layout import (
-    calculate_section_based_positions,
     _distribute_space_and_position_sections,
     _position_elements_in_sections,
+    calculate_section_based_positions,
 )
-from markdowndeck.models import ElementType, Slide, TextElement, Section
+from markdowndeck.models import ElementType, Section, Slide, TextElement
 
 
 class TestSectionLayout:
@@ -17,13 +17,9 @@ class TestSectionLayout:
 
     @pytest.fixture
     def calculator(self, default_margins: dict[str, float]) -> PositionCalculator:
-        return PositionCalculator(
-            slide_width=720, slide_height=405, margins=default_margins
-        )
+        return PositionCalculator(slide_width=720, slide_height=405, margins=default_margins)
 
-    def test_distribute_space_all_implicit_vertical(
-        self, calculator: PositionCalculator
-    ):
+    def test_distribute_space_all_implicit_vertical(self, calculator: PositionCalculator):
         """Test that vertical space is distributed evenly with implicit sections."""
         sections = [Section(id="s1"), Section(id="s2")]
 
@@ -35,9 +31,7 @@ class TestSectionLayout:
             calculator.body_height,
         )
 
-        _distribute_space_and_position_sections(
-            calculator, sections, area, is_vertical_split=True
-        )
+        _distribute_space_and_position_sections(calculator, sections, area, is_vertical_split=True)
 
         # Both sections should have equal height
         assert sections[0].size[1] == pytest.approx(sections[1].size[1])
@@ -46,18 +40,14 @@ class TestSectionLayout:
         assert sections[0].position[1] == pytest.approx(calculator.body_top)
 
         # Second section should be positioned after first section + spacing
-        expected_s2_y = (
-            sections[0].position[1] + sections[0].size[1] + calculator.vertical_spacing
-        )
+        expected_s2_y = sections[0].position[1] + sections[0].size[1] + calculator.vertical_spacing
         assert sections[1].position[1] == pytest.approx(expected_s2_y)
 
         # Both sections should have full body width
         assert sections[0].size[0] == pytest.approx(calculator.body_width)
         assert sections[1].size[0] == pytest.approx(calculator.body_width)
 
-    def test_distribute_space_all_implicit_horizontal(
-        self, calculator: PositionCalculator
-    ):
+    def test_distribute_space_all_implicit_horizontal(self, calculator: PositionCalculator):
         """Test that horizontal space is distributed evenly with implicit sections."""
         sections = [Section(id="s1"), Section(id="s2")]
 
@@ -69,9 +59,7 @@ class TestSectionLayout:
             calculator.body_height,
         )
 
-        _distribute_space_and_position_sections(
-            calculator, sections, area, is_vertical_split=False
-        )
+        _distribute_space_and_position_sections(calculator, sections, area, is_vertical_split=False)
 
         # Both sections should have equal width
         assert sections[0].size[0] == pytest.approx(sections[1].size[0])
@@ -81,9 +69,7 @@ class TestSectionLayout:
 
         # Second section should be positioned after first section + spacing
         expected_s2_x = (
-            sections[0].position[0]
-            + sections[0].size[0]
-            + calculator.horizontal_spacing
+            sections[0].position[0] + sections[0].size[0] + calculator.horizontal_spacing
         )
         assert sections[1].position[0] == pytest.approx(expected_s2_x)
 
@@ -109,9 +95,7 @@ class TestSectionLayout:
             calculator.body_height,
         )
 
-        _distribute_space_and_position_sections(
-            calculator, sections, area, is_vertical_split=False
-        )
+        _distribute_space_and_position_sections(calculator, sections, area, is_vertical_split=False)
 
         # Check explicit section sizes
         assert sections[0].size[0] == pytest.approx(calculator.body_width * 0.3)
@@ -127,19 +111,13 @@ class TestSectionLayout:
         # Check section positions
         assert sections[0].position[0] == pytest.approx(calculator.body_left)
         expected_s2_x = (
-            calculator.body_left
-            + (calculator.body_width * 0.3)
-            + calculator.horizontal_spacing
+            calculator.body_left + (calculator.body_width * 0.3) + calculator.horizontal_spacing
         )
         assert sections[1].position[0] == pytest.approx(expected_s2_x)
-        expected_s3_x = (
-            expected_s2_x + expected_s2_width + calculator.horizontal_spacing
-        )
+        expected_s3_x = expected_s2_x + expected_s2_width + calculator.horizontal_spacing
         assert sections[2].position[0] == pytest.approx(expected_s3_x)
 
-    def test_distribute_space_explicit_exceeds_total(
-        self, calculator: PositionCalculator
-    ):
+    def test_distribute_space_explicit_exceeds_total(self, calculator: PositionCalculator):
         """Test handling when explicit dimensions exceed available space."""
         sections = [
             Section(id="s1", directives={"width": 0.8}),  # 80%
@@ -155,9 +133,7 @@ class TestSectionLayout:
             calculator.body_height,
         )
 
-        _distribute_space_and_position_sections(
-            calculator, sections, area, is_vertical_split=False
-        )
+        _distribute_space_and_position_sections(calculator, sections, area, is_vertical_split=False)
 
         # The current implementation adjusts explicit section widths proportionally
         # when they exceed available space. Rather than asserting exact values,
@@ -173,9 +149,7 @@ class TestSectionLayout:
 
         # 2. Total width with spacing should not exceed body width too much
         # The current implementation allocates 640 pixels total instead of exactly 620
-        total_width = (
-            sum(s.size[0] for s in sections) + calculator.horizontal_spacing * 2
-        )
+        total_width = sum(s.size[0] for s in sections) + calculator.horizontal_spacing * 2
 
         # Allow for the actual implementation value (640) or anything smaller
         assert total_width <= 640.0
@@ -214,29 +188,15 @@ class TestSectionLayout:
         # Elements should be positioned within their sections
         assert element1.position[0] >= section1.position[0]
         assert element1.position[1] >= section1.position[1]
-        assert (
-            element1.position[0] + element1.size[0]
-            <= section1.position[0] + section1.size[0]
-        )
-        assert (
-            element1.position[1] + element1.size[1]
-            <= section1.position[1] + section1.size[1]
-        )
+        assert element1.position[0] + element1.size[0] <= section1.position[0] + section1.size[0]
+        assert element1.position[1] + element1.size[1] <= section1.position[1] + section1.size[1]
 
         assert element2.position[0] >= section2.position[0]
         assert element2.position[1] >= section2.position[1]
-        assert (
-            element2.position[0] + element2.size[0]
-            <= section2.position[0] + section2.size[0]
-        )
-        assert (
-            element2.position[1] + element2.size[1]
-            <= section2.position[1] + section2.size[1]
-        )
+        assert element2.position[0] + element2.size[0] <= section2.position[0] + section2.size[0]
+        assert element2.position[1] + element2.size[1] <= section2.position[1] + section2.size[1]
 
-    def test_section_based_layout_horizontal_columns(
-        self, calculator: PositionCalculator
-    ):
+    def test_section_based_layout_horizontal_columns(self, calculator: PositionCalculator):
         """Test complete section-based layout with horizontal columns."""
         # Create a slide with two horizontal sections
         title = TextElement(element_type=ElementType.TITLE, text="Title")
@@ -273,9 +233,7 @@ class TestSectionLayout:
         assert result_text_left.position[0] >= result_section_left.position[0]
         assert result_text_right.position[0] >= result_section_right.position[0]
 
-    def test_side_by_side_layout_vertical_alignment(
-        self, calculator: PositionCalculator
-    ):
+    def test_side_by_side_layout_vertical_alignment(self, calculator: PositionCalculator):
         """Test vertical alignment of elements in side-by-side columns."""
         # Create a slide with two sections
         slide = Slide(object_id="slide_test")

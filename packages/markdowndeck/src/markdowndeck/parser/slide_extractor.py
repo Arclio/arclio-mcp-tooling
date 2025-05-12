@@ -44,9 +44,7 @@ class SlideExtractor:
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
 
-    def _split_content_with_code_block_awareness(
-        self, content: str, pattern: str
-    ) -> list[str]:
+    def _split_content_with_code_block_awareness(self, content: str, pattern: str) -> list[str]:
         """
         Split content on a pattern while being aware of code blocks.
 

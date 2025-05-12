@@ -19,17 +19,11 @@ class LayoutManager:
 
         # Default slide dimensions (in points - Google Slides standard)
         self.slide_width = 720  # 10 inches at 72 points per inch
-        self.slide_height = (
-            405  # 5.625 inches at 72 points per inch (16:9 aspect ratio)
-        )
+        self.slide_height = 405  # 5.625 inches at 72 points per inch (16:9 aspect ratio)
 
         # Maximum content dimensions
-        self.max_content_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
-        self.max_content_height = (
-            self.slide_height - self.margins["top"] - self.margins["bottom"]
-        )
+        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
+        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
 
         # Initialize component classes
         self.position_calculator = PositionCalculator(
@@ -67,7 +61,5 @@ class LayoutManager:
             logger.debug(f"Created {len(slides)} slides after handling overflow")
             return slides
 
-        logger.debug(
-            f"Position calculation completed for slide: {updated_slide.object_id}"
-        )
+        logger.debug(f"Position calculation completed for slide: {updated_slide.object_id}")
         return updated_slide

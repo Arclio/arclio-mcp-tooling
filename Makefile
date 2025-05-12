@@ -19,6 +19,7 @@ endif
 # --- Environment & Tools ---
 PYTHON := python3
 VENV_DIR := .venv
+
 # Tools are activated within recipes using '. $(VENV_DIR)/bin/activate && $(TOOL)'
 UV := uv
 PIP := pip

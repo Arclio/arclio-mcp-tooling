@@ -22,9 +22,7 @@ def mock_creds(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
     # Create a mock credential object
     mock = MagicMock()
     # Setup required mock implementations
-    mock.__bool__.return_value = (
-        True  # Ensure credentials evaluate to True when checked
-    )
+    mock.__bool__.return_value = True  # Ensure credentials evaluate to True when checked
 
     # Create a function that returns our mock and will be called when cli code calls get_credentials
     # The lambda is important to ensure a fresh mock is returned each time
@@ -108,9 +106,7 @@ class TestCLI:
         try:
             cli_main()
         except SystemExit as e:
-            exit_code = (
-                e.code if isinstance(e.code, int) else 1
-            )  # Ensure integer exit code
+            exit_code = e.code if isinstance(e.code, int) else 1  # Ensure integer exit code
 
         stdout_text = "".join(c[0][0] for c in captured_stdout.write.call_args_list)
         stderr_text = "".join(c[0][0] for c in captured_stderr.write.call_args_list)
@@ -175,9 +171,7 @@ class TestCLI:
     ):
         md_file = tmp_path / "test_theme.md"
         md_file.write_text("# Theme Test")
-        self.run_cli_main_mocked(
-            monkeypatch, ["create", str(md_file), "--theme", "MY_THEME"]
-        )
+        self.run_cli_main_mocked(monkeypatch, ["create", str(md_file), "--theme", "MY_THEME"])
         mock_create_presentation_func.assert_called_with(
             markdown="# Theme Test",
             title="Markdown Presentation",  # Default title
@@ -200,9 +194,7 @@ class TestCLI:
         md_file.write_text("# Output Test")
         output_json_path = "output_test.json"
 
-        self.run_cli_main_mocked(
-            monkeypatch, ["create", str(md_file), "-o", output_json_path]
-        )
+        self.run_cli_main_mocked(monkeypatch, ["create", str(md_file), "-o", output_json_path])
 
         mock_create_presentation_func.assert_called_once()
         mock_file_open.assert_called_once_with(output_json_path, "w")
@@ -235,9 +227,7 @@ class TestCLI:
         assert exit_code == 0
         # Check the get_credentials function was called, not the credentials object itself
         mock_creds.assert_called_once()
-        mock_get_themes_func.assert_called_once_with(
-            credentials=mock_creds.return_value
-        )
+        mock_get_themes_func.assert_called_once_with(credentials=mock_creds.return_value)
 
         captured = capsys.readouterr()
         assert "Available themes:" in captured.out
@@ -246,7 +236,7 @@ class TestCLI:
     @patch("logging.getLogger")  # Mock the getLogger call to check setLevel
     def test_cli_verbose_flag(
         self,
-        mock_getLogger: MagicMock,
+        mock_get_logger: MagicMock,
         tmp_path: Path,
         mock_creds: MagicMock,
         mock_create_presentation_func: MagicMock,
@@ -256,24 +246,20 @@ class TestCLI:
         md_file.write_text("# Verbose")
 
         mock_root_logger = MagicMock()
-        mock_getLogger.return_value = mock_root_logger
+        mock_get_logger.return_value = mock_root_logger
 
         self.run_cli_main_mocked(monkeypatch, ["-v", "create", str(md_file)])
         mock_root_logger.setLevel.assert_called_with(logging.DEBUG)
 
     def test_cli_file_not_found(self, monkeypatch: pytest.MonkeyPatch, caplog):
         """Test that CLI fails properly when input file is not found."""
-        monkeypatch.setattr(
-            "sys.argv", ["markdowndeck/cli.py", "create", "nonexistentfile.md"]
-        )
+        monkeypatch.setattr("sys.argv", ["markdowndeck/cli.py", "create", "nonexistentfile.md"])
         with pytest.raises(SystemExit) as excinfo:
             cli_main()
         assert excinfo.value.code == 1
         assert "Input file not found: nonexistentfile.md" in caplog.text
 
-    def test_cli_auth_failure(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-    ):
+    def test_cli_auth_failure(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog):
         """Test that CLI fails properly when authentication fails."""
         md_file = tmp_path / "auth_fail.md"
         md_file.write_text("# Auth Fail")

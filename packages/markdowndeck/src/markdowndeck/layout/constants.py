@@ -3,9 +3,7 @@
 # Standard layout constants
 HEADER_HEIGHT = 90.0  # Height for header zone
 FOOTER_HEIGHT = 30.0  # Height for footer zone
-BODY_TOP_ADJUSTMENT = (
-    5.0  # Adjustment to minimize excess spacing between header and body
-)
+BODY_TOP_ADJUSTMENT = 5.0  # Adjustment to minimize excess spacing between header and body
 VERTICAL_SPACING = 10.0  # Default vertical spacing between elements
 HORIZONTAL_SPACING = 10.0  # Default horizontal spacing between elements
 VERTICAL_SPACING_REDUCTION = 0.7  # 30% reduction for related elements

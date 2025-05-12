@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 class OverflowHandler:
     """Detects and handles overflow content using a fixed body zone model."""
 
-    def __init__(
-        self, slide_width: float, slide_height: float, margins: dict[str, float]
-    ):
+    def __init__(self, slide_width: float, slide_height: float, margins: dict[str, float]):
         """
         Initialize the overflow handler with fixed body zone dimensions.
 
@@ -43,14 +41,9 @@ class OverflowHandler:
         # OPTIMIZATION: Calculate fixed body zone boundaries in EXACTLY the same way as PositionCalculator
         self.body_top = self.margins["top"] + self.HEADER_HEIGHT
         self.body_left = self.margins["left"]
-        self.body_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
+        self.body_width = self.slide_width - self.margins["left"] - self.margins["right"]
         self.body_height = (
-            self.slide_height
-            - self.body_top
-            - self.FOOTER_HEIGHT
-            - self.margins["bottom"]
+            self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
         )
         self.body_bottom = self.body_top + self.body_height
 
@@ -136,9 +129,7 @@ class OverflowHandler:
                 element = remaining_elements[i]
 
                 # Check if this element is related to the next one
-                keep_with_next = (
-                    hasattr(element, "keep_with_next") and element.keep_with_next
-                )
+                keep_with_next = hasattr(element, "keep_with_next") and element.keep_with_next
 
                 # If it's related and not the last element, calculate the combined height
                 combined_height = 0
@@ -149,10 +140,7 @@ class OverflowHandler:
                     j = i
                     while j < len(remaining_elements):
                         current_element = remaining_elements[j]
-                        if (
-                            not hasattr(current_element, "size")
-                            or not current_element.size
-                        ):
+                        if not hasattr(current_element, "size") or not current_element.size:
                             logger.warning(
                                 f"Element {getattr(current_element, 'object_id', 'unknown')} has no size"
                             )
@@ -190,10 +178,7 @@ class OverflowHandler:
                             copied_element = deepcopy(group_element)
 
                             # Update the position to the current y
-                            if (
-                                hasattr(copied_element, "position")
-                                and copied_element.position
-                            ):
+                            if hasattr(copied_element, "position") and copied_element.position:
                                 x_pos = copied_element.position[0]
                                 copied_element.position = (x_pos, current_y)
                             else:
@@ -242,10 +227,7 @@ class OverflowHandler:
                         copied_element = deepcopy(element)
 
                         # Preserve horizontal alignment but update vertical position
-                        if (
-                            hasattr(copied_element, "position")
-                            and copied_element.position
-                        ):
+                        if hasattr(copied_element, "position") and copied_element.position:
                             x_pos = copied_element.position[0]
                             copied_element.position = (x_pos, current_y)
                         else:
@@ -293,9 +275,7 @@ class OverflowHandler:
                     element = deepcopy(remaining_elements[0])
 
                     # More aggressive size reduction for oversized elements
-                    max_height = (
-                        self.body_bottom - self.body_top - 10
-                    )  # 10 points buffer
+                    max_height = self.body_bottom - self.body_top - 10  # 10 points buffer
                     if element.size[1] > max_height:
                         # Scale height while preserving aspect ratio if possible
                         if hasattr(element, "size") and element.size[0] > 0:
@@ -313,9 +293,7 @@ class OverflowHandler:
                         else:
                             element.size = (element.size[0], max_height)
 
-                        logger.debug(
-                            f"Resized oversized element to fit: new height={max_height}"
-                        )
+                        logger.debug(f"Resized oversized element to fit: new height={max_height}")
 
                     # Position at top of body zone
                     if hasattr(element, "position") and element.position:
@@ -384,7 +362,7 @@ class OverflowHandler:
 
                 if isinstance(cont_title, TextElement):
                     # Make continuation title more identifiable
-                    cont_title.text = f"{original_slide.title or 'Content'} (continued)"
+                    cont_title.text = f"{original_slide.title or 'Content'} (cont.)"
 
                 # Assign a new ID to avoid conflicts
                 cont_title.object_id = f"title_{uuid.uuid4().hex[:8]}"

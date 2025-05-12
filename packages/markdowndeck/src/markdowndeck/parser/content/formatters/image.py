@@ -43,10 +43,8 @@ class ImageFormatter(BaseFormatter):
             # If it's an image token directly (less common from markdown-it for block images).
             return True  # Tentatively, process will verify.
 
-        if token.type == "image":  # For directly embedded image tokens, if any
-            return True
-
-        return False
+        # For directly embedded image tokens, if any
+        return token.type == "image"
 
     def process(
         self, tokens: list[Token], start_index: int, directives: dict[str, Any]
