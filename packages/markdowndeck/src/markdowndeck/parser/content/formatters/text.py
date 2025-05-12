@@ -150,7 +150,7 @@ class TextFormatter(BaseFormatter):
         element: TextElement | None = None
         if element_type == ElementType.TITLE:
             element = self.element_factory.create_title_element(
-                text=text_content,
+                title=text_content,
                 formatting=formatting,
             )
         elif element_type == ElementType.SUBTITLE:
