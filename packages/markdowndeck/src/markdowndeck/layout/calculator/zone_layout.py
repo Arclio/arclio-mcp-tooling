@@ -4,14 +4,17 @@ import logging
 
 from markdowndeck.layout.metrics import calculate_element_height
 from markdowndeck.models import (
-    AlignmentType,
-    Element,
     ElementType,
+)
+from markdowndeck.layout.constants import (
+    BODY_TOP_ADJUSTMENT,
+    VERTICAL_SPACING_REDUCTION,
 )
 
 from markdowndeck.layout.calculator.element_utils import (
     apply_horizontal_alignment,
     mark_related_elements,
+    adjust_vertical_spacing,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,8 +45,7 @@ def calculate_zone_based_positions(calculator, slide):
 
     # OPTIMIZATION: Adjust starting position to minimize excess spacing
     # Reduced gap between header zone and first body element
-    body_top_adjustment = 5.0  # Small adjustment to bring content closer to header
-    current_y = calculator.body_top - body_top_adjustment
+    current_y = calculator.body_top - BODY_TOP_ADJUSTMENT
 
     for element in body_elements:
         # Ensure element has a valid size, defaulting to more conservative sizes
@@ -96,10 +98,8 @@ def calculate_zone_based_positions(calculator, slide):
             # Move to next position with standard spacing
             vertical_spacing = calculator.vertical_spacing
 
-            # OPTIMIZATION: Adjust spacing based on next element type
-            # Reduce spacing before related elements
-            if hasattr(element, "related_to_next") and element.related_to_next:
-                vertical_spacing *= 0.7  # Reduce spacing by 30%
+            # Use utility function to adjust spacing for related elements
+            vertical_spacing = adjust_vertical_spacing(element, vertical_spacing)
 
             current_y += element_height + vertical_spacing
 

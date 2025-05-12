@@ -31,10 +31,11 @@ def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
     # Step 2: Position footer element if present within the fixed footer zone
     calculator._position_footer_element(slide)
 
-    # Step 3: Use the fixed body zone dimensions for section layout
+    # Step 3: Use the fixed body zone dimensions for section layout with adjustment
+    body_top_adjustment = 5.0  # Same adjustment used in zone_layout.py
     body_area = (
         calculator.body_left,  # x
-        calculator.body_top,  # y
+        calculator.body_top - body_top_adjustment,  # y - Now with adjustment!
         calculator.body_width,  # width
         calculator.body_height,  # height
     )

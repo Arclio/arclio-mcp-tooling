@@ -4,6 +4,12 @@ import logging
 import re
 
 from markdowndeck.models import ElementType, TextElement, TextFormatType
+from markdowndeck.layout.constants import (
+    TITLE_PADDING,
+    SUBTITLE_PADDING,
+    QUOTE_PADDING,
+    DEFAULT_TEXT_PADDING,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,31 +57,31 @@ def calculate_text_element_height(
         # Use a fixed height for footers regardless of content
         return 30.0  # Fixed footer height
 
-    # OPTIMIZED: Reduced parameters for all element types
+    # OPTIMIZED: Use standardized constants for padding
     if element_type == ElementType.TITLE:
-        avg_char_width_pt = 5.5  # Reduced from 6.0
-        line_height_pt = 20.0  # Reduced from 24.0
-        padding_pt = 5.0  # Reduced from 8.0
-        min_height = 30.0  # Reduced from 40.0
-        max_height = 50.0  # Reduced from 60.0
+        avg_char_width_pt = 5.5
+        line_height_pt = 20.0
+        padding_pt = TITLE_PADDING
+        min_height = 30.0
+        max_height = 50.0
     elif element_type == ElementType.SUBTITLE:
-        avg_char_width_pt = 5.0  # Reduced from 5.5
-        line_height_pt = 18.0  # Reduced from 20.0
-        padding_pt = 4.0  # Reduced from 6.0
-        min_height = 25.0  # Reduced from 35.0
-        max_height = 40.0  # Reduced from 50.0
+        avg_char_width_pt = 5.0
+        line_height_pt = 18.0
+        padding_pt = SUBTITLE_PADDING
+        min_height = 25.0
+        max_height = 40.0
     elif element_type == ElementType.QUOTE:
-        avg_char_width_pt = 5.0  # Unchanged
-        line_height_pt = 16.0  # Reduced from 18.0
-        padding_pt = 8.0  # Reduced from 10.0
-        min_height = 25.0  # Reduced from 30.0
-        max_height = 120.0  # Reduced from 150.0
+        avg_char_width_pt = 5.0
+        line_height_pt = 16.0
+        padding_pt = QUOTE_PADDING
+        min_height = 25.0
+        max_height = 120.0
     else:  # Default for all other text elements
-        avg_char_width_pt = 5.0  # Unchanged
-        line_height_pt = 14.0  # Reduced from 16.0
-        padding_pt = 3.0  # Reduced from 4.0
-        min_height = 18.0  # Reduced from 20.0
-        max_height = 250.0  # Reduced from 300.0
+        avg_char_width_pt = 5.0
+        line_height_pt = 14.0
+        padding_pt = DEFAULT_TEXT_PADDING
+        min_height = 18.0
+        max_height = 250.0
 
     # FIXED: Adjust minimum height based on font size directive
     if directives and "fontsize" in directives:

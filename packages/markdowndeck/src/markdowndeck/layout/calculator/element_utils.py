@@ -1,11 +1,15 @@
 """Element positioning and grouping utilities for layout calculations."""
 
 import logging
+from typing import List
 
 from markdowndeck.models import (
     AlignmentType,
     Element,
     ElementType,
+)
+from markdowndeck.layout.constants import (
+    VERTICAL_SPACING_REDUCTION,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,7 +43,26 @@ def apply_horizontal_alignment(
     element.position = (x_pos, y_pos)
 
 
-def mark_related_elements(elements: list[Element]) -> None:
+def adjust_vertical_spacing(element: Element, spacing: float) -> float:
+    """
+    Adjust vertical spacing based on element relationships.
+
+    Args:
+        element: Element to check for relationship flags
+        spacing: Current spacing value to adjust
+
+    Returns:
+        Adjusted spacing value
+    """
+    # If this element is related to the next one, reduce spacing
+    if hasattr(element, "related_to_next") and element.related_to_next:
+        return spacing * VERTICAL_SPACING_REDUCTION  # Reduce spacing by 30%
+
+    # If no adjustment needed, return original spacing
+    return spacing
+
+
+def mark_related_elements(elements: List[Element]) -> None:
     """
     Mark related elements that should be kept together during layout and overflow.
 
@@ -50,6 +73,20 @@ def mark_related_elements(elements: list[Element]) -> None:
         return
 
     # Pattern 1: Text heading followed by a list or table
+    _mark_heading_and_list_pairs(elements)
+
+    # Pattern 2: Heading followed by subheading
+    _mark_heading_hierarchies(elements)
+
+    # Pattern 3: Sequential paragraphs (consecutive text elements)
+    _mark_consecutive_paragraphs(elements)
+
+    # Pattern 4: Images followed by captions (text elements)
+    _mark_image_caption_pairs(elements)
+
+
+def _mark_heading_and_list_pairs(elements: List[Element]) -> None:
+    """Mark heading elements followed by lists or tables as related."""
     for i in range(len(elements) - 1):
         current = elements[i]
         next_elem = elements[i + 1]
@@ -70,7 +107,9 @@ def mark_related_elements(elements: list[Element]) -> None:
                     f"{getattr(next_elem, 'object_id', 'unknown')}"
                 )
 
-    # Pattern 2: Heading followed by subheading
+
+def _mark_heading_hierarchies(elements: List[Element]) -> None:
+    """Mark hierarchical headings (heading followed by subheading) as related."""
     for i in range(len(elements) - 1):
         current = elements[i]
         next_elem = elements[i + 1]
@@ -105,7 +144,9 @@ def mark_related_elements(elements: list[Element]) -> None:
                         f"{getattr(next_elem, 'object_id', 'unknown')}"
                     )
 
-    # Pattern 3: Sequential paragraphs (consecutive text elements)
+
+def _mark_consecutive_paragraphs(elements: List[Element]) -> None:
+    """Mark consecutive paragraph elements as related."""
     for i in range(len(elements) - 1):
         current = elements[i]
         next_elem = elements[i + 1]
@@ -130,7 +171,9 @@ def mark_related_elements(elements: list[Element]) -> None:
                     f"{getattr(next_elem, 'object_id', 'unknown')}"
                 )
 
-    # OPTIMIZATION: Pattern 4: Images followed by captions (text elements)
+
+def _mark_image_caption_pairs(elements: List[Element]) -> None:
+    """Mark images followed by text elements (likely captions) as related."""
     for i in range(len(elements) - 1):
         current = elements[i]
         next_elem = elements[i + 1]

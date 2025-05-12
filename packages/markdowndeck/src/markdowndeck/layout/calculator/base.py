@@ -8,6 +8,17 @@ from markdowndeck.models import (
     Slide,
 )
 
+from markdowndeck.layout.constants import (
+    HEADER_HEIGHT,
+    FOOTER_HEIGHT,
+    VERTICAL_SPACING,
+    HORIZONTAL_SPACING,
+    TITLE_WIDTH_FRACTION,
+    SUBTITLE_WIDTH_FRACTION,
+    QUOTE_WIDTH_FRACTION,
+    IMAGE_WIDTH_FRACTION,
+)
+
 from markdowndeck.layout.calculator.zone_layout import (
     calculate_zone_based_positions,
 )
@@ -42,8 +53,8 @@ class PositionCalculator:
         self.margins = margins
 
         # Spacing constants
-        self.vertical_spacing = 10.0
-        self.horizontal_spacing = 10.0
+        self.vertical_spacing = VERTICAL_SPACING
+        self.horizontal_spacing = HORIZONTAL_SPACING
 
         # Content area dimensions
         self.max_content_width = (
@@ -54,8 +65,8 @@ class PositionCalculator:
         )
 
         # Fixed zone dimensions
-        self.HEADER_HEIGHT = 100.0  # Fixed height for header zone
-        self.FOOTER_HEIGHT = 30.0  # Fixed height for footer zone
+        self.HEADER_HEIGHT = HEADER_HEIGHT
+        self.FOOTER_HEIGHT = FOOTER_HEIGHT
 
         # Calculate fixed body zone dimensions
         self.body_top = self.margins["top"] + self.HEADER_HEIGHT
@@ -77,18 +88,21 @@ class PositionCalculator:
 
         # Default element sizes (width, height) in points
         self.default_sizes = {
-            ElementType.TITLE: (self.max_content_width * 0.9, 40),
-            ElementType.SUBTITLE: (self.max_content_width * 0.85, 35),
+            ElementType.TITLE: (self.max_content_width * TITLE_WIDTH_FRACTION, 40),
+            ElementType.SUBTITLE: (
+                self.max_content_width * SUBTITLE_WIDTH_FRACTION,
+                35,
+            ),
             ElementType.TEXT: (self.max_content_width, 60),
             ElementType.BULLET_LIST: (self.max_content_width, 130),
             ElementType.ORDERED_LIST: (self.max_content_width, 130),
             ElementType.IMAGE: (
-                self.max_content_width * 0.6,
+                self.max_content_width * IMAGE_WIDTH_FRACTION,
                 self.max_content_height * 0.4,
             ),
             ElementType.TABLE: (self.max_content_width, 130),
             ElementType.CODE: (self.max_content_width, 100),
-            ElementType.QUOTE: (self.max_content_width * 0.9, 70),
+            ElementType.QUOTE: (self.max_content_width * QUOTE_WIDTH_FRACTION, 70),
             ElementType.FOOTER: (self.max_content_width, self.FOOTER_HEIGHT),
         }
 
