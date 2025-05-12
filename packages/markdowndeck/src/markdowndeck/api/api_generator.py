@@ -1,7 +1,10 @@
+"""Generator for Google Slides API requests."""
+
 import logging
 import uuid
+from typing import Any
 
-from .models import (
+from markdowndeck.models import (
     AlignmentType,
     CodeElement,
     Deck,
@@ -27,7 +30,8 @@ class ApiRequestGenerator:
         logger.debug("Initializing API request generator")
 
     def generate_batch_requests(self, deck: Deck, presentation_id: str) -> list[dict]:
-        """Generate all batched requests to create the presentation content.
+        """
+        Generate all batched requests to create the presentation content.
 
         Args:
             deck: The presentation deck object
@@ -49,7 +53,8 @@ class ApiRequestGenerator:
         return batches
 
     def generate_slide_batch(self, slide: Slide, presentation_id: str) -> dict:
-        """Generate a batch of requests for a single slide.
+        """
+        Generate a batch of requests for a single slide.
 
         Args:
             slide: The slide to generate requests for
@@ -83,7 +88,8 @@ class ApiRequestGenerator:
         return {"presentationId": presentation_id, "requests": requests}
 
     def _create_slide_request(self, slide: Slide) -> dict:
-        """Create a request to add a new slide with the specified layout.
+        """
+        Create a request to add a new slide with the specified layout.
 
         Args:
             slide: The slide to create
@@ -110,7 +116,8 @@ class ApiRequestGenerator:
         return request
 
     def _create_background_request(self, slide: Slide) -> dict:
-        """Create a request to set the slide background.
+        """
+        Create a request to set the slide background.
 
         Args:
             slide: The slide to set background for
@@ -119,7 +126,7 @@ class ApiRequestGenerator:
             Dictionary with the update slide background request
         """
         if not slide.background:
-            return None
+            return {}
 
         background_type = slide.background.get("type")
         background_value = slide.background.get("value")
@@ -157,7 +164,8 @@ class ApiRequestGenerator:
         return request
 
     def _generate_element_requests(self, element: Element, slide_id: str) -> list[dict]:
-        """Generate requests for a specific element.
+        """
+        Generate requests for a specific element.
 
         Args:
             element: The element to generate requests for
@@ -169,33 +177,43 @@ class ApiRequestGenerator:
         if not element.object_id:
             element.object_id = self._generate_id(str(element.element_type.value))
 
-        if (
-            element.element_type == ElementType.TITLE
-            or element.element_type == ElementType.SUBTITLE
-            or element.element_type == ElementType.TEXT
+        # Dispatch to specific handler based on element type
+        if element.element_type in (
+            ElementType.TITLE,
+            ElementType.SUBTITLE,
+            ElementType.TEXT,
         ):
             return self._generate_text_element_requests(element, slide_id)
+
         if element.element_type == ElementType.BULLET_LIST:
             return self._generate_list_element_requests(
                 element, slide_id, bullet_type="BULLET_DISC_CIRCLE_SQUARE"
             )
+
         if element.element_type == ElementType.ORDERED_LIST:
             return self._generate_list_element_requests(element, slide_id, bullet_type="NUMBERED")
+
         if element.element_type == ElementType.IMAGE:
             return self._generate_image_element_requests(element, slide_id)
+
         if element.element_type == ElementType.TABLE:
             return self._generate_table_element_requests(element, slide_id)
+
         if element.element_type == ElementType.CODE:
             return self._generate_code_element_requests(element, slide_id)
+
         if element.element_type == ElementType.QUOTE:
             return self._generate_quote_element_requests(element, slide_id)
+
         if element.element_type == ElementType.FOOTER:
             return self._generate_footer_element_requests(element, slide_id)
+
         logger.warning(f"Unknown element type: {element.element_type}")
         return []
 
     def _generate_text_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
-        """Generate requests for a text element (title, subtitle, or paragraph).
+        """
+        Generate requests for a text element (title, subtitle, or paragraph).
 
         Args:
             element: The text element
@@ -357,25 +375,14 @@ class ApiRequestGenerator:
                         logger.warning(
                             f"Invalid hex color '{bg_value}' for background directive: {e}"
                         )
-                # TODO: Add handling for background type 'url' if needed in the future
-                # elif bg_type == "url" and isinstance(bg_value, str):
-                #     logger.warning("Background image URL directive on text element not yet implemented in generator.")
-                else:
-                    logger.warning(
-                        f"Unsupported background directive value/type for text element: {background_directive}"
-                    )
-            else:
-                # Log a warning if the directive is not the expected tuple format
-                logger.warning(
-                    f"Unexpected format for background directive: {background_directive}. Expected ('type', 'value') tuple."
-                )
 
         return requests
 
     def _generate_list_element_requests(
         self, element: ListElement, slide_id: str, bullet_type: str
     ) -> list[dict]:
-        """Generate requests for a list element (bulleted or numbered).
+        """
+        Generate requests for a list element (bulleted or numbered).
 
         Args:
             element: The list element
@@ -498,7 +505,8 @@ class ApiRequestGenerator:
         return requests
 
     def _generate_image_element_requests(self, element: ImageElement, slide_id: str) -> list[dict]:
-        """Generate requests for an image element.
+        """
+        Generate requests for an image element.
 
         Args:
             element: The image element
@@ -550,7 +558,8 @@ class ApiRequestGenerator:
         return requests
 
     def _generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
-        """Generate requests for a table element.
+        """
+        Generate requests for a table element.
 
         Args:
             element: The table element
@@ -706,7 +715,8 @@ class ApiRequestGenerator:
         return requests
 
     def _generate_code_element_requests(self, element: CodeElement, slide_id: str) -> list[dict]:
-        """Generate requests for a code element.
+        """
+        Generate requests for a code element.
 
         Args:
             element: The code element
@@ -851,7 +861,8 @@ class ApiRequestGenerator:
         return requests
 
     def _generate_quote_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
-        """Generate requests for a quote element.
+        """
+        Generate requests for a quote element.
 
         Args:
             element: The quote element
@@ -898,7 +909,8 @@ class ApiRequestGenerator:
         return requests
 
     def _generate_footer_element_requests(self, element: TextElement, slide_id: str) -> list[dict]:
-        """Generate requests for a footer element.
+        """
+        Generate requests for a footer element.
 
         Args:
             element: The footer element
@@ -927,7 +939,8 @@ class ApiRequestGenerator:
         return requests
 
     def _create_notes_request(self, slide: Slide) -> dict:
-        """Create a request to add notes to a slide.
+        """
+        Create a request to add notes to a slide.
 
         Args:
             slide: The slide to add notes to
@@ -947,15 +960,16 @@ class ApiRequestGenerator:
 
     def _apply_text_formatting(
         self,
-        element_id,
-        style,
-        fields,
-        range_type=None,
-        start_index=None,
-        end_index=None,
-        cell_location=None,
-    ):
-        """Helper method to create properly formatted text style requests.
+        element_id: str,
+        style: dict[str, Any],
+        fields: str,
+        range_type: str = None,
+        start_index: int = None,
+        end_index: int = None,
+        cell_location: dict[str, int] = None,
+    ) -> dict:
+        """
+        Helper method to create properly formatted text style requests.
 
         Args:
             element_id: ID of the element to update
@@ -1009,8 +1023,9 @@ class ApiRequestGenerator:
 
         return request
 
-    def _format_to_style(self, text_format: TextFormat) -> dict:
-        """Convert TextFormat to Google Slides TextStyle.
+    def _format_to_style(self, text_format: TextFormat) -> dict[str, Any]:
+        """
+        Convert TextFormat to Google Slides TextStyle.
 
         Args:
             text_format: The text format
@@ -1048,7 +1063,8 @@ class ApiRequestGenerator:
         return style
 
     def _format_to_fields(self, text_format: TextFormat) -> str:
-        """Convert TextFormat to fields string for updateTextStyle.
+        """
+        Convert TextFormat to fields string for updateTextStyle.
 
         Args:
             text_format: The text format
@@ -1074,7 +1090,8 @@ class ApiRequestGenerator:
         return ""
 
     def _generate_id(self, prefix: str = "") -> str:
-        """Generate a unique ID string.
+        """
+        Generate a unique ID string.
 
         Args:
             prefix: Optional prefix for the ID
@@ -1087,7 +1104,8 @@ class ApiRequestGenerator:
         return uuid.uuid4().hex[:8]
 
     def _hex_to_rgb(self, hex_color: str) -> dict[str, float]:
-        """Convert hex color to RGB values for Google Slides API.
+        """
+        Convert hex color to RGB values for Google Slides API.
 
         Args:
             hex_color: Hex color string (e.g., "#FF5733")

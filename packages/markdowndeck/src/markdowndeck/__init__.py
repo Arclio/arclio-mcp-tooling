@@ -10,9 +10,9 @@ import logging
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource
 
-from .api_client import ApiClient
-from .layout import LayoutManager
-from .parser import Parser
+from markdowndeck.api.api_client import ApiClient
+from markdowndeck.layout import LayoutManager
+from markdowndeck.parser import Parser
 
 __version__ = "0.1.0"
 
@@ -153,7 +153,7 @@ def markdown_to_requests(
         logger.info(f"Layout calculation completed for {len(deck.slides)} slides")
 
         # Step 3: Generate API requests
-        from .api_generator import ApiRequestGenerator
+        from markdowndeck.api.api_generator import ApiRequestGenerator
 
         generator = ApiRequestGenerator()
 

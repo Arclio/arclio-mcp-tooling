@@ -16,7 +16,7 @@ from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from . import create_presentation, get_themes
+from markdowndeck import create_presentation, get_themes
 
 # Set up logging
 logging.basicConfig(

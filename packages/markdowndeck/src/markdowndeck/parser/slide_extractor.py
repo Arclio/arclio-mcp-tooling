@@ -1,3 +1,5 @@
+"""Extract individual slides from markdown content."""
+
 import logging
 import re
 
@@ -22,9 +24,10 @@ class SlideExtractor:
         # Normalize line endings
         normalized_content = markdown.replace("\r\n", "\n").replace("\r", "\n")
 
-        # Split on slide separator - use a more precise pattern that won't match inside code blocks
-        # The pattern looks for a line that contains only '===' with optional whitespace
-        slide_parts = re.split(r"(?m)^\s*===\s*$", normalized_content)
+        # Split on slide separator while respecting code blocks
+        slide_parts = self._split_content_with_code_block_awareness(
+            normalized_content, r"^\s*===\s*$"
+        )
 
         slides = []
         for i, slide_content in enumerate(slide_parts):
@@ -40,6 +43,48 @@ class SlideExtractor:
 
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
+
+    def _split_content_with_code_block_awareness(
+        self, content: str, pattern: str
+    ) -> list[str]:
+        """
+        Split content on a pattern while being aware of code blocks.
+
+        Args:
+            content: Content to split
+            pattern: Regex pattern to split on
+
+        Returns:
+            List of split content parts
+        """
+        # Split the content line by line to track code blocks
+        lines = content.split("\n")
+        parts = []
+        current_part = []
+        in_code_block = False
+
+        for line in lines:
+            # Check if this line is a code block delimiter
+            is_code_marker = line.lstrip().startswith("```")
+
+            if is_code_marker:
+                in_code_block = not in_code_block
+                current_part.append(line)
+            # Check for separator pattern outside code blocks
+            elif not in_code_block and re.match(pattern, line):
+                # This is a separator, start a new part
+                if current_part:
+                    parts.append("\n".join(current_part))
+                current_part = []
+            else:
+                # Regular line, add to current part
+                current_part.append(line)
+
+        # Don't forget the last part
+        if current_part:
+            parts.append("\n".join(current_part))
+
+        return parts
 
     def _process_slide_content(self, content: str, index: int) -> dict:
         """
@@ -72,6 +117,17 @@ class SlideExtractor:
             # Remove notes comment from content
             notes_pattern = r"<!--\s*notes:\s*(.*?)\s*-->"
             main_content = re.sub(notes_pattern, "", main_content, flags=re.DOTALL)
+
+        # Also check for notes in footer
+        footer_notes = None
+        if footer:
+            footer_notes = self._extract_notes(footer)
+            if footer_notes:
+                # If notes found in footer, extract them and update the footer without notes
+                notes = footer_notes  # Use footer notes
+                # Clean footer by removing notes
+                notes_pattern = r"<!--\s*notes:\s*(.*?)\s*-->"
+                footer = re.sub(notes_pattern, "", footer, flags=re.DOTALL).strip()
 
         # Extract background if specified
         background = self._extract_background(main_content)

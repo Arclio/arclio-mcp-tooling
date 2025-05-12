@@ -1,9 +1,4 @@
-"""
-API client for MarkdownDeck.
-
-This module handles communication with the Google Slides API for creating presentations
-from markdown content. It manages authentication, API requests, and error handling.
-"""
+"""API client for Google Slides API."""
 
 import logging
 import time
@@ -12,8 +7,8 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 
-from .api_generator import ApiRequestGenerator
-from .models import Deck
+from markdowndeck.api.api_generator import ApiRequestGenerator
+from markdowndeck.models import Deck
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +217,7 @@ class ApiClient:
                 else:
                     logger.error(f"Batch update failed: {error}")
                     raise
-        return None
+        return {}  # Should never reach here but satisfies type checker
 
     def _delete_default_slides(self, presentation_id: str, presentation: dict) -> None:
         """
@@ -290,10 +285,10 @@ class ApiClient:
         """
         try:
             logger.debug("Fetching available presentation themes")
-            (self.slides_service.presentations().get(presentationId="p").execute())
 
-            # Themes are not directly accessible via the API
-            # This is a stub for future implementation if Google adds this capability
+            # Note: Google Slides API doesn't directly provide a list of available themes
+            # This is a stub that returns a limited set of common themes
+
             logger.warning("Theme listing not fully supported by Google Slides API")
 
             # Return a list of basic themes as a fallback
