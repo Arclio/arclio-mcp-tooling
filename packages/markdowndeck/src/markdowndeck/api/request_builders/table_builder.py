@@ -11,43 +11,9 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
-    def _ensure_camel_case_fields(self, request: dict) -> dict:
-        """
-        Ensure all field names in tableCellProperties requests use camelCase.
-        This prevents errors with the Google Slides API expecting camelCase fields.
-
-        Args:
-            request: The request dictionary to check
-
-        Returns:
-            The corrected request dictionary
-        """
-        if "updateTableCellProperties" in request:
-            # Check for snake_case field name in the request
-            if "table_cell_properties" in request["updateTableCellProperties"]:
-                # Copy the value
-                props = request["updateTableCellProperties"].pop("table_cell_properties")
-                # Add it back with the correct camelCase key
-                request["updateTableCellProperties"]["tableCellProperties"] = props
-                logger.warning(
-                    "Found snake_case 'table_cell_properties' in request, converted to camelCase 'tableCellProperties'"
-                )
-
-            # Also check fields string for snake_case
-            if "fields" in request["updateTableCellProperties"]:
-                fields = request["updateTableCellProperties"]["fields"]
-                if isinstance(fields, str) and "table_cell_properties." in fields:
-                    corrected_fields = fields.replace(
-                        "table_cell_properties.", "tableCellProperties."
-                    )
-                    request["updateTableCellProperties"]["fields"] = corrected_fields
-                    logger.warning(
-                        "Found snake_case 'table_cell_properties' in fields, converted to camelCase 'tableCellProperties'"
-                    )
-
-        return request
-
-    def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
+    def generate_table_element_requests(
+        self, element: TableElement, slide_id: str
+    ) -> list[dict]:
         """
         Generate requests for a table element.
 
@@ -67,7 +33,9 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"table_{slide_id}")
-            logger.debug(f"Generated missing object_id for table element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for table element: {element.object_id}"
+            )
 
         # Count rows including headers if present
         row_count = len(element.rows) + (1 if element.headers else 0)
@@ -136,7 +104,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 )
                 requests.append(style_request)
 
-                # Add cell fill for header
+                # Add cell fill for header - FIX THE FIELD NAME HERE
                 fill_request = {
                     "updateTableCellProperties": {
                         "objectId": element.object_id,
@@ -148,6 +116,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                             "rowSpan": 1,
                             "columnSpan": 1,
                         },
+                        # CRITICAL FIX: Use camelCase for this property name
                         "tableCellProperties": {
                             "tableCellBackgroundFill": {
                                 "solidFill": {
@@ -164,8 +133,6 @@ class TableRequestBuilder(BaseRequestBuilder):
                         "fields": "tableCellProperties.tableCellBackgroundFill.solidFill.color",
                     }
                 }
-                # Apply safety check for camelCase field names
-                fill_request = self._ensure_camel_case_fields(fill_request)
                 requests.append(fill_request)
 
             row_index += 1
@@ -224,7 +191,9 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Default border properties
         weight = {"magnitude": 1, "unit": "PT"}
         dash_style = "SOLID"
-        color = {"rgbColor": {"red": 0, "green": 0, "blue": 0}}
+
+        # FIX: The color should be inside 'tableBorderFill', not directly in 'tableBorderProperties'
+        rgb_color = {"red": 0, "green": 0, "blue": 0}
 
         # Parse border directive
         if isinstance(border_value, str):
@@ -250,7 +219,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 elif part.startswith("#"):
                     try:
                         rgb = self._hex_to_rgb(part)
-                        color = {"rgbColor": rgb}
+                        rgb_color = rgb
                     except ValueError:
                         pass
                 # Check if it's a named color
@@ -275,21 +244,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                         "cyan": {"red": 0, "green": 1, "blue": 1},
                         "magenta": {"red": 1, "green": 0, "blue": 1},
                     }
-                    color = {"rgbColor": color_map.get(part.lower())}
-                # Check if it's a theme color
-                elif part.upper() in [
-                    "TEXT1",
-                    "TEXT2",
-                    "BACKGROUND1",
-                    "BACKGROUND2",
-                    "ACCENT1",
-                    "ACCENT2",
-                    "ACCENT3",
-                    "ACCENT4",
-                    "ACCENT5",
-                    "ACCENT6",
-                ]:
-                    color = {"themeColor": part.upper()}
+                    rgb_color = color_map.get(part.lower())
 
         # Determine border positions to apply
         border_positions = ["ALL"]  # Default to all borders
@@ -316,6 +271,7 @@ class TableRequestBuilder(BaseRequestBuilder):
 
         # Apply the border style to each specified position
         for position in border_positions:
+            # FIX: Corrected structure for table border properties
             border_style_request = {
                 "updateTableBorderProperties": {
                     "objectId": element.object_id,
@@ -331,26 +287,14 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "tableBorderProperties": {
                         "weight": weight,
                         "dashStyle": dash_style,
+                        # FIX: Corrected structure with tableBorderFill
+                        "tableBorderFill": {
+                            "solidFill": {"color": {"rgbColor": rgb_color}}
+                        },
                     },
-                    "fields": "tableBorderProperties.weight,tableBorderProperties.dashStyle",
+                    "fields": "tableBorderProperties.weight,tableBorderProperties.dashStyle,tableBorderProperties.tableBorderFill.solidFill.color.rgbColor",
                 }
             }
-
-            # Add color if specified
-            if "rgbColor" in color:
-                border_style_request["updateTableBorderProperties"]["tableBorderProperties"][
-                    "color"
-                ] = color
-                border_style_request["updateTableBorderProperties"]["fields"] += (
-                    ",tableBorderProperties.color.rgbColor"
-                )
-            elif "themeColor" in color:
-                border_style_request["updateTableBorderProperties"]["tableBorderProperties"][
-                    "color"
-                ] = color
-                border_style_request["updateTableBorderProperties"]["fields"] += (
-                    ",tableBorderProperties.color.themeColor"
-                )
 
             requests.append(border_style_request)
             logger.debug(f"Applied {position} border to table {element.object_id}")
@@ -379,25 +323,30 @@ class TableRequestBuilder(BaseRequestBuilder):
         if not isinstance(alignment_value, str):
             return
 
-        # Map alignment value to API value
-        alignment_map = {
+        # FIX: Map alignment value to API enum value, not string
+        # Horizontal alignment values
+        h_alignment_map = {
             "left": "START",
             "center": "CENTER",
             "right": "END",
             "justify": "JUSTIFIED",
+        }
+
+        # Vertical alignment values
+        v_alignment_map = {
             "top": "TOP",
             "middle": "MIDDLE",
             "bottom": "BOTTOM",
         }
 
         # Determine if this is horizontal or vertical alignment
-        if alignment_value.lower() in ["left", "center", "right", "justify"]:
-            # Horizontal alignment
-            api_alignment = alignment_map.get(alignment_value.lower(), "START")
+        if alignment_value.lower() in h_alignment_map:
+            # Horizontal alignment - contentAlignment field
+            api_alignment = h_alignment_map.get(alignment_value.lower())
             field_name = "contentAlignment"
-        elif alignment_value.lower() in ["top", "middle", "bottom"]:
-            # Vertical alignment
-            api_alignment = alignment_map.get(alignment_value.lower(), "MIDDLE")
+        elif alignment_value.lower() in v_alignment_map:
+            # Vertical alignment - contentVerticalAlignment field
+            api_alignment = v_alignment_map.get(alignment_value.lower())
             field_name = "contentVerticalAlignment"
         else:
             return
@@ -426,9 +375,12 @@ class TableRequestBuilder(BaseRequestBuilder):
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
                     # If parsing fails, use default (all cells)
-                    pass
+                    logger.warning(
+                        f"Failed to parse cell range: {cell_range}, using default"
+                    )
 
         # Create cell properties update request
+        # FIX: Ensure all property names use camelCase consistently
         cell_align_request = {
             "updateTableCellProperties": {
                 "objectId": element.object_id,
@@ -445,10 +397,10 @@ class TableRequestBuilder(BaseRequestBuilder):
             }
         }
 
-        # Apply safety check for camelCase field names
-        cell_align_request = self._ensure_camel_case_fields(cell_align_request)
         requests.append(cell_align_request)
-        logger.debug(f"Applied {alignment_value} alignment to cells in table {element.object_id}")
+        logger.debug(
+            f"Applied {alignment_value} alignment to cells in table {element.object_id}"
+        )
 
     def _apply_cell_background_colors(
         self,
@@ -498,7 +450,9 @@ class TableRequestBuilder(BaseRequestBuilder):
             "ACCENT6",
         ]:
             color = {"themeColor": bg_value.upper()}
-            fields = "tableCellProperties.tableCellBackgroundFill.solidFill.color.themeColor"
+            fields = (
+                "tableCellProperties.tableCellBackgroundFill.solidFill.color.themeColor"
+            )
         # Check if it's a named color
         elif isinstance(bg_value, str) and bg_value.lower() in [
             "white",
@@ -521,7 +475,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                 "magenta": {"red": 1, "green": 0, "blue": 1},
             }
             color = {"rgbColor": color_map.get(bg_value.lower())}
-            fields = "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
+            fields = (
+                "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
+            )
         else:
             return
 
@@ -549,9 +505,12 @@ class TableRequestBuilder(BaseRequestBuilder):
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
                     # If parsing fails, use default (all cells)
-                    logger.warning(f"Failed to parse cell range: {cell_range}, using default")
+                    logger.warning(
+                        f"Failed to parse cell range: {cell_range}, using default"
+                    )
 
         # Create cell properties update request
+        # FIX: Ensure consistent camelCase in all structures
         bg_request = {
             "updateTableCellProperties": {
                 "objectId": element.object_id,
@@ -563,13 +522,13 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
-                "tableCellProperties": {"tableCellBackgroundFill": {"solidFill": {"color": color}}},
+                "tableCellProperties": {
+                    "tableCellBackgroundFill": {"solidFill": {"color": color}}
+                },
                 "fields": fields,
             }
         }
 
-        # Apply safety check for camelCase field names
-        bg_request = self._ensure_camel_case_fields(bg_request)
         requests.append(bg_request)
         logger.debug(
             f"Applied background color to cells in table {element.object_id} at range ({row_start},{col_start})-({row_start + row_span - 1},{col_start + col_span - 1})"

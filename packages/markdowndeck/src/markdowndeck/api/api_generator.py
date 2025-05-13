@@ -95,8 +95,12 @@ class ApiRequestGenerator:
             elif notes_requests:  # Ensure it's not an empty dict
                 requests.append(notes_requests)
         elif slide.notes and not slide.speaker_notes_object_id:
-            logger.warning(
-                f"Slide {slide.object_id} has notes but no speaker_notes_object_id; notes will not be added."
+            # This is expected for newly created slides - the notes shape ID
+            # isn't assigned until after the slide is created. Notes will be
+            # added in a separate operation after initial slide creation.
+            logger.debug(
+                f"Slide {slide.object_id} has notes but no speaker_notes_object_id yet. "
+                "Notes will be added in a second pass."
             )
 
         logger.debug(f"Generated {len(requests)} requests for slide {slide.object_id}")
@@ -116,14 +120,25 @@ class ApiRequestGenerator:
         Returns:
             List of request dictionaries
         """
+        # Skip None elements
+        if element is None:
+            logger.warning(f"Skipping None element for slide {slide_id}")
+            return []
+
         # Ensure element has a valid object_id (unless it's using a theme placeholder)
         element_type = getattr(element, "element_type", None)
-        use_theme_placeholder = theme_placeholders and element_type in theme_placeholders
+        use_theme_placeholder = (
+            theme_placeholders and element_type in theme_placeholders
+        )
 
         if not getattr(element, "object_id", None) and not use_theme_placeholder:
             element_type_name = getattr(element_type, "value", "unknown_element")
-            element.object_id = self.slide_builder._generate_id(f"{element_type_name}_{slide_id}")
-            logger.debug(f"Generated missing object_id for element: {element.object_id}")
+            element.object_id = self.slide_builder._generate_id(
+                f"{element_type_name}_{slide_id}"
+            )
+            logger.debug(
+                f"Generated missing object_id for element: {element.object_id}"
+            )
 
         # Delegate to appropriate builder based on element type
         if (
@@ -136,7 +151,9 @@ class ApiRequestGenerator:
             )
 
         if element_type == ElementType.BULLET_LIST:
-            return self.list_builder.generate_bullet_list_element_requests(element, slide_id)
+            return self.list_builder.generate_bullet_list_element_requests(
+                element, slide_id
+            )
 
         if element_type == ElementType.ORDERED_LIST:
             return self.list_builder.generate_list_element_requests(

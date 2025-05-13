@@ -65,7 +65,9 @@ class ApiClient:
         Returns:
             Dictionary with presentation details
         """
-        logger.info(f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides")
+        logger.info(
+            f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
+        )
 
         # Step 1: Create the presentation
         presentation = self.create_presentation(deck.title, deck.theme_id)
@@ -95,18 +97,115 @@ class ApiClient:
             else:
                 self.execute_batch_update(batch)
 
-        # Step 5: Get the updated presentation
+        # Step 5: Get the updated presentation to retrieve speaker notes IDs
         updated_presentation = self.get_presentation(presentation_id)
+
+        # Step 6: Create a second batch of requests for speaker notes
+        notes_batches = []
+        slides_with_notes = 0
+
+        # Process each slide that has notes
+        for i, slide in enumerate(deck.slides):
+            if slide.notes:
+                if i < len(updated_presentation.get("slides", [])):
+                    # Get the actual slide from the API response
+                    actual_slide = updated_presentation["slides"][i]
+
+                    # Extract the speaker notes ID from the slide
+                    speaker_notes_id = self._find_speaker_notes_id(actual_slide)
+
+                    if speaker_notes_id:
+                        # Update the slide model with the speaker notes ID
+                        slide.speaker_notes_object_id = speaker_notes_id
+
+                        # Create notes requests
+                        notes_batch = {
+                            "presentationId": presentation_id,
+                            "requests": [
+                                # Insert the notes text (will replace any existing text)
+                                {
+                                    "insertText": {
+                                        "objectId": speaker_notes_id,
+                                        "insertionIndex": 0,
+                                        "text": slide.notes,
+                                    }
+                                }
+                            ],
+                        }
+                        notes_batches.append(notes_batch)
+                        slides_with_notes += 1
+                        logger.debug(f"Created notes requests for slide {i+1}")
+
+        # Step 7: Execute the notes batches if any exist
+        if notes_batches:
+            logger.info(f"Adding speaker notes to {slides_with_notes} slides")
+            for i, batch in enumerate(notes_batches):
+                logger.debug(f"Executing notes batch {i + 1} of {len(notes_batches)}")
+                self.execute_batch_update(batch)
+
+        # Step 8: Get the final presentation
+        final_presentation = self.get_presentation(presentation_id)
 
         result = {
             "presentationId": presentation_id,
             "presentationUrl": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
-            "title": updated_presentation.get("title", deck.title),
-            "slideCount": len(updated_presentation.get("slides", [])),
+            "title": final_presentation.get("title", deck.title),
+            "slideCount": len(final_presentation.get("slides", [])),
         }
 
-        logger.info(f"Presentation creation complete. Slide count: {result['slideCount']}")
+        logger.info(
+            f"Presentation creation complete. Slide count: {result['slideCount']}"
+        )
         return result
+
+    def _find_speaker_notes_id(self, slide: dict) -> str | None:
+        """
+        Find the speaker notes shape ID in a slide.
+
+        Args:
+            slide: The slide data from the API
+
+        Returns:
+            Speaker notes shape ID or None if not found
+        """
+        try:
+            # Check if the slide has a notesPage
+            if "slideProperties" in slide and "notesPage" in slide["slideProperties"]:
+                notes_page = slide["slideProperties"]["notesPage"]
+
+                # Look for the speaker notes text box in the notes page elements
+                if "pageElements" in notes_page:
+                    for element in notes_page["pageElements"]:
+                        # Speaker notes are typically in a shape with type TEXT_BOX
+                        if element.get("shape", {}).get("shapeType") == "TEXT_BOX":
+                            return element.get("objectId")
+
+            # Alternative lookup: directly in notesProperties if available
+            if (
+                "slideProperties" in slide
+                and "notesProperties" in slide["slideProperties"]
+            ):
+                notes_props = slide["slideProperties"]["notesProperties"]
+                if "speakerNotesObjectId" in notes_props:
+                    return notes_props["speakerNotesObjectId"]
+
+            # If we can't find it using the above methods, try looking for a specific
+            # element that matches the pattern of speaker notes
+            if "pageElements" in slide:
+                for element in slide["pageElements"]:
+                    # Speaker notes sometimes have a specific naming pattern
+                    element_id = element.get("objectId", "")
+                    if "speakerNotes" in element_id or "notes" in element_id:
+                        return element_id
+
+            logger.warning(
+                f"Could not find speaker notes ID for slide {slide.get('objectId')}"
+            )
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error finding speaker notes object ID: {e}")
+            return None
 
     def create_presentation(self, title: str, theme_id: str | None = None) -> dict:
         """
@@ -128,7 +227,9 @@ class ApiClient:
             # Include theme ID if provided
             if theme_id:
                 logger.debug(f"Creating presentation with theme ID: {theme_id}")
-                presentation = self.slides_service.presentations().create(body=body).execute()
+                presentation = (
+                    self.slides_service.presentations().create(body=body).execute()
+                )
 
                 # Apply theme in a separate request
                 self.slides_service.presentations().batchUpdate(
@@ -145,9 +246,13 @@ class ApiClient:
                 ).execute()
             else:
                 logger.debug("Creating presentation without theme")
-                presentation = self.slides_service.presentations().create(body=body).execute()
+                presentation = (
+                    self.slides_service.presentations().create(body=body).execute()
+                )
 
-            logger.info(f"Created presentation with ID: {presentation['presentationId']}")
+            logger.info(
+                f"Created presentation with ID: {presentation['presentationId']}"
+            )
             return presentation
         except HttpError as error:
             logger.error(f"Failed to create presentation: {error}")
@@ -168,7 +273,11 @@ class ApiClient:
         """
         try:
             logger.debug(f"Getting presentation: {presentation_id}")
-            return self.slides_service.presentations().get(presentationId=presentation_id).execute()
+            return (
+                self.slides_service.presentations()
+                .get(presentationId=presentation_id)
+                .execute()
+            )
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
@@ -197,6 +306,23 @@ class ApiClient:
         logger.debug(f"Executing batch update with {request_count} requests")
         current_batch = batch.copy()
 
+        # TEMPORARY FIX: Find and fix any request with 'table_cell_properties'
+        for i, req in enumerate(current_batch["requests"]):
+            req_str = str(req)
+            if "table_cell_properties" in req_str:
+                logger.warning(
+                    f"Found 'table_cell_properties' in request {i}, fixing..."
+                )
+                # Convert the request to JSON and back to fix the field name
+                import json
+
+                fixed_req = json.loads(
+                    json.dumps(req).replace(
+                        '"table_cell_properties"', '"tableCellProperties"'
+                    )
+                )
+                current_batch["requests"][i] = fixed_req
+
         while retries <= self.max_retries:
             try:
                 response = (
@@ -213,7 +339,9 @@ class ApiClient:
                 if error.resp.status in [429, 500, 503]:  # Rate limit or server error
                     retries += 1
                     if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (2 ** (retries - 1))  # Exponential backoff
+                        wait_time = self.retry_delay * (
+                            2 ** (retries - 1)
+                        )  # Exponential backoff
                         logger.warning(
                             f"Rate limit or server error hit. Retrying in {wait_time} seconds..."
                         )
@@ -233,7 +361,9 @@ class ApiClient:
                         # Parse index from error message like "Invalid requests[4].createImage"
                         import re
 
-                        index_match = re.search(r"requests\[(\d+)\]\.createImage", error_msg)
+                        index_match = re.search(
+                            r"requests\[(\d+)\]\.createImage", error_msg
+                        )
                         if index_match:
                             problem_index = int(index_match.group(1))
 
@@ -245,24 +375,24 @@ class ApiClient:
                                     if "objectId" in req["createImage"]:
                                         # Get information from the original request
                                         obj_id = req["createImage"]["objectId"]
-                                        page_id = req["createImage"]["elementProperties"][
-                                            "pageObjectId"
-                                        ]
+                                        page_id = req["createImage"][
+                                            "elementProperties"
+                                        ]["pageObjectId"]
                                         position = (
-                                            req["createImage"]["elementProperties"]["transform"][
-                                                "translateX"
-                                            ],
-                                            req["createImage"]["elementProperties"]["transform"][
-                                                "translateY"
-                                            ],
+                                            req["createImage"]["elementProperties"][
+                                                "transform"
+                                            ]["translateX"],
+                                            req["createImage"]["elementProperties"][
+                                                "transform"
+                                            ]["translateY"],
                                         )
                                         size = (
-                                            req["createImage"]["elementProperties"]["size"][
-                                                "width"
-                                            ]["magnitude"],
-                                            req["createImage"]["elementProperties"]["size"][
-                                                "height"
-                                            ]["magnitude"],
+                                            req["createImage"]["elementProperties"][
+                                                "size"
+                                            ]["width"]["magnitude"],
+                                            req["createImage"]["elementProperties"][
+                                                "size"
+                                            ]["height"]["magnitude"],
                                         )
 
                                         # Create placeholder text box instead
@@ -328,8 +458,51 @@ class ApiClient:
                     except Exception as parse_error:
                         logger.error(f"Failed to parse error message: {parse_error}")
 
+                # Handle deleteText with invalid indices
+                elif (
+                    "deleteText" in str(error)
+                    and "startIndex" in str(error)
+                    and "endIndex" in str(error)
+                ):
+                    logger.warning(f"DeleteText error in batch: {error}")
+
+                    # Extract the problematic request index
+                    error_msg = str(error)
+                    try:
+                        # Parse index from error message like "Invalid requests[4].deleteText"
+                        import re
+
+                        index_match = re.search(
+                            r"requests\[(\d+)\]\.deleteText", error_msg
+                        )
+                        if index_match:
+                            problem_index = int(index_match.group(1))
+
+                            # Create a new batch without the problematic request
+                            modified_requests = []
+                            for i, req in enumerate(current_batch["requests"]):
+                                if i == problem_index and "deleteText" in req:
+                                    # Skip the problematic deleteText request
+                                    logger.info(
+                                        f"Skipped problematic deleteText request at index {problem_index}"
+                                    )
+                                else:
+                                    modified_requests.append(req)
+
+                            # Update the batch with the modified requests
+                            current_batch = {
+                                "presentationId": current_batch["presentationId"],
+                                "requests": modified_requests,
+                            }
+                            logger.info(
+                                f"Retrying with modified batch ({len(modified_requests)} requests)"
+                            )
+                            continue
+                    except Exception as parse_error:
+                        logger.error(f"Failed to parse error message: {parse_error}")
+
                 # For other errors, fail the batch
-                # logger.error(f"Batch update failed: {error}")
+                logger.error(f"Batch update failed: {error}")
                 raise
 
         return {}  # Should never reach here but satisfies type checker
@@ -352,7 +525,9 @@ class ApiClient:
                     try:
                         self.slides_service.presentations().batchUpdate(
                             presentationId=presentation_id,
-                            body={"requests": [{"deleteObject": {"objectId": slide_id}}]},
+                            body={
+                                "requests": [{"deleteObject": {"objectId": slide_id}}]
+                            },
                         ).execute()
                         logger.debug(f"Deleted default slide: {slide_id}")
                     except HttpError as error:

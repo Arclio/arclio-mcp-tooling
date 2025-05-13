@@ -119,11 +119,7 @@ def _distribute_space_and_position_sections(
 
     # Define constants
     min_section_dim = 20.0  # Minimum section dimension in points
-    spacing = (
-        calculator.vertical_spacing
-        if is_vertical_split
-        else calculator.horizontal_spacing
-    )
+    spacing = calculator.vertical_spacing if is_vertical_split else calculator.horizontal_spacing
     total_spacing = spacing * (len(sections) - 1)
 
     # Initialize tracking variables
@@ -148,25 +144,17 @@ def _distribute_space_and_position_sections(
                     min_height = main_dimension * dim_directive
                     min_heights[i] = min_height
                     section.min_height = min_height
-                    logger.debug(
-                        f"Set minimum height for section {section.id} to {min_height:.1f}"
-                    )
+                    logger.debug(f"Set minimum height for section {section.id} to {min_height:.1f}")
             elif isinstance(dim_directive, int | float) and dim_directive > 1.0:
                 # Absolute dimension - ensure it doesn't exceed main_dimension
-                explicit_sections[i] = min(
-                    float(dim_directive), main_dimension - total_spacing
-                )
+                explicit_sections[i] = min(float(dim_directive), main_dimension - total_spacing)
 
                 # For absolute height directives, also store as minimum requirement
                 if dim_key == "height":
-                    min_height = min(
-                        float(dim_directive), main_dimension - total_spacing
-                    )
+                    min_height = min(float(dim_directive), main_dimension - total_spacing)
                     min_heights[i] = min_height
                     section.min_height = min_height
-                    logger.debug(
-                        f"Set minimum height for section {section.id} to {min_height:.1f}"
-                    )
+                    logger.debug(f"Set minimum height for section {section.id} to {min_height:.1f}")
             else:
                 # Invalid directive, treat as implicit
                 implicit_section_indices.append(i)
@@ -188,9 +176,7 @@ def _distribute_space_and_position_sections(
                 min_heights[i] *= scale_factor
                 sections[i].min_height = min_heights[i]
 
-        logger.debug(
-            f"Scaled down explicit sections by {scale_factor:.2f} to fit available space"
-        )
+        logger.debug(f"Scaled down explicit sections by {scale_factor:.2f} to fit available space")
 
     # Calculate remaining dimension for implicit sections
     remaining_dim = main_dimension - total_explicit_dim - total_spacing
@@ -223,9 +209,7 @@ def _distribute_space_and_position_sections(
         # Ensure section dimension respects min_height from directive
         if hasattr(section, "min_height") and is_vertical_split:
             section_dim = max(section_dim, section.min_height)
-            logger.debug(
-                f"Applied minimum height {section.min_height:.1f} to section {section.id}"
-            )
+            logger.debug(f"Applied minimum height {section.min_height:.1f} to section {section.id}")
 
         # Ensure section doesn't exceed area boundaries
         if is_vertical_split and current_pos + section_dim > area_top + area_height:
@@ -349,6 +333,12 @@ def _position_elements_within_section(
     for i in range(len(elements) - 1):
         current = elements[i]
         next_elem = elements[i + 1]
+
+        # Skip None elements
+        if current is None or next_elem is None:
+            logger.warning(f"Element at index {i} or {i + 1} is None. Skipping relation marking.")
+            continue
+
         if current.element_type == ElementType.TEXT and next_elem.element_type in (
             ElementType.BULLET_LIST,
             ElementType.ORDERED_LIST,
@@ -362,11 +352,17 @@ def _position_elements_within_section(
             )
 
     for i, element in enumerate(elements):
-        # Ensure element has a size
-        if not hasattr(element, "size") or not element.size:
-            element.size = calculator.default_sizes.get(
-                element.element_type, (area_width, 50)
+        # Skip None elements
+        if element is None:
+            logger.warning(f"Element at index {i} is None. Skipping.")
+            continue
+
+        # Skip elements without required attributes
+        if not hasattr(element, "size") or element.size is None:
+            logger.warning(
+                f"Element {getattr(element, 'object_id', 'unknown')} lacks size attribute. Skipping."
             )
+            continue
 
         # Calculate element width and height
         element_width = min(element.size[0], area_width)
@@ -390,9 +386,7 @@ def _position_elements_within_section(
         )
 
         # Scale down all elements proportionally if they exceed section height
-        if (
-            total_height_with_spacing > area_height * 1.1
-        ):  # Only scale if significantly exceeding
+        if total_height_with_spacing > area_height * 1.1:  # Only scale if significantly exceeding
             scale_factor = (area_height - 5) / total_height_with_spacing  # 5pt buffer
             for i, height in enumerate(elements_heights):
                 elements_heights[i] = height * scale_factor
@@ -402,9 +396,7 @@ def _position_elements_within_section(
                 )
             # Update total height after scaling
             total_height_with_spacing = area_height - 5
-            logger.debug(
-                f"Scaled down elements by factor {scale_factor:.2f} to fit section"
-            )
+            logger.debug(f"Scaled down elements by factor {scale_factor:.2f} to fit section")
 
     # Apply vertical alignment
     valign = directives.get("valign", "top").lower()
@@ -467,9 +459,7 @@ def _position_elements_within_section(
             ):
                 element.keep_with_next = True
                 elements[i + 1].keep_with_prev = True
-                logger.debug(
-                    f"Marked elements {i} and {i + 1} to be kept together in overflow"
-                )
+                logger.debug(f"Marked elements {i} and {i + 1} to be kept together in overflow")
 
         # Check remaining space for next element if there is one
         if i < len(elements) - 1:
@@ -505,6 +495,4 @@ def _position_elements_within_section(
     # Store the logical element groups with the section for overflow handling
     if hasattr(directives, "section") and element_groups:
         directives["section"].element_groups = element_groups
-        logger.debug(
-            f"Stored {len(element_groups)} logical element groups for overflow handling"
-        )
+        logger.debug(f"Stored {len(element_groups)} logical element groups for overflow handling")
