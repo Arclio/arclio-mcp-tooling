@@ -50,7 +50,9 @@ class TestSlideExtractor:
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
         assert slides[0]["title"] == "Only Title"
-        assert slides[0]["content"] == ""  # Content should be empty after title extraction
+        assert (
+            slides[0]["content"] == ""
+        )  # Content should be empty after title extraction
 
     def test_slide_with_title_and_footer(self, extractor: SlideExtractor):
         """Test a slide with title, content, and footer."""
@@ -85,7 +87,10 @@ More content on the same slide.
 """
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
-        assert "Code block content\n===\nThis is not a slide separator." in slides[0]["content"]
+        assert (
+            "Code block content\n===\nThis is not a slide separator."
+            in slides[0]["content"]
+        )
 
     def test_multiple_code_blocks_and_separators(self, extractor: SlideExtractor):
         markdown = """
@@ -148,3 +153,44 @@ Content after beta code.
         assert len(slides) == 1
         assert slides[0]["title"] is None
         assert slides[0]["content"] == "This is content without a title.\nMore content."
+
+    def test_extract_slide_with_only_footer(self, extractor: SlideExtractor):
+        markdown = "@@@\nJust a footer"
+        slides = extractor.extract_slides(markdown)
+        assert len(slides) == 1
+        assert slides[0]["title"] is None
+        assert slides[0]["content"] == ""
+        assert slides[0]["footer"] == "Just a footer"
+
+    def test_extract_slide_with_only_notes(self, extractor: SlideExtractor):
+        markdown = ""
+        slides = extractor.extract_slides(markdown)
+        assert len(slides) == 1
+        assert slides[0]["title"] is None
+        assert slides[0]["content"] == ""  # Notes are removed from main content
+        assert slides[0]["notes"] == "Just notes"
+
+    def test_extract_slide_with_only_background(self, extractor: SlideExtractor):
+        markdown = "[background=#FF0000]"
+        slides = extractor.extract_slides(markdown)
+        assert len(slides) == 1
+        assert slides[0]["title"] is None
+        assert slides[0]["content"] == ""  # Background directive removed
+        assert slides[0]["background"] == {"type": "color", "value": "#FF0000"}
+
+    def test_extract_slide_complex_notes_and_footer(self, extractor: SlideExtractor):
+        markdown = """
+    # Title
+    Content
+    @@@
+    Footer
+    """
+        slides = extractor.extract_slides(markdown)
+        assert len(slides) == 1
+        assert slides[0]["title"] == "Title"
+        assert "Content" in slides[0]["content"]
+        assert "" not in slides[0]["content"]  # Main notes removed
+        assert slides[0]["footer"] == "Footer"  # Footer notes removed from footer text
+        assert (
+            slides[0]["notes"] == "Footer notes should override"
+        )  # Footer notes take precedence

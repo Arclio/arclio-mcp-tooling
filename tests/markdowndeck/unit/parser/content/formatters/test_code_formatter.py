@@ -20,11 +20,15 @@ class TestCodeFormatter:
     def md_parser(self) -> MarkdownIt:
         return MarkdownIt()
 
-    def test_can_handle_fence_token(self, formatter: CodeFormatter, md_parser: MarkdownIt):
+    def test_can_handle_fence_token(
+        self, formatter: CodeFormatter, md_parser: MarkdownIt
+    ):
         tokens = md_parser.parse("```python\nprint('hi')\n```")
         assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is fence
 
-    def test_cannot_handle_other_tokens(self, formatter: CodeFormatter, md_parser: MarkdownIt):
+    def test_cannot_handle_other_tokens(
+        self, formatter: CodeFormatter, md_parser: MarkdownIt
+    ):
         tokens = md_parser.parse("Just text")
         assert not formatter.can_handle(tokens[0], tokens)  # paragraph_open
 
@@ -44,7 +48,9 @@ class TestCodeFormatter:
         assert element.directives.get("custom") == "val"
         assert end_index == 0  # Fence token is self-contained
 
-    def test_process_code_block_no_language(self, formatter: CodeFormatter, md_parser: MarkdownIt):
+    def test_process_code_block_no_language(
+        self, formatter: CodeFormatter, md_parser: MarkdownIt
+    ):
         markdown = "```\nSome plain text code\n```"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -53,7 +59,9 @@ class TestCodeFormatter:
         assert element.language == "text"  # Default
         assert element.code == "Some plain text code\n"
 
-    def test_process_empty_code_block(self, formatter: CodeFormatter, md_parser: MarkdownIt):
+    def test_process_empty_code_block(
+        self, formatter: CodeFormatter, md_parser: MarkdownIt
+    ):
         markdown = "```\n```"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -62,7 +70,9 @@ class TestCodeFormatter:
         assert element.code == ""  # Content is empty string
         assert element.language == "text"  # Default
 
-    def test_process_code_block_tilde_fences(self, formatter: CodeFormatter, md_parser: MarkdownIt):
+    def test_process_code_block_tilde_fences(
+        self, formatter: CodeFormatter, md_parser: MarkdownIt
+    ):
         markdown = "~~~\nJust code\n~~~"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})

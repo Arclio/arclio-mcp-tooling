@@ -80,35 +80,51 @@ class ApiRequestGenerator:
 
         # Process elements
         for element in slide.elements:
-            element_requests = self._generate_element_requests(element, slide.object_id)
+            element_requests = self._generate_element_requests(
+                element, slide.object_id, slide.placeholder_mappings
+            )
             requests.extend(element_requests)
 
         # Add speaker notes if present
-        if slide.notes:
+        # Note: speaker_notes_object_id must be populated on the slide model
+        # by the ApiClient after the slide is created and its ID is known.
+        if slide.notes and slide.speaker_notes_object_id:
             notes_requests = self.slide_builder.create_notes_request(slide)
             # Handle both single request and list of requests
             if isinstance(notes_requests, list):
                 requests.extend(notes_requests)
-            elif notes_requests:
+            elif notes_requests:  # Ensure it's not an empty dict
                 requests.append(notes_requests)
+        elif slide.notes and not slide.speaker_notes_object_id:
+            logger.warning(
+                f"Slide {slide.object_id} has notes but no speaker_notes_object_id; notes will not be added."
+            )
 
         logger.debug(f"Generated {len(requests)} requests for slide {slide.object_id}")
         return {"presentationId": presentation_id, "requests": requests}
 
-    def _generate_element_requests(self, element: Element, slide_id: str) -> list[dict]:
+    def _generate_element_requests(
+        self, element: Element, slide_id: str, theme_placeholders: Dict[str, str] = None
+    ) -> list[dict]:
         """
         Generate requests for a specific element by delegating to appropriate builder.
 
         Args:
             element: The element to generate requests for
             slide_id: The slide ID
+            theme_placeholders: Placeholder mappings for the current slide
 
         Returns:
             List of request dictionaries
         """
-        # Ensure element has a valid object_id
-        if not getattr(element, "object_id", None):
-            element_type_name = getattr(element, "element_type", "unknown").value
+        # Ensure element has a valid object_id (unless it's using a theme placeholder)
+        element_type = getattr(element, "element_type", None)
+        use_theme_placeholder = (
+            theme_placeholders and element_type in theme_placeholders
+        )
+
+        if not getattr(element, "object_id", None) and not use_theme_placeholder:
+            element_type_name = getattr(element_type, "value", "unknown_element")
             element.object_id = self.slide_builder._generate_id(
                 f"{element_type_name}_{slide_id}"
             )
@@ -117,13 +133,15 @@ class ApiRequestGenerator:
             )
 
         # Delegate to appropriate builder based on element type
-        element_type = getattr(element, "element_type", None)
-
         if element_type == ElementType.TITLE or element_type == ElementType.SUBTITLE:
-            return self.text_builder.generate_text_element_requests(element, slide_id)
+            return self.text_builder.generate_text_element_requests(
+                element, slide_id, theme_placeholders
+            )
 
         elif element_type == ElementType.TEXT:
-            return self.text_builder.generate_text_element_requests(element, slide_id)
+            return self.text_builder.generate_text_element_requests(
+                element, slide_id, theme_placeholders
+            )
 
         elif element_type == ElementType.BULLET_LIST:
             return self.list_builder.generate_bullet_list_element_requests(
@@ -132,7 +150,7 @@ class ApiRequestGenerator:
 
         elif element_type == ElementType.ORDERED_LIST:
             return self.list_builder.generate_list_element_requests(
-                element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN"
+                element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN"  # Example preset
             )
 
         elif element_type == ElementType.IMAGE:
@@ -145,10 +163,18 @@ class ApiRequestGenerator:
             return self.code_builder.generate_code_element_requests(element, slide_id)
 
         elif element_type == ElementType.QUOTE:
-            return self.text_builder.generate_quote_element_requests(element, slide_id)
+            # Quotes are handled by TextRequestBuilder with specific styling
+            return self.text_builder.generate_text_element_requests(
+                element, slide_id, theme_placeholders
+            )
 
         elif element_type == ElementType.FOOTER:
-            return self.text_builder.generate_footer_element_requests(element, slide_id)
+            # Footers are essentially text elements; special handling is in layout/parsing
+            return self.text_builder.generate_text_element_requests(
+                element, slide_id, theme_placeholders
+            )
 
-        logger.warning(f"Unknown element type: {element_type}")
+        logger.warning(
+            f"Unknown or unhandled element type: {element_type} for element id {getattr(element, 'object_id', 'N/A')}"
+        )
         return []

@@ -40,7 +40,13 @@ class TextFormatType(str, Enum):
     STRIKETHROUGH = "strikethrough"
     CODE = "code"
     LINK = "link"
-    COLOR = "color"
+    COLOR = "color"  # Represents foreground color
+    BACKGROUND_COLOR = "backgroundColor"  # Added
+    FONT_SIZE = "fontSize"  # Added
+    FONT_FAMILY = "fontFamily"  # Added
+    VERTICAL_ALIGN = (
+        "verticalAlign"  # Represents baselineOffset (superscript/subscript) - Added
+    )
 
 
 class AlignmentType(str, Enum):

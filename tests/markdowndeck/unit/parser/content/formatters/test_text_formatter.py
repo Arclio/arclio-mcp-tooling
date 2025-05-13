@@ -27,7 +27,9 @@ class TestTextFormatter:
         md.enable("strikethrough")
         return md
 
-    @pytest.mark.parametrize("token_type", ["heading_open", "paragraph_open", "blockquote_open"])
+    @pytest.mark.parametrize(
+        "token_type", ["heading_open", "paragraph_open", "blockquote_open"]
+    )
     def test_can_handle_valid_tokens(
         self, formatter: TextFormatter, token_type: str, md_parser: MarkdownIt
     ):
@@ -36,17 +38,25 @@ class TestTextFormatter:
         # Here we simulate tokens that TextFormatter *should* definitively handle.
         if token_type == "paragraph_open":
             tokens = md_parser.parse("Just some text.")
-            assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is paragraph_open
+            assert formatter.can_handle(
+                tokens[0], tokens
+            )  # tokens[0] is paragraph_open
         elif token_type == "heading_open":
             tokens = md_parser.parse("## A heading")
             assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is heading_open
         elif token_type == "blockquote_open":
             tokens = md_parser.parse("> A quote")
-            assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is blockquote_open
+            assert formatter.can_handle(
+                tokens[0], tokens
+            )  # tokens[0] is blockquote_open
 
-    def test_cannot_handle_other_tokens(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_cannot_handle_other_tokens(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         tokens = md_parser.parse("* List item")  # Creates bullet_list_open, etc.
-        assert not formatter.can_handle(tokens[0], tokens)  # Should not handle bullet_list_open
+        assert not formatter.can_handle(
+            tokens[0], tokens
+        )  # Should not handle bullet_list_open
 
     # --- Test _process_heading ---
     @pytest.mark.parametrize(
@@ -76,7 +86,9 @@ class TestTextFormatter:
         assert element.horizontal_alignment == expected_align
         assert end_index == 2
 
-    def test_process_heading_with_formatting(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_process_heading_with_formatting(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         markdown = "## Heading with **bold** and *italic*"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -86,7 +98,9 @@ class TestTextFormatter:
         # Detailed formatting checks are in ElementFactory tests
 
     # --- Test _process_paragraph ---
-    def test_process_simple_paragraph(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_process_simple_paragraph(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         markdown = "This is a simple paragraph."
         tokens = md_parser.parse(markdown)  # [paragraph_open, inline, paragraph_close]
         element, end_index = formatter.process(tokens, 0, {})
@@ -118,14 +132,18 @@ class TestTextFormatter:
         assert element.horizontal_alignment == AlignmentType.CENTER
         assert element.directives.get("custom") == "val"
 
-    def test_process_empty_paragraph(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_process_empty_paragraph(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         markdown = " \n "  # Markdown-it might produce an empty inline token
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
         assert element is None  # Empty paragraphs should be skipped
 
     # --- Test _process_quote ---
-    def test_process_simple_blockquote(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_process_simple_blockquote(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         markdown = "> This is a quote."
         tokens = md_parser.parse(
             markdown
@@ -137,7 +155,9 @@ class TestTextFormatter:
         assert element.text == "This is a quote."
         assert end_index == 4
 
-    def test_process_multiline_blockquote(self, formatter: TextFormatter, md_parser: MarkdownIt):
+    def test_process_multiline_blockquote(
+        self, formatter: TextFormatter, md_parser: MarkdownIt
+    ):
         markdown = "> First line.\n> Second line."  # This becomes two paragraphs inside blockquote
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})

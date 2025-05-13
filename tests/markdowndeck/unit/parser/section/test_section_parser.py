@@ -127,15 +127,16 @@ class TestSectionParser:
 
     def test_preservation_of_content_for_directive_parsing(self, parser: SectionParser):
         """Ensures raw content (including potential directives) is passed through."""
-        content = (
-            "[dir1=val1]\nContent A\n---\n[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
-        )
+        content = "[dir1=val1]\nContent A\n---\n[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
         sections = parser.parse_sections(content)
 
         assert sections[0].content == "[dir1=val1]\nContent A"
         assert sections[1].type == "row"
         # The "content" of the row section should be the whole part between vertical separators
-        assert sections[1].content == "[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
+        assert (
+            sections[1].content
+            == "[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
+        )
         assert sections[1].subsections[0].content == "[dir2=val2]\nContent B1"
         assert sections[1].subsections[1].content == "[dir3=val3]\nContent B2"
 
@@ -146,5 +147,11 @@ class TestSectionParser:
         assert len(sections) == 1
         assert sections[0].type == "row"
         assert len(sections[0].subsections) == 2
-        assert sections[0].subsections[0].content.strip() == "Left\n```\n*** text in code ***\n```"
-        assert sections[0].subsections[1].content.strip() == "Right\n```\n*** more code ***\n```"
+        assert (
+            sections[0].subsections[0].content.strip()
+            == "Left\n```\n*** text in code ***\n```"
+        )
+        assert (
+            sections[0].subsections[1].content.strip()
+            == "Right\n```\n*** more code ***\n```"
+        )

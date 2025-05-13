@@ -15,7 +15,9 @@ class TestListMetrics:
         element = ListElement(items=[item], element_type=ElementType.BULLET_LIST)
         height = calculate_list_element_height(element, 500)
         # Current implementation may return exactly 30 as the minimum height
-        assert height >= 30  # Should be text height + list padding + item spacing (minus one)
+        assert (
+            height >= 30
+        )  # Should be text height + list padding + item spacing (minus one)
 
     def test_calculate_list_height_multiple_items(self):
         items = [
@@ -36,8 +38,12 @@ class TestListMetrics:
             text="This is a very long list item that will definitely wrap several times to test height."
         )
 
-        element_short = ListElement(items=[item_short], element_type=ElementType.BULLET_LIST)
-        element_long = ListElement(items=[item_long], element_type=ElementType.BULLET_LIST)
+        element_short = ListElement(
+            items=[item_short], element_type=ElementType.BULLET_LIST
+        )
+        element_long = ListElement(
+            items=[item_long], element_type=ElementType.BULLET_LIST
+        )
 
         height_short = calculate_list_element_height(element_short, 200)
         height_long = calculate_list_element_height(element_long, 200)  # Same width
@@ -70,7 +76,9 @@ class TestListMetrics:
             text="Item with **bold** text",
             formatting=[TextFormat(start=10, end=14, format_type=TextFormatType.BOLD)],
         )
-        element = ListElement(items=[item_formatted], element_type=ElementType.BULLET_LIST)
+        element = ListElement(
+            items=[item_formatted], element_type=ElementType.BULLET_LIST
+        )
         # The height difference due to mild formatting might be negligible or absorbed by line height
         # but the test ensures it doesn't crash and uses the text_height_calculator.
         height = calculate_list_element_height(element, 500)

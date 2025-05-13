@@ -89,28 +89,50 @@ class BaseRequestBuilder:
         elif text_format.format_type == TextFormatType.STRIKETHROUGH:
             style["strikethrough"] = True
         elif text_format.format_type == TextFormatType.CODE:
-            # For inline code, use a monospace font and light gray background
             style["fontFamily"] = "Courier New"
-            style["backgroundColor"] = {
-                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+            style["backgroundColor"] = {  # OptionalColor
+                "opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
             }
         elif text_format.format_type == TextFormatType.LINK:
             style["link"] = {"url": text_format.value}
         elif text_format.format_type == TextFormatType.COLOR:
-            # Handle color values that may be strings or tuples
-            color_value = text_format.value
-
-            # Handle tuple color value
-            if isinstance(color_value, tuple) and len(color_value) == 2:
-                color_type, color_value = color_value
-                # Only proceed if it's a color directive with a hex value
-                if color_type != "color" or not isinstance(color_value, str):
-                    return style  # Return without adding color if invalid
-
-            # Apply string color value
-            if isinstance(color_value, str) and color_value.startswith("#"):
-                rgb = self._hex_to_rgb(color_value)
-                style["foregroundColor"] = {"rgbColor": rgb}
+            color_value_str = text_format.value
+            if isinstance(color_value_str, str):
+                if color_value_str.startswith("#"):
+                    rgb = self._hex_to_rgb(color_value_str)
+                    style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
+                else:  # Assume theme color name if not a hex string
+                    style["foregroundColor"] = {
+                        "opaqueColor": {"themeColor": color_value_str.upper()}
+                    }
+        elif text_format.format_type == TextFormatType.BACKGROUND_COLOR:
+            color_value_str = text_format.value
+            if isinstance(color_value_str, str):
+                if color_value_str.startswith("#"):
+                    rgb = self._hex_to_rgb(color_value_str)
+                    style["backgroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
+                else:  # Assume theme color name
+                    style["backgroundColor"] = {
+                        "opaqueColor": {"themeColor": color_value_str.upper()}
+                    }
+        elif text_format.format_type == TextFormatType.FONT_SIZE:
+            if isinstance(text_format.value, (int, float)):
+                style["fontSize"] = {
+                    "magnitude": float(text_format.value),
+                    "unit": "PT",
+                }
+        elif text_format.format_type == TextFormatType.FONT_FAMILY:
+            if isinstance(text_format.value, str):
+                style["fontFamily"] = text_format.value
+        elif (
+            text_format.format_type == TextFormatType.VERTICAL_ALIGN
+        ):  # This is baselineOffset
+            if isinstance(text_format.value, str) and text_format.value.upper() in [
+                "SUPERSCRIPT",
+                "SUBSCRIPT",
+                "NONE",
+            ]:
+                style["baselineOffset"] = text_format.value.upper()
 
         return style
 
@@ -133,19 +155,19 @@ class BaseRequestBuilder:
         if text_format.format_type == TextFormatType.STRIKETHROUGH:
             return "strikethrough"
         if text_format.format_type == TextFormatType.CODE:
-            return "fontFamily,backgroundColor"
+            return "fontFamily,backgroundColor"  # Updates the whole backgroundColor OptionalColor object
         if text_format.format_type == TextFormatType.LINK:
             return "link"
         if text_format.format_type == TextFormatType.COLOR:
-            return "foregroundColor"
+            return "foregroundColor"  # Updates the whole foregroundColor OptionalColor object
         if text_format.format_type == TextFormatType.FONT_SIZE:
-            return "fontSize"
+            return "fontSize"  # Updates the whole Dimension object for fontSize
         if text_format.format_type == TextFormatType.FONT_FAMILY:
             return "fontFamily"
         if text_format.format_type == TextFormatType.VERTICAL_ALIGN:
             return "baselineOffset"
         if text_format.format_type == TextFormatType.BACKGROUND_COLOR:
-            return "backgroundColor"
+            return "backgroundColor"  # Updates the whole backgroundColor OptionalColor object
 
         return ""
 
@@ -206,15 +228,19 @@ class BaseRequestBuilder:
                 "endIndex": end_index,
             }
         else:
-            # Default to ALL if neither is specified
-            request["updateTextStyle"]["textRange"] = {"type": "ALL"}
+            # Default to ALL if neither is specified and text range is required
+            # However, if style is empty, textRange might not be needed - API dependent.
+            # For safety, always include it if fields are specified.
+            if fields:  # Only add textRange if there are fields to update
+                request["updateTextStyle"]["textRange"] = {"type": "ALL"}
 
         # Add cell location for table text styling if provided
         if cell_location:
-            request["updateTextStyle"]["tableRange"] = {
-                "location": cell_location,
-                "rowSpan": 1,
-                "columnSpan": 1,
-            }
+            request["updateTextStyle"][
+                "cellLocation"
+            ] = cell_location  # Corrected: cellLocation is part of updateTextStyle directly
+            # The tableRange is not needed here if cellLocation is used.
+            # The API docs for UpdateTextStyleRequest show cellLocation at the same level as textRange.
+            # If textRange is also set, it applies within the specified cell.
 
         return request

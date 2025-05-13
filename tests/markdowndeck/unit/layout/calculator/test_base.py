@@ -18,7 +18,9 @@ class TestBaseCalculator:
 
     @pytest.fixture
     def calculator(self, default_margins: dict[str, float]) -> PositionCalculator:
-        return PositionCalculator(slide_width=720, slide_height=405, margins=default_margins)
+        return PositionCalculator(
+            slide_width=720, slide_height=405, margins=default_margins
+        )
 
     def test_basic_slide_initialization(self, calculator: PositionCalculator):
         """Test basic attributes of a newly created PositionCalculator."""
@@ -32,8 +34,12 @@ class TestBaseCalculator:
         assert calculator.margins["left"] == 50
 
         # Check derived attributes
-        assert calculator.max_content_width == 720 - 50 - 50  # slide_width - left - right
-        assert calculator.max_content_height == 405 - 50 - 50  # slide_height - top - bottom
+        assert (
+            calculator.max_content_width == 720 - 50 - 50
+        )  # slide_width - left - right
+        assert (
+            calculator.max_content_height == 405 - 50 - 50
+        )  # slide_height - top - bottom
 
         # Check body zone calculation
         assert calculator.body_left == 50  # left margin
@@ -69,7 +75,9 @@ class TestBaseCalculator:
         )  # Title Y position should be above body_top
 
         # Text should be in the body zone, accounting for BODY_TOP_ADJUSTMENT
-        text_element = next(e for e in result_slide.elements if e.element_type == ElementType.TEXT)
+        text_element = next(
+            e for e in result_slide.elements if e.element_type == ElementType.TEXT
+        )
         assert (
             text_element.position[1] >= calculator.body_top - BODY_TOP_ADJUSTMENT
         )  # Text Y position should be at or below adjusted body_top
@@ -114,12 +122,14 @@ class TestBaseCalculator:
 
         assert text1_elem.position[0] >= section1.position[0]
         assert (
-            text1_elem.position[0] + text1_elem.size[0] <= section1.position[0] + section1.size[0]
+            text1_elem.position[0] + text1_elem.size[0]
+            <= section1.position[0] + section1.size[0]
         )
 
         assert text2_elem.position[0] >= section2.position[0]
         assert (
-            text2_elem.position[0] + text2_elem.size[0] <= section2.position[0] + section2.size[0]
+            text2_elem.position[0] + text2_elem.size[0]
+            <= section2.position[0] + section2.size[0]
         )
 
         # Title should still be in header zone
@@ -128,7 +138,9 @@ class TestBaseCalculator:
         )
         assert title_element.position[1] < calculator.body_top
 
-    def test_calculate_positions_auto_layout_detection(self, calculator: PositionCalculator):
+    def test_calculate_positions_auto_layout_detection(
+        self, calculator: PositionCalculator
+    ):
         """Test that calculate_positions correctly auto-detects layout type."""
         title = TextElement(element_type=ElementType.TITLE, text="Title")
         text1 = TextElement(element_type=ElementType.TEXT, text="Left Column")
@@ -169,5 +181,30 @@ class TestBaseCalculator:
             assert element.size is not None
 
         # Elements should be stacked vertically in zone-based layout
-        elements = [e for e in result_slide_zone.elements if e.element_type == ElementType.TEXT]
+        elements = [
+            e for e in result_slide_zone.elements if e.element_type == ElementType.TEXT
+        ]
         assert elements[0].position[1] < elements[1].position[1]
+
+    def test_calculate_positions_empty_slide(self, calculator: PositionCalculator):
+        slide = Slide(elements=[])
+        result_slide = calculator.calculate_positions(slide)
+        assert len(result_slide.elements) == 0  # No elements to position
+
+    def test_calculate_positions_slide_with_only_footer(
+        self, calculator: PositionCalculator
+    ):
+        footer = TextElement(element_type=ElementType.FOOTER, text="Footer only")
+        slide = Slide(elements=[footer])
+        result_slide = calculator.calculate_positions(slide)
+        assert len(result_slide.elements) == 1
+        positioned_footer = result_slide.elements[0]
+        assert positioned_footer.position is not None
+        assert positioned_footer.size is not None
+        # Check it's at the bottom
+        expected_y = (
+            calculator.slide_height
+            - calculator.margins["bottom"]
+            - positioned_footer.size[1]
+        )
+        assert positioned_footer.position[1] == pytest.approx(expected_y)

@@ -1,13 +1,12 @@
 """Text request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from markdowndeck.models import (
     AlignmentType,
     ElementType,
     TextElement,
-    VerticalAlignmentType,
 )
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 

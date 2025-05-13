@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import cast
+from unittest.mock import MagicMock
 
 import pytest
 from markdowndeck.api.api_generator import ApiRequestGenerator
@@ -14,304 +14,217 @@ from markdowndeck.models import (
     SlideLayout,
     TableElement,
     TextElement,
-    TextFormat,
-    TextFormatType,
+    # TextFormat and TextFormatType are not directly used in orchestration tests here
 )
 
 
 @pytest.fixture
-def generator() -> ApiRequestGenerator:
-    return ApiRequestGenerator()
-
-
-@pytest.fixture
-def sample_slide(request) -> Slide:
-    """Creates a sample slide, optionally with specific elements based on marker."""
-    slide_id = "test_slide_001"
-    elements = []
-
-    if hasattr(request, "param") and request.param:
-        if request.param == "with_title":
-            elements.append(
-                TextElement(
-                    element_type=ElementType.TITLE,
-                    text="Test Title",
-                    object_id="title1",
-                    position=(50, 50),
-                    size=(600, 50),
-                )
-            )
-        elif request.param == "with_text_box":
-            elements.append(
-                TextElement(
-                    element_type=ElementType.TEXT,
-                    text="Hello World",
-                    object_id="text1",
-                    position=(50, 120),
-                    size=(600, 100),
-                )
-            )
-        elif request.param == "with_formatted_text":
-            elements.append(
-                TextElement(
-                    element_type=ElementType.TEXT,
-                    text="Bold Italic",
-                    object_id="fmttext1",
-                    position=(50, 120),
-                    size=(600, 50),
-                    formatting=[
-                        TextFormat(start=0, end=4, format_type=TextFormatType.BOLD),
-                        TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC),
-                    ],
-                )
-            )
-        elif request.param == "with_bullet_list":
-            elements.append(
-                ListElement(
-                    element_type=ElementType.BULLET_LIST,
-                    object_id="list1",
-                    position=(50, 120),
-                    size=(600, 100),
-                    items=[ListItem(text="Item 1"), ListItem(text="Item 2")],
-                )
-            )
-        elif request.param == "with_image":
-            elements.append(
-                ImageElement(
-                    element_type=ElementType.IMAGE,
-                    url="http://example.com/img.png",
-                    alt_text="Alt",
-                    object_id="img1",
-                    position=(50, 120),
-                    size=(300, 200),
-                )
-            )
-        elif request.param == "with_code":
-            elements.append(
-                CodeElement(
-                    element_type=ElementType.CODE,
-                    code="print('hi')",
-                    language="python",
-                    object_id="code1",
-                    position=(50, 120),
-                    size=(600, 100),
-                )
-            )
-        elif request.param == "with_table":
-            elements.append(
-                TableElement(
-                    element_type=ElementType.TABLE,
-                    headers=["H1"],
-                    rows=[["C1"]],
-                    object_id="table1",
-                    position=(50, 120),
-                    size=(300, 100),
-                )
-            )
-
+def sample_slide() -> Slide:
+    """Creates a sample slide for orchestration testing."""
+    # Keep this simple, as the details of element generation are tested in builder tests
     return Slide(
-        object_id=slide_id,
-        elements=elements,
+        object_id="test_slide_001",
+        elements=[],  # Elements will be added by specific orchestration tests
         layout=SlideLayout.BLANK,
         title="Sample Slide",
+        placeholder_mappings={},
     )
 
 
 class TestApiRequestGenerator:
-    """Unit tests for the ApiRequestGenerator."""
+    """Unit tests for the ApiRequestGenerator's orchestration role."""
 
-    def test_generate_id(self, generator: ApiRequestGenerator):
-        id1 = generator._generate_id("prefix")
-        id2 = generator._generate_id("prefix")
-        assert id1 != id2
-        assert id1.startswith("prefix_")
+    @pytest.fixture
+    def generator(self) -> ApiRequestGenerator:
+        return ApiRequestGenerator()
 
-    def test_hex_to_rgb(self, generator: ApiRequestGenerator):
-        assert generator._hex_to_rgb("#FF0000") == {
-            "red": 1.0,
-            "green": 0.0,
-            "blue": 0.0,
-        }
-        assert generator._hex_to_rgb("00FF00") == {
-            "red": 0.0,
-            "green": 1.0,
-            "blue": 0.0,
-        }
-        assert generator._hex_to_rgb("#00F") == {
-            "red": 0.0,
-            "green": 0.0,
-            "blue": 1.0,
-        }  # Shorthand
-
-    def test_create_slide_request(self, generator: ApiRequestGenerator, sample_slide: Slide):
-        request = generator._create_slide_request(sample_slide)
-        assert "createSlide" in request
-        cs_data = request["createSlide"]
-        assert cs_data["objectId"] == sample_slide.object_id
-        assert cs_data["slideLayoutReference"]["predefinedLayout"] == sample_slide.layout.value
-
-    def test_create_slide_request_generates_id(self, generator: ApiRequestGenerator):
-        slide = Slide(layout=SlideLayout.TITLE_ONLY)  # No object_id provided
-        request = generator._create_slide_request(slide)
-        assert "createSlide" in request
-        assert request["createSlide"]["objectId"] is not None
-        assert (
-            slide.object_id == request["createSlide"]["objectId"]
-        )  # Ensure slide object is updated
-
-    def test_create_background_request_color(
+    def test_generate_slide_batch_orchestration(
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
-        sample_slide.background = {"type": "color", "value": "#ABCDEF"}
-        request = generator._create_background_request(sample_slide)
-        assert "updateSlideProperties" in request
-        fill = request["updateSlideProperties"]["slideProperties"]["backgroundFill"]
-        assert "solidFill" in fill
-        assert fill["solidFill"]["color"]["opaqueColor"]["rgbColor"] == generator._hex_to_rgb(
-            "#ABCDEF"
+        """Test that generate_slide_batch calls appropriate builder methods."""
+        # Populate sample_slide with a few representative elements for dispatch testing
+        sample_slide.elements = [
+            TextElement(
+                element_type=ElementType.TITLE, text="Title", object_id="el_title"
+            ),
+            TextElement(
+                element_type=ElementType.TEXT, text="Body", object_id="el_body"
+            ),
+            ImageElement(
+                element_type=ElementType.IMAGE, url="test.png", object_id="el_img"
+            ),
+        ]
+        sample_slide.background = {"type": "color", "value": "#FFFFFF"}
+        sample_slide.notes = "Test notes"
+        sample_slide.speaker_notes_object_id = "notes_obj_id"
+
+        # Mock the builder methods directly on the generator's instances
+        generator.slide_builder.create_slide_request = MagicMock(
+            return_value={"mock_slide_req": True}
+        )
+        generator.slide_builder.create_background_request = MagicMock(
+            return_value={"mock_bg_req": True}
+        )
+        generator.slide_builder.create_notes_request = MagicMock(
+            return_value=[{"mock_notes_req": True}]
+        )  # Assuming it returns a list
+
+        generator.text_builder.generate_text_element_requests = MagicMock(
+            return_value=[{"mock_text_el_req": True}]
+        )
+        generator.media_builder.generate_image_element_requests = MagicMock(
+            return_value=[{"mock_img_el_req": True}]
+        )
+        # Mock other builders if their elements were added to sample_slide.elements
+        generator.list_builder.generate_bullet_list_element_requests = MagicMock()
+        generator.list_builder.generate_list_element_requests = MagicMock()
+        generator.table_builder.generate_table_element_requests = MagicMock()
+        generator.code_builder.generate_code_element_requests = MagicMock()
+
+        batch = generator.generate_slide_batch(sample_slide, "pres_id")
+
+        assert batch["presentationId"] == "pres_id"
+        generator.slide_builder.create_slide_request.assert_called_once_with(
+            sample_slide
+        )
+        generator.slide_builder.create_background_request.assert_called_once_with(
+            sample_slide
+        )
+        generator.slide_builder.create_notes_request.assert_called_once_with(
+            sample_slide
         )
 
-    def test_create_background_request_theme_color(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        sample_slide.background = {"type": "color", "value": "ACCENT1"}
-        request = generator._create_background_request(sample_slide)
-        fill = request["updateSlideProperties"]["slideProperties"]["backgroundFill"]
-        assert fill["solidFill"]["color"]["opaqueColor"]["themeColor"] == "ACCENT1"
-
-    def test_create_background_request_image(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        sample_slide.background = {"type": "image", "value": "image_placeholder_id"}
-        request = generator._create_background_request(sample_slide)
-        fill = request["updateSlideProperties"]["slideProperties"]["backgroundFill"]
-        assert "stretchedPictureFill" in fill
-        assert fill["stretchedPictureFill"]["pictureId"] == "image_placeholder_id"
-
-    def test_create_background_request_no_background(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        sample_slide.background = None
-        request = generator._create_background_request(sample_slide)
-        assert request == {}  # Should return an empty dict or similar non-request
-
-    def test_create_notes_request(self, generator: ApiRequestGenerator):
-        notes = "These are my notes"
-        slide_with_notes = Slide(layout="title", notes=notes, object_id="slide123", elements=[])
-        request = generator._create_notes_request(slide_with_notes)
-        assert "updateSlideProperties" in request
-        unp_data = request["updateSlideProperties"]
-        assert unp_data["objectId"] == "slide123"
-        assert (
-            unp_data["slideProperties"]["notesPage"]["notesProperties"]["speakerNotesText"] == notes
+        # Check calls to element builders (via _generate_element_requests)
+        assert generator.text_builder.generate_text_element_requests.call_count == 2
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            sample_slide.elements[0],  # Title element
+            sample_slide.object_id,
+            sample_slide.placeholder_mappings,
         )
-        assert unp_data["fields"] == "notesPage.notesProperties.speakerNotesText"
-
-    @pytest.mark.parametrize("sample_slide", ["with_title"], indirect=True)
-    def test_generate_text_element_requests_title(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        title_element = sample_slide.elements[0]
-        requests = generator._generate_text_element_requests(title_element, sample_slide.object_id)
-        assert len(requests) >= 2  # createShape, insertText, possibly updateParagraphStyle
-        assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
-        assert requests[1]["insertText"]["text"] == title_element.text
-        # Check for paragraph style for title
-        paragraph_style_req = next((r for r in requests if "updateParagraphStyle" in r), None)
-        assert paragraph_style_req is not None
-        assert paragraph_style_req["updateParagraphStyle"]["style"]["alignment"] == "CENTER"
-
-    @pytest.mark.parametrize("sample_slide", ["with_formatted_text"], indirect=True)
-    def test_generate_text_element_requests_with_formatting(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        text_element = sample_slide.elements[0]
-        requests = generator._generate_text_element_requests(text_element, sample_slide.object_id)
-        # Expected: createShape, insertText, updateTextStyle (bold), updateTextStyle (italic), updateParagraphStyle
-        assert len(requests) == 5
-        update_style_requests = [r for r in requests if "updateTextStyle" in r]
-        assert len(update_style_requests) == 2
-        assert any(r["updateTextStyle"]["style"].get("bold") for r in update_style_requests)
-        assert any(r["updateTextStyle"]["style"].get("italic") for r in update_style_requests)
-
-    @pytest.mark.parametrize("sample_slide", ["with_bullet_list"], indirect=True)
-    def test_generate_list_element_requests(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        list_element = cast(ListElement, sample_slide.elements[0])
-        requests = generator._generate_list_element_requests(
-            list_element, sample_slide.object_id, "BULLET_DISC_CIRCLE_SQUARE"
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            sample_slide.elements[1],  # Text element
+            sample_slide.object_id,
+            sample_slide.placeholder_mappings,
         )
-        # createShape, insertText, createParagraphBullets
-        assert len(requests) >= 3
-        assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
-        assert "Item 1\nItem 2" in requests[1]["insertText"]["text"]  # Check combined text
-        assert requests[2]["createParagraphBullets"]["bulletPreset"] == "BULLET_DISC_CIRCLE_SQUARE"
-
-    @pytest.mark.parametrize("sample_slide", ["with_image"], indirect=True)
-    def test_generate_image_element_requests(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        image_element = cast(ImageElement, sample_slide.elements[0])
-        requests = generator._generate_image_element_requests(image_element, sample_slide.object_id)
-        assert len(requests) == 2  # createImage, updateImageProperties (for alt text)
-        assert "createImage" in requests[0]
-        assert requests[0]["createImage"]["url"] == image_element.url
-        assert "updateImageProperties" in requests[1]
-        assert (
-            requests[1]["updateImageProperties"]["imageProperties"]["description"]
-            == image_element.alt_text
+        generator.media_builder.generate_image_element_requests.assert_called_once_with(
+            sample_slide.elements[2],
+            sample_slide.object_id,  # No placeholders for image
         )
 
-    @pytest.mark.parametrize("sample_slide", ["with_code"], indirect=True)
-    def test_generate_code_element_requests(
+        # Check request list content (simplified)
+        assert {"mock_slide_req": True} in batch["requests"]
+        assert {"mock_bg_req": True} in batch["requests"]
+        assert {"mock_notes_req": True} in batch["requests"]
+        assert batch["requests"].count({"mock_text_el_req": True}) == 2
+        assert {"mock_img_el_req": True} in batch["requests"]
+
+    def test_generate_element_requests_dispatch(
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
-        code_element = cast(CodeElement, sample_slide.elements[0])
-        requests = generator._generate_code_element_requests(code_element, sample_slide.object_id)
-        # createShape, insertText, updateTextStyle (font, bg), updateShapeProperties (bg), createShape (label), insertText(label), style(label), center(label)
-        assert len(requests) == 8
-        assert requests[0]["createShape"]["shapeType"] == "TEXT_BOX"
-        assert requests[1]["insertText"]["text"] == code_element.code
-        style_req = requests[2]["updateTextStyle"]
-        assert style_req["style"]["fontFamily"] == "Courier New"
-        assert "backgroundColor" in style_req["style"]
-        assert (
-            requests[3]["updateShapeProperties"]["fields"]
-            == "shapeProperties.shapeBackgroundFill.solidFill.color"
+        """Test that _generate_element_requests dispatches to the correct builders."""
+        title_el = TextElement(
+            element_type=ElementType.TITLE, text="T", object_id="id_title"
         )
-        # Language label requests
-        assert requests[4]["createShape"]["objectId"].endswith("_label")
-        assert requests[5]["insertText"]["text"] == "python"
-
-    @pytest.mark.parametrize("sample_slide", ["with_table"], indirect=True)
-    def test_generate_table_element_requests(
-        self, generator: ApiRequestGenerator, sample_slide: Slide
-    ):
-        table_element = cast(TableElement, sample_slide.elements[0])
-        requests = generator._generate_table_element_requests(table_element, sample_slide.object_id)
-        # createTable, insertText (H1), updateTextStyle (H1 bold), updateTableCellProperties (H1 fill), insertText(C1)
-        assert len(requests) >= 5
-        assert "createTable" in requests[0]
-        assert requests[0]["createTable"]["rows"] == 2  # 1 header + 1 row
-        assert requests[0]["createTable"]["columns"] == 1
-        assert requests[1]["insertText"]["text"] == "H1"
-        assert requests[2]["updateTextStyle"]["style"]["bold"] is True
-
-    def test_apply_text_formatting_specific_range(self, generator: ApiRequestGenerator):
-        req = generator._apply_text_formatting(
-            "el1", {"bold": True}, "bold", start_index=0, end_index=5
+        text_el = TextElement(
+            element_type=ElementType.TEXT, text="P", object_id="id_text"
         )
-        assert req["updateTextStyle"]["textRange"] == {
-            "type": "FIXED_RANGE",
-            "startIndex": 0,
-            "endIndex": 5,
-        }
+        list_el = ListElement(
+            element_type=ElementType.BULLET_LIST,
+            items=[ListItem(text="L")],
+            object_id="id_list",
+        )
+        img_el = ImageElement(
+            element_type=ElementType.IMAGE, url="i.png", object_id="id_img"
+        )
+        code_el = CodeElement(
+            element_type=ElementType.CODE, code="c", object_id="id_code"
+        )
+        table_el = TableElement(
+            element_type=ElementType.TABLE, headers=["H"], object_id="id_table"
+        )
+        quote_el = TextElement(
+            element_type=ElementType.QUOTE, text="Q", object_id="id_quote"
+        )
+        footer_el = TextElement(
+            element_type=ElementType.FOOTER, text="F", object_id="id_footer"
+        )
+        ordered_list_el = ListElement(
+            element_type=ElementType.ORDERED_LIST,
+            items=[ListItem(text="O")],
+            object_id="id_ordered_list",
+        )
 
-    def test_apply_text_formatting_all_range(self, generator: ApiRequestGenerator):
-        req = generator._apply_text_formatting("el1", {"italic": True}, "italic", range_type="ALL")
-        assert req["updateTextStyle"]["textRange"] == {"type": "ALL"}
-        assert "startIndex" not in req["updateTextStyle"]["textRange"]
+        elements_to_test = [
+            title_el,
+            text_el,
+            list_el,
+            ordered_list_el,
+            img_el,
+            code_el,
+            table_el,
+            quote_el,
+            footer_el,
+        ]
+
+        # Mock all builder methods that _generate_element_requests calls
+        generator.text_builder.generate_text_element_requests = MagicMock(
+            return_value=[{"req_text": True}]
+        )
+        generator.list_builder.generate_bullet_list_element_requests = MagicMock(
+            return_value=[{"req_bullet_list": True}]
+        )
+        generator.list_builder.generate_list_element_requests = MagicMock(
+            return_value=[{"req_ordered_list": True}]
+        )  # For ORDERED_LIST
+        generator.media_builder.generate_image_element_requests = MagicMock(
+            return_value=[{"req_img": True}]
+        )
+        generator.code_builder.generate_code_element_requests = MagicMock(
+            return_value=[{"req_code": True}]
+        )
+        generator.table_builder.generate_table_element_requests = MagicMock(
+            return_value=[{"req_table": True}]
+        )
+
+        for el in elements_to_test:
+            # Reset object_id if it's expected to be generated by ApiRequestGenerator
+            # For this test, assume they are pre-assigned for simplicity of assertion
+            # or that the placeholder logic will handle it.
+            # The primary check is the dispatch.
+            generator._generate_element_requests(
+                el, sample_slide.object_id, sample_slide.placeholder_mappings
+            )
+
+        # Asserts for calls
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            title_el, sample_slide.object_id, sample_slide.placeholder_mappings
+        )
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            text_el, sample_slide.object_id, sample_slide.placeholder_mappings
+        )
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            quote_el, sample_slide.object_id, sample_slide.placeholder_mappings
+        )
+        generator.text_builder.generate_text_element_requests.assert_any_call(
+            footer_el, sample_slide.object_id, sample_slide.placeholder_mappings
+        )
+
+        generator.list_builder.generate_bullet_list_element_requests.assert_called_once_with(
+            list_el, sample_slide.object_id
+        )
+        generator.list_builder.generate_list_element_requests.assert_called_once_with(
+            ordered_list_el, sample_slide.object_id, "NUMBERED_DIGIT_ALPHA_ROMAN"
+        )
+
+        generator.media_builder.generate_image_element_requests.assert_called_once_with(
+            img_el, sample_slide.object_id
+        )
+        generator.code_builder.generate_code_element_requests.assert_called_once_with(
+            code_el, sample_slide.object_id
+        )
+        generator.table_builder.generate_table_element_requests.assert_called_once_with(
+            table_el, sample_slide.object_id
+        )
 
     def test_generate_batch_requests_empty_deck(self, generator: ApiRequestGenerator):
         deck = Deck(slides=[])
@@ -326,7 +239,19 @@ class TestApiRequestGenerator:
         slide2 = deepcopy(sample_slide)
         slide2.object_id = "s2"
         deck = Deck(slides=[slide1, slide2])
+
+        # Mock generate_slide_batch to check it's called correctly
+        generator.generate_slide_batch = MagicMock(
+            side_effect=lambda s, p_id: {
+                "presentationId": p_id,
+                "requests": [{"createSlide": {"objectId": s.object_id}}],
+            }
+        )
+
         batches = generator.generate_batch_requests(deck, "pid")
+
         assert len(batches) == 2
+        generator.generate_slide_batch.assert_any_call(slide1, "pid")
+        generator.generate_slide_batch.assert_any_call(slide2, "pid")
         assert batches[0]["requests"][0]["createSlide"]["objectId"] == "s1"
         assert batches[1]["requests"][0]["createSlide"]["objectId"] == "s2"

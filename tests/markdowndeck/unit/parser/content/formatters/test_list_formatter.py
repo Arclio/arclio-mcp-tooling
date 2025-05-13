@@ -28,11 +28,15 @@ class TestListFormatter:
         tokens = md_parser.parse(markdown)
         assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is *_list_open
 
-    def test_cannot_handle_other_tokens(self, formatter: ListFormatter, md_parser: MarkdownIt):
+    def test_cannot_handle_other_tokens(
+        self, formatter: ListFormatter, md_parser: MarkdownIt
+    ):
         tokens = md_parser.parse("Just text")  # Creates paragraph_open, etc.
         assert not formatter.can_handle(tokens[0], tokens)
 
-    def test_process_simple_bullet_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
+    def test_process_simple_bullet_list(
+        self, formatter: ListFormatter, md_parser: MarkdownIt
+    ):
         markdown = "* Item 1\n* Item 2"
         tokens = md_parser.parse(markdown)
         element, end_index = formatter.process(tokens, 0, {})
@@ -43,9 +47,13 @@ class TestListFormatter:
         assert element.items[0].text == "Item 1"
         assert element.items[0].level == 0
         assert element.items[1].text == "Item 2"
-        assert end_index == len(tokens) - 1  # Should consume all tokens up to bullet_list_close
+        assert (
+            end_index == len(tokens) - 1
+        )  # Should consume all tokens up to bullet_list_close
 
-    def test_process_simple_ordered_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
+    def test_process_simple_ordered_list(
+        self, formatter: ListFormatter, md_parser: MarkdownIt
+    ):
         markdown = "1. First\n2. Second"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -71,8 +79,12 @@ class TestListFormatter:
         assert len(element.items[1].formatting) == 1
         assert element.items[1].formatting[0].format_type == TextFormatType.ITALIC
 
-    def test_process_nested_bullet_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
-        markdown = "* Level 1 Item 1\n  * Level 2 Item A\n  * Level 2 Item B\n* Level 1 Item 2"
+    def test_process_nested_bullet_list(
+        self, formatter: ListFormatter, md_parser: MarkdownIt
+    ):
+        markdown = (
+            "* Level 1 Item 1\n  * Level 2 Item A\n  * Level 2 Item B\n* Level 1 Item 2"
+        )
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
 
@@ -89,7 +101,9 @@ class TestListFormatter:
         assert element.items[1].level == 0
         assert len(element.items[1].children) == 0
 
-    def test_process_deeply_nested_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
+    def test_process_deeply_nested_list(
+        self, formatter: ListFormatter, md_parser: MarkdownIt
+    ):
         markdown = "1. L1\n   1. L2\n      * L3-bullet\n2. L1 Again"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -108,11 +122,11 @@ class TestListFormatter:
         assert l3_item.level == 2  # Level relative to its parent list type
 
     def test_process_empty_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
-        markdown = (
-            ""  # An empty list is hard to represent, usually markdown-it won't make list tokens
-        )
+        markdown = ""  # An empty list is hard to represent, usually markdown-it won't make list tokens
         tokens = md_parser.parse(markdown)  # Will be empty or just paragraph
-        if tokens and tokens[0].type.endswith("_list_open"):  # Should not happen for empty string
+        if tokens and tokens[0].type.endswith(
+            "_list_open"
+        ):  # Should not happen for empty string
             element, _ = formatter.process(tokens, 0, {})
             assert element is None or len(element.items) == 0
         else:  # More likely scenario

@@ -45,7 +45,9 @@ class TestDirectiveConverters:
             ("", "Invalid dimension format"),  # Empty string
         ],
     )
-    def test_convert_dimension_invalid_format(self, invalid_value: str, error_message_match: str):
+    def test_convert_dimension_invalid_format(
+        self, invalid_value: str, error_message_match: str
+    ):
         with pytest.raises(ValueError, match=error_message_match):
             convert_dimension(invalid_value)
 
@@ -105,7 +107,9 @@ class TestDirectiveConverters:
             ("123", "value", "123"),  # Numeric string not matching other patterns
         ],
     )
-    def test_convert_style_valid(self, value: str, expected_type: str, expected_value: Any):
+    def test_convert_style_valid(
+        self, value: str, expected_type: str, expected_value: Any
+    ):
         assert convert_style(value) == (expected_type, expected_value)
 
     def test_convert_style_invalid_hex(self):
