@@ -130,10 +130,16 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 page_background_fill["solidFill"] = {
                     "color": {"themeColor": background_value.upper()}
                 }
-                fields_mask_parts.append("pageBackgroundFill.solidFill.color.themeColor")
+                fields_mask_parts.append(
+                    "pageBackgroundFill.solidFill.color.themeColor"
+                )
         elif background_type == "image":
-            page_background_fill["stretchedPictureFill"] = {"contentUrl": background_value}
-            fields_mask_parts.append("pageBackgroundFill.stretchedPictureFill.contentUrl")
+            page_background_fill["stretchedPictureFill"] = {
+                "contentUrl": background_value
+            }
+            fields_mask_parts.append(
+                "pageBackgroundFill.stretchedPictureFill.contentUrl"
+            )
         else:
             logger.warning(
                 f"Unknown background type: {background_type} for slide {slide.object_id}"
@@ -156,8 +162,20 @@ class SlideRequestBuilder(BaseRequestBuilder):
         return request
 
     def create_notes_request(self, slide: Slide) -> list[dict]:
+        """
+        Create requests to add speaker notes to a slide.
+        Only generates requests if there are actual notes and a speaker_notes_object_id.
+        Avoids generating deleteText requests if notes content is empty (preventing API errors).
+
+        Args:
+            slide: The slide to add notes to
+
+        Returns:
+            List of request dictionaries
+        """
         if not slide.notes:
             return []
+
         speaker_notes_shape_id = getattr(slide, "speaker_notes_object_id", None)
         if not speaker_notes_shape_id:
             logger.warning(
@@ -165,6 +183,9 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 "speaker_notes_object_id is missing. Notes content will be ignored."
             )
             return []
+
+        # Since we know slide.notes is not empty at this point, we can safely
+        # delete existing text and insert new text
         requests = [
             {
                 "deleteText": {
@@ -180,15 +201,20 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 }
             },
         ]
+
         logger.debug(
             f"Created delete and insert speaker notes requests for notesId: {speaker_notes_shape_id}"
         )
         return requests
 
-    def _get_element_type_for_placeholder(self, placeholder_type: str) -> ElementType | None:
+    def _get_element_type_for_placeholder(
+        self, placeholder_type: str
+    ) -> ElementType | None:
         for element_type, api_ph_type in self.ELEMENT_TO_PLACEHOLDER_TYPE_MAP.items():
             if api_ph_type == placeholder_type:
                 return element_type
-        if placeholder_type == "CENTERED_TITLE":  # Common API placeholder type for titles
+        if (
+            placeholder_type == "CENTERED_TITLE"
+        ):  # Common API placeholder type for titles
             return ElementType.TITLE
         return None

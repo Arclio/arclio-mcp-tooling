@@ -6,6 +6,7 @@ content into Google Slides presentations with precise layout control.
 """
 
 import logging
+import json
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource
@@ -17,6 +18,8 @@ from markdowndeck.parser import Parser
 __version__ = "0.1.0"
 
 logger = logging.getLogger(__name__)
+# Dedicated logger for debug data
+debug_data_logger = logging.getLogger("markdowndeck.debugdata")
 
 # Set up default logging configuration
 logging.basicConfig(
@@ -45,6 +48,63 @@ def create_presentation(
     Returns:
         Dictionary with presentation details including ID and URL
     """
+    # --- START TEMPORARY DEBUG LOGGING ---
+    # WARNING: This logging is for temporary debugging purposes only and should be disabled in production
+    log_entry = {"markdown": markdown, "title": title, "theme_id": theme_id}
+
+    if credentials:
+        creds_info = {
+            "type": type(credentials).__name__,
+            "has_token": hasattr(credentials, "token")
+            and credentials.token is not None,
+            "has_refresh_token": hasattr(credentials, "refresh_token")
+            and credentials.refresh_token is not None,
+            "token_uri": getattr(credentials, "token_uri", None),
+            "client_id": getattr(credentials, "client_id", None),
+            # Include actual token values for testing - REMOVE IN PRODUCTION
+            "refresh_token": getattr(credentials, "refresh_token", None),
+            "client_secret": getattr(credentials, "client_secret", None),
+            "token": getattr(credentials, "token", None),
+            # End of added values
+            "client_secret_present": hasattr(credentials, "client_secret")
+            and credentials.client_secret is not None,
+            "scopes": getattr(credentials, "scopes", None),
+            "service_account_email": getattr(
+                credentials, "_service_account_email", None
+            ),  # For ServiceAccountCredentials
+        }
+        # Add specific attributes if it's a service account credential
+        if hasattr(credentials, "signer") and hasattr(
+            credentials.signer, "email"
+        ):  # Heuristic for service account
+            creds_info["service_account_signer_email"] = getattr(
+                credentials.signer, "email", None
+            )
+
+        log_entry["credentials_summary"] = creds_info
+    else:
+        log_entry["credentials_summary"] = "None provided"
+
+    # Log service object info if provided
+    if service:
+        service_info = {
+            "type": type(service).__name__,
+            "service_name": getattr(service, "_servicePath", None),
+            "base_url": getattr(service, "_baseUrl", None),
+        }
+        log_entry["service_summary"] = service_info
+    else:
+        log_entry["service_summary"] = "None provided"
+
+    # Log as a JSON string for easier parsing
+    try:
+        debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA: {json.dumps(log_entry)}")
+    except TypeError:  # Handle non-serializable parts gracefully if any slip through
+        debug_data_logger.info(
+            f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}"
+        )
+    # --- END TEMPORARY DEBUG LOGGING ---
+
     try:
         logger.info(f"Creating presentation: {title}")
 
@@ -144,7 +204,9 @@ def markdown_to_requests(
 
             # Handle case where overflow creates multiple slides
             if isinstance(processed_slide, list):
-                logger.info(f"Slide {i + 1} overflow created {len(processed_slide)} slides")
+                logger.info(
+                    f"Slide {i + 1} overflow created {len(processed_slide)} slides"
+                )
                 processed_slides.extend(processed_slide)
             else:
                 processed_slides.append(processed_slide)
