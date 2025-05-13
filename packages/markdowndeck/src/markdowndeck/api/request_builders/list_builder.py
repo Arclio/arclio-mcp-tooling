@@ -1,10 +1,10 @@
 """List request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from markdowndeck.models import ElementType, ListElement, ListItem
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import ListElement, ListItem
 
 logger = logging.getLogger(__name__)
 
@@ -25,11 +25,32 @@ class ListRequestBuilder(BaseRequestBuilder):
         Returns:
             List of request dictionaries
         """
-        # For bullet lists, delegate to the generic list request generator
-        # with the appropriate bullet preset
-        return self.generate_list_element_requests(
+        requests = []
+
+        # For bullet lists, generate the base list requests
+        base_requests = self.generate_list_element_requests(
             element, slide_id, "BULLET_DISC_CIRCLE_SQUARE"
         )
+        requests.extend(base_requests)
+
+        # Apply item-specific text formatting if present
+        # This is needed because the ListItem formatting may not be properly applied in generate_list_element_requests
+        for item in element.items:
+            if hasattr(item, "formatting") and item.formatting:
+                for text_format in item.formatting:
+                    style_request = self._apply_text_formatting(
+                        element_id=element.object_id,
+                        style=self._format_to_style(text_format),
+                        fields=self._format_to_fields(text_format),
+                        start_index=text_format.start,
+                        end_index=text_format.end,
+                    )
+                    requests.append(style_request)
+                    logger.debug(
+                        f"Applied formatting {text_format.format_type} to list item at position {text_format.start}-{text_format.end}"
+                    )
+
+        return requests
 
     def generate_list_element_requests(
         self, element: ListElement, slide_id: str, bullet_type: str
@@ -150,8 +171,8 @@ class ListRequestBuilder(BaseRequestBuilder):
         return requests
 
     def _format_list_with_nesting(
-        self, items: List[ListItem]
-    ) -> tuple[str, List[Dict[str, Any]]]:
+        self, items: list[ListItem]
+    ) -> tuple[str, list[dict[str, Any]]]:
         """
         Format list items with proper nesting.
 
@@ -270,7 +291,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         # Apply font size if specified
         if "fontsize" in element.directives:
             font_size = element.directives["fontsize"]
-            if isinstance(font_size, (int, float)):
+            if isinstance(font_size, int | float):
                 style_request = self._apply_text_formatting(
                     element_id=element.object_id,
                     style={"fontSize": {"magnitude": font_size, "unit": "PT"}},

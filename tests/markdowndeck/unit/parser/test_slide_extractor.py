@@ -163,7 +163,7 @@ Content after beta code.
         assert slides[0]["footer"] == "Just a footer"
 
     def test_extract_slide_with_only_notes(self, extractor: SlideExtractor):
-        markdown = ""
+        markdown = "<!-- notes: Just notes -->"
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
         assert slides[0]["title"] is None
@@ -180,17 +180,19 @@ Content after beta code.
 
     def test_extract_slide_complex_notes_and_footer(self, extractor: SlideExtractor):
         markdown = """
-    # Title
-    Content
-    @@@
-    Footer
-    """
+# Title
+Content
+<!-- notes: Main notes -->
+@@@
+Footer
+<!-- notes: Footer notes -->
+"""
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
         assert slides[0]["title"] == "Title"
         assert "Content" in slides[0]["content"]
-        assert "" not in slides[0]["content"]  # Main notes removed
-        assert slides[0]["footer"] == "Footer"  # Footer notes removed from footer text
         assert (
-            slides[0]["notes"] == "Footer notes should override"
-        )  # Footer notes take precedence
+            "<!-- notes: Main notes -->" not in slides[0]["content"]
+        )  # Main notes removed
+        assert slides[0]["footer"] == "Footer"  # Footer text should be present
+        assert slides[0]["notes"] == "Footer notes"  # Footer notes take precedence

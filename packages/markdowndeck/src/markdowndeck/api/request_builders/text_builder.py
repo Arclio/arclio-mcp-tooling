@@ -1,14 +1,13 @@
 """Text request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List
 
+from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     AlignmentType,
     ElementType,
     TextElement,
 )
-from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         self,
         element: TextElement,
         slide_id: str,
-        theme_placeholders: Dict[str, str] = None,
+        theme_placeholders: dict[str, str] = None,
     ) -> list[dict]:
         """
         Generate requests for a text element.
@@ -174,7 +173,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             and "padding" in element.directives
         ):
             padding_value = element.directives["padding"]
-            if isinstance(padding_value, (int, float)):
+            if isinstance(padding_value, int | float):
                 # Create text box properties update request
                 padding_request = {
                     "updateShapeProperties": {
@@ -285,9 +284,10 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Line spacing
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
-            if isinstance(spacing, (int, float)) and spacing > 0:
-                paragraph_style["lineSpacing"] = spacing * 100  # API uses percentage
-                fields.append("lineSpacing")
+            if isinstance(spacing, int | float) and spacing > 0:
+                # API uses a structure like { spaceMultiple: 150 } for 1.5 spacing
+                paragraph_style["spaceMultiple"] = spacing * 100  # API uses percentage
+                fields.append("spaceMultiple")
                 logger.debug(
                     f"Applied line spacing of {spacing} to element {element.object_id}"
                 )
@@ -295,7 +295,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Space before paragraph
         if "para-spacing-before" in element.directives:
             spacing = element.directives["para-spacing-before"]
-            if isinstance(spacing, (int, float)) and spacing >= 0:
+            if isinstance(spacing, int | float) and spacing >= 0:
                 paragraph_style["spaceAbove"] = {"magnitude": spacing, "unit": "PT"}
                 fields.append("spaceAbove")
                 logger.debug(
@@ -305,7 +305,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Space after paragraph
         if "para-spacing-after" in element.directives:
             spacing = element.directives["para-spacing-after"]
-            if isinstance(spacing, (int, float)) and spacing >= 0:
+            if isinstance(spacing, int | float) and spacing >= 0:
                 paragraph_style["spaceBelow"] = {"magnitude": spacing, "unit": "PT"}
                 fields.append("spaceBelow")
                 logger.debug(
@@ -315,7 +315,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Start indent
         if "indent-start" in element.directives:
             indent = element.directives["indent-start"]
-            if isinstance(indent, (int, float)) and indent >= 0:
+            if isinstance(indent, int | float) and indent >= 0:
                 paragraph_style["indentStart"] = {"magnitude": indent, "unit": "PT"}
                 fields.append("indentStart")
                 logger.debug(
@@ -325,7 +325,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # First line indent
         if "indent-first-line" in element.directives:
             indent = element.directives["indent-first-line"]
-            if isinstance(indent, (int, float)):
+            if isinstance(indent, int | float):
                 paragraph_style["indentFirstLine"] = {"magnitude": indent, "unit": "PT"}
                 fields.append("indentFirstLine")
                 logger.debug(
@@ -421,7 +421,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             return
 
         font_size = element.directives["fontsize"]
-        if isinstance(font_size, (int, float)):
+        if isinstance(font_size, int | float):
             style_request = self._apply_text_formatting(
                 element_id=element.object_id,
                 style={"fontSize": {"magnitude": font_size, "unit": "PT"}},

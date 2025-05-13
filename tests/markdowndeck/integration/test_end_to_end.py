@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 from markdowndeck import create_presentation, get_themes, markdown_to_requests
 from markdowndeck.api.api_generator import (
     ApiRequestGenerator,
@@ -7,13 +8,11 @@ from markdowndeck.api.api_generator import (
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     Deck,
-    Element,  # Added for completeness, though not directly used in these fixes
     ElementType,
     Slide,
     SlideLayout,
     TextElement,
 )
-
 
 MOCK_API_CLIENT_PATH = "markdowndeck.ApiClient"
 

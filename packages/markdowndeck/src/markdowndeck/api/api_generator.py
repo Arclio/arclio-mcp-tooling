@@ -1,21 +1,20 @@
 """Generator for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
 
+from markdowndeck.api.request_builders import (
+    CodeRequestBuilder,
+    ListRequestBuilder,
+    MediaRequestBuilder,
+    SlideRequestBuilder,
+    TableRequestBuilder,
+    TextRequestBuilder,
+)
 from markdowndeck.models import (
     Deck,
     Element,
     ElementType,
     Slide,
-)
-from markdowndeck.api.request_builders import (
-    SlideRequestBuilder,
-    TextRequestBuilder,
-    MediaRequestBuilder,
-    ListRequestBuilder,
-    TableRequestBuilder,
-    CodeRequestBuilder,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ class ApiRequestGenerator:
         return {"presentationId": presentation_id, "requests": requests}
 
     def _generate_element_requests(
-        self, element: Element, slide_id: str, theme_placeholders: Dict[str, str] = None
+        self, element: Element, slide_id: str, theme_placeholders: dict[str, str] = None
     ) -> list[dict]:
         """
         Generate requests for a specific element by delegating to appropriate builder.
@@ -133,42 +132,37 @@ class ApiRequestGenerator:
             )
 
         # Delegate to appropriate builder based on element type
-        if element_type == ElementType.TITLE or element_type == ElementType.SUBTITLE:
+        if element_type == ElementType.TITLE or element_type == ElementType.SUBTITLE or element_type == ElementType.TEXT:
             return self.text_builder.generate_text_element_requests(
                 element, slide_id, theme_placeholders
             )
 
-        elif element_type == ElementType.TEXT:
-            return self.text_builder.generate_text_element_requests(
-                element, slide_id, theme_placeholders
-            )
-
-        elif element_type == ElementType.BULLET_LIST:
+        if element_type == ElementType.BULLET_LIST:
             return self.list_builder.generate_bullet_list_element_requests(
                 element, slide_id
             )
 
-        elif element_type == ElementType.ORDERED_LIST:
+        if element_type == ElementType.ORDERED_LIST:
             return self.list_builder.generate_list_element_requests(
                 element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN"  # Example preset
             )
 
-        elif element_type == ElementType.IMAGE:
+        if element_type == ElementType.IMAGE:
             return self.media_builder.generate_image_element_requests(element, slide_id)
 
-        elif element_type == ElementType.TABLE:
+        if element_type == ElementType.TABLE:
             return self.table_builder.generate_table_element_requests(element, slide_id)
 
-        elif element_type == ElementType.CODE:
+        if element_type == ElementType.CODE:
             return self.code_builder.generate_code_element_requests(element, slide_id)
 
-        elif element_type == ElementType.QUOTE:
+        if element_type == ElementType.QUOTE:
             # Quotes are handled by TextRequestBuilder with specific styling
             return self.text_builder.generate_text_element_requests(
                 element, slide_id, theme_placeholders
             )
 
-        elif element_type == ElementType.FOOTER:
+        if element_type == ElementType.FOOTER:
             # Footers are essentially text elements; special handling is in layout/parsing
             return self.text_builder.generate_text_element_requests(
                 element, slide_id, theme_placeholders

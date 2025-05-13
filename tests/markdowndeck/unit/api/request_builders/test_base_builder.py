@@ -53,7 +53,7 @@ class TestBaseRequestBuilder:
     # These were identified as needing updates in Phase 1.
 
     @pytest.mark.parametrize(
-        "text_format, expected_style_dict, expected_fields_str",
+        ("text_format", "expected_style_dict", "expected_fields_str"),
         [
             (TextFormat(0, 0, TextFormatType.BOLD), {"bold": True}, "bold"),
             (TextFormat(0, 0, TextFormatType.ITALIC), {"italic": True}, "italic"),

@@ -1,9 +1,9 @@
 import pytest
-from markdowndeck.api.request_builders.slide_builder import SlideRequestBuilder
 from markdowndeck.api.request_builders.base_builder import (
     BaseRequestBuilder,
 )  # For _hex_to_rgb comparison
-from markdowndeck.models import Slide, SlideLayout, ElementType
+from markdowndeck.api.request_builders.slide_builder import SlideRequestBuilder
+from markdowndeck.models import ElementType, Slide, SlideLayout
 
 
 @pytest.fixture

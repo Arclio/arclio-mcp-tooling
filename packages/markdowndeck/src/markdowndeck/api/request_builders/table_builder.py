@@ -1,10 +1,9 @@
 """Table request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
 
-from markdowndeck.models import TableElement
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import TableElement
 
 logger = logging.getLogger(__name__)
 
@@ -305,13 +304,17 @@ class TableRequestBuilder(BaseRequestBuilder):
 
             # Add color if specified
             if "rgbColor" in color:
-                border_style_request["tableBorderProperties"]["color"] = color
-                border_style_request[
+                border_style_request["updateTableBorderProperties"][
+                    "tableBorderProperties"
+                ]["color"] = color
+                border_style_request["updateTableBorderProperties"][
                     "fields"
                 ] += ",tableBorderProperties.color.rgbColor"
             elif "themeColor" in color:
-                border_style_request["tableBorderProperties"]["color"] = color
-                border_style_request[
+                border_style_request["updateTableBorderProperties"][
+                    "tableBorderProperties"
+                ]["color"] = color
+                border_style_request["updateTableBorderProperties"][
                     "fields"
                 ] += ",tableBorderProperties.color.themeColor"
 
@@ -516,7 +519,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
                     # If parsing fails, use default (all cells)
-                    pass
+                    logger.warning(
+                        f"Failed to parse cell range: {cell_range}, using default"
+                    )
 
         # Create cell properties update request
         bg_request = {
@@ -538,4 +543,6 @@ class TableRequestBuilder(BaseRequestBuilder):
         }
 
         requests.append(bg_request)
-        logger.debug(f"Applied background color to cells in table {element.object_id}")
+        logger.debug(
+            f"Applied background color to cells in table {element.object_id} at range ({row_start},{col_start})-({row_start + row_span - 1},{col_start + col_span - 1})"
+        )

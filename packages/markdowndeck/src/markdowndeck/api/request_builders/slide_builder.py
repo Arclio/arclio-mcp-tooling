@@ -1,10 +1,9 @@
 """Slide request builder for Google Slides API requests."""
 
 import logging
-from typing import Optional, Any, Dict  # Added Dict
 
-from markdowndeck.models import ElementType, Slide, SlideLayout
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import ElementType, Slide, SlideLayout
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
         SlideLayout.BLANK: [],  # Blank layout has no predefined placeholders typically mapped this way
     }
 
-    ELEMENT_TO_PLACEHOLDER_TYPE_MAP: Dict[ElementType, str] = {
+    ELEMENT_TO_PLACEHOLDER_TYPE_MAP: dict[ElementType, str] = {
         ElementType.TITLE: "TITLE",
         ElementType.SUBTITLE: "SUBTITLE",
         ElementType.TEXT: "BODY",
@@ -194,7 +193,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
 
     def _get_element_type_for_placeholder(
         self, placeholder_type: str
-    ) -> Optional[ElementType]:
+    ) -> ElementType | None:
         for element_type, api_ph_type in self.ELEMENT_TO_PLACEHOLDER_TYPE_MAP.items():
             if api_ph_type == placeholder_type:
                 return element_type

@@ -120,7 +120,7 @@ Part 1
 ```text
 --- Code A ---
 *** Code B ***
-````
+```
 
 ---
 
@@ -142,7 +142,9 @@ Part 4
 
 """
         vertical_split = splitter.split_by_separator(content, r"^\s*---\s*$")
-        assert len(vertical_split.parts) == 3
+        assert (
+            len(vertical_split.parts) == 3
+        ), f"Vertical split parts: {vertical_split.parts}"
 
         assert "Part 1" in vertical_split.parts[0]
         assert "--- Code A ---" in vertical_split.parts[0]
@@ -153,21 +155,23 @@ Part 4
         assert "Part 4" in vertical_split.parts[2]
         assert "~~~ Separator D ~~~" in vertical_split.parts[2]
 
+        # Try horizontal splitting on part 2
         part2 = vertical_split.parts[2]
         horizontal_split = splitter.split_by_separator(part2, r"^\s*\*\*\*\s*$")
         assert len(horizontal_split.parts) == 1
         assert horizontal_split.parts[0] == part2
 
-    # Removed @pytest.mark.xfail decorator
     def test_invalid_regex_pattern_for_separator(
         self, splitter: ContentSplitter, caplog
     ):
         content = "Some content"
         invalid_pattern = "["  # Invalid regex
-        # pytest.xfail("Known bug in ContentSplitter error handling for invalid regex") # REMOVED
+        # The message in the log might vary, but should contain "Invalid regex pattern"
         result = splitter.split_by_separator(content, invalid_pattern)
-        assert "Invalid separator regex pattern" in caplog.text  # Check logging
-        assert result.parts == [content]  # Check fallback
+        assert (
+            "Invalid regex pattern for separator check" in caplog.text
+        )  # Check logging
+        assert result.parts == [content]  # Fallback should be the original content
 
     def test_split_content_that_is_only_code_block(self, splitter: ContentSplitter):
         content = "```\ncode\n---\nmore code\n```"

@@ -1,10 +1,9 @@
 """Code request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
 
-from markdowndeck.models import CodeElement
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import CodeElement
 
 logger = logging.getLogger(__name__)
 

@@ -116,7 +116,7 @@ class BaseRequestBuilder:
                         "opaqueColor": {"themeColor": color_value_str.upper()}
                     }
         elif text_format.format_type == TextFormatType.FONT_SIZE:
-            if isinstance(text_format.value, (int, float)):
+            if isinstance(text_format.value, int | float):
                 style["fontSize"] = {
                     "magnitude": float(text_format.value),
                     "unit": "PT",

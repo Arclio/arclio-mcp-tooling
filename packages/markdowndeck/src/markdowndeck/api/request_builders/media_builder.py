@@ -1,12 +1,11 @@
 """Media request builder for Google Slides API requests."""
 
 import logging
-import requests
-import re
-from typing import Any, Dict, List, Optional
 
-from markdowndeck.models import ImageElement
+import requests
+
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import ImageElement
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +109,7 @@ class MediaRequestBuilder(BaseRequestBuilder):
         has_valid_extension = any(url.lower().endswith(ext) for ext in image_extensions)
 
         # If no extension, at least make sure it's a properly formed URL with a domain
-        if not has_valid_extension and not ("." in url.split("//", 1)[-1]):
+        if not has_valid_extension and "." not in url.split("//", 1)[-1]:
             return False
 
         # Check if image actually exists and is accessible
