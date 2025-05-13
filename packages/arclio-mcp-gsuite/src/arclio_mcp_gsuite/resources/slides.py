@@ -93,36 +93,170 @@ Right column content
                 {
                     "name": "valign",
                     "values": "top, middle, bottom",
-                    "description": "Sets vertical alignment",
+                    "description": "Sets vertical alignment of text within its container",
+                },
+                {
+                    "name": "vertical-align",
+                    "values": "top, middle, bottom",
+                    "description": "Sets vertical alignment for text elements",
                 },
                 {
                     "name": "background",
-                    "values": "color (e.g., #f5f5f5) or url(image_url)",
-                    "description": "Sets background color or image",
+                    "values": "color (e.g., #f5f5f5, ACCENT1) or url(image_url)",
+                    "description": "Sets background color or image; can use theme colors",
                 },
                 {
                     "name": "color",
-                    "values": "color (e.g., #333333)",
-                    "description": "Sets text color",
+                    "values": "color (e.g., #333333, TEXT1)",
+                    "description": "Sets text color; can use theme colors",
                 },
                 {
                     "name": "fontsize",
                     "values": "numeric value (e.g., 18)",
                     "description": "Sets font size",
                 },
+                {
+                    "name": "font-family",
+                    "values": "font name (e.g., Arial, Times New Roman)",
+                    "description": "Sets the font family for text",
+                },
+                {
+                    "name": "padding",
+                    "values": "numeric value or percentage (e.g., 10, 5%)",
+                    "description": "Sets padding around the content",
+                },
+                {
+                    "name": "border",
+                    "values": "width style color (e.g., 1pt solid #FF0000, 2pt dashed black)",
+                    "description": "Sets border for elements or sections",
+                },
+                {
+                    "name": "border-position",
+                    "values": "ALL, OUTER, INNER, LEFT, RIGHT, TOP, BOTTOM, INNER_HORIZONTAL, INNER_VERTICAL",
+                    "description": "Specifies which borders to apply in tables",
+                },
+                {
+                    "name": "line-spacing",
+                    "values": "numeric value (e.g., 1.5)",
+                    "description": "Sets line spacing for paragraphs",
+                },
+                {
+                    "name": "paragraph-spacing",
+                    "values": "numeric value (e.g., 10)",
+                    "description": "Sets spacing between paragraphs",
+                },
+                {
+                    "name": "indent",
+                    "values": "numeric value (e.g., 20)",
+                    "description": "Sets text indentation",
+                },
             ],
-            "combined_example": "[width=2/3][align=center][background=#f5f5f5]",
+            "combined_example": "[width=2/3][align=center][background=#f5f5f5][line-spacing=1.5]",
             "example": """
 # Slide Title
 
-[width=60%][align=center]
-This content takes 60% of the width and is centered.
+[width=60%][align=center][padding=10]
+This content takes 60% of the width, is centered, and has 10pt padding.
 
 ---
 
-[width=40%][background=#f0f8ff]
-This content has a light blue background.
+[width=40%][background=ACCENT1][color=TEXT1][border=1pt solid black]
+This content has a themed background, theme text color, and a black border.
 """,
+        },
+        "list_styling": {
+            "description": "Control the appearance of lists with directives and nesting",
+            "nesting": {
+                "description": "Indentation in Markdown translates to visual nesting levels in slides",
+                "example": """
+- First level item
+  - Second level item
+    - Third level item
+      - Fourth level item
+""",
+            },
+            "styling": {
+                "description": "Apply styling to list sections using directives",
+                "example": """
+[color=#0000FF][fontsize=18][font-family=Arial]
+- Blue list items
+- With larger Arial font
+  - Nested items inherit styling
+  - [color=red] This item is red
+""",
+            },
+        },
+        "table_styling": {
+            "description": "Enhanced control over table appearance",
+            "directives": [
+                {
+                    "name": "cell-align",
+                    "values": "left, center, right, top, middle, bottom",
+                    "description": "Sets alignment for cells in the table",
+                },
+                {
+                    "name": "cell-background",
+                    "values": "color (e.g., #F0F0F0, ACCENT2)",
+                    "description": "Sets background color for cells",
+                },
+                {
+                    "name": "cell-range",
+                    "values": "row1,col1:row2,col2 (e.g., 0,0:2,3)",
+                    "description": "Specifies a range of cells to apply styling to",
+                },
+                {
+                    "name": "border",
+                    "values": "width style color (e.g., 1pt solid black)",
+                    "description": "Sets border for the entire table",
+                },
+            ],
+            "example": """
+[cell-align=center][cell-background=#F0F0F0][border=1pt solid black]
+| Header 1 | Header 2 | Header 3 |
+|----------|----------|----------|
+| Data 1   | Data 2   | Data 3   |
+| Data 4   | Data 5   | Data 6   |
+""",
+        },
+        "theme_integration": {
+            "description": "Use Google Slides themes and theme colors in your Markdown",
+            "theme_id": {
+                "description": "Specify a Google Slides theme ID when creating a presentation",
+                "note": "The theme_id is passed as a parameter to the create_presentation tool",
+            },
+            "layouts": {
+                "description": "Standard slide layouts allow content to inherit theme styling via placeholders",
+                "common_layouts": [
+                    "TITLE",
+                    "TITLE_AND_BODY",
+                    "TITLE_AND_TWO_COLUMNS",
+                    "TITLE_ONLY",
+                    "SECTION_HEADER",
+                    "CAPTION_ONLY",
+                    "BIG_NUMBER",
+                ],
+            },
+            "theme_colors": {
+                "description": "Use theme color names in directives for consistent styling",
+                "values": [
+                    "TEXT1",
+                    "TEXT2",
+                    "BACKGROUND1",
+                    "BACKGROUND2",
+                    "ACCENT1",
+                    "ACCENT2",
+                    "ACCENT3",
+                    "ACCENT4",
+                    "ACCENT5",
+                    "ACCENT6",
+                ],
+                "example": """
+[background=BACKGROUND2][color=ACCENT1]
+# Theme-Styled Content
+
+This content uses theme colors for consistent branding.
+""",
+            },
         },
         "special_elements": {
             "footer": {
@@ -172,8 +306,8 @@ Q3 2024 Financial Overview
 """,
             },
             {
-                "title": "Two-Column Layout",
-                "description": "Main content and sidebar layout",
+                "title": "Two-Column Layout with Theme Colors",
+                "description": "Main content and sidebar layout with theme colors",
                 "markdown": """
 # Split Layout
 
@@ -187,7 +321,7 @@ Q3 2024 Financial Overview
 
 ***
 
-[width=40%][background=#f0f8ff]
+[width=40%][background=ACCENT2][color=TEXT1]
 
 ## Sidebar
 
@@ -195,12 +329,12 @@ Supporting information and notes
 """,
             },
             {
-                "title": "Dashboard Layout",
-                "description": "Complex layout with multiple sections",
+                "title": "Dashboard Layout with Enhanced Styling",
+                "description": "Complex layout with multiple sections and styling",
                 "markdown": """
 # Dashboard Overview
 
-[height=30%][align=center]
+[height=30%][align=center][line-spacing=1.2]
 
 ## Key Metrics
 
@@ -208,10 +342,10 @@ Revenue: $1.2M | Users: 45K | Conversion: 3.2%
 
 ---
 
-[width=50%]
+[width=50%][padding=10]
 
 ## Regional Data
-
+[font-family=Arial][color=ACCENT1]
 - North America: 45%
 - Europe: 30%
 - Asia: 20%
@@ -219,7 +353,7 @@ Revenue: $1.2M | Users: 45K | Conversion: 3.2%
 
 ***
 
-[width=50%][background=#f5f5f5]
+[width=50%][background=BACKGROUND2][border=1pt solid ACCENT3]
 
 ## Quarterly Trend
 
@@ -230,7 +364,7 @@ Revenue: $1.2M | Users: 45K | Conversion: 3.2%
 [height=20%]
 
 ## Action Items
-
+[line-spacing=1.5]
 1. Improve APAC conversion
 2. Launch new pricing tier
 3. Update dashboards
@@ -242,6 +376,25 @@ Confidential - Internal Use Only
 <!-- notes: Discuss action items in detail and assign owners -->
 """,
             },
+            {
+                "title": "Table with Enhanced Styling",
+                "description": "Styled table with cell alignment and backgrounds",
+                "markdown": """
+# Product Comparison
+
+[width=80%][align=center]
+
+[cell-align=center][border=1pt solid black]
+| Feature | Basic Plan | Pro Plan | Enterprise |
+|---------|------------|----------|------------|
+| Users | 5 | 50 | Unlimited |
+| Storage | 10GB | 100GB | 1TB |
+| Support | Email | Priority | 24/7 |
+| Price | $10/mo | $50/mo | Custom |
+
+<!-- notes: Emphasize the value proposition of the Pro plan -->
+""",
+            },
         ],
         "best_practices": [
             "Start each slide with a clear title using # heading",
@@ -249,7 +402,9 @@ Confidential - Internal Use Only
             "Use consistent styling across slides",
             "Limit the number of elements per slide",
             "Use layout directives to control positioning and sizing",
+            "Use theme colors for consistent branding",
             "Test complex layouts to ensure they display as expected",
+            "Apply appropriate spacing for improved readability",
         ],
         "tips_for_llms": [
             "First plan the overall structure of the presentation",
@@ -259,5 +414,8 @@ Confidential - Internal Use Only
             "For complex presentations, break down into logical sections",
             "Always test with simple layouts before attempting complex ones",
             "When designing sections, ensure width values add up to 1 (or 100%)",
+            "Use theme colors (ACCENT1, TEXT1, etc.) for consistent branding",
+            "Apply styling consistently for a professional look",
+            "Consider line spacing and paragraph spacing for improved readability",
         ],
     }

@@ -1,7 +1,7 @@
 """Slide request builder for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 from markdowndeck.models import ElementType, Slide, SlideLayout
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
@@ -196,7 +196,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
         logger.debug(f"Created background request for slide: {slide.object_id}")
         return request
 
-    def create_notes_request(self, slide: Slide) -> dict:
+    def create_notes_request(self, slide: Slide) -> dict | list[dict]:
         """
         Create a request to add notes to a slide.
 
@@ -213,8 +213,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
             )
             return {}
 
-        # FIXED: Use the correct approach for speaker notes
-        # Get speakerNotesObjectId if available, otherwise use the standard format
+        # Get speakerNotesObjectId if available
         speaker_notes_id = getattr(slide, "speaker_notes_object_id", None)
 
         if speaker_notes_id:
@@ -238,18 +237,12 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 f"Created speaker notes requests with explicit ID: {speaker_notes_id}"
             )
             return [delete_request, insert_request]
-        else:
-            # Use standard format with speakerNotes path
-            logger.debug(
-                f"Created speaker notes request using standard path: {slide.object_id}/speakerNotes"
-            )
-            return {
-                "insertText": {
-                    "objectId": f"{slide.object_id}/speakerNotes",
-                    "insertionIndex": 0,
-                    "text": slide.notes,
-                }
-            }
+
+        # If we don't have a speaker_notes_object_id, we can't proceed
+        logger.warning(
+            f"Cannot create notes request for slide {slide.object_id} - speaker_notes_object_id is missing"
+        )
+        return {}
 
     def _get_element_type_for_placeholder(
         self, placeholder_type: str

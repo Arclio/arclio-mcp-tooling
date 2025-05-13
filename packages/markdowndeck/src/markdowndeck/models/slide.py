@@ -50,6 +50,8 @@ class Slide:
     sections: list[Section] = field(default_factory=list)
     background: dict[str, Any] | None = None
     title: str = ""  # Store the title text for easier reference
+    speaker_notes_object_id: str | None = None
+    placeholder_mappings: dict[Any, str] = field(default_factory=dict)
 
     def __post_init__(self):
         """Extract title from elements for convenience."""
@@ -92,4 +94,6 @@ class Slide:
 
     def find_elements_by_type(self, element_type: ElementType) -> list[Element]:
         """Find all elements of a specific type."""
-        return [element for element in self.elements if element.element_type == element_type]
+        return [
+            element for element in self.elements if element.element_type == element_type
+        ]

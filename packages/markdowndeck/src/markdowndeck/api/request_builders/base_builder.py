@@ -138,6 +138,14 @@ class BaseRequestBuilder:
             return "link"
         if text_format.format_type == TextFormatType.COLOR:
             return "foregroundColor"
+        if text_format.format_type == TextFormatType.FONT_SIZE:
+            return "fontSize"
+        if text_format.format_type == TextFormatType.FONT_FAMILY:
+            return "fontFamily"
+        if text_format.format_type == TextFormatType.VERTICAL_ALIGN:
+            return "baselineOffset"
+        if text_format.format_type == TextFormatType.BACKGROUND_COLOR:
+            return "backgroundColor"
 
         return ""
 

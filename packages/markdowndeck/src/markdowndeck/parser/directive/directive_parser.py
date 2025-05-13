@@ -31,6 +31,16 @@ class DirectiveParser:
             "fontsize": "dimension",
             "opacity": "float",
             "border": "style",
+            "border-position": "string",
+            "line-spacing": "float",
+            "cell-align": "alignment",
+            "cell-background": "style",
+            "cell-range": "string",
+            "vertical-align": "alignment",
+            "paragraph-spacing": "dimension",
+            "indent": "dimension",
+            "font-family": "string",
+            "list-style": "string",
         }
 
         # Define value converters
@@ -39,6 +49,7 @@ class DirectiveParser:
             "alignment": convert_alignment,
             "style": convert_style,
             "float": float,
+            "string": str,
         }
 
     def parse_directives(self, section: Section) -> None:
@@ -52,7 +63,9 @@ class DirectiveParser:
             [width=2/3][align=center][background=#f5f5f5]
         """
         if not section or section.content == "":
-            if section and section.directives is None:  # Should not happen with dataclass defaults
+            if (
+                section and section.directives is None
+            ):  # Should not happen with dataclass defaults
                 section.directives = {}
             return
 
@@ -104,7 +117,9 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
+                        logger.warning(
+                            f"Unexpected error processing directive {key}={value}: {e}"
+                        )
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -120,4 +135,6 @@ class DirectiveParser:
         # Remove directive text from content
         # Use the length of the matched block to remove accurately
         section.content = content[len(directive_text) :].lstrip()
-        logger.debug(f"Section content after directive removal: {section.content[:50]}...")
+        logger.debug(
+            f"Section content after directive removal: {section.content[:50]}..."
+        )
