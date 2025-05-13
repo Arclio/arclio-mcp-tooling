@@ -130,16 +130,10 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 page_background_fill["solidFill"] = {
                     "color": {"themeColor": background_value.upper()}
                 }
-                fields_mask_parts.append(
-                    "pageBackgroundFill.solidFill.color.themeColor"
-                )
+                fields_mask_parts.append("pageBackgroundFill.solidFill.color.themeColor")
         elif background_type == "image":
-            page_background_fill["stretchedPictureFill"] = {
-                "contentUrl": background_value
-            }
-            fields_mask_parts.append(
-                "pageBackgroundFill.stretchedPictureFill.contentUrl"
-            )
+            page_background_fill["stretchedPictureFill"] = {"contentUrl": background_value}
+            fields_mask_parts.append("pageBackgroundFill.stretchedPictureFill.contentUrl")
         else:
             logger.warning(
                 f"Unknown background type: {background_type} for slide {slide.object_id}"
@@ -191,14 +185,10 @@ class SlideRequestBuilder(BaseRequestBuilder):
         )
         return requests
 
-    def _get_element_type_for_placeholder(
-        self, placeholder_type: str
-    ) -> ElementType | None:
+    def _get_element_type_for_placeholder(self, placeholder_type: str) -> ElementType | None:
         for element_type, api_ph_type in self.ELEMENT_TO_PLACEHOLDER_TYPE_MAP.items():
             if api_ph_type == placeholder_type:
                 return element_type
-        if (
-            placeholder_type == "CENTERED_TITLE"
-        ):  # Common API placeholder type for titles
+        if placeholder_type == "CENTERED_TITLE":  # Common API placeholder type for titles
             return ElementType.TITLE
         return None

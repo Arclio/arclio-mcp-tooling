@@ -49,9 +49,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"text_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for text element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for text element: {element.object_id}")
 
         # Create text box
         create_textbox_request = {
@@ -138,11 +136,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             requests.append(paragraph_style)
 
         # ENHANCEMENT: Apply vertical alignment if specified
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "valign" in element.directives
-        ):
+        if hasattr(element, "directives") and element.directives and "valign" in element.directives:
             valign_value = element.directives["valign"]
             if isinstance(valign_value, str):
                 # Map valign directive to API values
@@ -213,9 +207,7 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         return requests
 
-    def _handle_themed_text_element(
-        self, element: TextElement, placeholder_id: str
-    ) -> list[dict]:
+    def _handle_themed_text_element(self, element: TextElement, placeholder_id: str) -> list[dict]:
         """
         Handle text element that should use a theme placeholder.
 
@@ -260,14 +252,10 @@ class TextRequestBuilder(BaseRequestBuilder):
                     )
                     requests.append(style_request)
 
-        logger.debug(
-            f"Used theme placeholder {placeholder_id} for {element.element_type} element"
-        )
+        logger.debug(f"Used theme placeholder {placeholder_id} for {element.element_type} element")
         return requests
 
-    def _apply_paragraph_styling(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
+    def _apply_paragraph_styling(self, element: TextElement, requests: list[dict]) -> None:
         """
         Apply paragraph-level styling based on directives.
 
@@ -288,9 +276,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 # API uses a structure like { spaceMultiple: 150 } for 1.5 spacing
                 paragraph_style["spaceMultiple"] = spacing * 100  # API uses percentage
                 fields.append("spaceMultiple")
-                logger.debug(
-                    f"Applied line spacing of {spacing} to element {element.object_id}"
-                )
+                logger.debug(f"Applied line spacing of {spacing} to element {element.object_id}")
 
         # Space before paragraph
         if "para-spacing-before" in element.directives:
@@ -308,9 +294,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             if isinstance(spacing, int | float) and spacing >= 0:
                 paragraph_style["spaceBelow"] = {"magnitude": spacing, "unit": "PT"}
                 fields.append("spaceBelow")
-                logger.debug(
-                    f"Applied spacing after of {spacing}pt to element {element.object_id}"
-                )
+                logger.debug(f"Applied spacing after of {spacing}pt to element {element.object_id}")
 
         # Start indent
         if "indent-start" in element.directives:
@@ -318,9 +302,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             if isinstance(indent, int | float) and indent >= 0:
                 paragraph_style["indentStart"] = {"magnitude": indent, "unit": "PT"}
                 fields.append("indentStart")
-                logger.debug(
-                    f"Applied start indent of {indent}pt to element {element.object_id}"
-                )
+                logger.debug(f"Applied start indent of {indent}pt to element {element.object_id}")
 
         # First line indent
         if "indent-first-line" in element.directives:
@@ -344,9 +326,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
             requests.append(para_style_request)
 
-    def _apply_text_color_directive(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
+    def _apply_text_color_directive(self, element: TextElement, requests: list[dict]) -> None:
         """Apply text color directive to the element."""
         if (
             not hasattr(element, "directives")
@@ -409,9 +389,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             requests.append(style_request)
             logger.debug(f"Applied color {color_value} to element {element.object_id}")
 
-    def _apply_font_size_directive(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
+    def _apply_font_size_directive(self, element: TextElement, requests: list[dict]) -> None:
         """Apply font size directive to the element."""
         if (
             not hasattr(element, "directives")
@@ -429,13 +407,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                 range_type="ALL",
             )
             requests.append(style_request)
-            logger.debug(
-                f"Applied font size {font_size}pt to element {element.object_id}"
-            )
+            logger.debug(f"Applied font size {font_size}pt to element {element.object_id}")
 
-    def _apply_background_directive(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
+    def _apply_background_directive(self, element: TextElement, requests: list[dict]) -> None:
         """Apply background color directive to the element."""
         if (
             not hasattr(element, "directives")
@@ -447,9 +421,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         background_directive = element.directives["background"]
 
         # Handle theme color reference for background
-        if isinstance(
-            background_directive, str
-        ) and not background_directive.startswith("#"):
+        if isinstance(background_directive, str) and not background_directive.startswith("#"):
             theme_colors = [
                 "TEXT1",
                 "TEXT2",
@@ -471,11 +443,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                         "fields": "shapeProperties.shapeBackgroundFill.solidFill.color.themeColor",
                         "shapeProperties": {
                             "shapeBackgroundFill": {
-                                "solidFill": {
-                                    "color": {
-                                        "themeColor": background_directive.upper()
-                                    }
-                                }
+                                "solidFill": {"color": {"themeColor": background_directive.upper()}}
                             }
                         },
                     }
@@ -490,11 +458,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         if isinstance(background_directive, tuple) and len(background_directive) == 2:
             bg_type, bg_value = background_directive
             # Check if it's a color and the value is a string starting with #
-            if (
-                bg_type == "color"
-                and isinstance(bg_value, str)
-                and bg_value.startswith("#")
-            ):
+            if bg_type == "color" and isinstance(bg_value, str) and bg_value.startswith("#"):
                 try:
                     rgb = self._hex_to_rgb(bg_value)
                     # Generate the API request to update the shape's background fill
@@ -503,9 +467,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                             "objectId": element.object_id,
                             "fields": "shapeProperties.shapeBackgroundFill.solidFill.color.rgbColor",
                             "shapeProperties": {
-                                "shapeBackgroundFill": {
-                                    "solidFill": {"color": {"rgbColor": rgb}}
-                                }
+                                "shapeBackgroundFill": {"solidFill": {"color": {"rgbColor": rgb}}}
                             },
                         }
                     }
@@ -514,13 +476,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                         f"Applied background color {bg_value} to element {element.object_id}"
                     )
                 except ValueError as e:
-                    logger.warning(
-                        f"Invalid hex color '{bg_value}' for background directive: {e}"
-                    )
+                    logger.warning(f"Invalid hex color '{bg_value}' for background directive: {e}")
 
-    def _apply_border_directive(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
+    def _apply_border_directive(self, element: TextElement, requests: list[dict]) -> None:
         """
         Apply border directive to the element.
 
@@ -631,6 +589,4 @@ class TextRequestBuilder(BaseRequestBuilder):
                 }
             }
             requests.append(border_request)
-            logger.debug(
-                f"Applied border style to element {element.object_id}: {border_value}"
-            )
+            logger.debug(f"Applied border style to element {element.object_id}: {border_value}")

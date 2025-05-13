@@ -23,16 +23,12 @@ class SlideExtractor:
                 continue
             logger.debug(f"Processing slide {i + 1}")
             current_slide_object_id = f"slide_{i}_{uuid.uuid4().hex[:6]}"
-            processed_slide = self._process_slide_content(
-                slide_content, i, current_slide_object_id
-            )
+            processed_slide = self._process_slide_content(slide_content, i, current_slide_object_id)
             slides.append(processed_slide)
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
 
-    def _split_content_with_code_block_awareness(
-        self, content: str, pattern: str
-    ) -> list[str]:
+    def _split_content_with_code_block_awareness(self, content: str, pattern: str) -> list[str]:
         lines = content.split("\n")
         parts = []
         current_part = []
@@ -40,9 +36,7 @@ class SlideExtractor:
         for line in lines:
             # More robust check for code block delimiters (``` or ~~~)
             stripped_line = line.lstrip()
-            is_code_marker = stripped_line.startswith(
-                "```"
-            ) or stripped_line.startswith("~~~")
+            is_code_marker = stripped_line.startswith("```") or stripped_line.startswith("~~~")
 
             if is_code_marker:
                 # Check if it's just the fence or has lang identifier
@@ -66,9 +60,7 @@ class SlideExtractor:
             parts.append("\n".join(current_part))
         return parts
 
-    def _process_slide_content(
-        self, content: str, index: int, slide_object_id: str
-    ) -> dict:
+    def _process_slide_content(self, content: str, index: int, slide_object_id: str) -> dict:
         footer_parts = re.split(r"(?m)^\s*@@@\s*$", content)
         main_content = footer_parts[0]
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
@@ -85,9 +77,7 @@ class SlideExtractor:
             notes_pattern_to_remove = (
                 r"<!--\s*notes:\s*(?:.*?)\s*-->"  # Ensure this matches for removal
             )
-            main_content = re.sub(
-                notes_pattern_to_remove, "", main_content, flags=re.DOTALL
-            )
+            main_content = re.sub(notes_pattern_to_remove, "", main_content, flags=re.DOTALL)
             speaker_notes_placeholder_id = f"{slide_object_id}_notesShape"
 
         if footer:
@@ -96,16 +86,12 @@ class SlideExtractor:
                 notes = footer_notes
                 speaker_notes_placeholder_id = f"{slide_object_id}_notesShape"
                 notes_pattern_to_remove = r"<!--\s*notes:\s*(?:.*?)\s*-->"
-                footer = re.sub(
-                    notes_pattern_to_remove, "", footer, flags=re.DOTALL
-                ).strip()
+                footer = re.sub(notes_pattern_to_remove, "", footer, flags=re.DOTALL).strip()
 
         background = self._extract_background(main_content)
         if background:
             background_pattern = r"^\s*\[background=([^\]]+)\]\s*\n?"
-            main_content = re.sub(
-                background_pattern, "", main_content, flags=re.MULTILINE
-            )
+            main_content = re.sub(background_pattern, "", main_content, flags=re.MULTILINE)
 
         return {
             "title": title,

@@ -44,9 +44,7 @@ class TextFormatType(str, Enum):
     BACKGROUND_COLOR = "backgroundColor"  # Added
     FONT_SIZE = "fontSize"  # Added
     FONT_FAMILY = "fontFamily"  # Added
-    VERTICAL_ALIGN = (
-        "verticalAlign"  # Represents baselineOffset (superscript/subscript) - Added
-    )
+    VERTICAL_ALIGN = "verticalAlign"  # Represents baselineOffset (superscript/subscript) - Added
 
 
 class AlignmentType(str, Enum):

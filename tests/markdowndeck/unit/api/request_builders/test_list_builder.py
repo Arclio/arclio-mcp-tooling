@@ -15,7 +15,6 @@ def builder() -> ListRequestBuilder:
 
 
 class TestListRequestBuilderStyling:
-
     def test_generate_list_with_color_directive_hex(self, builder: ListRequestBuilder):
         element = ListElement(
             element_type=ElementType.BULLET_LIST,
@@ -32,8 +31,7 @@ class TestListRequestBuilderStyling:
             (
                 r
                 for r in requests
-                if "updateTextStyle" in r
-                and "foregroundColor" in r["updateTextStyle"]["style"]
+                if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]
             ),
             None,
         )
@@ -46,9 +44,7 @@ class TestListRequestBuilderStyling:
         )  # Updated to be more specific
         assert style_req["updateTextStyle"]["textRange"]["type"] == "ALL"
 
-    def test_generate_list_with_color_directive_theme(
-        self, builder: ListRequestBuilder
-    ):
+    def test_generate_list_with_color_directive_theme(self, builder: ListRequestBuilder):
         element = ListElement(
             element_type=ElementType.BULLET_LIST,
             items=[ListItem(text="Theme Colored Item")],
@@ -61,19 +57,13 @@ class TestListRequestBuilderStyling:
             (
                 r
                 for r in requests
-                if "updateTextStyle" in r
-                and "foregroundColor" in r["updateTextStyle"]["style"]
+                if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]
             ),
             None,
         )
         assert style_req is not None
-        assert (
-            style_req["updateTextStyle"]["style"]["foregroundColor"]["themeColor"]
-            == "ACCENT2"
-        )
-        assert (
-            style_req["updateTextStyle"]["fields"] == "foregroundColor.themeColor"
-        )  # Updated
+        assert style_req["updateTextStyle"]["style"]["foregroundColor"]["themeColor"] == "ACCENT2"
+        assert style_req["updateTextStyle"]["fields"] == "foregroundColor.themeColor"  # Updated
         assert style_req["updateTextStyle"]["textRange"]["type"] == "ALL"
 
     def test_generate_list_with_fontsize_directive(self, builder: ListRequestBuilder):
@@ -91,8 +81,7 @@ class TestListRequestBuilderStyling:
             (
                 r
                 for r in requests
-                if "updateTextStyle" in r
-                and "fontSize" in r["updateTextStyle"]["style"]
+                if "updateTextStyle" in r and "fontSize" in r["updateTextStyle"]["style"]
             ),
             None,
         )
@@ -115,8 +104,7 @@ class TestListRequestBuilderStyling:
             (
                 r
                 for r in requests
-                if "updateTextStyle" in r
-                and "fontFamily" in r["updateTextStyle"]["style"]
+                if "updateTextStyle" in r and "fontFamily" in r["updateTextStyle"]["style"]
             ),
             None,
         )
@@ -130,9 +118,7 @@ class TestListRequestBuilderStyling:
             items=[
                 ListItem(
                     text="Hello bold world",
-                    formatting=[
-                        TextFormat(start=6, end=10, format_type=TextFormatType.BOLD)
-                    ],
+                    formatting=[TextFormat(start=6, end=10, format_type=TextFormatType.BOLD)],
                 )
             ],
             object_id="list_item_fmt",
@@ -146,8 +132,7 @@ class TestListRequestBuilderStyling:
             (
                 r
                 for r in requests
-                if "updateTextStyle" in r
-                and r["updateTextStyle"]["style"].get("bold") is True
+                if "updateTextStyle" in r and r["updateTextStyle"]["style"].get("bold") is True
             ),
             None,
         )

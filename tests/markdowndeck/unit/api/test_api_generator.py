@@ -44,15 +44,9 @@ class TestApiRequestGenerator:
         """Test that generate_slide_batch calls appropriate builder methods."""
         # Populate sample_slide with a few representative elements for dispatch testing
         sample_slide.elements = [
-            TextElement(
-                element_type=ElementType.TITLE, text="Title", object_id="el_title"
-            ),
-            TextElement(
-                element_type=ElementType.TEXT, text="Body", object_id="el_body"
-            ),
-            ImageElement(
-                element_type=ElementType.IMAGE, url="test.png", object_id="el_img"
-            ),
+            TextElement(element_type=ElementType.TITLE, text="Title", object_id="el_title"),
+            TextElement(element_type=ElementType.TEXT, text="Body", object_id="el_body"),
+            ImageElement(element_type=ElementType.IMAGE, url="test.png", object_id="el_img"),
         ]
         sample_slide.background = {"type": "color", "value": "#FFFFFF"}
         sample_slide.notes = "Test notes"
@@ -84,15 +78,9 @@ class TestApiRequestGenerator:
         batch = generator.generate_slide_batch(sample_slide, "pres_id")
 
         assert batch["presentationId"] == "pres_id"
-        generator.slide_builder.create_slide_request.assert_called_once_with(
-            sample_slide
-        )
-        generator.slide_builder.create_background_request.assert_called_once_with(
-            sample_slide
-        )
-        generator.slide_builder.create_notes_request.assert_called_once_with(
-            sample_slide
-        )
+        generator.slide_builder.create_slide_request.assert_called_once_with(sample_slide)
+        generator.slide_builder.create_background_request.assert_called_once_with(sample_slide)
+        generator.slide_builder.create_notes_request.assert_called_once_with(sample_slide)
 
         # Check calls to element builders (via _generate_element_requests)
         assert generator.text_builder.generate_text_element_requests.call_count == 2
@@ -122,32 +110,18 @@ class TestApiRequestGenerator:
         self, generator: ApiRequestGenerator, sample_slide: Slide
     ):
         """Test that _generate_element_requests dispatches to the correct builders."""
-        title_el = TextElement(
-            element_type=ElementType.TITLE, text="T", object_id="id_title"
-        )
-        text_el = TextElement(
-            element_type=ElementType.TEXT, text="P", object_id="id_text"
-        )
+        title_el = TextElement(element_type=ElementType.TITLE, text="T", object_id="id_title")
+        text_el = TextElement(element_type=ElementType.TEXT, text="P", object_id="id_text")
         list_el = ListElement(
             element_type=ElementType.BULLET_LIST,
             items=[ListItem(text="L")],
             object_id="id_list",
         )
-        img_el = ImageElement(
-            element_type=ElementType.IMAGE, url="i.png", object_id="id_img"
-        )
-        code_el = CodeElement(
-            element_type=ElementType.CODE, code="c", object_id="id_code"
-        )
-        table_el = TableElement(
-            element_type=ElementType.TABLE, headers=["H"], object_id="id_table"
-        )
-        quote_el = TextElement(
-            element_type=ElementType.QUOTE, text="Q", object_id="id_quote"
-        )
-        footer_el = TextElement(
-            element_type=ElementType.FOOTER, text="F", object_id="id_footer"
-        )
+        img_el = ImageElement(element_type=ElementType.IMAGE, url="i.png", object_id="id_img")
+        code_el = CodeElement(element_type=ElementType.CODE, code="c", object_id="id_code")
+        table_el = TableElement(element_type=ElementType.TABLE, headers=["H"], object_id="id_table")
+        quote_el = TextElement(element_type=ElementType.QUOTE, text="Q", object_id="id_quote")
+        footer_el = TextElement(element_type=ElementType.FOOTER, text="F", object_id="id_footer")
         ordered_list_el = ListElement(
             element_type=ElementType.ORDERED_LIST,
             items=[ListItem(text="O")],

@@ -19,9 +19,7 @@ class ContentSplitter:
         self.code_block_regex = re.compile(
             r"^(```|~~~)[\w-]*\n.*?\n\1\s*$", re.MULTILINE | re.DOTALL
         )
-        self.placeholder_prefix = (
-            f"__MD_DECK_CODE_BLOCK_PLACEHOLDER_{uuid.uuid4().hex[:8]}__"
-        )
+        self.placeholder_prefix = f"__MD_DECK_CODE_BLOCK_PLACEHOLDER_{uuid.uuid4().hex[:8]}__"
 
     def split_by_separator(self, content: str, separator_pattern: str) -> ContentSplit:
         r"""
@@ -50,9 +48,7 @@ class ContentSplitter:
         except re.error as e:
             logger.error(f"Invalid regex pattern for separator check: {e}")
             # If the regex is invalid, return the content as a single part
-            return ContentSplit(
-                parts=[content] if content.strip() else [], protected_blocks={}
-            )
+            return ContentSplit(parts=[content] if content.strip() else [], protected_blocks={})
 
         # First protect the code blocks
         protected_content, protected_blocks_dict = self._protect_blocks(
@@ -104,18 +100,14 @@ class ContentSplitter:
             # This can happen if content IS a code block and there are no separators outside it
             # or if content is just whitespace around separators
             # If original content was not empty, and it wasn't just separators, there should be one part.
-            fully_restored_original = self._restore_blocks(
-                protected_content, protected_blocks_dict
-            )
+            fully_restored_original = self._restore_blocks(protected_content, protected_blocks_dict)
             if fully_restored_original.strip():
                 restored_parts = [fully_restored_original.strip()]
 
         logger.debug(
             f"Content split into {len(restored_parts)} parts after restoration and filtering."
         )
-        return ContentSplit(
-            parts=restored_parts, protected_blocks=protected_blocks_dict
-        )
+        return ContentSplit(parts=restored_parts, protected_blocks=protected_blocks_dict)
 
     def _protect_blocks(
         self, content: str, block_regex: re.Pattern, block_type_label: str

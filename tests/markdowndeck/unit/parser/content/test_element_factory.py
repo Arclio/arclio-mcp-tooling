@@ -81,9 +81,7 @@ class TestElementFactory:
         assert el_ordered.element_type == ElementType.ORDERED_LIST
 
     def test_create_image_element(self, factory: ElementFactory):
-        el = factory.create_image_element(
-            "url.jpg", "Alt", directives={"align": "center"}
-        )
+        el = factory.create_image_element("url.jpg", "Alt", directives={"align": "center"})
         assert isinstance(el, ImageElement)
         assert el.element_type == ElementType.IMAGE
         assert el.url == "url.jpg"
@@ -112,27 +110,15 @@ class TestElementFactory:
             ("simple text", []),
             (
                 "**bold** text",
-                [
-                    TextFormat(
-                        start=0, end=4, format_type=TextFormatType.BOLD, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=4, format_type=TextFormatType.BOLD, value=True)],
             ),
             (
                 "*italic* text",
-                [
-                    TextFormat(
-                        start=0, end=6, format_type=TextFormatType.ITALIC, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=6, format_type=TextFormatType.ITALIC, value=True)],
             ),
             (
                 "`code` text",
-                [
-                    TextFormat(
-                        start=0, end=4, format_type=TextFormatType.CODE, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=4, format_type=TextFormatType.CODE, value=True)],
             ),
             (
                 "~~strike~~ text",
@@ -159,40 +145,24 @@ class TestElementFactory:
             (
                 "**bold *italic* link**",
                 [  # Order might vary based on parser's internal logic for nested, check presence and ranges
-                    TextFormat(
-                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
-                    ),
-                    TextFormat(
-                        start=0, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC, value=True),
+                    TextFormat(start=0, end=17, format_type=TextFormatType.BOLD, value=True),
                 ],
             ),
             (
                 "text **bold** and *italic*",
                 [
-                    TextFormat(
-                        start=5, end=9, format_type=TextFormatType.BOLD, value=True
-                    ),
-                    TextFormat(
-                        start=14, end=20, format_type=TextFormatType.ITALIC, value=True
-                    ),
+                    TextFormat(start=5, end=9, format_type=TextFormatType.BOLD, value=True),
+                    TextFormat(start=14, end=20, format_type=TextFormatType.ITALIC, value=True),
                 ],
             ),
             (
                 "text at start **bold**",
-                [
-                    TextFormat(
-                        start=13, end=17, format_type=TextFormatType.BOLD, value=True
-                    )
-                ],
+                [TextFormat(start=13, end=17, format_type=TextFormatType.BOLD, value=True)],
             ),
             (
                 "**bold** text at end",
-                [
-                    TextFormat(
-                        start=0, end=4, format_type=TextFormatType.BOLD, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=4, format_type=TextFormatType.BOLD, value=True)],
             ),
         ],
     )
@@ -207,21 +177,13 @@ class TestElementFactory:
         extracted = factory.extract_formatting_from_text(markdown_text, md_parser)
 
         # Sort both lists of dataclasses by start index for consistent comparison
-        sorted_extracted = sorted(
-            extracted, key=lambda f: (f.start, f.end, f.format_type.value)
-        )
+        sorted_extracted = sorted(extracted, key=lambda f: (f.start, f.end, f.format_type.value))
         sorted_expected = sorted(
             expected_formats, key=lambda f: (f.start, f.end, f.format_type.value)
         )
 
-        assert (
-            sorted_extracted == sorted_expected
-        ), f"Formatting mismatch for: {markdown_text}"
+        assert sorted_extracted == sorted_expected, f"Formatting mismatch for: {markdown_text}"
 
-    def test_extract_formatting_empty_text(
-        self, factory: ElementFactory, md_parser: MarkdownIt
-    ):
+    def test_extract_formatting_empty_text(self, factory: ElementFactory, md_parser: MarkdownIt):
         assert factory.extract_formatting_from_text("", md_parser) == []
-        assert (
-            factory.extract_formatting_from_text("   ", md_parser) == []
-        )  # Whitespace only
+        assert factory.extract_formatting_from_text("   ", md_parser) == []  # Whitespace only

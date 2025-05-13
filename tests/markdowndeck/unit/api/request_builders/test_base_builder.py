@@ -76,9 +76,7 @@ class TestBaseRequestBuilder:
                 TextFormat(0, 0, TextFormatType.COLOR, value="#FF0000"),
                 {
                     "foregroundColor": {
-                        "opaqueColor": {
-                            "rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}
-                        }
+                        "opaqueColor": {"rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}}
                     }
                 },
                 "foregroundColor",
@@ -92,9 +90,7 @@ class TestBaseRequestBuilder:
                 TextFormat(0, 0, TextFormatType.BACKGROUND_COLOR, value="#00FF00"),
                 {
                     "backgroundColor": {
-                        "opaqueColor": {
-                            "rgbColor": {"red": 0.0, "green": 1.0, "blue": 0.0}
-                        }
+                        "opaqueColor": {"rgbColor": {"red": 0.0, "green": 1.0, "blue": 0.0}}
                     }
                 },
                 "backgroundColor",
@@ -124,9 +120,7 @@ class TestBaseRequestBuilder:
                 {
                     "fontFamily": "Courier New",
                     "backgroundColor": {
-                        "opaqueColor": {
-                            "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
-                        }
+                        "opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
                     },
                 },
                 "fontFamily,backgroundColor",
@@ -159,9 +153,7 @@ class TestBaseRequestBuilder:
         assert req["updateTextStyle"]["fields"] == "bold"
 
     def test_apply_text_formatting_all_range(self, builder: BaseRequestBuilder):
-        req = builder._apply_text_formatting(
-            "el1", {"italic": True}, "italic", range_type="ALL"
-        )
+        req = builder._apply_text_formatting("el1", {"italic": True}, "italic", range_type="ALL")
         assert req["updateTextStyle"]["textRange"] == {"type": "ALL"}
         assert "startIndex" not in req["updateTextStyle"]["textRange"]
 

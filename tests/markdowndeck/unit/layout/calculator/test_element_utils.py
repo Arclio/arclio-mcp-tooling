@@ -94,9 +94,7 @@ class TestElementUtils:
         assert list_elem.related_to_prev
 
         # The regular text should not be marked as related
-        assert not (
-            hasattr(regular_text, "related_to_prev") and regular_text.related_to_prev
-        )
+        assert not (hasattr(regular_text, "related_to_prev") and regular_text.related_to_prev)
 
         # The heading (first element) should not be marked as related
         assert not (hasattr(heading, "related_to_prev") and heading.related_to_prev)
@@ -167,10 +165,5 @@ class TestElementUtils:
         # Code blocks and regular text aren't marked as related
         assert hasattr(list_item, "related_to_prev")
         assert list_item.related_to_prev is True
-        assert (
-            not hasattr(code_block, "related_to_prev") or not code_block.related_to_prev
-        )
-        assert (
-            not hasattr(regular_text, "related_to_prev")
-            or not regular_text.related_to_prev
-        )
+        assert not hasattr(code_block, "related_to_prev") or not code_block.related_to_prev
+        assert not hasattr(regular_text, "related_to_prev") or not regular_text.related_to_prev

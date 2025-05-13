@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
-    def generate_table_element_requests(
-        self, element: TableElement, slide_id: str
-    ) -> list[dict]:
+    def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
         """
         Generate requests for a table element.
 
@@ -33,9 +31,7 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"table_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for table element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for table element: {element.object_id}")
 
         # Count rows including headers if present
         row_count = len(element.rows) + (1 if element.headers else 0)
@@ -304,19 +300,19 @@ class TableRequestBuilder(BaseRequestBuilder):
 
             # Add color if specified
             if "rgbColor" in color:
-                border_style_request["updateTableBorderProperties"][
-                    "tableBorderProperties"
-                ]["color"] = color
-                border_style_request["updateTableBorderProperties"][
-                    "fields"
-                ] += ",tableBorderProperties.color.rgbColor"
+                border_style_request["updateTableBorderProperties"]["tableBorderProperties"][
+                    "color"
+                ] = color
+                border_style_request["updateTableBorderProperties"]["fields"] += (
+                    ",tableBorderProperties.color.rgbColor"
+                )
             elif "themeColor" in color:
-                border_style_request["updateTableBorderProperties"][
-                    "tableBorderProperties"
-                ]["color"] = color
-                border_style_request["updateTableBorderProperties"][
-                    "fields"
-                ] += ",tableBorderProperties.color.themeColor"
+                border_style_request["updateTableBorderProperties"]["tableBorderProperties"][
+                    "color"
+                ] = color
+                border_style_request["updateTableBorderProperties"]["fields"] += (
+                    ",tableBorderProperties.color.themeColor"
+                )
 
             requests.append(border_style_request)
             logger.debug(f"Applied {position} border to table {element.object_id}")
@@ -412,9 +408,7 @@ class TableRequestBuilder(BaseRequestBuilder):
         }
 
         requests.append(cell_align_request)
-        logger.debug(
-            f"Applied {alignment_value} alignment to cells in table {element.object_id}"
-        )
+        logger.debug(f"Applied {alignment_value} alignment to cells in table {element.object_id}")
 
     def _apply_cell_background_colors(
         self,
@@ -464,9 +458,7 @@ class TableRequestBuilder(BaseRequestBuilder):
             "ACCENT6",
         ]:
             color = {"themeColor": bg_value.upper()}
-            fields = (
-                "tableCellProperties.tableCellBackgroundFill.solidFill.color.themeColor"
-            )
+            fields = "tableCellProperties.tableCellBackgroundFill.solidFill.color.themeColor"
         # Check if it's a named color
         elif isinstance(bg_value, str) and bg_value.lower() in [
             "white",
@@ -489,9 +481,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 "magenta": {"red": 1, "green": 0, "blue": 1},
             }
             color = {"rgbColor": color_map.get(bg_value.lower())}
-            fields = (
-                "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
-            )
+            fields = "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
         else:
             return
 
@@ -519,9 +509,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
                     # If parsing fails, use default (all cells)
-                    logger.warning(
-                        f"Failed to parse cell range: {cell_range}, using default"
-                    )
+                    logger.warning(f"Failed to parse cell range: {cell_range}, using default")
 
         # Create cell properties update request
         bg_request = {
@@ -535,9 +523,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
-                "tableCellProperties": {
-                    "tableCellBackgroundFill": {"solidFill": {"color": color}}
-                },
+                "tableCellProperties": {"tableCellBackgroundFill": {"solidFill": {"color": color}}},
                 "fields": fields,
             }
         }

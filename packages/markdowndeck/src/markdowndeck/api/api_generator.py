@@ -50,7 +50,7 @@ class ApiRequestGenerator:
             # Generate a batch for each slide
             slide_batch = self.generate_slide_batch(slide, presentation_id)
             batches.append(slide_batch)
-            logger.debug(f"Generated batch for slide {i+1}/{len(deck.slides)}")
+            logger.debug(f"Generated batch for slide {i + 1}/{len(deck.slides)}")
 
         logger.info(f"Generated {len(batches)} batch requests")
         return batches
@@ -118,33 +118,31 @@ class ApiRequestGenerator:
         """
         # Ensure element has a valid object_id (unless it's using a theme placeholder)
         element_type = getattr(element, "element_type", None)
-        use_theme_placeholder = (
-            theme_placeholders and element_type in theme_placeholders
-        )
+        use_theme_placeholder = theme_placeholders and element_type in theme_placeholders
 
         if not getattr(element, "object_id", None) and not use_theme_placeholder:
             element_type_name = getattr(element_type, "value", "unknown_element")
-            element.object_id = self.slide_builder._generate_id(
-                f"{element_type_name}_{slide_id}"
-            )
-            logger.debug(
-                f"Generated missing object_id for element: {element.object_id}"
-            )
+            element.object_id = self.slide_builder._generate_id(f"{element_type_name}_{slide_id}")
+            logger.debug(f"Generated missing object_id for element: {element.object_id}")
 
         # Delegate to appropriate builder based on element type
-        if element_type == ElementType.TITLE or element_type == ElementType.SUBTITLE or element_type == ElementType.TEXT:
+        if (
+            element_type == ElementType.TITLE
+            or element_type == ElementType.SUBTITLE
+            or element_type == ElementType.TEXT
+        ):
             return self.text_builder.generate_text_element_requests(
                 element, slide_id, theme_placeholders
             )
 
         if element_type == ElementType.BULLET_LIST:
-            return self.list_builder.generate_bullet_list_element_requests(
-                element, slide_id
-            )
+            return self.list_builder.generate_bullet_list_element_requests(element, slide_id)
 
         if element_type == ElementType.ORDERED_LIST:
             return self.list_builder.generate_list_element_requests(
-                element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN"  # Example preset
+                element,
+                slide_id,
+                "NUMBERED_DIGIT_ALPHA_ROMAN",  # Example preset
             )
 
         if element_type == ElementType.IMAGE:

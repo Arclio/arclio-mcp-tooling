@@ -18,9 +18,7 @@ def base_builder() -> BaseRequestBuilder:  # For helper methods like _hex_to_rgb
 
 @pytest.fixture
 def sample_slide_model() -> Slide:
-    return Slide(
-        object_id="test_slide_001", layout=SlideLayout.BLANK, title="Sample Slide"
-    )
+    return Slide(object_id="test_slide_001", layout=SlideLayout.BLANK, title="Sample Slide")
 
 
 @pytest.fixture
@@ -36,16 +34,13 @@ def slide_with_notes_and_id() -> Slide:
 class TestSlideRequestBuilder:
     """Unit tests for the SlideRequestBuilder."""
 
-    def test_create_slide_request(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_slide_request(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         request = builder.create_slide_request(sample_slide_model)
         assert "createSlide" in request
         cs_data = request["createSlide"]
         assert cs_data["objectId"] == sample_slide_model.object_id
         assert (
-            cs_data["slideLayoutReference"]["predefinedLayout"]
-            == sample_slide_model.layout.value
+            cs_data["slideLayoutReference"]["predefinedLayout"] == sample_slide_model.layout.value
         )
         assert "placeholderIdMappings" in cs_data  # Check if mappings are present
         # Further checks on placeholder_id_mappings if specific layouts are tested
@@ -67,12 +62,8 @@ class TestSlideRequestBuilder:
 
         assert ElementType.TITLE in slide.placeholder_mappings
         assert ElementType.TEXT in slide.placeholder_mappings  # BODY maps to TEXT
-        assert slide.placeholder_mappings[ElementType.TITLE].startswith(
-            f"{slide.object_id}_title_"
-        )
-        assert slide.placeholder_mappings[ElementType.TEXT].startswith(
-            f"{slide.object_id}_body_"
-        )
+        assert slide.placeholder_mappings[ElementType.TITLE].startswith(f"{slide.object_id}_title_")
+        assert slide.placeholder_mappings[ElementType.TEXT].startswith(f"{slide.object_id}_body_")
 
     def test_create_background_request_color_hex(
         self,
@@ -93,9 +84,7 @@ class TestSlideRequestBuilder:
         assert "solidFill" in fill
         assert "color" in fill["solidFill"]
         assert "rgbColor" in fill["solidFill"]["color"]
-        assert fill["solidFill"]["color"]["rgbColor"] == base_builder._hex_to_rgb(
-            "#ABCDEF"
-        )
+        assert fill["solidFill"]["color"]["rgbColor"] == base_builder._hex_to_rgb("#ABCDEF")
         assert upp_data["fields"] == "pageBackgroundFill.solidFill.color.rgbColor"
 
     def test_create_background_request_color_theme(
@@ -126,9 +115,7 @@ class TestSlideRequestBuilder:
         fill = upp_data["pageProperties"]["pageBackgroundFill"]
         assert "stretchedPictureFill" in fill
         assert fill["stretchedPictureFill"]["contentUrl"] == "http://example.com/bg.png"
-        assert (
-            upp_data["fields"] == "pageBackgroundFill.stretchedPictureFill.contentUrl"
-        )
+        assert upp_data["fields"] == "pageBackgroundFill.stretchedPictureFill.contentUrl"
 
     def test_create_background_request_no_background(
         self, builder: SlideRequestBuilder, sample_slide_model: Slide

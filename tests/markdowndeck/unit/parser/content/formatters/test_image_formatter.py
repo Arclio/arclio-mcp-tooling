@@ -30,9 +30,7 @@ class TestImageFormatter:
             tokens[0], tokens
         )  # Pass all tokens as "leading" for this specific test case
 
-    def test_can_handle_direct_image_token(
-        self, formatter: ImageFormatter, md_parser: MarkdownIt
-    ):
+    def test_can_handle_direct_image_token(self, formatter: ImageFormatter, md_parser: MarkdownIt):
         # Simulate a direct image token (though markdown-it usually wraps it)
         from markdown_it.token import Token
 
@@ -49,9 +47,7 @@ class TestImageFormatter:
         element, _ = formatter.process(tokens, 0, {})
         assert element is None
 
-    def test_process_image_only_paragraph(
-        self, formatter: ImageFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_image_only_paragraph(self, formatter: ImageFormatter, md_parser: MarkdownIt):
         markdown = "![alt text](http://example.com/image.png)"
         tokens = md_parser.parse(markdown)
         # tokens are [paragraph_open, inline, paragraph_close]
@@ -69,7 +65,9 @@ class TestImageFormatter:
     def test_process_image_with_title_in_markdown(
         self, formatter: ImageFormatter, md_parser: MarkdownIt
     ):
-        markdown = '![alt text](url.jpg "Image Title")'  # Markdown-it puts title in token.attrs['title']
+        markdown = (
+            '![alt text](url.jpg "Image Title")'  # Markdown-it puts title in token.attrs['title']
+        )
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
 
@@ -100,9 +98,7 @@ class TestImageFormatter:
         assert isinstance(element, ImageElement)
         assert element.url == "url.jpg"
 
-    def test_process_empty_alt_text(
-        self, formatter: ImageFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_empty_alt_text(self, formatter: ImageFormatter, md_parser: MarkdownIt):
         markdown = "![](url.gif)"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -121,9 +117,7 @@ class TestImageFormatter:
         """Test processing a direct image token (if markdown-it could produce it this way)."""
         from markdown_it.token import Token
 
-        image_token = Token(
-            "image", "img", 0, attrs={"src": "direct.png"}, content="Direct Alt"
-        )
+        image_token = Token("image", "img", 0, attrs={"src": "direct.png"}, content="Direct Alt")
         tokens = [image_token]  # Simulate this token being passed directly
         element, end_index = formatter.process(tokens, 0, {})
 

@@ -65,9 +65,7 @@ class ApiClient:
         Returns:
             Dictionary with presentation details
         """
-        logger.info(
-            f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
-        )
+        logger.info(f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides")
 
         # Step 1: Create the presentation
         presentation = self.create_presentation(deck.title, deck.theme_id)
@@ -107,9 +105,7 @@ class ApiClient:
             "slideCount": len(updated_presentation.get("slides", [])),
         }
 
-        logger.info(
-            f"Presentation creation complete. Slide count: {result['slideCount']}"
-        )
+        logger.info(f"Presentation creation complete. Slide count: {result['slideCount']}")
         return result
 
     def create_presentation(self, title: str, theme_id: str | None = None) -> dict:
@@ -132,9 +128,7 @@ class ApiClient:
             # Include theme ID if provided
             if theme_id:
                 logger.debug(f"Creating presentation with theme ID: {theme_id}")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
                 # Apply theme in a separate request
                 self.slides_service.presentations().batchUpdate(
@@ -151,13 +145,9 @@ class ApiClient:
                 ).execute()
             else:
                 logger.debug("Creating presentation without theme")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
-            logger.info(
-                f"Created presentation with ID: {presentation['presentationId']}"
-            )
+            logger.info(f"Created presentation with ID: {presentation['presentationId']}")
             return presentation
         except HttpError as error:
             logger.error(f"Failed to create presentation: {error}")
@@ -178,11 +168,7 @@ class ApiClient:
         """
         try:
             logger.debug(f"Getting presentation: {presentation_id}")
-            return (
-                self.slides_service.presentations()
-                .get(presentationId=presentation_id)
-                .execute()
-            )
+            return self.slides_service.presentations().get(presentationId=presentation_id).execute()
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
@@ -227,9 +213,7 @@ class ApiClient:
                 if error.resp.status in [429, 500, 503]:  # Rate limit or server error
                     retries += 1
                     if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (
-                            2 ** (retries - 1)
-                        )  # Exponential backoff
+                        wait_time = self.retry_delay * (2 ** (retries - 1))  # Exponential backoff
                         logger.warning(
                             f"Rate limit or server error hit. Retrying in {wait_time} seconds..."
                         )
@@ -249,9 +233,7 @@ class ApiClient:
                         # Parse index from error message like "Invalid requests[4].createImage"
                         import re
 
-                        index_match = re.search(
-                            r"requests\[(\d+)\]\.createImage", error_msg
-                        )
+                        index_match = re.search(r"requests\[(\d+)\]\.createImage", error_msg)
                         if index_match:
                             problem_index = int(index_match.group(1))
 
@@ -263,24 +245,24 @@ class ApiClient:
                                     if "objectId" in req["createImage"]:
                                         # Get information from the original request
                                         obj_id = req["createImage"]["objectId"]
-                                        page_id = req["createImage"][
-                                            "elementProperties"
-                                        ]["pageObjectId"]
+                                        page_id = req["createImage"]["elementProperties"][
+                                            "pageObjectId"
+                                        ]
                                         position = (
-                                            req["createImage"]["elementProperties"][
-                                                "transform"
-                                            ]["translateX"],
-                                            req["createImage"]["elementProperties"][
-                                                "transform"
-                                            ]["translateY"],
+                                            req["createImage"]["elementProperties"]["transform"][
+                                                "translateX"
+                                            ],
+                                            req["createImage"]["elementProperties"]["transform"][
+                                                "translateY"
+                                            ],
                                         )
                                         size = (
-                                            req["createImage"]["elementProperties"][
-                                                "size"
-                                            ]["width"]["magnitude"],
-                                            req["createImage"]["elementProperties"][
-                                                "size"
-                                            ]["height"]["magnitude"],
+                                            req["createImage"]["elementProperties"]["size"][
+                                                "width"
+                                            ]["magnitude"],
+                                            req["createImage"]["elementProperties"]["size"][
+                                                "height"
+                                            ]["magnitude"],
                                         )
 
                                         # Create placeholder text box instead
@@ -370,9 +352,7 @@ class ApiClient:
                     try:
                         self.slides_service.presentations().batchUpdate(
                             presentationId=presentation_id,
-                            body={
-                                "requests": [{"deleteObject": {"objectId": slide_id}}]
-                            },
+                            body={"requests": [{"deleteObject": {"objectId": slide_id}}]},
                         ).execute()
                         logger.debug(f"Deleted default slide: {slide_id}")
                     except HttpError as error:

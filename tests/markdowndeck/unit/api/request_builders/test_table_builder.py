@@ -17,10 +17,7 @@ def base_builder() -> BaseRequestBuilder:  # For _hex_to_rgb comparison
 
 
 class TestTableRequestBuilderStyling:
-
-    def test_generate_table_with_border_directive_simple(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_border_directive_simple(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1"],
@@ -33,33 +30,22 @@ class TestTableRequestBuilderStyling:
         # createTable, insertText (H1), updateTextStyle (H1 bold), updateTableCellProperties (H1 fill), insertText (C1), updateTableBorderProperties
         assert len(requests) >= 6
 
-        border_req = next(
-            (r for r in requests if "updateTableBorderProperties" in r), None
-        )
+        border_req = next((r for r in requests if "updateTableBorderProperties" in r), None)
         assert border_req is not None
-        assert (
-            border_req["updateTableBorderProperties"]["objectId"]
-            == "table_border_simple"
-        )
+        assert border_req["updateTableBorderProperties"]["objectId"] == "table_border_simple"
         props = border_req["updateTableBorderProperties"]["tableBorderProperties"]
         assert props["weight"]["magnitude"] == 1.0
         assert props["dashStyle"] == "SOLID"
         assert props["color"]["rgbColor"] == {"red": 1.0, "green": 0.0, "blue": 0.0}
+        assert "tableBorderProperties.weight" in border_req["updateTableBorderProperties"]["fields"]
         assert (
-            "tableBorderProperties.weight"
-            in border_req["updateTableBorderProperties"]["fields"]
-        )
-        assert (
-            "tableBorderProperties.dashStyle"
-            in border_req["updateTableBorderProperties"]["fields"]
+            "tableBorderProperties.dashStyle" in border_req["updateTableBorderProperties"]["fields"]
         )
         assert (
             "tableBorderProperties.color.rgbColor"
             in border_req["updateTableBorderProperties"]["fields"]
         )
-        assert (
-            border_req["updateTableBorderProperties"]["borderPosition"] == "ALL"
-        )  # Default
+        assert border_req["updateTableBorderProperties"]["borderPosition"] == "ALL"  # Default
 
     def test_generate_table_with_border_directive_specific_position(
         self, builder: TableRequestBuilder
@@ -72,9 +58,7 @@ class TestTableRequestBuilderStyling:
             directives={"border": "2pt dashed blue", "border-position": "OUTER"},
         )
         requests = builder.generate_table_element_requests(element, "slide1")
-        border_req = next(
-            (r for r in requests if "updateTableBorderProperties" in r), None
-        )
+        border_req = next((r for r in requests if "updateTableBorderProperties" in r), None)
         assert border_req is not None
         props = border_req["updateTableBorderProperties"]["tableBorderProperties"]
         assert props["weight"]["magnitude"] == 2.0
@@ -86,9 +70,7 @@ class TestTableRequestBuilderStyling:
         }  # "blue"
         assert border_req["updateTableBorderProperties"]["borderPosition"] == "OUTER"
 
-    def test_generate_table_with_cell_alignment_directive(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_alignment_directive(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H"],
@@ -103,8 +85,7 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "contentAlignment"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "contentAlignment" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )
@@ -208,9 +189,7 @@ class TestTableRequestBuilderStyling:
             in bg_req["updateTableCellProperties"]["fields"]
         )
 
-    def test_generate_table_with_cell_range_for_directives(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_range_for_directives(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1", "H2"],
@@ -229,24 +208,14 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and r["updateTableCellProperties"]["tableCellProperties"].get(
-                    "contentAlignment"
-                )
+                and r["updateTableCellProperties"]["tableCellProperties"].get("contentAlignment")
                 == "END"
             ),
             None,
         )
         assert align_req is not None
-        assert (
-            align_req["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"]
-            == 0
-        )
-        assert (
-            align_req["updateTableCellProperties"]["tableRange"]["location"][
-                "columnIndex"
-            ]
-            == 1
-        )
+        assert align_req["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"] == 0
+        assert align_req["updateTableCellProperties"]["tableRange"]["location"]["columnIndex"] == 1
         assert (
             align_req["updateTableCellProperties"]["tableRange"]["rowSpan"] == 2
         )  # R0, R1 (relative to data rows, but header is 0)
@@ -273,9 +242,7 @@ class TestTableRequestBuilderStyling:
         assert bg_req is not None
         # We're checking that either this applies to column 1 specifically (preferred)
         # or all columns (default behavior if cell-range parsing issues occurred)
-        column_index = bg_req["updateTableCellProperties"]["tableRange"]["location"][
-            "columnIndex"
-        ]
+        column_index = bg_req["updateTableCellProperties"]["tableRange"]["location"]["columnIndex"]
         assert column_index in (
             0,
             1,

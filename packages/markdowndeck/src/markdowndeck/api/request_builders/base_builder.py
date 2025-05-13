@@ -126,13 +126,15 @@ class BaseRequestBuilder:
                 style["fontFamily"] = text_format.value
         elif (
             text_format.format_type == TextFormatType.VERTICAL_ALIGN
-        ):  # This is baselineOffset
-            if isinstance(text_format.value, str) and text_format.value.upper() in [
+            and isinstance(text_format.value, str)
+            and text_format.value.upper()
+            in [
                 "SUPERSCRIPT",
                 "SUBSCRIPT",
                 "NONE",
-            ]:
-                style["baselineOffset"] = text_format.value.upper()
+            ]
+        ):
+            style["baselineOffset"] = text_format.value.upper()
 
         return style
 

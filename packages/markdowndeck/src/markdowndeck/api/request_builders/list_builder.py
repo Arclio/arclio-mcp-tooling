@@ -75,9 +75,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"list_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for list element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for list element: {element.object_id}")
 
         # Create shape
         create_shape_request = {
@@ -140,9 +138,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
             # Set nesting level if greater than 0
             if nesting_level > 0:
-                bullets_request["createParagraphBullets"][
-                    "nestingLevel"
-                ] = nesting_level
+                bullets_request["createParagraphBullets"]["nestingLevel"] = nesting_level
 
             requests.append(bullets_request)
 
@@ -170,9 +166,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
         return requests
 
-    def _format_list_with_nesting(
-        self, items: list[ListItem]
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def _format_list_with_nesting(self, items: list[ListItem]) -> tuple[str, list[dict[str, Any]]]:
         """
         Format list items with proper nesting.
 
@@ -190,9 +184,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
             for item in items_list:
                 # Get item text and remove trailing newlines
-                item_text = (
-                    item.text.rstrip() if hasattr(item, "text") else str(item).rstrip()
-                )
+                item_text = item.text.rstrip() if hasattr(item, "text") else str(item).rstrip()
 
                 # Record the start position of this item
                 start_pos = len(text_content)
@@ -221,9 +213,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
         return text_content, text_ranges
 
-    def _apply_color_directive(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_color_directive(self, element: ListElement, requests: list[dict]) -> None:
         """Apply color directive to the list element."""
         if (
             not hasattr(element, "directives")
@@ -281,9 +271,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             requests.append(style_request)
             logger.debug(f"Applied color {color_value} to list {element.object_id}")
 
-    def _apply_list_styling_directives(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_list_styling_directives(self, element: ListElement, requests: list[dict]) -> None:
         """Apply additional styling directives to the list element."""
         if not hasattr(element, "directives") or not element.directives:
             return
@@ -299,9 +287,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                     range_type="ALL",
                 )
                 requests.append(style_request)
-                logger.debug(
-                    f"Applied font size {font_size}pt to list {element.object_id}"
-                )
+                logger.debug(f"Applied font size {font_size}pt to list {element.object_id}")
 
         # Apply font family if specified
         if "font" in element.directives:
@@ -314,6 +300,4 @@ class ListRequestBuilder(BaseRequestBuilder):
                     range_type="ALL",
                 )
                 requests.append(style_request)
-                logger.debug(
-                    f"Applied font family '{font_family}' to list {element.object_id}"
-                )
+                logger.debug(f"Applied font family '{font_family}' to list {element.object_id}")

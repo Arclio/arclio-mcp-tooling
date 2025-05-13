@@ -191,19 +191,19 @@ My Complex Footer
     @patch(MOCK_API_CLIENT_PATH)  # Corrected patch path
     def test_create_presentation_orchestration(
         self,
-        MockApiClient: MagicMock,
-        MockLayoutManager: MagicMock,
-        MockParser: MagicMock,
+        mock_api_client: MagicMock,
+        mock_layout_manager: MagicMock,
+        mock_parser: MagicMock,
     ):
-        mock_parser_instance = MockParser.return_value
+        mock_parser_instance = mock_parser.return_value
         mock_deck = Deck(title="Test Deck", slides=[Slide(object_id="s1")])
         mock_parser_instance.parse.return_value = mock_deck
 
-        mock_layout_instance = MockLayoutManager.return_value
+        mock_layout_instance = mock_layout_manager.return_value
         # Assume calculate_positions returns the deck with potentially modified slides
         mock_layout_instance.calculate_positions.side_effect = lambda slide: slide
 
-        mock_api_client_instance = MockApiClient.return_value
+        mock_api_client_instance = mock_api_client.return_value
         mock_api_client_instance.create_presentation_from_deck.return_value = {
             "presentationId": "pres_id_123",
             "presentationUrl": "http://slides.example.com/pres_id_123",
@@ -223,12 +223,12 @@ My Complex Footer
             theme_id=theme_id_input,
         )
 
-        MockParser.assert_called_once_with()
+        mock_parser.assert_called_once_with()
         mock_parser_instance.parse.assert_called_once_with(
             markdown_input, title_input, theme_id_input
         )
 
-        MockLayoutManager.assert_called_once_with()
+        mock_layout_manager.assert_called_once_with()
         # Check if calculate_positions was called for each slide in the parsed deck
         assert mock_layout_instance.calculate_positions.call_count == len(
             mock_deck.slides
@@ -238,7 +238,7 @@ My Complex Footer
                 mock_deck.slides[0]
             )
 
-        MockApiClient.assert_called_once_with(
+        mock_api_client.assert_called_once_with(
             mock_credentials, None
         )  # service is None by default
         # The deck passed to create_presentation_from_deck might have been modified by layout_manager
@@ -255,15 +255,15 @@ My Complex Footer
         assert result["title"] == "Test Deck"
 
     @patch(MOCK_API_CLIENT_PATH)  # Corrected patch path
-    def test_get_themes_calls_api_client(self, MockApiClient: MagicMock):
-        mock_api_client_instance = MockApiClient.return_value
+    def test_get_themes_calls_api_client(self, mock_api_client: MagicMock):
+        mock_api_client_instance = mock_api_client.return_value
         expected_themes = [{"id": "THEME_1", "name": "Simple Light"}]
         mock_api_client_instance.get_available_themes.return_value = expected_themes
         mock_credentials = MagicMock(name="MockCredentials")
 
         themes = get_themes(credentials=mock_credentials)
 
-        MockApiClient.assert_called_once_with(
+        mock_api_client.assert_called_once_with(
             mock_credentials, None
         )  # service is None by default
         mock_api_client_instance.get_available_themes.assert_called_once_with()

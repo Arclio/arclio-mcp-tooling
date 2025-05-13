@@ -44,9 +44,7 @@ class TestContentSplitter:
         restored_content = splitter._restore_blocks(protected_content, blocks)
         assert restored_content == content
 
-    def test_code_block_with_internal_separator_like_patterns(
-        self, splitter: ContentSplitter
-    ):
+    def test_code_block_with_internal_separator_like_patterns(self, splitter: ContentSplitter):
         content = "Section A\n```\n---\n***\n```\nSection B"
         protected_content, blocks = splitter._protect_blocks(
             content, splitter.code_block_regex, "CODE"
@@ -142,9 +140,7 @@ Part 4
 
 """
         vertical_split = splitter.split_by_separator(content, r"^\s*---\s*$")
-        assert (
-            len(vertical_split.parts) == 3
-        ), f"Vertical split parts: {vertical_split.parts}"
+        assert len(vertical_split.parts) == 3, f"Vertical split parts: {vertical_split.parts}"
 
         assert "Part 1" in vertical_split.parts[0]
         assert "--- Code A ---" in vertical_split.parts[0]
@@ -161,16 +157,12 @@ Part 4
         assert len(horizontal_split.parts) == 1
         assert horizontal_split.parts[0] == part2
 
-    def test_invalid_regex_pattern_for_separator(
-        self, splitter: ContentSplitter, caplog
-    ):
+    def test_invalid_regex_pattern_for_separator(self, splitter: ContentSplitter, caplog):
         content = "Some content"
         invalid_pattern = "["  # Invalid regex
         # The message in the log might vary, but should contain "Invalid regex pattern"
         result = splitter.split_by_separator(content, invalid_pattern)
-        assert (
-            "Invalid regex pattern for separator check" in caplog.text
-        )  # Check logging
+        assert "Invalid regex pattern for separator check" in caplog.text  # Check logging
         assert result.parts == [content]  # Fallback should be the original content
 
     def test_split_content_that_is_only_code_block(self, splitter: ContentSplitter):

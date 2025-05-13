@@ -13,9 +13,7 @@ logger = logging.getLogger(__name__)
 class MediaRequestBuilder(BaseRequestBuilder):
     """Builder for media-related Google Slides API requests."""
 
-    def generate_image_element_requests(
-        self, element: ImageElement, slide_id: str
-    ) -> list[dict]:
+    def generate_image_element_requests(self, element: ImageElement, slide_id: str) -> list[dict]:
         """
         Generate requests for an image element.
 
@@ -35,15 +33,11 @@ class MediaRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"image_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for image element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for image element: {element.object_id}")
 
         # Validate image URL
         if not element.url or not self._is_valid_image_url(element.url):
-            logger.warning(
-                f"Invalid image URL: {element.url}. Skipping image creation."
-            )
+            logger.warning(f"Invalid image URL: {element.url}. Skipping image creation.")
             return requests
 
         # Create image
@@ -119,9 +113,7 @@ class MediaRequestBuilder(BaseRequestBuilder):
 
             # Check status code first
             if head_response.status_code != 200:
-                logger.warning(
-                    f"Image URL returned status code {head_response.status_code}: {url}"
-                )
+                logger.warning(f"Image URL returned status code {head_response.status_code}: {url}")
                 return False
 
             # Verify content type is an image
