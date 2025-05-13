@@ -11,6 +11,42 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
+    def _ensure_camel_case_fields(self, request: dict) -> dict:
+        """
+        Ensure all field names in tableCellProperties requests use camelCase.
+        This prevents errors with the Google Slides API expecting camelCase fields.
+
+        Args:
+            request: The request dictionary to check
+
+        Returns:
+            The corrected request dictionary
+        """
+        if "updateTableCellProperties" in request:
+            # Check for snake_case field name in the request
+            if "table_cell_properties" in request["updateTableCellProperties"]:
+                # Copy the value
+                props = request["updateTableCellProperties"].pop("table_cell_properties")
+                # Add it back with the correct camelCase key
+                request["updateTableCellProperties"]["tableCellProperties"] = props
+                logger.warning(
+                    "Found snake_case 'table_cell_properties' in request, converted to camelCase 'tableCellProperties'"
+                )
+
+            # Also check fields string for snake_case
+            if "fields" in request["updateTableCellProperties"]:
+                fields = request["updateTableCellProperties"]["fields"]
+                if isinstance(fields, str) and "table_cell_properties." in fields:
+                    corrected_fields = fields.replace(
+                        "table_cell_properties.", "tableCellProperties."
+                    )
+                    request["updateTableCellProperties"]["fields"] = corrected_fields
+                    logger.warning(
+                        "Found snake_case 'table_cell_properties' in fields, converted to camelCase 'tableCellProperties'"
+                    )
+
+        return request
+
     def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
         """
         Generate requests for a table element.
@@ -128,6 +164,8 @@ class TableRequestBuilder(BaseRequestBuilder):
                         "fields": "tableCellProperties.tableCellBackgroundFill.solidFill.color",
                     }
                 }
+                # Apply safety check for camelCase field names
+                fill_request = self._ensure_camel_case_fields(fill_request)
                 requests.append(fill_request)
 
             row_index += 1
@@ -407,6 +445,8 @@ class TableRequestBuilder(BaseRequestBuilder):
             }
         }
 
+        # Apply safety check for camelCase field names
+        cell_align_request = self._ensure_camel_case_fields(cell_align_request)
         requests.append(cell_align_request)
         logger.debug(f"Applied {alignment_value} alignment to cells in table {element.object_id}")
 
@@ -528,6 +568,8 @@ class TableRequestBuilder(BaseRequestBuilder):
             }
         }
 
+        # Apply safety check for camelCase field names
+        bg_request = self._ensure_camel_case_fields(bg_request)
         requests.append(bg_request)
         logger.debug(
             f"Applied background color to cells in table {element.object_id} at range ({row_start},{col_start})-({row_start + row_span - 1},{col_start + col_span - 1})"

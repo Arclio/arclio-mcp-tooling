@@ -329,7 +329,7 @@ class ApiClient:
                         logger.error(f"Failed to parse error message: {parse_error}")
 
                 # For other errors, fail the batch
-                logger.error(f"Batch update failed: {error}")
+                # logger.error(f"Batch update failed: {error}")
                 raise
 
         return {}  # Should never reach here but satisfies type checker

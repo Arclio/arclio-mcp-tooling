@@ -5,8 +5,8 @@ This module provides functionality to convert specially formatted markdown
 content into Google Slides presentations with precise layout control.
 """
 
-import logging
 import json
+import logging
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource
@@ -55,8 +55,7 @@ def create_presentation(
     if credentials:
         creds_info = {
             "type": type(credentials).__name__,
-            "has_token": hasattr(credentials, "token")
-            and credentials.token is not None,
+            "has_token": hasattr(credentials, "token") and credentials.token is not None,
             "has_refresh_token": hasattr(credentials, "refresh_token")
             and credentials.refresh_token is not None,
             "token_uri": getattr(credentials, "token_uri", None),
@@ -77,9 +76,7 @@ def create_presentation(
         if hasattr(credentials, "signer") and hasattr(
             credentials.signer, "email"
         ):  # Heuristic for service account
-            creds_info["service_account_signer_email"] = getattr(
-                credentials.signer, "email", None
-            )
+            creds_info["service_account_signer_email"] = getattr(credentials.signer, "email", None)
 
         log_entry["credentials_summary"] = creds_info
     else:
@@ -204,9 +201,7 @@ def markdown_to_requests(
 
             # Handle case where overflow creates multiple slides
             if isinstance(processed_slide, list):
-                logger.info(
-                    f"Slide {i + 1} overflow created {len(processed_slide)} slides"
-                )
+                logger.info(f"Slide {i + 1} overflow created {len(processed_slide)} slides")
                 processed_slides.extend(processed_slide)
             else:
                 processed_slides.append(processed_slide)
