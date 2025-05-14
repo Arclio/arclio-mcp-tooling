@@ -176,8 +176,8 @@ class TableRequestBuilder(BaseRequestBuilder):
     ) -> None:
         """
         Apply border styling to the table.
-        (This method updates TableBorderProperties, its field mask logic should be correct
-         as it's relative to tableBorderProperties, not tableCellProperties)
+        (This method updates TableBorderProperties, with field mask paths relative to the
+         tableBorderProperties object, not prefixed with tableBorderProperties itself)
         """
         if "border" not in element.directives:
             return
@@ -263,8 +263,8 @@ class TableRequestBuilder(BaseRequestBuilder):
                             "solidFill": {"color": {"rgbColor": rgb_color}}
                         },
                     },
-                    # This field mask is for TableBorderProperties, so it should be correct
-                    "fields": "tableBorderProperties.weight,tableBorderProperties.dashStyle,tableBorderProperties.tableBorderFill.solidFill.color.rgbColor",
+                    # Corrected field mask: removed the "tableBorderProperties." prefix
+                    "fields": "weight,dashStyle,tableBorderFill.solidFill.color.rgbColor",
                 }
             }
             requests.append(border_style_request)
@@ -277,6 +277,15 @@ class TableRequestBuilder(BaseRequestBuilder):
         row_count: int,
         col_count: int,
     ) -> None:
+        """
+        Apply alignment to table cells.
+
+        Args:
+            element: The table element
+            requests: List of API requests to append to
+            row_count: Total number of rows in the table
+            col_count: Total number of columns in the table
+        """
         if "cell-align" not in element.directives:
             return
         alignment_value = element.directives["cell-align"]
@@ -291,14 +300,15 @@ class TableRequestBuilder(BaseRequestBuilder):
         }
         v_alignment_map = {"top": "TOP", "middle": "MIDDLE", "bottom": "BOTTOM"}
 
-        api_alignment, field_name = None, None
-        if alignment_value.lower() in h_alignment_map:
-            api_alignment = h_alignment_map.get(alignment_value.lower())
-            field_name = "contentAlignment"
-        elif alignment_value.lower() in v_alignment_map:
-            api_alignment = v_alignment_map.get(alignment_value.lower())
-            field_name = "contentVerticalAlignment"
-        else:
+        # Determine if this is a horizontal or vertical alignment
+        is_horizontal = alignment_value.lower() in h_alignment_map
+        is_vertical = alignment_value.lower() in v_alignment_map
+
+        if not (is_horizontal or is_vertical):
+            logger.warning(
+                f"Unsupported alignment value: {alignment_value}. "
+                f"Supported values are: {', '.join(list(h_alignment_map.keys()) + list(v_alignment_map.keys()))}"
+            )
             return
 
         row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
@@ -322,23 +332,33 @@ class TableRequestBuilder(BaseRequestBuilder):
                         f"Failed to parse cell range: {cell_range}, using default"
                     )
 
-        cell_align_request = {
-            "updateTableCellProperties": {
-                "objectId": element.object_id,
-                "tableRange": {
-                    "location": {"rowIndex": row_start, "columnIndex": col_start},
-                    "rowSpan": row_span,
-                    "columnSpan": col_span,
-                },
-                "tableCellProperties": {field_name: api_alignment},
-                # CORRECTED FieldMask: Removed leading "tableCellProperties."
-                "fields": f"{field_name}",
+        if is_vertical:
+            # Handle vertical alignment (top, middle, bottom)
+            api_alignment = v_alignment_map.get(alignment_value.lower())
+
+            cell_align_request = {
+                "updateTableCellProperties": {
+                    "objectId": element.object_id,
+                    "tableRange": {
+                        "location": {"rowIndex": row_start, "columnIndex": col_start},
+                        "rowSpan": row_span,
+                        "columnSpan": col_span,
+                    },
+                    "tableCellProperties": {"contentAlignment": api_alignment},
+                    "fields": "contentAlignment",
+                }
             }
-        }
-        requests.append(cell_align_request)
-        logger.debug(
-            f"Applied {alignment_value} alignment to cells in table {element.object_id}"
-        )
+            requests.append(cell_align_request)
+            logger.debug(
+                f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}"
+            )
+        else:
+            # Horizontal alignment (left, center, right, justify) is not supported with UpdateTableCellProperties
+            logger.warning(
+                f"Horizontal cell alignment '{alignment_value}' cannot be applied using TableCellProperties.contentAlignment. "
+                f"The alignment should be set with UpdateTextStyleRequest targeting paragraphStyle.alignment for "
+                f"the text within each cell. This will be implemented in a future update."
+            )
 
     def _apply_cell_background_colors(
         self,

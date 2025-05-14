@@ -49,8 +49,7 @@ This is a paragraph.
         create_slide_req = next((r for r in requests if "createSlide" in r), None)
         assert create_slide_req is not None
         assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            is not None
+            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] is not None
         )
 
         title_shape_req = next(
@@ -63,15 +62,12 @@ This is a paragraph.
         assert len(insert_text_reqs) > 0, "No insert text requests found"
 
         bullet_text_found = any(
-            "Item 1" in req["insertText"]["text"]
-            and "Item 2" in req["insertText"]["text"]
+            "Item 1" in req["insertText"]["text"] and "Item 2" in req["insertText"]["text"]
             for req in insert_text_reqs
         )
         assert bullet_text_found, "Bullet list items not found in inserted text"
 
-        list_bullets_req = next(
-            (r for r in requests if "createParagraphBullets" in r), None
-        )
+        list_bullets_req = next((r for r in requests if "createParagraphBullets" in r), None)
         assert list_bullets_req is not None, "No createParagraphBullets request found"
 
     def test_markdown_to_requests_complex_layout_slide(self):
@@ -110,9 +106,9 @@ My Complex Footer
             "pageBackgroundFill.solidFill.color.rgbColor"
             in bg_req["updatePageProperties"]["fields"]
         )
-        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"][
-            "solidFill"
-        ]["color"]["rgbColor"] == BaseRequestBuilder()._hex_to_rgb("#112233")
+        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"]["solidFill"][
+            "color"
+        ]["rgbColor"] == BaseRequestBuilder()._hex_to_rgb("#112233")
 
         all_texts = [r["insertText"]["text"] for r in requests if "insertText" in r]
         assert "My Complex Footer" in " ".join(all_texts)
@@ -156,9 +152,7 @@ My Complex Footer
 
     def test_notes_included_in_api_requests(self, deck_with_notes):
         api_generator = ApiRequestGenerator()
-        batches = api_generator.generate_batch_requests(
-            deck_with_notes, "presentation_id"
-        )
+        batches = api_generator.generate_batch_requests(deck_with_notes, "presentation_id")
         assert len(batches) == 1
         all_requests = batches[0]["requests"]
         expected_notes_id = "fixed_notes_id_for_test"
@@ -167,8 +161,7 @@ My Complex Footer
             (
                 r
                 for r in all_requests
-                if "deleteText" in r
-                and r["deleteText"]["objectId"] == expected_notes_id
+                if "deleteText" in r and r["deleteText"]["objectId"] == expected_notes_id
             ),
             None,
         )
@@ -176,8 +169,7 @@ My Complex Footer
             (
                 r
                 for r in all_requests
-                if "insertText" in r
-                and r["insertText"]["objectId"] == expected_notes_id
+                if "insertText" in r and r["insertText"]["objectId"] == expected_notes_id
             ),
             None,
         )
@@ -230,13 +222,9 @@ My Complex Footer
 
         mock_layout_manager.assert_called_once_with()
         # Check if calculate_positions was called for each slide in the parsed deck
-        assert mock_layout_instance.calculate_positions.call_count == len(
-            mock_deck.slides
-        )
+        assert mock_layout_instance.calculate_positions.call_count == len(mock_deck.slides)
         if mock_deck.slides:
-            mock_layout_instance.calculate_positions.assert_any_call(
-                mock_deck.slides[0]
-            )
+            mock_layout_instance.calculate_positions.assert_any_call(mock_deck.slides[0])
 
         mock_api_client.assert_called_once_with(
             mock_credentials, None
@@ -245,9 +233,7 @@ My Complex Footer
         # So we check the mock_deck that was returned by parser, assuming layout_manager works in place or returns modified
         # For simplicity, assume mock_deck (as returned by parser) is what's passed if calculate_positions returns identity
         # A more robust check would capture the argument passed to create_presentation_from_deck
-        passed_deck_to_api = (
-            mock_api_client_instance.create_presentation_from_deck.call_args[0][0]
-        )
+        passed_deck_to_api = mock_api_client_instance.create_presentation_from_deck.call_args[0][0]
         assert passed_deck_to_api.title == "Test Deck"  # From mock_deck
         assert passed_deck_to_api.slides == mock_deck.slides
 
