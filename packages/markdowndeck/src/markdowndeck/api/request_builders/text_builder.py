@@ -1,3 +1,4 @@
+# src/markdowndeck/api/request_builders/text_builder.py
 """Text request builder for Google Slides API requests."""
 
 import logging
@@ -6,8 +7,8 @@ from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     AlignmentType,
     ElementType,
-    TextElement,
 )
+from markdowndeck.models.elements.text import TextElement
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,9 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"text_{slide_id}")
-            logger.debug(f"Generated missing object_id for text element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for text element: {element.object_id}"
+            )
 
         # Create text box
         create_textbox_request = {
@@ -136,7 +139,11 @@ class TextRequestBuilder(BaseRequestBuilder):
             requests.append(paragraph_style)
 
         # ENHANCEMENT: Apply vertical alignment if specified
-        if hasattr(element, "directives") and element.directives and "valign" in element.directives:
+        if (
+            hasattr(element, "directives")
+            and element.directives
+            and "valign" in element.directives
+        ):
             valign_value = element.directives["valign"]
             if isinstance(valign_value, str):
                 # Map valign directive to API values
@@ -151,7 +158,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 vertical_align_request = {
                     "updateShapeProperties": {
                         "objectId": element.object_id,
-                        "fields": "contentVerticalAlignment",
+                        "fields": "contentVerticalAlignment",  # Correct: Relative to shapeProperties
                         "shapeProperties": {"contentVerticalAlignment": api_valign},
                     }
                 }
@@ -172,7 +179,8 @@ class TextRequestBuilder(BaseRequestBuilder):
                 padding_request = {
                     "updateShapeProperties": {
                         "objectId": element.object_id,
-                        "fields": "textBoxProperties.leftInset,textBoxProperties.rightInset,textBoxProperties.topInset,textBoxProperties.bottomInset",
+                        # CORRECTED FieldMask: relative to shapeProperties
+                        "fields": "textBoxProperties",
                         "shapeProperties": {
                             "textBoxProperties": {
                                 "leftInset": {"magnitude": padding_value, "unit": "PT"},
@@ -207,7 +215,9 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         return requests
 
-    def _handle_themed_text_element(self, element: TextElement, placeholder_id: str) -> list[dict]:
+    def _handle_themed_text_element(
+        self, element: TextElement, placeholder_id: str
+    ) -> list[dict]:
         """
         Handle text element that should use a theme placeholder.
 
@@ -225,8 +235,9 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         # Only generate requests if there's text to insert
         if element.text:
-            # Skip deleteText request to avoid API errors with empty placeholders
-            # The insertText will replace any existing text at position 0
+            # FIXED: Don't always issue deleteText for every element
+            # Instead insert at position 0, which will replace any existing text
+            # This avoids the API error for "startIndex 0 must be less than endIndex 0"
             insert_text_request = {
                 "insertText": {
                     "objectId": placeholder_id,
@@ -253,7 +264,9 @@ class TextRequestBuilder(BaseRequestBuilder):
         )
         return requests
 
-    def _apply_paragraph_styling(self, element: TextElement, requests: list[dict]) -> None:
+    def _apply_paragraph_styling(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         """
         Apply paragraph-level styling based on directives.
 
@@ -274,7 +287,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                 # API uses a structure like { spaceMultiple: 150 } for 1.5 spacing
                 paragraph_style["spaceMultiple"] = spacing * 100  # API uses percentage
                 fields.append("spaceMultiple")
-                logger.debug(f"Applied line spacing of {spacing} to element {element.object_id}")
+                logger.debug(
+                    f"Applied line spacing of {spacing} to element {element.object_id}"
+                )
 
         # Space before paragraph
         if "para-spacing-before" in element.directives:
@@ -292,7 +307,9 @@ class TextRequestBuilder(BaseRequestBuilder):
             if isinstance(spacing, int | float) and spacing >= 0:
                 paragraph_style["spaceBelow"] = {"magnitude": spacing, "unit": "PT"}
                 fields.append("spaceBelow")
-                logger.debug(f"Applied spacing after of {spacing}pt to element {element.object_id}")
+                logger.debug(
+                    f"Applied spacing after of {spacing}pt to element {element.object_id}"
+                )
 
         # Start indent
         if "indent-start" in element.directives:
@@ -300,7 +317,9 @@ class TextRequestBuilder(BaseRequestBuilder):
             if isinstance(indent, int | float) and indent >= 0:
                 paragraph_style["indentStart"] = {"magnitude": indent, "unit": "PT"}
                 fields.append("indentStart")
-                logger.debug(f"Applied start indent of {indent}pt to element {element.object_id}")
+                logger.debug(
+                    f"Applied start indent of {indent}pt to element {element.object_id}"
+                )
 
         # First line indent
         if "indent-first-line" in element.directives:
@@ -324,7 +343,9 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
             requests.append(para_style_request)
 
-    def _apply_text_color_directive(self, element: TextElement, requests: list[dict]) -> None:
+    def _apply_text_color_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         """Apply text color directive to the element."""
         if (
             not hasattr(element, "directives")
@@ -341,7 +362,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             color_type, color_value = color_value
             # Only proceed if it's a color directive with a hex value
             if color_type != "color" or not isinstance(color_value, str):
-                color_value = None
+                return
 
         # Check if this is a theme color reference
         if isinstance(color_value, str) and not color_value.startswith("#"):
@@ -365,8 +386,12 @@ class TextRequestBuilder(BaseRequestBuilder):
                 # Use theme color reference
                 style_request = self._apply_text_formatting(
                     element_id=element.object_id,
-                    style={"foregroundColor": {"themeColor": color_value.upper()}},
-                    fields="foregroundColor.themeColor",
+                    style={
+                        "foregroundColor": {
+                            "opaqueColor": {"themeColor": color_value.upper()}
+                        }
+                    },  # opaqueColor wrapper
+                    fields="foregroundColor",  # Field is foregroundColor, its value is OptionalColor
                     range_type="ALL",
                 )
                 requests.append(style_request)
@@ -375,19 +400,23 @@ class TextRequestBuilder(BaseRequestBuilder):
                 )
                 return
 
-        # If it's a hex color, apply it as RGB
+        # Apply RGB color if it's a hex value
         if isinstance(color_value, str) and color_value.startswith("#"):
             rgb = self._hex_to_rgb(color_value)
             style_request = self._apply_text_formatting(
                 element_id=element.object_id,
-                style={"foregroundColor": {"rgbColor": rgb}},
-                fields="foregroundColor.rgbColor",
+                style={
+                    "foregroundColor": {"opaqueColor": {"rgbColor": rgb}}
+                },  # opaqueColor wrapper
+                fields="foregroundColor",  # Field is foregroundColor, its value is OptionalColor
                 range_type="ALL",
             )
             requests.append(style_request)
             logger.debug(f"Applied color {color_value} to element {element.object_id}")
 
-    def _apply_font_size_directive(self, element: TextElement, requests: list[dict]) -> None:
+    def _apply_font_size_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         """Apply font size directive to the element."""
         if (
             not hasattr(element, "directives")
@@ -405,10 +434,14 @@ class TextRequestBuilder(BaseRequestBuilder):
                 range_type="ALL",
             )
             requests.append(style_request)
-            logger.debug(f"Applied font size {font_size}pt to element {element.object_id}")
+            logger.debug(
+                f"Applied font size {font_size}pt to element {element.object_id}"
+            )
 
-    def _apply_background_directive(self, element: TextElement, requests: list[dict]) -> None:
-        """Apply background color directive to the element."""
+    def _apply_background_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        """Apply background color directive to the element's shape."""
         if (
             not hasattr(element, "directives")
             or not element.directives
@@ -417,69 +450,90 @@ class TextRequestBuilder(BaseRequestBuilder):
             return
 
         background_directive = element.directives["background"]
+        color_value = None
+        is_theme_color = False
 
-        # Handle theme color reference for background
-        if isinstance(background_directive, str) and not background_directive.startswith("#"):
-            theme_colors = [
-                "TEXT1",
-                "TEXT2",
-                "BACKGROUND1",
-                "BACKGROUND2",
-                "ACCENT1",
-                "ACCENT2",
-                "ACCENT3",
-                "ACCENT4",
-                "ACCENT5",
-                "ACCENT6",
-            ]
+        theme_colors = [
+            "TEXT1",
+            "TEXT2",
+            "BACKGROUND1",
+            "BACKGROUND2",
+            "ACCENT1",
+            "ACCENT2",
+            "ACCENT3",
+            "ACCENT4",
+            "ACCENT5",
+            "ACCENT6",
+        ]
 
-            if background_directive.upper() in theme_colors:
-                # Use theme color reference for background
-                shape_properties_request = {
-                    "updateShapeProperties": {
-                        "objectId": element.object_id,
-                        "fields": "shapeProperties.shapeBackgroundFill.solidFill.color.themeColor",
-                        "shapeProperties": {
-                            "shapeBackgroundFill": {
-                                "solidFill": {"color": {"themeColor": background_directive.upper()}}
-                            }
-                        },
-                    }
-                }
-                requests.append(shape_properties_request)
-                logger.debug(
-                    f"Applied theme background color {background_directive.upper()} to element {element.object_id}"
+        if isinstance(background_directive, str):
+            if background_directive.startswith("#"):
+                try:
+                    color_value = {"rgbColor": self._hex_to_rgb(background_directive)}
+                except ValueError as e:
+                    logger.warning(
+                        f"Invalid hex color '{background_directive}' for background: {e}"
+                    )
+                    return
+            elif background_directive.upper() in theme_colors:
+                color_value = {"themeColor": background_directive.upper()}
+                is_theme_color = True
+            else:  # Could be a named color or invalid
+                logger.warning(
+                    f"Unsupported background string value: {background_directive}"
                 )
                 return
 
-        # Check if the directive is the tuple format from DirectiveParser
-        if isinstance(background_directive, tuple) and len(background_directive) == 2:
-            bg_type, bg_value = background_directive
-            # Check if it's a color and the value is a string starting with #
-            if bg_type == "color" and isinstance(bg_value, str) and bg_value.startswith("#"):
+        elif isinstance(background_directive, tuple) and len(background_directive) == 2:
+            bg_type, bg_val_str = background_directive
+            if (
+                bg_type == "color"
+                and isinstance(bg_val_str, str)
+                and bg_val_str.startswith("#")
+            ):
                 try:
-                    rgb = self._hex_to_rgb(bg_value)
-                    # Generate the API request to update the shape's background fill
-                    shape_properties_request = {
-                        "updateShapeProperties": {
-                            "objectId": element.object_id,
-                            "fields": "shapeProperties.shapeBackgroundFill.solidFill.color.rgbColor",
-                            "shapeProperties": {
-                                "shapeBackgroundFill": {"solidFill": {"color": {"rgbColor": rgb}}}
-                            },
-                        }
-                    }
-                    requests.append(shape_properties_request)
-                    logger.debug(
-                        f"Applied background color {bg_value} to element {element.object_id}"
-                    )
+                    color_value = {"rgbColor": self._hex_to_rgb(bg_val_str)}
                 except ValueError as e:
-                    logger.warning(f"Invalid hex color '{bg_value}' for background directive: {e}")
+                    logger.warning(
+                        f"Invalid hex color '{bg_val_str}' for background: {e}"
+                    )
+                    return
+            else:
+                logger.warning(f"Unsupported background tuple: {background_directive}")
+                return
+        else:
+            logger.warning(
+                f"Unsupported background directive type: {type(background_directive)}"
+            )
+            return
 
-    def _apply_border_directive(self, element: TextElement, requests: list[dict]) -> None:
+        if color_value:
+            # CORRECTED FieldMask: relative to shapeProperties
+            fields_mask = (
+                "shapeBackgroundFill.solidFill.color.themeColor"
+                if is_theme_color
+                else "shapeBackgroundFill.solidFill.color.rgbColor"
+            )
+
+            shape_properties_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": fields_mask,
+                    "shapeProperties": {
+                        "shapeBackgroundFill": {"solidFill": {"color": color_value}}
+                    },
+                }
+            }
+            requests.append(shape_properties_request)
+            logger.debug(
+                f"Applied background color {background_directive} to element {element.object_id}"
+            )
+
+    def _apply_border_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         """
         Apply border directive to the element.
-
         Handles formats like:
         - [border=1pt solid #FF0000]
         - [border=dashed blue]
@@ -495,55 +549,50 @@ class TextRequestBuilder(BaseRequestBuilder):
         if not isinstance(border_value, str):
             return
 
-        # Parse border value: width style color
         parts = border_value.split()
-
-        # Default values
         weight = {"magnitude": 1, "unit": "PT"}
         dash_style = "SOLID"
-        color = {"rgbColor": {"red": 0, "green": 0, "blue": 0}}
-        fields = []
+        color_spec = {"rgbColor": {"red": 0, "green": 0, "blue": 0}}  # Default black
 
-        # Process parts
+        final_fields_list = []
+
         for part in parts:
-            # Check if it's a width specification
             if part.endswith("pt") or part.endswith("px"):
                 try:
                     width_value = float(part.rstrip("ptx"))
                     weight = {"magnitude": width_value, "unit": "PT"}
-                    fields.append("outline.weight")
+                    if "outline.weight" not in final_fields_list:
+                        final_fields_list.append("outline.weight")
                 except ValueError:
                     pass
-            # Check if it's a style specification
             elif part.lower() in ["solid", "dashed", "dotted"]:
-                style_map = {
-                    "solid": "SOLID",
-                    "dashed": "DASH",
-                    "dotted": "DOT",
-                }
+                style_map = {"solid": "SOLID", "dashed": "DASH", "dotted": "DOT"}
                 dash_style = style_map.get(part.lower(), "SOLID")
-                fields.append("outline.dashStyle")
-            # Check if it's a color specification
+                if "outline.dashStyle" not in final_fields_list:
+                    final_fields_list.append("outline.dashStyle")
             elif part.startswith("#"):
                 try:
-                    rgb = self._hex_to_rgb(part)
-                    color = {"rgbColor": rgb}
-                    fields.append("outline.outlineFill.solidFill.color.rgbColor")
+                    color_spec = {"rgbColor": self._hex_to_rgb(part)}
+                    if (
+                        "outline.outlineFill.solidFill.color" not in final_fields_list
+                    ):  # Generic color field
+                        final_fields_list.append("outline.outlineFill.solidFill.color")
                 except ValueError:
                     pass
-            # Check if it's a named color
-            elif part.lower() in [
-                "black",
-                "white",
-                "red",
-                "green",
-                "blue",
-                "yellow",
-                "cyan",
-                "magenta",
-            ]:
-                # Map named colors to RGB
-                color_map = {
+            else:  # Check for named or theme colors
+                theme_colors = [
+                    "TEXT1",
+                    "TEXT2",
+                    "BACKGROUND1",
+                    "BACKGROUND2",
+                    "ACCENT1",
+                    "ACCENT2",
+                    "ACCENT3",
+                    "ACCENT4",
+                    "ACCENT5",
+                    "ACCENT6",
+                ]
+                named_colors_map = {
                     "black": {"red": 0, "green": 0, "blue": 0},
                     "white": {"red": 1, "green": 1, "blue": 1},
                     "red": {"red": 1, "green": 0, "blue": 0},
@@ -553,38 +602,34 @@ class TextRequestBuilder(BaseRequestBuilder):
                     "cyan": {"red": 0, "green": 1, "blue": 1},
                     "magenta": {"red": 1, "green": 0, "blue": 1},
                 }
-                color = {"rgbColor": color_map.get(part.lower())}
-                fields.append("outline.outlineFill.solidFill.color.rgbColor")
-            # Check if it's a theme color
-            elif part.upper() in [
-                "TEXT1",
-                "TEXT2",
-                "BACKGROUND1",
-                "BACKGROUND2",
-                "ACCENT1",
-                "ACCENT2",
-                "ACCENT3",
-                "ACCENT4",
-                "ACCENT5",
-                "ACCENT6",
-            ]:
-                color = {"themeColor": part.upper()}
-                fields.append("outline.outlineFill.solidFill.color.themeColor")
+                if part.upper() in theme_colors:
+                    color_spec = {"themeColor": part.upper()}
+                    if "outline.outlineFill.solidFill.color" not in final_fields_list:
+                        final_fields_list.append("outline.outlineFill.solidFill.color")
+                elif part.lower() in named_colors_map:
+                    color_spec = {"rgbColor": named_colors_map[part.lower()]}
+                    if "outline.outlineFill.solidFill.color" not in final_fields_list:
+                        final_fields_list.append("outline.outlineFill.solidFill.color")
 
-        # If we have enough information, create the border request
-        if fields:
-            border_request = {
-                "updateShapeProperties": {
-                    "objectId": element.object_id,
-                    "fields": ",".join(fields),
-                    "shapeProperties": {
-                        "outline": {
-                            "outlineFill": {"solidFill": {"color": color}},
-                            "weight": weight,
-                            "dashStyle": dash_style,
-                        }
-                    },
-                }
+        if not final_fields_list:  # If no valid parts were found for border
+            return
+
+        border_request = {
+            "updateShapeProperties": {
+                "objectId": element.object_id,
+                "fields": ",".join(
+                    sorted(list(set(final_fields_list)))
+                ),  # Ensure unique and sorted fields
+                "shapeProperties": {
+                    "outline": {
+                        "outlineFill": {"solidFill": {"color": color_spec}},
+                        "weight": weight,
+                        "dashStyle": dash_style,
+                    }
+                },
             }
-            requests.append(border_request)
-            logger.debug(f"Applied border style to element {element.object_id}: {border_value}")
+        }
+        requests.append(border_request)
+        logger.debug(
+            f"Applied border style to element {element.object_id}: {border_value}"
+        )

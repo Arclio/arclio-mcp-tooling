@@ -104,7 +104,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 )
                 requests.append(style_request)
 
-                # Add cell fill for header - FIX THE FIELD NAME HERE
+                # Add cell fill for header
                 fill_request = {
                     "updateTableCellProperties": {
                         "objectId": element.object_id,
@@ -116,7 +116,6 @@ class TableRequestBuilder(BaseRequestBuilder):
                             "rowSpan": 1,
                             "columnSpan": 1,
                         },
-                        # CRITICAL FIX: Use camelCase for this property name
                         "tableCellProperties": {
                             "tableCellBackgroundFill": {
                                 "solidFill": {
@@ -130,7 +129,8 @@ class TableRequestBuilder(BaseRequestBuilder):
                                 }
                             }
                         },
-                        "fields": "tableCellProperties.tableCellBackgroundFill.solidFill.color",
+                        # CORRECTED FieldMask: Removed leading "tableCellProperties."
+                        "fields": "tableCellBackgroundFill.solidFill.color",
                     }
                 }
                 requests.append(fill_request)
@@ -176,53 +176,35 @@ class TableRequestBuilder(BaseRequestBuilder):
     ) -> None:
         """
         Apply border styling to the table.
-
-        Args:
-            element: The table element
-            requests: The request list to append to
-            row_count: Number of rows in the table
-            col_count: Number of columns in the table
+        (This method updates TableBorderProperties, its field mask logic should be correct
+         as it's relative to tableBorderProperties, not tableCellProperties)
         """
         if "border" not in element.directives:
             return
 
         border_value = element.directives["border"]
-
-        # Default border properties
         weight = {"magnitude": 1, "unit": "PT"}
         dash_style = "SOLID"
-
-        # FIX: The color should be inside 'tableBorderFill', not directly in 'tableBorderProperties'
         rgb_color = {"red": 0, "green": 0, "blue": 0}
 
-        # Parse border directive
         if isinstance(border_value, str):
             parts = border_value.split()
-
             for part in parts:
-                # Check if it's a width specification
                 if part.endswith("pt") or part.endswith("px"):
                     try:
                         width_value = float(part.rstrip("ptx"))
                         weight = {"magnitude": width_value, "unit": "PT"}
                     except ValueError:
                         pass
-                # Check if it's a style specification
                 elif part.lower() in ["solid", "dashed", "dotted"]:
-                    style_map = {
-                        "solid": "SOLID",
-                        "dashed": "DASH",
-                        "dotted": "DOT",
-                    }
+                    style_map = {"solid": "SOLID", "dashed": "DASH", "dotted": "DOT"}
                     dash_style = style_map.get(part.lower(), "SOLID")
-                # Check if it's a color specification
                 elif part.startswith("#"):
                     try:
                         rgb = self._hex_to_rgb(part)
                         rgb_color = rgb
                     except ValueError:
                         pass
-                # Check if it's a named color
                 elif part.lower() in [
                     "black",
                     "white",
@@ -233,7 +215,6 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "cyan",
                     "magenta",
                 ]:
-                    # Map named colors to RGB
                     color_map = {
                         "black": {"red": 0, "green": 0, "blue": 0},
                         "white": {"red": 1, "green": 1, "blue": 1},
@@ -246,10 +227,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                     }
                     rgb_color = color_map.get(part.lower())
 
-        # Determine border positions to apply
-        border_positions = ["ALL"]  # Default to all borders
-
-        # Check if a specific border position is specified
+        border_positions = ["ALL"]
         if "border-position" in element.directives:
             border_pos = element.directives["border-position"].upper()
             valid_positions = [
@@ -265,21 +243,15 @@ class TableRequestBuilder(BaseRequestBuilder):
                 "DIAGONAL_DOWN",
                 "DIAGONAL_UP",
             ]
-
             if border_pos in valid_positions:
                 border_positions = [border_pos]
 
-        # Apply the border style to each specified position
         for position in border_positions:
-            # FIX: Corrected structure for table border properties
             border_style_request = {
                 "updateTableBorderProperties": {
                     "objectId": element.object_id,
                     "tableRange": {
-                        "location": {
-                            "rowIndex": 0,
-                            "columnIndex": 0,
-                        },
+                        "location": {"rowIndex": 0, "columnIndex": 0},
                         "rowSpan": row_count,
                         "columnSpan": col_count,
                     },
@@ -287,15 +259,14 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "tableBorderProperties": {
                         "weight": weight,
                         "dashStyle": dash_style,
-                        # FIX: Corrected structure with tableBorderFill
                         "tableBorderFill": {
                             "solidFill": {"color": {"rgbColor": rgb_color}}
                         },
                     },
+                    # This field mask is for TableBorderProperties, so it should be correct
                     "fields": "tableBorderProperties.weight,tableBorderProperties.dashStyle,tableBorderProperties.tableBorderFill.solidFill.color.rgbColor",
                 }
             }
-
             requests.append(border_style_request)
             logger.debug(f"Applied {position} border to table {element.object_id}")
 
@@ -306,97 +277,64 @@ class TableRequestBuilder(BaseRequestBuilder):
         row_count: int,
         col_count: int,
     ) -> None:
-        """
-        Apply cell alignment based on directives.
-
-        Args:
-            element: The table element
-            requests: The request list to append to
-            row_count: Number of rows in the table
-            col_count: Number of columns in the table
-        """
-        # Check for cell alignment directive
         if "cell-align" not in element.directives:
             return
-
         alignment_value = element.directives["cell-align"]
         if not isinstance(alignment_value, str):
             return
 
-        # FIX: Map alignment value to API enum value, not string
-        # Horizontal alignment values
         h_alignment_map = {
             "left": "START",
             "center": "CENTER",
             "right": "END",
             "justify": "JUSTIFIED",
         }
+        v_alignment_map = {"top": "TOP", "middle": "MIDDLE", "bottom": "BOTTOM"}
 
-        # Vertical alignment values
-        v_alignment_map = {
-            "top": "TOP",
-            "middle": "MIDDLE",
-            "bottom": "BOTTOM",
-        }
-
-        # Determine if this is horizontal or vertical alignment
+        api_alignment, field_name = None, None
         if alignment_value.lower() in h_alignment_map:
-            # Horizontal alignment - contentAlignment field
             api_alignment = h_alignment_map.get(alignment_value.lower())
             field_name = "contentAlignment"
         elif alignment_value.lower() in v_alignment_map:
-            # Vertical alignment - contentVerticalAlignment field
             api_alignment = v_alignment_map.get(alignment_value.lower())
             field_name = "contentVerticalAlignment"
         else:
             return
 
-        # Apply to all cells or specific cells based on directives
-        row_start = 0
-        row_span = row_count
-        col_start = 0
-        col_span = col_count
-
-        # Check for cell range directives
+        row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
         if "cell-range" in element.directives:
             cell_range = element.directives["cell-range"]
             if isinstance(cell_range, str):
-                # Parse range in format "row1,col1:row2,col2"
                 try:
                     parts = cell_range.split(":")
                     if len(parts) == 2:
-                        start_parts = parts[0].split(",")
-                        end_parts = parts[1].split(",")
-
+                        start_parts, end_parts = parts[0].split(","), parts[1].split(
+                            ","
+                        )
                         if len(start_parts) == 2 and len(end_parts) == 2:
-                            row_start = int(start_parts[0])
-                            col_start = int(start_parts[1])
+                            row_start, col_start = int(start_parts[0]), int(
+                                start_parts[1]
+                            )
                             row_span = int(end_parts[0]) - row_start + 1
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
-                    # If parsing fails, use default (all cells)
                     logger.warning(
                         f"Failed to parse cell range: {cell_range}, using default"
                     )
 
-        # Create cell properties update request
-        # FIX: Ensure all property names use camelCase consistently
         cell_align_request = {
             "updateTableCellProperties": {
                 "objectId": element.object_id,
                 "tableRange": {
-                    "location": {
-                        "rowIndex": row_start,
-                        "columnIndex": col_start,
-                    },
+                    "location": {"rowIndex": row_start, "columnIndex": col_start},
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
                 "tableCellProperties": {field_name: api_alignment},
-                "fields": f"tableCellProperties.{field_name}",
+                # CORRECTED FieldMask: Removed leading "tableCellProperties."
+                "fields": f"{field_name}",
             }
         }
-
         requests.append(cell_align_request)
         logger.debug(
             f"Applied {alignment_value} alignment to cells in table {element.object_id}"
@@ -409,35 +347,12 @@ class TableRequestBuilder(BaseRequestBuilder):
         row_count: int,
         col_count: int,
     ) -> None:
-        """
-        Apply cell background colors based on directives.
-
-        Args:
-            element: The table element
-            requests: The request list to append to
-            row_count: Number of rows in the table
-            col_count: Number of columns in the table
-        """
-        # Check for cell background directive
         if "cell-background" not in element.directives:
             return
-
         bg_value = element.directives["cell-background"]
+        color, fields_suffix = None, ""
 
-        # Handle different formats of the directive value
-        color = None
-        fields = ""
-
-        # Check if it's a hex color
-        if isinstance(bg_value, str) and bg_value.startswith("#"):
-            try:
-                rgb = self._hex_to_rgb(bg_value)
-                color = {"rgbColor": rgb}
-                fields = "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
-            except ValueError:
-                return
-        # Check if it's a theme color
-        elif isinstance(bg_value, str) and bg_value.upper() in [
+        theme_colors = [
             "TEXT1",
             "TEXT2",
             "BACKGROUND1",
@@ -448,87 +363,75 @@ class TableRequestBuilder(BaseRequestBuilder):
             "ACCENT4",
             "ACCENT5",
             "ACCENT6",
-        ]:
-            color = {"themeColor": bg_value.upper()}
-            fields = (
-                "tableCellProperties.tableCellBackgroundFill.solidFill.color.themeColor"
-            )
-        # Check if it's a named color
-        elif isinstance(bg_value, str) and bg_value.lower() in [
-            "white",
-            "black",
-            "red",
-            "green",
-            "blue",
-            "yellow",
-            "cyan",
-            "magenta",
-        ]:
-            color_map = {
-                "black": {"red": 0, "green": 0, "blue": 0},
-                "white": {"red": 1, "green": 1, "blue": 1},
-                "red": {"red": 1, "green": 0, "blue": 0},
-                "green": {"red": 0, "green": 1, "blue": 0},
-                "blue": {"red": 0, "green": 0, "blue": 1},
-                "yellow": {"red": 1, "green": 1, "blue": 0},
-                "cyan": {"red": 0, "green": 1, "blue": 1},
-                "magenta": {"red": 1, "green": 0, "blue": 1},
-            }
-            color = {"rgbColor": color_map.get(bg_value.lower())}
-            fields = (
-                "tableCellProperties.tableCellBackgroundFill.solidFill.color.rgbColor"
-            )
+        ]
+        named_colors_map = {
+            "black": {"red": 0, "green": 0, "blue": 0},
+            "white": {"red": 1, "green": 1, "blue": 1},
+            "red": {"red": 1, "green": 0, "blue": 0},
+            "green": {"red": 0, "green": 1, "blue": 0},
+            "blue": {"red": 0, "green": 0, "blue": 1},
+            "yellow": {"red": 1, "green": 1, "blue": 0},
+            "cyan": {"red": 0, "green": 1, "blue": 1},
+            "magenta": {"red": 1, "green": 0, "blue": 1},
+        }
+
+        if isinstance(bg_value, str):
+            if bg_value.startswith("#"):
+                try:
+                    color, fields_suffix = {
+                        "rgbColor": self._hex_to_rgb(bg_value)
+                    }, "rgbColor"
+                except ValueError:
+                    return
+            elif bg_value.upper() in theme_colors:
+                color, fields_suffix = {"themeColor": bg_value.upper()}, "themeColor"
+            elif bg_value.lower() in named_colors_map:
+                color, fields_suffix = {
+                    "rgbColor": named_colors_map[bg_value.lower()]
+                }, "rgbColor"
+            else:
+                return
         else:
             return
 
-        # Apply to all cells or specific cells based on directives
-        row_start = 0
-        row_span = row_count
-        col_start = 0
-        col_span = col_count
+        # Construct the full fields string without the leading "tableCellProperties."
+        fields = f"tableCellBackgroundFill.solidFill.color.{fields_suffix}"
 
-        # Check for cell range directives
+        row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
         if "cell-range" in element.directives:
             cell_range = element.directives["cell-range"]
             if isinstance(cell_range, str):
-                # Parse range in format "row1,col1:row2,col2"
                 try:
                     parts = cell_range.split(":")
                     if len(parts) == 2:
-                        start_parts = parts[0].split(",")
-                        end_parts = parts[1].split(",")
-
+                        start_parts, end_parts = parts[0].split(","), parts[1].split(
+                            ","
+                        )
                         if len(start_parts) == 2 and len(end_parts) == 2:
-                            row_start = int(start_parts[0])
-                            col_start = int(start_parts[1])
+                            row_start, col_start = int(start_parts[0]), int(
+                                start_parts[1]
+                            )
                             row_span = int(end_parts[0]) - row_start + 1
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
-                    # If parsing fails, use default (all cells)
                     logger.warning(
                         f"Failed to parse cell range: {cell_range}, using default"
                     )
 
-        # Create cell properties update request
-        # FIX: Ensure consistent camelCase in all structures
         bg_request = {
             "updateTableCellProperties": {
                 "objectId": element.object_id,
                 "tableRange": {
-                    "location": {
-                        "rowIndex": row_start,
-                        "columnIndex": col_start,
-                    },
+                    "location": {"rowIndex": row_start, "columnIndex": col_start},
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
                 "tableCellProperties": {
                     "tableCellBackgroundFill": {"solidFill": {"color": color}}
                 },
-                "fields": fields,
+                "fields": fields,  # Use the corrected fields string
             }
         }
-
         requests.append(bg_request)
         logger.debug(
             f"Applied background color to cells in table {element.object_id} at range ({row_start},{col_start})-({row_start + row_span - 1},{col_start + col_span - 1})"

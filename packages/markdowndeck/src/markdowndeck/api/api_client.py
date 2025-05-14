@@ -306,22 +306,8 @@ class ApiClient:
         logger.debug(f"Executing batch update with {request_count} requests")
         current_batch = batch.copy()
 
-        # TEMPORARY FIX: Find and fix any request with 'table_cell_properties'
-        for i, req in enumerate(current_batch["requests"]):
-            req_str = str(req)
-            if "table_cell_properties" in req_str:
-                logger.warning(
-                    f"Found 'table_cell_properties' in request {i}, fixing..."
-                )
-                # Convert the request to JSON and back to fix the field name
-                import json
-
-                fixed_req = json.loads(
-                    json.dumps(req).replace(
-                        '"table_cell_properties"', '"tableCellProperties"'
-                    )
-                )
-                current_batch["requests"][i] = fixed_req
+        # REMOVED TEMPORARY FIX FOR table_cell_properties
+        # The fix is now in table_builder.py for the FieldMask
 
         while retries <= self.max_retries:
             try:
@@ -502,6 +488,8 @@ class ApiClient:
                         logger.error(f"Failed to parse error message: {parse_error}")
 
                 # For other errors, fail the batch
+                # log the data that was sent
+                logger.error(f"Batch data that failed: {current_batch}")
                 logger.error(f"Batch update failed: {error}")
                 raise
 
