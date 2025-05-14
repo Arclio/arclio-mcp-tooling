@@ -41,6 +41,7 @@ class DirectiveParser:
             "indent": "dimension",
             "font-family": "string",
             "list-style": "string",
+            # Add any additional directive types here
         }
 
         # Define value converters
@@ -63,14 +64,18 @@ class DirectiveParser:
             [width=2/3][align=center][background=#f5f5f5]
         """
         if not section or section.content == "":
-            if section and section.directives is None:  # Should not happen with dataclass defaults
+            if (
+                section and section.directives is None
+            ):  # Should not happen with dataclass defaults
                 section.directives = {}
             return
 
         content = section.content
 
-        # Regex to find one or more [...] blocks at the start, allowing whitespace
-        directive_block_pattern = r"^\s*(\s*\[.+?\]\s*)+\s*"
+        # CRITICAL FIX: Enhanced robust directive block detection
+        # This pattern matches one or more directive blocks at the start of content,
+        # each in the format [key=value] with optional whitespace
+        directive_block_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)"
 
         match = re.match(directive_block_pattern, content)
         if not match:
@@ -78,19 +83,19 @@ class DirectiveParser:
                 section.directives = {}
             return
 
-        directive_text = match.group(0)
+        # Get exact matched text including all whitespace
+        directive_text = match.group(1)
         logger.debug(
             f"Found directives block: {directive_text!r} for section {section.id or 'unknown'}"
-        )  # Use !r for clearer whitespace
+        )
 
         # Extract directives with improved handling
         directives = {}
 
-        # Use a non-greedy pattern for all directive pairs
-        # The pattern finds any directive in the format [key=value]
-        # The non-greedy quantifier ? ensures we don't capture across multiple directives
-        pattern = r"\[([^=\[\]]+?)=([^\[\]]*?)\]"
-        matches = re.findall(pattern, directive_text)
+        # Find all [key=value] pairs in the directive text
+        # The pattern specifically looks for key=value pairs inside square brackets
+        directive_pattern = r"\[([^=\[\]]+)=([^\[\]]*)\]"
+        matches = re.findall(directive_pattern, directive_text)
         logger.debug(f"Directive matches found: {matches} in text: {directive_text!r}")
 
         # Process each directive
@@ -115,7 +120,9 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
+                        logger.warning(
+                            f"Unexpected error processing directive {key}={value}: {e}"
+                        )
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -128,7 +135,22 @@ class DirectiveParser:
         # Update section
         section.directives = directives
 
-        # Remove directive text from content
-        # Use the length of the matched block to remove accurately
-        section.content = content[len(directive_text) :].lstrip()
-        logger.debug(f"Section content after directive removal: {section.content[:50]}...")
+        # CRITICAL FIX: Remove directive text from content using exact match position
+        # This ensures all directives are completely removed
+        match_end = match.end(1)
+        section.content = content[match_end:].lstrip()
+
+        logger.debug(
+            f"Section content after directive removal: {section.content[:50]}..."
+        )
+
+        # Double-check that no directive patterns remain at the start
+        if re.match(r"^\s*\[[\w\-]+=", section.content):
+            logger.warning(
+                f"Potential directive still present at start of content after removal: "
+                f"{section.content[:50]}..."
+            )
+            # Try a more aggressive second pass if directives remain
+            second_pass = re.sub(r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content)
+            section.content = second_pass.lstrip()
+            logger.debug(f"After aggressive second pass: {section.content[:50]}...")
