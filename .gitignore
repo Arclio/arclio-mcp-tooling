@@ -53,6 +53,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+integration_test_slides.py
 
 # Translations
 *.mo

@@ -22,7 +22,10 @@ dev = [
     "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
     "uv>=0.1.1",
-    "trio>=0.22.0"
+    "trio>=0.22.0",
+    "ipykernel>=6.29.0",
+    "matplotlib>=3.8.0",
+
 ]
 
 [tool.pytest.ini_options]
