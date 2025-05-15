@@ -1,14 +1,12 @@
 """Text request builder for Google Slides API requests."""
 
 import logging
-
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     AlignmentType,
-    Element,
     ElementType,
+    TextElement,
 )
-from markdowndeck.models.elements.text import TextElement
 
 logger = logging.getLogger(__name__)
 
@@ -24,37 +22,20 @@ class TextRequestBuilder(BaseRequestBuilder):
     ) -> list[dict]:
         """
         Generate requests for a text element.
-
-        Args:
-            element: The text element
-            slide_id: The slide ID
-            theme_placeholders: Dictionary mapping element types to placeholder IDs
-
-        Returns:
-            List of request dictionaries
         """
         requests = []
-
         # Check if this element should use a theme placeholder
         if theme_placeholders and element.element_type in theme_placeholders:
-            # Use placeholder instead of creating a new shape
             return self._handle_themed_text_element(
                 element, theme_placeholders[element.element_type]
             )
-
-        # If no theme placeholder, proceed with custom shape creation
-        # Calculate position and size
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", (300, 200))
-
-        # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"text_{slide_id}")
             logger.debug(
                 f"Generated missing object_id for text element: {element.object_id}"
             )
-
-        # Create text box
         create_textbox_request = {
             "createShape": {
                 "objectId": element.object_id,
@@ -77,11 +58,46 @@ class TextRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_textbox_request)
 
-        # Skip insertion if there's no text
+        if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE):
+            autofit_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "autofit",
+                    "shapeProperties": {"autofit": {"autofitType": "SHAPE_AUTOFIT"}},
+                }
+            }
+            requests.append(autofit_request)
+
+        # --- CORRECTED SECTION FOR CONTENT ALIGNMENT ---
+        # Define content alignment for text box (vertical alignment)
+        content_alignment = None
+        if (
+            element.element_type == ElementType.TITLE
+            or element.element_type == ElementType.SUBTITLE
+        ):
+            content_alignment = "MIDDLE"
+        elif hasattr(element, "directives") and "textanchor" in element.directives:
+            anchor_directive = str(element.directives["textanchor"]).upper()
+            if anchor_directive in ["TOP", "MIDDLE", "BOTTOM"]:
+                content_alignment = anchor_directive
+
+        # Only set contentAlignment if needed - it's a direct property of shapeProperties
+        if content_alignment:
+            content_alignment_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "contentAlignment",
+                    "shapeProperties": {"contentAlignment": content_alignment},
+                }
+            }
+            requests.append(content_alignment_request)
+            logger.debug(
+                f"Added contentAlignment '{content_alignment}' to element {element.object_id}"
+            )
+        # --- END OF CORRECTED SECTION ---
+
         if not element.text:
             return requests
-
-        # Insert text
         insert_text_request = {
             "insertText": {
                 "objectId": element.object_id,
@@ -90,36 +106,62 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
         }
         requests.append(insert_text_request)
-
-        # Apply text formatting if present
         if hasattr(element, "formatting") and element.formatting:
             for text_format in element.formatting:
-                style_request = self._apply_text_formatting(
-                    element_id=element.object_id,
-                    style=self._format_to_style(text_format),
-                    fields=self._format_to_fields(text_format),
-                    start_index=text_format.start,
-                    end_index=text_format.end,
+                text_length = len(element.text)
+                start_index = min(
+                    text_format.start, text_length - 1 if text_length > 0 else 0
                 )
-                requests.append(style_request)
-
-        # Apply paragraph style if this is a title or subtitle
+                end_index = min(text_format.end, text_length)
+                if start_index < 0:
+                    start_index = 0
+                if start_index >= end_index and text_length > 0:
+                    if text_format.start >= text_format.end:
+                        logger.warning(
+                            f"Skipping invalid formatting range: start({text_format.start}) >= end({text_format.end}) for text '{element.text}'"
+                        )
+                        continue
+                    start_index = max(0, end_index - 1)
+                if start_index < end_index:
+                    style_request = self._apply_text_formatting(
+                        element_id=element.object_id,
+                        style=self._format_to_style(text_format),
+                        fields=self._format_to_fields(text_format),
+                        start_index=start_index,
+                        end_index=end_index,
+                    )
+                    requests.append(style_request)
+                elif text_format.start == text_format.end == 0 and not element.text:
+                    pass
+                elif text_format.start == text_format.end and text_format.start == len(
+                    element.text
+                ):
+                    pass
+                else:
+                    logger.warning(
+                        f"Skipping formatting due to invalid range after adjustment: start({start_index}) >= end({end_index}) for text '{element.text}'"
+                    )
         if element.element_type in (ElementType.TITLE, ElementType.SUBTITLE):
-            paragraph_style = {
-                "updateParagraphStyle": {
-                    "objectId": element.object_id,
-                    "textRange": {"type": "ALL"},
-                    "style": {
-                        "alignment": "CENTER",
-                        # FIXING SPACING: Add explicit spacing values for consistent rendering
-                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
-                        "spaceBelow": {"magnitude": 6, "unit": "PT"}, # Small gap after titles/subtitles
-                    },
-                    "fields": "alignment,spaceAbove,spaceBelow",
-                }
+            paragraph_style_payload = {
+                "alignment": "CENTER",
+                "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                "spaceBelow": {"magnitude": 6, "unit": "PT"},
             }
-            requests.append(paragraph_style)
-        # Apply horizontal alignment if specified and this is not a title/subtitle
+            fields_list = "alignment,spaceAbove,spaceBelow"
+            # Titles/Subtitles often have default line spacing from the theme.
+            # Only add lineSpacing if explicitly different or always desired.
+            # paragraph_style_payload["lineSpacing"] = 1.15 # Example if needed
+            # fields_list += ",lineSpacing"
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": paragraph_style_payload,
+                        "fields": fields_list,
+                    }
+                }
+            )
         elif hasattr(element, "horizontal_alignment") and element.horizontal_alignment:
             alignment_map = {
                 AlignmentType.LEFT: "START",
@@ -128,40 +170,40 @@ class TextRequestBuilder(BaseRequestBuilder):
                 AlignmentType.JUSTIFY: "JUSTIFIED",
             }
             api_alignment = alignment_map.get(element.horizontal_alignment, "START")
-
-            # FIXED: Use spaceMultiple instead of lineSpacing for line spacing
-            paragraph_style = {
-                "updateParagraphStyle": {
-                    "objectId": element.object_id,
-                    "textRange": {"type": "ALL"},
-                    "style": {
-                        "alignment": api_alignment,
-                        # Set reasonable default spacing to prevent excessive gaps
-                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
-                        "spaceBelow": {"magnitude": 0, "unit": "PT"},
-                        # FIXED: Use spaceMultiple (percentage value as integer)
-                        "spaceMultiple": 115, # 1.15 spacing
-                    },
-                    "fields": "alignment,spaceAbove,spaceBelow,spaceMultiple",
-                }
+            paragraph_style_for_text = {
+                "alignment": api_alignment,
+                "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                "lineSpacing": 1.15,  # API expects float (e.g., 1.0 for single, 1.15 for 115%)
             }
-
-            # For heading-like text elements, use slightly different spacing
+            fields_for_text_para = "alignment,spaceAbove,spaceBelow,lineSpacing"
             if element.element_type == ElementType.TEXT and hasattr(element, "text"):
                 text = element.text.strip()
-                is_heading = text.startswith('#') or (
-                    "fontsize" in element.directives and
-                    isinstance(element.directives["fontsize"], (int, float)) and
-                    element.directives["fontsize"] >= 16
+                is_heading = text.startswith("#") or (
+                    hasattr(element, "directives")
+                    and "fontsize" in element.directives
+                    and isinstance(element.directives["fontsize"], (int, float))
+                    and element.directives["fontsize"] >= 16
                 )
-
                 if is_heading:
-                    paragraph_style["style"]["spaceAbove"] = {"magnitude": 6, "unit": "PT"}
-                    paragraph_style["style"]["spaceBelow"] = {"magnitude": 3, "unit": "PT"}
-
-            requests.append(paragraph_style)
-
-        # ENHANCEMENT: Apply vertical alignment if specified
+                    paragraph_style_for_text["spaceAbove"] = {
+                        "magnitude": 6,
+                        "unit": "PT",
+                    }
+                    paragraph_style_for_text["spaceBelow"] = {
+                        "magnitude": 3,
+                        "unit": "PT",
+                    }
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": paragraph_style_for_text,
+                        "fields": fields_for_text_para,
+                    }
+                }
+            )
         if (
             hasattr(element, "directives")
             and element.directives
@@ -169,152 +211,115 @@ class TextRequestBuilder(BaseRequestBuilder):
         ):
             valign_value = element.directives["valign"]
             if isinstance(valign_value, str):
-                # Map valign directive to API values
-                valign_map = {
-                    "top": "TOP",
-                    "middle": "MIDDLE",
-                    "bottom": "BOTTOM",
-                }
-                api_valign = valign_map.get(valign_value.lower(), "MIDDLE")
-
-                # Create shape properties update request
-                vertical_align_request = {
-                    "updateShapeProperties": {
-                        "objectId": element.object_id,
-                        "fields": "contentVerticalAlignment",  # Correct: Relative to shapeProperties
-                        "shapeProperties": {"contentVerticalAlignment": api_valign},
-                    }
-                }
-                requests.append(vertical_align_request)
-                logger.debug(
-                    f"Applied vertical alignment '{api_valign}' to element {element.object_id}"
-                )
-
-        # ENHANCEMENT: Apply text box padding if specified
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "padding" in element.directives
-        ):
-            padding_value = element.directives["padding"]
-            if isinstance(padding_value, int | float):
-                # Create text box properties update request
-                padding_request = {
-                    "updateShapeProperties": {
-                        "objectId": element.object_id,
-                        # CORRECTED FieldMask: relative to shapeProperties
-                        "fields": "textBoxProperties",
-                        "shapeProperties": {
-                            "textBoxProperties": {
-                                "leftInset": {"magnitude": padding_value, "unit": "PT"},
-                                "rightInset": {
-                                    "magnitude": padding_value,
-                                    "unit": "PT",
-                                },
-                                "topInset": {"magnitude": padding_value, "unit": "PT"},
-                                "bottomInset": {
-                                    "magnitude": padding_value,
-                                    "unit": "PT",
+                valign_map = {"top": "TOP", "middle": "MIDDLE", "bottom": "BOTTOM"}
+                api_valign = valign_map.get(valign_value.lower())
+                if api_valign:
+                    # This updates ShapeProperties.contentVerticalAlignment
+                    requests.append(
+                        {
+                            "updateShapeProperties": {
+                                "objectId": element.object_id,
+                                "fields": "contentVerticalAlignment",
+                                "shapeProperties": {
+                                    "contentVerticalAlignment": api_valign
                                 },
                             }
-                        },
-                    }
-                }
-                requests.append(padding_request)
-                logger.debug(
-                    f"Applied padding of {padding_value}pt to text box {element.object_id}"
-                )
-        # FIXED: Always apply minimal text box padding to ensure consistent appearance
-        else:
-            default_padding = 3.0
-            padding_request = {
-                "updateShapeProperties": {
-                    "objectId": element.object_id,
-                    "fields": "textBoxProperties",
-                    "shapeProperties": {
-                        "textBoxProperties": {
-                            "leftInset": {"magnitude": default_padding, "unit": "PT"},
-                            "rightInset": {"magnitude": default_padding, "unit": "PT"},
-                            "topInset": {"magnitude": default_padding, "unit": "PT"},
-                            "bottomInset": {"magnitude": default_padding, "unit": "PT"},
                         }
-                    },
-                }
-            }
-            requests.append(padding_request)
-
-        # ENHANCEMENT: Apply paragraph-level styling
-        self._apply_paragraph_styling(element, requests)
-
-        # Apply custom styling from directives
+                    )
+                    logger.debug(
+                        f"Applied contentVerticalAlignment '{api_valign}' to element {element.object_id}"
+                    )
+        self._apply_paragraph_styling(
+            element, requests
+        )  # Handles directives like line-spacing, para-spacing, indents
         self._apply_text_color_directive(element, requests)
         self._apply_font_size_directive(element, requests)
-        self._apply_background_directive(element, requests)
-
-        # ENHANCEMENT: Apply border if specified
-        self._apply_border_directive(element, requests)
-
+        self._apply_background_directive(element, requests)  # Shape background
+        self._apply_border_directive(element, requests)  # Shape outline
+        self._apply_padding_directive(element, requests)  # Handle padding directive
         return requests
 
     def _handle_themed_text_element(
         self, element: TextElement, placeholder_id: str
     ) -> list[dict]:
-        """
-        Handle text element that should use a theme placeholder.
-
-        Args:
-            element: The text element
-            placeholder_id: The ID of the placeholder to use
-
-        Returns:
-            List of request dictionaries
-        """
         requests = []
-
-        # Store the placeholder ID as the element's object_id for future reference
         element.object_id = placeholder_id
-
-        # Only generate requests if there's text to insert
         if element.text:
-            # FIXED: Don't always issue deleteText for every element
-            # Instead insert at position 0, which will replace any existing text
-            # This avoids the API error for "startIndex 0 must be less than endIndex 0"
-            insert_text_request = {
-                "insertText": {
-                    "objectId": placeholder_id,
-                    "insertionIndex": 0,
-                    "text": element.text,
+            requests.append(
+                {
+                    "insertText": {
+                        "objectId": placeholder_id,
+                        "insertionIndex": 0,
+                        "text": element.text,
+                    }
                 }
-            }
-            requests.append(insert_text_request)
-
-            # Apply text formatting if present
+            )
             if hasattr(element, "formatting") and element.formatting:
                 for text_format in element.formatting:
-                    style_request = self._apply_text_formatting(
-                        element_id=placeholder_id,
-                        style=self._format_to_style(text_format),
-                        fields=self._format_to_fields(text_format),
-                        start_index=text_format.start,
-                        end_index=text_format.end,
+                    text_length = len(element.text)
+                    start_index = min(
+                        text_format.start, text_length - 1 if text_length > 0 else 0
                     )
-                    requests.append(style_request)
-
-            # FIXED: Add default spacing settings for placeholders too using spaceMultiple
-            paragraph_style = {
-                "updateParagraphStyle": {
-                    "objectId": placeholder_id,
-                    "textRange": {"type": "ALL"},
-                    "style": {
-                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
-                        "spaceBelow": {"magnitude": element.element_type in (ElementType.TITLE, ElementType.SUBTITLE) and 6 or 0, "unit": "PT"},
-                        "spaceMultiple": 115, # Use 1.15 spacing (value is percentage as integer)
-                    },
-                    "fields": "spaceAbove,spaceBelow,spaceMultiple",
-                }
+                    end_index = min(text_format.end, text_length)
+                    if start_index < 0:
+                        start_index = 0
+                    if start_index >= end_index and text_length > 0:
+                        if text_format.start >= text_format.end:
+                            logger.warning(
+                                f"Skipping invalid themed formatting: start({text_format.start}) >= end({text_format.end}) for '{element.text}'"
+                            )
+                            continue
+                        start_index = max(0, end_index - 1)
+                    if start_index < end_index:
+                        requests.append(
+                            self._apply_text_formatting(
+                                element_id=placeholder_id,
+                                style=self._format_to_style(text_format),
+                                fields=self._format_to_fields(text_format),
+                                start_index=start_index,
+                                end_index=end_index,
+                            )
+                        )
+                    elif text_format.start == text_format.end == 0 and not element.text:
+                        pass
+                    elif (
+                        text_format.start == text_format.end
+                        and text_format.start == len(element.text)
+                    ):
+                        pass
+                    else:
+                        logger.warning(
+                            f"Skipping themed formatting due to invalid range: start({start_index}) >= end({end_index}) for '{element.text}'"
+                        )
+            # For themed elements, paragraph style is mostly from the theme.
+            # We might only want to apply minimal or very specific overrides.
+            # The old code used "spaceMultiple: 115", which implies lineSpacing: 1.15.
+            # Let's make it conditional or minimal to avoid overriding theme too much.
+            para_style_payload = {
+                "objectId": placeholder_id,
+                "textRange": {"type": "ALL"},
+                "style": {},
+                "fields": "",
             }
-            requests.append(paragraph_style)
-
+            para_fields_list = []
+            if (
+                element.element_type == ElementType.TITLE
+                or element.element_type == ElementType.SUBTITLE
+            ):
+                para_style_payload["style"][
+                    "alignment"
+                ] = "CENTER"  # Titles often centered
+                para_fields_list.append("alignment")
+                # Themes usually handle title spacing well, but if needed:
+                # para_style_payload["style"]["spaceBelow"] = {"magnitude": 6, "unit": "PT"}
+                # para_fields_list.append("spaceBelow")
+            # Only apply if there's something specific to set, otherwise let theme control.
+            if para_fields_list:
+                para_style_payload["fields"] = ",".join(para_fields_list)
+                requests.append({"updateParagraphStyle": para_style_payload})
+            # Apply specific directives if they should override theme (e.g. explicit color)
+            self._apply_text_color_directive(element, requests)
+            self._apply_font_size_directive(element, requests)
         logger.debug(
             f"Generated {len(requests)} requests for themed element {element.element_type} using placeholder {placeholder_id}"
         )
@@ -323,106 +328,90 @@ class TextRequestBuilder(BaseRequestBuilder):
     def _apply_paragraph_styling(
         self, element: TextElement, requests: list[dict]
     ) -> None:
-        """
-        Apply paragraph-level styling based on directives.
-
-        Args:
-            element: The text element
-            requests: The list of requests to append to
-        """
         if not hasattr(element, "directives") or not element.directives:
             return
-
-        paragraph_style = {}
+        style_updates = {}
         fields = []
-
-        # Line spacing
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
-            if isinstance(spacing, int | float) and spacing > 0:
-                # FIXED: Use spaceMultiple as an integer percentage value
-                paragraph_style["spaceMultiple"] = int(spacing * 100)
-                fields.append("spaceMultiple")
-                logger.debug(
-                    f"Applied line spacing of {spacing} to element {element.object_id}"
-                )
-
-        # Space before paragraph
+            if isinstance(spacing, (int, float)) and spacing > 0:
+                style_updates["lineSpacing"] = float(
+                    spacing
+                )  # API expects float (e.g., 1.15 for 115%)
+                fields.append("lineSpacing")
         if "para-spacing-before" in element.directives:
             spacing = element.directives["para-spacing-before"]
-            if isinstance(spacing, int | float) and spacing >= 0:
-                paragraph_style["spaceAbove"] = {"magnitude": spacing, "unit": "PT"}
+            if isinstance(spacing, (int, float)) and spacing >= 0:
+                style_updates["spaceAbove"] = {
+                    "magnitude": float(spacing),
+                    "unit": "PT",
+                }
                 fields.append("spaceAbove")
-                logger.debug(
-                    f"Applied spacing before of {spacing}pt to element {element.object_id}"
-                )
-
-        # Space after paragraph
         if "para-spacing-after" in element.directives:
             spacing = element.directives["para-spacing-after"]
-            if isinstance(spacing, int | float) and spacing >= 0:
-                paragraph_style["spaceBelow"] = {"magnitude": spacing, "unit": "PT"}
+            if isinstance(spacing, (int, float)) and spacing >= 0:
+                style_updates["spaceBelow"] = {
+                    "magnitude": float(spacing),
+                    "unit": "PT",
+                }
                 fields.append("spaceBelow")
-                logger.debug(
-                    f"Applied spacing after of {spacing}pt to element {element.object_id}"
-                )
-
-        # Start indent
         if "indent-start" in element.directives:
             indent = element.directives["indent-start"]
-            if isinstance(indent, int | float) and indent >= 0:
-                paragraph_style["indentStart"] = {"magnitude": indent, "unit": "PT"}
+            if isinstance(indent, (int, float)) and indent >= 0:
+                style_updates["indentStart"] = {
+                    "magnitude": float(indent),
+                    "unit": "PT",
+                }
                 fields.append("indentStart")
-                logger.debug(
-                    f"Applied start indent of {indent}pt to element {element.object_id}"
-                )
-
-        # First line indent
         if "indent-first-line" in element.directives:
             indent = element.directives["indent-first-line"]
-            if isinstance(indent, int | float):
-                paragraph_style["indentFirstLine"] = {"magnitude": indent, "unit": "PT"}
-                fields.append("indentFirstLine")
-                logger.debug(
-                    f"Applied first line indent of {indent}pt to element {element.object_id}"
-                )
-
-        # If we have any paragraph styling to apply, create the request
-        if paragraph_style and fields:
-            para_style_request = {
-                "updateParagraphStyle": {
-                    "objectId": element.object_id,
-                    "textRange": {"type": "ALL"},
-                    "style": paragraph_style,
-                    "fields": ",".join(fields),
+            if isinstance(indent, (int, float)):
+                style_updates["indentFirstLine"] = {
+                    "magnitude": float(indent),
+                    "unit": "PT",
                 }
-            }
-            requests.append(para_style_request)
+                fields.append("indentFirstLine")
+        if style_updates and fields:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": style_updates,
+                        "fields": ",".join(sorted(list(set(fields)))),
+                    }
+                }
+            )
 
     def _apply_text_color_directive(
         self, element: TextElement, requests: list[dict]
     ) -> None:
-        """Apply text color directive to the element."""
-        if (
-            not hasattr(element, "directives")
-            or not element.directives
-            or "color" not in element.directives
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "color" in element.directives
         ):
             return
-
-        color_value = element.directives["color"]
-
-        # Handle both string and tuple color values
-        if isinstance(color_value, tuple) and len(color_value) == 2:
-            # If it's a tuple, extract the color type and value
-            color_type, color_value = color_value
-            # Only proceed if it's a color directive with a hex value
-            if color_type != "color" or not isinstance(color_value, str):
+        color_val_dir = element.directives["color"]
+        actual_color_val = (
+            color_val_dir[1]
+            if isinstance(color_val_dir, tuple)
+            and len(color_val_dir) == 2
+            and color_val_dir[0] == "color"
+            else color_val_dir if isinstance(color_val_dir, str) else None
+        )
+        if not actual_color_val:
+            return
+        color_spec = None
+        if actual_color_val.startswith("#"):
+            try:
+                color_spec = {
+                    "opaqueColor": {"rgbColor": self._hex_to_rgb(actual_color_val)}
+                }
+            except ValueError:
+                logger.warning(f"Invalid hex color for text: {actual_color_val}")
                 return
-
-        # Check if this is a theme color reference
-        if isinstance(color_value, str) and not color_value.startswith("#"):
-            # This might be a theme color - check if it's a valid theme color name
+        else:
             theme_colors = [
                 "TEXT1",
                 "TEXT2",
@@ -436,206 +425,76 @@ class TextRequestBuilder(BaseRequestBuilder):
                 "ACCENT6",
                 "HYPERLINK",
                 "FOLLOWED_HYPERLINK",
+                "DARK1",
+                "LIGHT1",
             ]
-
-            if color_value.upper() in theme_colors:
-                # Use theme color reference
-                style_request = self._apply_text_formatting(
+            if actual_color_val.upper() in theme_colors:
+                color_spec = {"opaqueColor": {"themeColor": actual_color_val.upper()}}
+            else:
+                logger.warning(f"Unknown theme color name for text: {actual_color_val}")
+                return
+        if color_spec:
+            requests.append(
+                self._apply_text_formatting(
                     element_id=element.object_id,
-                    style={
-                        "foregroundColor": {
-                            "opaqueColor": {"themeColor": color_value.upper()}
-                        }
-                    },  # opaqueColor wrapper
-                    fields="foregroundColor",  # Field is foregroundColor, its value is OptionalColor
+                    style={"foregroundColor": color_spec},
+                    fields="foregroundColor",
                     range_type="ALL",
                 )
-                requests.append(style_request)
-                logger.debug(
-                    f"Applied theme color {color_value.upper()} to element {element.object_id}"
-                )
-                return
-
-        # Apply RGB color if it's a hex value
-        if isinstance(color_value, str) and color_value.startswith("#"):
-            rgb = self._hex_to_rgb(color_value)
-            style_request = self._apply_text_formatting(
-                element_id=element.object_id,
-                style={
-                    "foregroundColor": {"opaqueColor": {"rgbColor": rgb}}
-                },  # opaqueColor wrapper
-                fields="foregroundColor",  # Field is foregroundColor, its value is OptionalColor
-                range_type="ALL",
             )
-            requests.append(style_request)
-            logger.debug(f"Applied color {color_value} to element {element.object_id}")
 
     def _apply_font_size_directive(
         self, element: TextElement, requests: list[dict]
     ) -> None:
-        """Apply font size directive to the element."""
-        if (
-            not hasattr(element, "directives")
-            or not element.directives
-            or "fontsize" not in element.directives
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "fontsize" in element.directives
         ):
             return
-
-        font_size = element.directives["fontsize"]
-        if isinstance(font_size, int | float):
-            style_request = self._apply_text_formatting(
-                element_id=element.object_id,
-                style={"fontSize": {"magnitude": font_size, "unit": "PT"}},
-                fields="fontSize",
-                range_type="ALL",
+        font_size_val = element.directives["fontsize"]
+        if isinstance(font_size_val, (int, float)) and font_size_val > 0:
+            requests.append(
+                self._apply_text_formatting(
+                    element_id=element.object_id,
+                    style={
+                        "fontSize": {"magnitude": float(font_size_val), "unit": "PT"}
+                    },
+                    fields="fontSize",
+                    range_type="ALL",
+                )
             )
-            requests.append(style_request)
-            logger.debug(
-                f"Applied font size {font_size}pt to element {element.object_id}"
-            )
+        else:
+            logger.warning(f"Invalid fontsize directive value: {font_size_val}")
 
     def _apply_background_directive(
         self, element: TextElement, requests: list[dict]
     ) -> None:
-        """Apply background color directive to the element's shape."""
-        if (
-            not hasattr(element, "directives")
-            or not element.directives
-            or "background" not in element.directives
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "background" in element.directives
         ):
             return
-
-        background_directive = element.directives["background"]
-        color_value = None
-        is_theme_color = False
-
-        theme_colors = [
-            "TEXT1",
-            "TEXT2",
-            "BACKGROUND1",
-            "BACKGROUND2",
-            "ACCENT1",
-            "ACCENT2",
-            "ACCENT3",
-            "ACCENT4",
-            "ACCENT5",
-            "ACCENT6",
-        ]
-
-        if isinstance(background_directive, str):
-            if background_directive.startswith("#"):
+        bg_dir = element.directives["background"]
+        if not isinstance(bg_dir, tuple) or len(bg_dir) != 2:
+            logger.warning(f"Unexpected background directive format: {bg_dir}")
+            return
+        bg_type, bg_val_str = bg_dir
+        fill_props = None
+        if bg_type == "color":
+            if bg_val_str.startswith("#"):
                 try:
-                    color_value = {"rgbColor": self._hex_to_rgb(background_directive)}
-                except ValueError as e:
-                    logger.warning(
-                        f"Invalid hex color '{background_directive}' for background: {e}"
-                    )
-                    return
-            elif background_directive.upper() in theme_colors:
-                color_value = {"themeColor": background_directive.upper()}
-                is_theme_color = True
-            else:  # Could be a named color or invalid
-                logger.warning(
-                    f"Unsupported background string value: {background_directive}"
-                )
-                return
-
-        elif isinstance(background_directive, tuple) and len(background_directive) == 2:
-            bg_type, bg_val_str = background_directive
-            if (
-                bg_type == "color"
-                and isinstance(bg_val_str, str)
-                and bg_val_str.startswith("#")
-            ):
-                try:
-                    color_value = {"rgbColor": self._hex_to_rgb(bg_val_str)}
-                except ValueError as e:
-                    logger.warning(
-                        f"Invalid hex color '{bg_val_str}' for background: {e}"
-                    )
+                    fill_props = {
+                        "solidFill": {
+                            "color": {"rgbColor": self._hex_to_rgb(bg_val_str)}
+                        }
+                    }
+                    fields = "shapeBackgroundFill.solidFill.color.rgbColor"
+                except ValueError:
+                    logger.warning(f"Invalid hex color for background: {bg_val_str}")
                     return
             else:
-                logger.warning(f"Unsupported background tuple: {background_directive}")
-                return
-        else:
-            logger.warning(
-                f"Unsupported background directive type: {type(background_directive)}"
-            )
-            return
-
-        if color_value:
-            # CORRECTED FieldMask: relative to shapeProperties
-            fields_mask = (
-                "shapeBackgroundFill.solidFill.color.themeColor"
-                if is_theme_color
-                else "shapeBackgroundFill.solidFill.color.rgbColor"
-            )
-
-            shape_properties_request = {
-                "updateShapeProperties": {
-                    "objectId": element.object_id,
-                    "fields": fields_mask,
-                    "shapeProperties": {
-                        "shapeBackgroundFill": {"solidFill": {"color": color_value}}
-                    },
-                }
-            }
-            requests.append(shape_properties_request)
-            logger.debug(
-                f"Applied background color {background_directive} to element {element.object_id}"
-            )
-
-    def _apply_border_directive(
-        self, element: TextElement, requests: list[dict]
-    ) -> None:
-        """
-        Apply border directive to the element.
-        Handles formats like:
-        - [border=1pt solid #FF0000]
-        - [border=dashed blue]
-        """
-        if (
-            not hasattr(element, "directives")
-            or not element.directives
-            or "border" not in element.directives
-        ):
-            return
-
-        border_value = element.directives["border"]
-        if not isinstance(border_value, str):
-            return
-
-        parts = border_value.split()
-        weight = {"magnitude": 1, "unit": "PT"}
-        dash_style = "SOLID"
-        color_spec = {"rgbColor": {"red": 0, "green": 0, "blue": 0}}  # Default black
-
-        final_fields_list = []
-
-        for part in parts:
-            if part.endswith("pt") or part.endswith("px"):
-                try:
-                    width_value = float(part.rstrip("ptx"))
-                    weight = {"magnitude": width_value, "unit": "PT"}
-                    if "outline.weight" not in final_fields_list:
-                        final_fields_list.append("outline.weight")
-                except ValueError:
-                    pass
-            elif part.lower() in ["solid", "dashed", "dotted"]:
-                style_map = {"solid": "SOLID", "dashed": "DASH", "dotted": "DOT"}
-                dash_style = style_map.get(part.lower(), "SOLID")
-                if "outline.dashStyle" not in final_fields_list:
-                    final_fields_list.append("outline.dashStyle")
-            elif part.startswith("#"):
-                try:
-                    color_spec = {"rgbColor": self._hex_to_rgb(part)}
-                    if (
-                        "outline.outlineFill.solidFill.color" not in final_fields_list
-                    ):  # Generic color field
-                        final_fields_list.append("outline.outlineFill.solidFill.color")
-                except ValueError:
-                    pass
-            else:  # Check for named or theme colors
                 theme_colors = [
                     "TEXT1",
                     "TEXT2",
@@ -647,45 +506,151 @@ class TextRequestBuilder(BaseRequestBuilder):
                     "ACCENT4",
                     "ACCENT5",
                     "ACCENT6",
+                    "DARK1",
+                    "LIGHT1",
                 ]
-                named_colors_map = {
-                    "black": {"red": 0, "green": 0, "blue": 0},
-                    "white": {"red": 1, "green": 1, "blue": 1},
-                    "red": {"red": 1, "green": 0, "blue": 0},
-                    "green": {"red": 0, "green": 1, "blue": 0},
-                    "blue": {"red": 0, "green": 0, "blue": 1},
-                    "yellow": {"red": 1, "green": 1, "blue": 0},
-                    "cyan": {"red": 0, "green": 1, "blue": 1},
-                    "magenta": {"red": 1, "green": 0, "blue": 1},
+                if bg_val_str.upper() in theme_colors:
+                    fill_props = {
+                        "solidFill": {"color": {"themeColor": bg_val_str.upper()}}
+                    }
+                    fields = "shapeBackgroundFill.solidFill.color.themeColor"
+                else:
+                    logger.warning(
+                        f"Unknown theme color name for background: {bg_val_str}"
+                    )
+                    return
+        elif bg_type == "url":
+            fill_props = {"stretchedPictureFill": {"contentUrl": bg_val_str}}
+            fields = "shapeBackgroundFill.stretchedPictureFill.contentUrl"
+        else:
+            logger.warning(f"Unsupported background type: {bg_type}")
+            return
+        if fill_props:
+            requests.append(
+                {
+                    "updateShapeProperties": {
+                        "objectId": element.object_id,
+                        "fields": fields,
+                        "shapeProperties": {"shapeBackgroundFill": fill_props},
+                    }
                 }
-                if part.upper() in theme_colors:
-                    color_spec = {"themeColor": part.upper()}
-                    if "outline.outlineFill.solidFill.color" not in final_fields_list:
-                        final_fields_list.append("outline.outlineFill.solidFill.color")
-                elif part.lower() in named_colors_map:
-                    color_spec = {"rgbColor": named_colors_map[part.lower()]}
-                    if "outline.outlineFill.solidFill.color" not in final_fields_list:
-                        final_fields_list.append("outline.outlineFill.solidFill.color")
+            )
 
-        if not final_fields_list:  # If no valid parts were found for border
+    def _apply_border_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "border" in element.directives
+        ):
+            return
+        border_val_dir = element.directives["border"]
+        border_str = (
+            border_val_dir[1]
+            if isinstance(border_val_dir, tuple)
+            and len(border_val_dir) == 2
+            and border_val_dir[0] == "value"
+            else border_val_dir if isinstance(border_val_dir, str) else None
+        )
+        if not border_str:
+            logger.warning(f"Unsupported border directive format: {border_val_dir}")
+            return
+        parts, weight_pt, dash_style, hex_color_str = (
+            border_str.split(),
+            1.0,
+            "SOLID",
+            "#000000",
+        )
+        final_fields = []
+        for part in parts:
+            p_low = part.lower()
+            if p_low.endswith("pt") or p_low.endswith("px"):
+                try:
+                    weight_pt = float(p_low.rstrip("ptx"))
+                    final_fields.append("outline.weight")
+                except ValueError:
+                    pass
+            elif p_low in ["solid", "dash", "dot", "dashed", "dotted"]:
+                dash_style = {"solid": "SOLID", "dash": "DASH", "dotted": "DOT"}.get(
+                    p_low, "SOLID"
+                )
+                final_fields.append("outline.dashStyle")
+            elif p_low.startswith("#"):
+                hex_color_str = p_low
+                final_fields.append("outline.outlineFill.solidFill.color")
+            else:
+                named_colors = {
+                    "black": "#000000",
+                    "white": "#FFFFFF",
+                    "red": "#FF0000",
+                    "blue": "#0000FF",
+                    "green": "#008000",
+                }
+                theme_colors = ["TEXT1", "BACKGROUND1", "ACCENT1"]
+                if p_low in named_colors:
+                    hex_color_str = named_colors[p_low]
+                    final_fields.append("outline.outlineFill.solidFill.color")
+                elif p_low.upper() in theme_colors:
+                    hex_color_str = p_low.upper()
+                    final_fields.append("outline.outlineFill.solidFill.color")
+        try:
+            rgb_or_theme = (
+                {"rgbColor": self._hex_to_rgb(hex_color_str)}
+                if hex_color_str.startswith("#")
+                else {"themeColor": hex_color_str}
+            )
+        except ValueError:
+            rgb_or_theme = {"rgbColor": {"red": 0, "green": 0, "blue": 0}}
+        if final_fields:
+            requests.append(
+                {
+                    "updateShapeProperties": {
+                        "objectId": element.object_id,
+                        "fields": ",".join(sorted(list(set(final_fields)))),
+                        "shapeProperties": {
+                            "outline": {
+                                "outlineFill": {"solidFill": {"color": rgb_or_theme}},
+                                "weight": {"magnitude": weight_pt, "unit": "PT"},
+                                "dashStyle": dash_style,
+                            }
+                        },
+                    }
+                }
+            )
+
+    def _apply_padding_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        """
+        Handle the padding directive for a text element.
+
+        NOTE: The Google Slides REST API does not directly support textBoxProperties
+        for setting insets (padding). While these properties exist in the object model
+        and in the Google Apps Script API, they are not accessible through the REST API's
+        updateShapeProperties request. We provide this method for compatibility with the
+        directive but log a warning about the API limitation.
+
+        Args:
+            element: The text element
+            requests: List to append requests to
+        """
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "padding" in element.directives
+        ):
             return
 
-        border_request = {
-            "updateShapeProperties": {
-                "objectId": element.object_id,
-                "fields": ",".join(
-                    sorted(list(set(final_fields_list)))
-                ),  # Ensure unique and sorted fields
-                "shapeProperties": {
-                    "outline": {
-                        "outlineFill": {"solidFill": {"color": color_spec}},
-                        "weight": weight,
-                        "dashStyle": dash_style,
-                    }
-                },
-            }
-        }
-        requests.append(border_request)
-        logger.debug(
-            f"Applied border style to element {element.object_id}: {border_value}"
-        )
+        padding_value = element.directives["padding"]
+        if isinstance(padding_value, (int, float)) and padding_value >= 0:
+            logger.warning(
+                f"Padding directive with value {padding_value} cannot be applied: "
+                "textBoxProperties is not supported in the Google Slides REST API. "
+                "This feature is only available in Google Apps Script."
+            )
+            # No request is added as this feature isn't supported in the REST API
+
+    # _apply_text_formatting, _format_to_style, _format_to_fields are from BaseRequestBuilder
+    # No need to redefine them here if they are inherited and sufficient.
+    # Ensure BaseRequestBuilder's versions are correct and used.

@@ -77,12 +77,133 @@ class ApiRequestGenerator:
             background_request = self.slide_builder.create_background_request(slide)
             requests.append(background_request)
 
-        # Process elements
-        for element in slide.elements:
-            element_requests = self._generate_element_requests(
-                element, slide.object_id, slide.placeholder_mappings
-            )
-            requests.extend(element_requests)
+        # Process elements with awareness of related elements
+        i = 0
+        while i < len(slide.elements):
+            current_element = slide.elements[i]
+
+            # Check if this is a subheading element that precedes a list
+            is_subheading_for_list = False
+            subheading_data = None
+            next_element = None
+
+            if (
+                i < len(slide.elements) - 1
+                and hasattr(current_element, "element_type")
+                and current_element.element_type == ElementType.TEXT
+                and hasattr(current_element, "related_to_next")
+                and current_element.related_to_next
+            ):
+                next_element = slide.elements[i + 1]
+
+                # Check if next element is a list type
+                if (
+                    hasattr(next_element, "element_type")
+                    and next_element.element_type
+                    in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST)
+                    and hasattr(next_element, "related_to_prev")
+                    and next_element.related_to_prev
+                ):
+                    # Check if the list will use a placeholder
+                    will_use_placeholder = False
+                    placeholder_id = None
+
+                    if slide.placeholder_mappings:
+                        # Determine the appropriate placeholder for this list
+                        # Based on position (left half = BODY_0, right half = BODY_1)
+                        if next_element.element_type in slide.placeholder_mappings:
+                            will_use_placeholder = True
+                            placeholder_id = slide.placeholder_mappings[
+                                next_element.element_type
+                            ]
+                        # Also check for generic BODY placeholders
+                        elif ElementType.TEXT in slide.placeholder_mappings:
+                            will_use_placeholder = True
+                            placeholder_id = slide.placeholder_mappings[
+                                ElementType.TEXT
+                            ]
+                        # For multi-column layouts, choose the correct BODY placeholder
+                        # based on the horizontal position
+                        elif (
+                            hasattr(next_element, "position") and next_element.position
+                        ):
+                            slide_midpoint = (
+                                slide.size[0] / 2 if hasattr(slide, "size") else 360
+                            )
+                            is_left_column = next_element.position[0] < slide_midpoint
+
+                            # Try column-specific placeholders
+                            column_key = (
+                                f"{ElementType.TEXT.value}_0"
+                                if is_left_column
+                                else f"{ElementType.TEXT.value}_1"
+                            )
+                            if column_key in slide.placeholder_mappings:
+                                will_use_placeholder = True
+                                placeholder_id = slide.placeholder_mappings[column_key]
+
+                    if will_use_placeholder:
+                        is_subheading_for_list = True
+                        # Prepare subheading data to pass to the list builder
+                        subheading_data = {
+                            "text": current_element.text,
+                            "formatting": getattr(current_element, "formatting", []),
+                            "element_type": current_element.element_type,
+                            "horizontal_alignment": getattr(
+                                current_element, "horizontal_alignment", None
+                            ),
+                            "placeholder_id": placeholder_id,
+                        }
+
+                        logger.debug(
+                            f"Combining subheading with list in placeholder: "
+                            f"{getattr(current_element, 'object_id', 'unknown')} + "
+                            f"{getattr(next_element, 'object_id', 'unknown')}"
+                        )
+
+            if is_subheading_for_list and next_element:
+                # Skip this element (subheading) as it will be combined with the list
+                i += 1
+
+                # Now process the list element with the subheading data
+                element_requests = []  # Initialize with empty list
+
+                if next_element.element_type == ElementType.BULLET_LIST:
+                    list_requests = (
+                        self.list_builder.generate_bullet_list_element_requests(
+                            next_element,
+                            slide.object_id,
+                            slide.placeholder_mappings,
+                            subheading_data,
+                        )
+                    )
+                    if list_requests is not None:  # Defensive check
+                        element_requests = list_requests
+                else:  # ORDERED_LIST
+                    list_requests = self.list_builder.generate_list_element_requests(
+                        next_element,
+                        slide.object_id,
+                        "NUMBERED_DIGIT_ALPHA_ROMAN",
+                        slide.placeholder_mappings,
+                        subheading_data,
+                    )
+                    if list_requests is not None:  # Defensive check
+                        element_requests = list_requests
+
+                # Ensure we're not extending with None
+                if element_requests:
+                    requests.extend(element_requests)
+            else:
+                # Process element normally
+                element_requests = self._generate_element_requests(
+                    current_element, slide.object_id, slide.placeholder_mappings
+                )
+
+                # Ensure we're not extending with None
+                if element_requests is not None:
+                    requests.extend(element_requests)
+
+            i += 1
 
         # Add speaker notes if present
         # Note: speaker_notes_object_id must be populated on the slide model
@@ -118,12 +239,12 @@ class ApiRequestGenerator:
             theme_placeholders: Placeholder mappings for the current slide
 
         Returns:
-            List of request dictionaries
+            List of request dictionaries (empty list if no requests can be generated)
         """
         # Skip None elements
         if element is None:
             logger.warning(f"Skipping None element for slide {slide_id}")
-            return []
+            return []  # Return empty list, not None
 
         # Ensure element has a valid object_id (unless it's using a theme placeholder)
         element_type = getattr(element, "element_type", None)
@@ -141,49 +262,81 @@ class ApiRequestGenerator:
             )
 
         # Delegate to appropriate builder based on element type
-        if (
-            element_type == ElementType.TITLE
-            or element_type == ElementType.SUBTITLE
-            or element_type == ElementType.TEXT
-        ):
-            return self.text_builder.generate_text_element_requests(
-                element, slide_id, theme_placeholders
+        requests = []  # Initialize with empty list
+
+        try:
+            if (
+                element_type == ElementType.TITLE
+                or element_type == ElementType.SUBTITLE
+                or element_type == ElementType.TEXT
+            ):
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.BULLET_LIST:
+                builder_requests = (
+                    self.list_builder.generate_bullet_list_element_requests(
+                        element, slide_id, theme_placeholders
+                    )
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.ORDERED_LIST:
+                builder_requests = self.list_builder.generate_list_element_requests(
+                    element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN", theme_placeholders
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.IMAGE:
+                builder_requests = self.media_builder.generate_image_element_requests(
+                    element, slide_id
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.TABLE:
+                builder_requests = self.table_builder.generate_table_element_requests(
+                    element, slide_id
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.CODE:
+                builder_requests = self.code_builder.generate_code_element_requests(
+                    element, slide_id
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.QUOTE:
+                # Quotes are handled by TextRequestBuilder with specific styling
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            elif element_type == ElementType.FOOTER:
+                # Footers are essentially text elements; special handling is in layout/parsing
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
+                if builder_requests is not None:
+                    requests = builder_requests
+
+            else:
+                logger.warning(
+                    f"Unknown or unhandled element type: {element_type} for element id {getattr(element, 'object_id', 'N/A')}"
+                )
+        except Exception as e:
+            logger.error(
+                f"Error generating requests for element type {element_type}: {e}",
+                exc_info=True,
             )
 
-        if element_type == ElementType.BULLET_LIST:
-            return self.list_builder.generate_bullet_list_element_requests(
-                element, slide_id
-            )
-
-        if element_type == ElementType.ORDERED_LIST:
-            return self.list_builder.generate_list_element_requests(
-                element,
-                slide_id,
-                "NUMBERED_DIGIT_ALPHA_ROMAN",  # Example preset
-            )
-
-        if element_type == ElementType.IMAGE:
-            return self.media_builder.generate_image_element_requests(element, slide_id)
-
-        if element_type == ElementType.TABLE:
-            return self.table_builder.generate_table_element_requests(element, slide_id)
-
-        if element_type == ElementType.CODE:
-            return self.code_builder.generate_code_element_requests(element, slide_id)
-
-        if element_type == ElementType.QUOTE:
-            # Quotes are handled by TextRequestBuilder with specific styling
-            return self.text_builder.generate_text_element_requests(
-                element, slide_id, theme_placeholders
-            )
-
-        if element_type == ElementType.FOOTER:
-            # Footers are essentially text elements; special handling is in layout/parsing
-            return self.text_builder.generate_text_element_requests(
-                element, slide_id, theme_placeholders
-            )
-
-        logger.warning(
-            f"Unknown or unhandled element type: {element_type} for element id {getattr(element, 'object_id', 'N/A')}"
-        )
-        return []
+        return requests  # Always return the list, even if empty

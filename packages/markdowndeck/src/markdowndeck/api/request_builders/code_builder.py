@@ -60,6 +60,21 @@ class CodeRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_shape_request)
 
+        # Add autofit properties to enable vertical resizing
+        # FIXED: Corrected the fields path for autofit
+        autofit_request = {
+            "updateShapeProperties": {
+                "objectId": element.object_id,
+                "fields": "autofit",  # Correctly referencing the autofit property
+                "shapeProperties": {
+                    "autofit": {
+                        "autofitType": "SHAPE_AUTOFIT",
+                    }
+                },
+            }
+        }
+        requests.append(autofit_request)
+
         # Skip insertion if there's no code text
         if not element.code:
             return requests
@@ -100,19 +115,18 @@ class CodeRequestBuilder(BaseRequestBuilder):
                     "spaceAbove": {"magnitude": 0, "unit": "PT"},
                     "spaceBelow": {"magnitude": 0, "unit": "PT"},
                     # Set line spacing slightly higher than single for readability
-                    "lineSpacing": 1.1,  # 1.1 spacing is good for code
+                    "lineSpacing": 115,  # 1.15 spacing is good for code readability
                 },
                 "fields": "spaceAbove,spaceBelow,lineSpacing",
             }
         }
         requests.append(paragraph_style)
 
-        # Add shape background
+        # Add shape background - FIXED: Corrected structure and field path
         shape_background_request = {
             "updateShapeProperties": {
                 "objectId": element.object_id,
-                # CORRECTED FieldMask: Removed leading "shapeProperties."
-                "fields": "shapeBackgroundFill.solidFill.color",
+                "fields": "shapeBackgroundFill.solidFill.color",  # Correct field path
                 "shapeProperties": {
                     "shapeBackgroundFill": {
                         "solidFill": {

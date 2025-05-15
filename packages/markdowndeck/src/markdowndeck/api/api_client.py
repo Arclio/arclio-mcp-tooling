@@ -99,8 +99,10 @@ class ApiClient:
                 self.execute_batch_update(batch)
 
         # Step 5: Get the updated presentation to retrieve speaker notes IDs
-        updated_presentation = self.get_presentation(presentation_id)
-
+        updated_presentation = self.get_presentation(
+            presentation_id,
+            fields="slides(objectId,slideProperties.notesPage.pageElements)",
+        )
         # Step 6: Create a second batch of requests for speaker notes
         notes_batches = []
         slides_with_notes = 0
@@ -135,7 +137,7 @@ class ApiClient:
                         }
                         notes_batches.append(notes_batch)
                         slides_with_notes += 1
-                        logger.debug(f"Created notes requests for slide {i+1}")
+                        logger.debug(f"Created notes requests for slide {i + 1}")
 
         # Step 7: Execute the notes batches if any exist
         if notes_batches:
@@ -145,8 +147,9 @@ class ApiClient:
                 self.execute_batch_update(batch)
 
         # Step 8: Get the final presentation
-        final_presentation = self.get_presentation(presentation_id)
-
+        final_presentation = self.get_presentation(
+            presentation_id, fields="presentationId,title,slides.objectId"
+        )
         result = {
             "presentationId": presentation_id,
             "presentationUrl": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
@@ -180,15 +183,6 @@ class ApiClient:
                         # Speaker notes are typically in a shape with type TEXT_BOX
                         if element.get("shape", {}).get("shapeType") == "TEXT_BOX":
                             return element.get("objectId")
-
-            # Alternative lookup: directly in notesProperties if available
-            if (
-                "slideProperties" in slide
-                and "notesProperties" in slide["slideProperties"]
-            ):
-                notes_props = slide["slideProperties"]["notesProperties"]
-                if "speakerNotesObjectId" in notes_props:
-                    return notes_props["speakerNotesObjectId"]
 
             # If we can't find it using the above methods, try looking for a specific
             # element that matches the pattern of speaker notes
@@ -259,12 +253,13 @@ class ApiClient:
             logger.error(f"Failed to create presentation: {error}")
             raise
 
-    def get_presentation(self, presentation_id: str) -> dict:
+    def get_presentation(self, presentation_id: str, fields: str = None) -> dict:
         """
         Get a presentation by ID.
 
         Args:
             presentation_id: The presentation ID
+            fields: Optional field mask string to limit response size
 
         Returns:
             Dictionary with presentation data
@@ -274,9 +269,16 @@ class ApiClient:
         """
         try:
             logger.debug(f"Getting presentation: {presentation_id}")
+
+            # Use fields parameter if provided to limit response size
+            kwargs = {}
+            if fields:
+                kwargs["fields"] = fields
+                logger.debug(f"Using field mask: {fields}")
+
             return (
                 self.slides_service.presentations()
-                .get(presentationId=presentation_id)
+                .get(presentationId=presentation_id, **kwargs)
                 .execute()
             )
         except HttpError as error:
@@ -285,13 +287,7 @@ class ApiClient:
 
     def execute_batch_update(self, batch: dict) -> dict:
         """
-        Execute a batch update with retries and error handling for images.
-
-        This implementation specifically handles image-related errors by:
-        1. Attempting the full batch
-        2. On failure, identifying problematic image requests
-        3. Either removing or replacing them with placeholder text
-        4. Retrying the modified batch
+        Execute a batch update with retries and error handling.
 
         Args:
             batch: Dictionary with presentationId and requests
@@ -306,12 +302,62 @@ class ApiClient:
         request_count = len(batch["requests"])
         logger.debug(f"Executing batch update with {request_count} requests")
 
-        # NEW: Validate the batch before sending to API
+        # Validate and fix the batch before sending to API
         current_batch = validate_batch_requests(batch.copy())
 
-        # REMOVED TEMPORARY FIX FOR table_cell_properties
-        # The fix is now in table_builder.py for the FieldMask
+        # Additional safety check: remove any requests with invalid text ranges
+        safe_requests = []
+        for i, req in enumerate(current_batch["requests"]):
+            is_safe = True
 
+            # Check paragraph style requests
+            if "updateParagraphStyle" in req:
+                text_range = req["updateParagraphStyle"].get("textRange", {})
+                if (
+                    "type" not in text_range
+                    and "startIndex" in text_range
+                    and "endIndex" in text_range
+                ):
+                    start_index = text_range["startIndex"]
+                    end_index = text_range["endIndex"]
+
+                    # Check for invalid indices
+                    if end_index <= start_index or start_index < 0:
+                        logger.warning(
+                            f"Skipping request with invalid text range: {start_index}-{end_index}"
+                        )
+                        is_safe = False
+
+            # Check text style requests
+            if "updateTextStyle" in req:
+                text_range = req["updateTextStyle"].get("textRange", {})
+                if (
+                    "type" not in text_range
+                    and "startIndex" in text_range
+                    and "endIndex" in text_range
+                ):
+                    start_index = text_range["startIndex"]
+                    end_index = text_range["endIndex"]
+
+                    # Check for invalid indices
+                    if end_index <= start_index or start_index < 0:
+                        logger.warning(
+                            f"Skipping request with invalid text range: {start_index}-{end_index}"
+                        )
+                        is_safe = False
+
+            if is_safe:
+                safe_requests.append(req)
+            else:
+                logger.warning(f"Skipping potentially problematic request: {req}")
+
+        # Update the batch with safe requests
+        current_batch["requests"] = safe_requests
+        logger.debug(
+            f"Proceeding with {len(safe_requests)} safe requests after validation"
+        )
+
+        # Regular retry loop
         while retries <= self.max_retries:
             try:
                 response = (
@@ -325,6 +371,7 @@ class ApiClient:
                 logger.debug("Batch update successful")
                 return response
             except HttpError as error:
+                error_str = str(error)
                 if error.resp.status in [429, 500, 503]:  # Rate limit or server error
                     retries += 1
                     if retries <= self.max_retries:
@@ -338,8 +385,140 @@ class ApiClient:
                     else:
                         logger.error(f"Max retries exceeded: {error}")
                         raise
-                elif "createImage" in str(error) and (
-                    "not found" in str(error) or "too large" in str(error)
+                # Check specifically for text range index errors
+                elif (
+                    (
+                        "endIndex" in error_str
+                        and "greater than the existing text length" in error_str
+                    )
+                    or "Invalid requests" in error_str
+                    and "updateParagraphStyle" in error_str
+                ):
+                    # Extract information from the error message
+                    import re
+
+                    # Try pattern 1: match our specific error case directly
+                    request_index_match = re.search(
+                        r"Invalid requests\[(\d+)\]\.(\w+): The end index \((\d+)\) should not be greater than the existing text length \((\d+)\)",
+                        error_str,
+                    )
+
+                    if request_index_match:
+                        # Direct match to the specific error format
+                        problem_index = int(request_index_match.group(1))
+                        request_type = request_index_match.group(2)
+                        attempted_end_index = int(request_index_match.group(3))
+                        actual_text_length = int(request_index_match.group(4))
+
+                        logger.warning(
+                            f"Text range error: request {problem_index} ({request_type}) tried to use end index {attempted_end_index} "
+                            f"but text length is {actual_text_length}"
+                        )
+                    else:
+                        # Try pattern 2: more general pattern
+                        request_index_match = re.search(
+                            r"requests\[(\d+)\]\.(\w+)", error_str
+                        )
+                        length_match = re.search(
+                            r"end index \((\d+)\).*text length \((\d+)\)", error_str
+                        )
+
+                        if request_index_match:
+                            problem_index = int(request_index_match.group(1))
+                            request_type = request_index_match.group(2)
+
+                            if length_match:
+                                attempted_end_index = int(length_match.group(1))
+                                actual_text_length = int(length_match.group(2))
+                                logger.warning(
+                                    f"Text range error: request {problem_index} ({request_type}) tried to use end index {attempted_end_index} "
+                                    f"but text length is {actual_text_length}"
+                                )
+                            else:
+                                # Just log the basic info if we can't extract details
+                                logger.warning(
+                                    f"Text range error in request {problem_index} ({request_type})"
+                                )
+                                attempted_end_index = 999999  # Placeholder value
+                                actual_text_length = 0  # Placeholder value
+                        else:
+                            # We can't identify the specific request, but we'll try a blanket fix
+                            logger.warning(
+                                f"Unidentified text range error: {error_str}"
+                            )
+                            problem_index = (
+                                -1
+                            )  # Flag that we couldn't identify the problem index
+
+                    # Create a new batch without the problematic request
+                    modified_requests = []
+                    for i, req in enumerate(current_batch["requests"]):
+                        if problem_index >= 0 and i == problem_index:
+                            logger.info(
+                                f"Skipping request at index {problem_index} with invalid text range"
+                            )
+                        else:
+                            # Also fix any updateParagraphStyle or updateTextStyle requests with text ranges
+                            for req_type in [
+                                "updateParagraphStyle",
+                                "updateTextStyle",
+                                "createParagraphBullets",
+                            ]:
+                                if req_type in req and "textRange" in req[req_type]:
+                                    text_range = req[req_type]["textRange"]
+                                    if (
+                                        "endIndex" in text_range
+                                        and "startIndex" in text_range
+                                    ):
+                                        # Ensure end_index is never greater than start_index + reasonable length
+                                        start_index = text_range["startIndex"]
+                                        old_end = text_range["endIndex"]
+
+                                        # If we have actual text length info, use it to cap the end index
+                                        if (
+                                            problem_index >= 0
+                                            and actual_text_length > 0
+                                        ):
+                                            # For any request that's after the one that failed, be extra cautious
+                                            if i > problem_index:
+                                                text_range["endIndex"] = min(
+                                                    text_range["endIndex"],
+                                                    actual_text_length - 1,
+                                                )
+
+                                        # Apply a general safety limit
+                                        if text_range["endIndex"] > start_index + 500:
+                                            text_range["endIndex"] = start_index + 500
+
+                                        # Ensure endIndex is always at least startIndex + 1
+                                        if (
+                                            text_range["endIndex"]
+                                            <= text_range["startIndex"]
+                                        ):
+                                            text_range["endIndex"] = (
+                                                text_range["startIndex"] + 1
+                                            )
+
+                                        if old_end != text_range["endIndex"]:
+                                            logger.warning(
+                                                f"Fixed text range in request {i}: endIndex {old_end} -> {text_range['endIndex']}"
+                                            )
+
+                            # Add the fixed request
+                            modified_requests.append(req)
+
+                    # Update the batch with the modified requests
+                    current_batch = {
+                        "presentationId": current_batch["presentationId"],
+                        "requests": modified_requests,
+                    }
+                    logger.info(
+                        f"Retrying with modified batch ({len(modified_requests)} requests)"
+                    )
+                    retries += 1
+                    continue
+                elif "createImage" in error_str and (
+                    "not found" in error_str or "too large" in error_str
                 ):
                     # Handle image-specific errors
                     logger.warning(f"Image error in batch: {error}")

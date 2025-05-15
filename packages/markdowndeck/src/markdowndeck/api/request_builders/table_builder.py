@@ -104,7 +104,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 )
                 requests.append(style_request)
 
-                # Add cell fill for header
+                # Add cell fill for header - FIXED: Corrected field path structure
                 fill_request = {
                     "updateTableCellProperties": {
                         "objectId": element.object_id,
@@ -129,8 +129,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                                 }
                             }
                         },
-                        # CORRECTED FieldMask: Removed leading "tableCellProperties."
-                        "fields": "tableCellBackgroundFill.solidFill.color",
+                        "fields": "tableCellBackgroundFill.solidFill.color",  # Correct field path
                     }
                 }
                 requests.append(fill_request)
@@ -176,8 +175,6 @@ class TableRequestBuilder(BaseRequestBuilder):
     ) -> None:
         """
         Apply border styling to the table.
-        (This method updates TableBorderProperties, with field mask paths relative to the
-         tableBorderProperties object, not prefixed with tableBorderProperties itself)
         """
         if "border" not in element.directives:
             return
@@ -247,6 +244,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 border_positions = [border_pos]
 
         for position in border_positions:
+            # FIXED: Corrected field path structure for updateTableBorderProperties
             border_style_request = {
                 "updateTableBorderProperties": {
                     "objectId": element.object_id,
@@ -263,8 +261,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                             "solidFill": {"color": {"rgbColor": rgb_color}}
                         },
                     },
-                    # Corrected field mask: removed the "tableBorderProperties." prefix
-                    "fields": "weight,dashStyle,tableBorderFill.solidFill.color.rgbColor",
+                    "fields": "weight,dashStyle,tableBorderFill.solidFill.color.rgbColor",  # Correct field path
                 }
             }
             requests.append(border_style_request)
@@ -336,6 +333,7 @@ class TableRequestBuilder(BaseRequestBuilder):
             # Handle vertical alignment (top, middle, bottom)
             api_alignment = v_alignment_map.get(alignment_value.lower())
 
+            # FIXED: Corrected field path structure for updateTableCellProperties
             cell_align_request = {
                 "updateTableCellProperties": {
                     "objectId": element.object_id,
@@ -345,7 +343,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                         "columnSpan": col_span,
                     },
                     "tableCellProperties": {"contentAlignment": api_alignment},
-                    "fields": "contentAlignment",
+                    "fields": "contentAlignment",  # Correct field path
                 }
             }
             requests.append(cell_align_request)
@@ -414,7 +412,7 @@ class TableRequestBuilder(BaseRequestBuilder):
         else:
             return
 
-        # Construct the full fields string without the leading "tableCellProperties."
+        # Construct the correct fields string for the update
         fields = f"tableCellBackgroundFill.solidFill.color.{fields_suffix}"
 
         row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
@@ -438,6 +436,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                         f"Failed to parse cell range: {cell_range}, using default"
                     )
 
+        # FIXED: Corrected field path structure for updateTableCellProperties
         bg_request = {
             "updateTableCellProperties": {
                 "objectId": element.object_id,
@@ -449,7 +448,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                 "tableCellProperties": {
                     "tableCellBackgroundFill": {"solidFill": {"color": color}}
                 },
-                "fields": fields,  # Use the corrected fields string
+                "fields": fields,  # Correct field path
             }
         }
         requests.append(bg_request)

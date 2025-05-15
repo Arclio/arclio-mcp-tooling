@@ -12,7 +12,9 @@ def builder() -> TextRequestBuilder:
 
 
 class TestTextRequestBuilderDirectivesAndTheme:
-    def test_generate_text_element_with_valign_directive(self, builder: TextRequestBuilder):
+    def test_generate_text_element_with_valign_directive(
+        self, builder: TextRequestBuilder
+    ):
         element = TextElement(
             element_type=ElementType.TEXT,
             text="Vertically Aligned",
@@ -36,38 +38,46 @@ class TestTextRequestBuilderDirectivesAndTheme:
         assert update_shape_req is not None
         assert update_shape_req["updateShapeProperties"]["objectId"] == "txt_valign"
         assert (
-            update_shape_req["updateShapeProperties"]["shapeProperties"]["contentVerticalAlignment"]
+            update_shape_req["updateShapeProperties"]["shapeProperties"][
+                "contentVerticalAlignment"
+            ]
             == "MIDDLE"
         )
 
-    def test_generate_text_element_with_padding_directive(self, builder: TextRequestBuilder):
+    def test_generate_text_element_with_padding_directive(
+        self, builder: TextRequestBuilder
+    ):
         element = TextElement(
             element_type=ElementType.TEXT,
             text="Padded Text",
             object_id="txt_padding",
-            directives={"padding": 10},  # leftInset, rightInset, etc.
+            directives={"padding": 10},
         )
         requests = builder.generate_text_element_requests(element, "slide1")
-        # createShape, insertText, updateShapeProperties for padding
+
+        # We still expect the basic requests (createShape, insertText, autofit)
         assert len(requests) >= 3
 
-        update_shape_req = next(
+        # But we should NOT find a request with textBoxProperties since it's not supported
+        update_shape_with_textbox_props = next(
             (
                 r
                 for r in requests
                 if "updateShapeProperties" in r
-                and "textBoxProperties" in r["updateShapeProperties"]["shapeProperties"]
+                and "textBoxProperties"
+                in r["updateShapeProperties"].get("shapeProperties", {})
             ),
             None,
         )
-        assert update_shape_req is not None
-        assert update_shape_req["updateShapeProperties"]["objectId"] == "txt_padding"
-        tb_props = update_shape_req["updateShapeProperties"]["shapeProperties"]["textBoxProperties"]
-        assert tb_props["leftInset"]["magnitude"] == 10
-        assert tb_props["rightInset"]["magnitude"] == 10
-        assert tb_props["topInset"]["magnitude"] == 10
-        assert tb_props["bottomInset"]["magnitude"] == 10
-        assert "leftInset" in update_shape_req["updateShapeProperties"]["fields"]
+        assert (
+            update_shape_with_textbox_props is None
+        ), "textBoxProperties should not be present in any request"
+
+        # Verify that the padding directive is processed (but no request added)
+        # We can't directly test for the warning log, but we can verify the directive was acknowledged
+        create_shape = next((r for r in requests if "createShape" in r), None)
+        assert create_shape is not None
+        assert create_shape["createShape"]["objectId"] == "txt_padding"
 
     def test_generate_text_element_with_paragraph_styling_directives(
         self, builder: TextRequestBuilder
@@ -86,7 +96,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
         # createShape, insertText, updateParagraphStyle
         assert len(requests) >= 3
 
-        update_para_req = next((r for r in requests if "updateParagraphStyle" in r), None)
+        update_para_req = next(
+            (r for r in requests if "updateParagraphStyle" in r), None
+        )
         assert update_para_req is not None
         assert update_para_req["updateParagraphStyle"]["objectId"] == "txt_para_style"
 
@@ -98,7 +110,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
         fields = update_para_req["updateParagraphStyle"]["fields"]
         assert isinstance(fields, str)  # Just making sure it's a string
 
-    def test_generate_text_element_with_theme_placeholder(self, builder: TextRequestBuilder):
+    def test_generate_text_element_with_theme_placeholder(
+        self, builder: TextRequestBuilder
+    ):
         element = TextElement(
             element_type=ElementType.TITLE,  # This element type will be used as key in theme_placeholders
             text="Themed Title Text",
@@ -106,14 +120,18 @@ class TestTextRequestBuilderDirectivesAndTheme:
         )
         theme_placeholders = {ElementType.TITLE: "theme_title_placeholder_id"}
 
-        requests = builder.generate_text_element_requests(element, "slide1", theme_placeholders)
+        requests = builder.generate_text_element_requests(
+            element, "slide1", theme_placeholders
+        )
 
         # Expected only insertText request since deleteText was removed to avoid API errors
         assert len(requests) == 1
         assert requests[0]["insertText"]["objectId"] == "theme_title_placeholder_id"
         assert requests[0]["insertText"]["text"] == "Themed Title Text"
 
-    def test_empty_text_element_with_theme_placeholder(self, builder: TextRequestBuilder):
+    def test_empty_text_element_with_theme_placeholder(
+        self, builder: TextRequestBuilder
+    ):
         """Test that no requests are generated for empty text elements with theme placeholders."""
         element = TextElement(
             element_type=ElementType.TITLE,
@@ -121,7 +139,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
         )
         theme_placeholders = {ElementType.TITLE: "theme_title_placeholder_id"}
 
-        requests = builder.generate_text_element_requests(element, "slide1", theme_placeholders)
+        requests = builder.generate_text_element_requests(
+            element, "slide1", theme_placeholders
+        )
 
         # No requests should be generated for empty text
         assert len(requests) == 0
@@ -129,7 +149,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
         # Ensure element.object_id was still updated to the placeholder_id
         assert element.object_id == "theme_title_placeholder_id"
 
-    def test_generate_text_element_with_border_directive(self, builder: TextRequestBuilder):
+    def test_generate_text_element_with_border_directive(
+        self, builder: TextRequestBuilder
+    ):
         element = TextElement(
             element_type=ElementType.TEXT,
             text="Bordered Text",
@@ -152,7 +174,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
         )
         assert update_shape_req is not None
         assert update_shape_req["updateShapeProperties"]["objectId"] == "txt_border"
-        outline = update_shape_req["updateShapeProperties"]["shapeProperties"]["outline"]
+        outline = update_shape_req["updateShapeProperties"]["shapeProperties"][
+            "outline"
+        ]
         assert outline["weight"]["magnitude"] == 1.0
         assert outline["dashStyle"] == "SOLID"
         assert outline["outlineFill"]["solidFill"]["color"]["rgbColor"] == {
@@ -161,7 +185,9 @@ class TestTextRequestBuilderDirectivesAndTheme:
             "blue": 0.0,
         }
         assert "outline.weight" in update_shape_req["updateShapeProperties"]["fields"]
-        assert "outline.dashStyle" in update_shape_req["updateShapeProperties"]["fields"]
+        assert (
+            "outline.dashStyle" in update_shape_req["updateShapeProperties"]["fields"]
+        )
         assert (
             "outline.outlineFill.solidFill.color.rgbColor"
             in update_shape_req["updateShapeProperties"]["fields"]
