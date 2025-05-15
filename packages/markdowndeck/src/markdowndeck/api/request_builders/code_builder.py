@@ -90,6 +90,23 @@ class CodeRequestBuilder(BaseRequestBuilder):
         )
         requests.append(style_request)
 
+        # FIXED: Set reasonable paragraph spacing to prevent excessive gaps
+        paragraph_style = {
+            "updateParagraphStyle": {
+                "objectId": element.object_id,
+                "textRange": {"type": "ALL"},
+                "style": {
+                    # Use less space for code which is already well-spaced visually
+                    "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                    "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                    # Set line spacing slightly higher than single for readability
+                    "lineSpacing": 1.1,  # 1.1 spacing is good for code
+                },
+                "fields": "spaceAbove,spaceBelow,lineSpacing",
+            }
+        }
+        requests.append(paragraph_style)
+
         # Add shape background
         shape_background_request = {
             "updateShapeProperties": {

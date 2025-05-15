@@ -1,4 +1,3 @@
-# src/markdowndeck/api/request_builders/text_builder.py
 """Text request builder for Google Slides API requests."""
 
 import logging
@@ -6,6 +5,7 @@ import logging
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     AlignmentType,
+    Element,
     ElementType,
 )
 from markdowndeck.models.elements.text import TextElement
@@ -111,8 +111,11 @@ class TextRequestBuilder(BaseRequestBuilder):
                     "textRange": {"type": "ALL"},
                     "style": {
                         "alignment": "CENTER",
+                        # FIXING SPACING: Add explicit spacing values for consistent rendering
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 6, "unit": "PT"}, # Small gap after titles/subtitles
                     },
-                    "fields": "alignment",
+                    "fields": "alignment,spaceAbove,spaceBelow",
                 }
             }
             requests.append(paragraph_style)
@@ -126,16 +129,36 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
             api_alignment = alignment_map.get(element.horizontal_alignment, "START")
 
+            # FIXED: Use spaceMultiple instead of lineSpacing for line spacing
             paragraph_style = {
                 "updateParagraphStyle": {
                     "objectId": element.object_id,
                     "textRange": {"type": "ALL"},
                     "style": {
                         "alignment": api_alignment,
+                        # Set reasonable default spacing to prevent excessive gaps
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": 0, "unit": "PT"},
+                        # FIXED: Use spaceMultiple (percentage value as integer)
+                        "spaceMultiple": 115, # 1.15 spacing
                     },
-                    "fields": "alignment",
+                    "fields": "alignment,spaceAbove,spaceBelow,spaceMultiple",
                 }
             }
+
+            # For heading-like text elements, use slightly different spacing
+            if element.element_type == ElementType.TEXT and hasattr(element, "text"):
+                text = element.text.strip()
+                is_heading = text.startswith('#') or (
+                    "fontsize" in element.directives and
+                    isinstance(element.directives["fontsize"], (int, float)) and
+                    element.directives["fontsize"] >= 16
+                )
+
+                if is_heading:
+                    paragraph_style["style"]["spaceAbove"] = {"magnitude": 6, "unit": "PT"}
+                    paragraph_style["style"]["spaceBelow"] = {"magnitude": 3, "unit": "PT"}
+
             requests.append(paragraph_style)
 
         # ENHANCEMENT: Apply vertical alignment if specified
@@ -201,6 +224,24 @@ class TextRequestBuilder(BaseRequestBuilder):
                 logger.debug(
                     f"Applied padding of {padding_value}pt to text box {element.object_id}"
                 )
+        # FIXED: Always apply minimal text box padding to ensure consistent appearance
+        else:
+            default_padding = 3.0
+            padding_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "textBoxProperties",
+                    "shapeProperties": {
+                        "textBoxProperties": {
+                            "leftInset": {"magnitude": default_padding, "unit": "PT"},
+                            "rightInset": {"magnitude": default_padding, "unit": "PT"},
+                            "topInset": {"magnitude": default_padding, "unit": "PT"},
+                            "bottomInset": {"magnitude": default_padding, "unit": "PT"},
+                        }
+                    },
+                }
+            }
+            requests.append(padding_request)
 
         # ENHANCEMENT: Apply paragraph-level styling
         self._apply_paragraph_styling(element, requests)
@@ -259,6 +300,21 @@ class TextRequestBuilder(BaseRequestBuilder):
                     )
                     requests.append(style_request)
 
+            # FIXED: Add default spacing settings for placeholders too using spaceMultiple
+            paragraph_style = {
+                "updateParagraphStyle": {
+                    "objectId": placeholder_id,
+                    "textRange": {"type": "ALL"},
+                    "style": {
+                        "spaceAbove": {"magnitude": 0, "unit": "PT"},
+                        "spaceBelow": {"magnitude": element.element_type in (ElementType.TITLE, ElementType.SUBTITLE) and 6 or 0, "unit": "PT"},
+                        "spaceMultiple": 115, # Use 1.15 spacing (value is percentage as integer)
+                    },
+                    "fields": "spaceAbove,spaceBelow,spaceMultiple",
+                }
+            }
+            requests.append(paragraph_style)
+
         logger.debug(
             f"Generated {len(requests)} requests for themed element {element.element_type} using placeholder {placeholder_id}"
         )
@@ -284,8 +340,8 @@ class TextRequestBuilder(BaseRequestBuilder):
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
             if isinstance(spacing, int | float) and spacing > 0:
-                # API uses a structure like { spaceMultiple: 150 } for 1.5 spacing
-                paragraph_style["spaceMultiple"] = spacing * 100  # API uses percentage
+                # FIXED: Use spaceMultiple as an integer percentage value
+                paragraph_style["spaceMultiple"] = int(spacing * 100)
                 fields.append("spaceMultiple")
                 logger.debug(
                     f"Applied line spacing of {spacing} to element {element.object_id}"

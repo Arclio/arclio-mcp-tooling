@@ -1,6 +1,7 @@
 """Slide request builder for Google Slides API requests."""
 
 import logging
+import requests
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import ElementType, Slide, SlideLayout
@@ -130,10 +131,28 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 page_background_fill["solidFill"] = {
                     "color": {"themeColor": background_value.upper()}
                 }
-                fields_mask_parts.append("pageBackgroundFill.solidFill.color.themeColor")
+                fields_mask_parts.append(
+                    "pageBackgroundFill.solidFill.color.themeColor"
+                )
         elif background_type == "image":
-            page_background_fill["stretchedPictureFill"] = {"contentUrl": background_value}
-            fields_mask_parts.append("pageBackgroundFill.stretchedPictureFill.contentUrl")
+            # FIXED: Validate image URLs before including them in API requests
+            if not self._is_valid_image_url(background_value):
+                logger.warning(
+                    f"Background image URL is invalid or inaccessible: {background_value}. "
+                    f"Using a default solid color background instead."
+                )
+                # Use a light gray color as fallback
+                page_background_fill["solidFill"] = {
+                    "color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
+                }
+                fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
+            else:
+                page_background_fill["stretchedPictureFill"] = {
+                    "contentUrl": background_value
+                }
+                fields_mask_parts.append(
+                    "pageBackgroundFill.stretchedPictureFill.contentUrl"
+                )
         else:
             logger.warning(
                 f"Unknown background type: {background_type} for slide {slide.object_id}"
@@ -204,10 +223,68 @@ class SlideRequestBuilder(BaseRequestBuilder):
         )
         return requests
 
-    def _get_element_type_for_placeholder(self, placeholder_type: str) -> ElementType | None:
+    def _get_element_type_for_placeholder(
+        self, placeholder_type: str
+    ) -> ElementType | None:
         for element_type, api_ph_type in self.ELEMENT_TO_PLACEHOLDER_TYPE_MAP.items():
             if api_ph_type == placeholder_type:
                 return element_type
-        if placeholder_type == "CENTERED_TITLE":  # Common API placeholder type for titles
+        if (
+            placeholder_type == "CENTERED_TITLE"
+        ):  # Common API placeholder type for titles
             return ElementType.TITLE
         return None
+
+    def _is_valid_image_url(self, url: str) -> bool:
+        """
+        Validate if a URL is a valid image URL.
+
+        This performs both format validation and image accessibility checking.
+        Google Slides API requires images to be accessible.
+
+        Args:
+            url: The URL to validate
+
+        Returns:
+            bool: True if the URL is valid and accessible
+        """
+        if not url:
+            return False
+
+        # Only allow http/https URLs
+        if not (url.startswith("http://") or url.startswith("https://")):
+            return False
+
+        # Check for common image extensions
+        image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"]
+        has_valid_extension = any(url.lower().endswith(ext) for ext in image_extensions)
+
+        # If no extension, at least make sure it's a properly formed URL with a domain
+        if not has_valid_extension and "." not in url.split("//", 1)[-1]:
+            return False
+
+        # Check if image actually exists and is accessible
+        try:
+            # Use HEAD request to check image existence
+            head_response = requests.head(url, timeout=3, allow_redirects=True)
+
+            # Check status code
+            if head_response.status_code != 200:
+                logger.warning(
+                    f"Background image URL returned status code {head_response.status_code}: {url}"
+                )
+                return False
+
+            # Verify content type is an image
+            content_type = head_response.headers.get("content-type", "")
+            if not content_type.startswith("image/"):
+                logger.warning(
+                    f"URL does not point to an image (content-type: {content_type}): {url}"
+                )
+                return False
+
+            return True
+        except Exception as e:
+            # If we can't access the image, log warning and reject it
+            logger.warning(f"Background image verification failed for {url}: {e}")
+            return False

@@ -8,6 +8,7 @@ from googleapiclient.discovery import Resource, build
 from googleapiclient.errors import HttpError
 
 from markdowndeck.api.api_generator import ApiRequestGenerator
+from markdowndeck.api.validation import validate_batch_requests
 from markdowndeck.models import Deck
 
 logger = logging.getLogger(__name__)
@@ -304,7 +305,9 @@ class ApiClient:
         retries = 0
         request_count = len(batch["requests"])
         logger.debug(f"Executing batch update with {request_count} requests")
-        current_batch = batch.copy()
+
+        # NEW: Validate the batch before sending to API
+        current_batch = validate_batch_requests(batch.copy())
 
         # REMOVED TEMPORARY FIX FOR table_cell_properties
         # The fix is now in table_builder.py for the FieldMask

@@ -508,6 +508,10 @@ def _position_elements_within_section(
         ):
             element_width = max(element_width, area_width * 0.5)
 
+        # FIXED: For image elements, store a reference to available height for aspect calculation
+        if element.element_type == ElementType.IMAGE:
+            element._section_height = area_height
+
         # More accurate height with reduced padding
         from markdowndeck.layout.metrics import calculate_element_height
 
