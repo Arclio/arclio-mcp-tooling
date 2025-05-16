@@ -287,77 +287,72 @@ class ApiClient:
 
     def execute_batch_update(self, batch: dict) -> dict:
         """
-        Execute a batch update with retries and error handling.
+        Execute a batch update request.
+        Includes retry logic and error handling for common errors.
 
         Args:
-            batch: Dictionary with presentationId and requests
+            batch: The batch update request
 
         Returns:
-            Dictionary with batch update response
+            The response from the API
 
         Raises:
-            HttpError: If API call fails after max retries
+            googleapiclient.errors.HttpError: If API calls fail after retries
         """
-        retries = 0
-        request_count = len(batch["requests"])
-        logger.debug(f"Executing batch update with {request_count} requests")
+        # Validate and fix the batch
+        batch = validate_batch_requests(batch)
 
-        # Validate and fix the batch before sending to API
-        current_batch = validate_batch_requests(batch.copy())
+        # Additional validation for wildcard fields and other problematic patterns
+        if "requests" in batch:
+            for i, request in enumerate(batch["requests"]):
+                # Check for wildcard field mask
+                if "updateShapeProperties" in request:
+                    fields = request["updateShapeProperties"].get("fields", "")
+                    logger.debug(
+                        f"Request {i} updateShapeProperties fields: '{fields}', "
+                        f"properties: {request['updateShapeProperties'].get('shapeProperties', {})}"
+                    )
 
-        # Additional safety check: remove any requests with invalid text ranges
-        safe_requests = []
-        for i, req in enumerate(current_batch["requests"]):
-            is_safe = True
-
-            # Check paragraph style requests
-            if "updateParagraphStyle" in req:
-                text_range = req["updateParagraphStyle"].get("textRange", {})
-                if (
-                    "type" not in text_range
-                    and "startIndex" in text_range
-                    and "endIndex" in text_range
-                ):
-                    start_index = text_range["startIndex"]
-                    end_index = text_range["endIndex"]
-
-                    # Check for invalid indices
-                    if end_index <= start_index or start_index < 0:
+                    # Check for wildcard field mask which will cause errors
+                    if fields == "*":
                         logger.warning(
-                            f"Skipping request with invalid text range: {start_index}-{end_index}"
+                            f"Replacing wildcard field mask '*' in request {i} with specific fields"
                         )
-                        is_safe = False
+                        # Replace with common safe fields
+                        request["updateShapeProperties"][
+                            "fields"
+                        ] = "shapeBackgroundFill,contentAlignment"
 
-            # Check text style requests
-            if "updateTextStyle" in req:
-                text_range = req["updateTextStyle"].get("textRange", {})
-                if (
-                    "type" not in text_range
-                    and "startIndex" in text_range
-                    and "endIndex" in text_range
-                ):
-                    start_index = text_range["startIndex"]
-                    end_index = text_range["endIndex"]
+                    # Check for autofit property without proper fields
+                    if "autofit" in request["updateShapeProperties"].get(
+                        "shapeProperties", {}
+                    ):
+                        autofit_type = request["updateShapeProperties"][
+                            "shapeProperties"
+                        ]["autofit"].get("autofitType")
+                        if autofit_type != "NONE":
+                            logger.warning(
+                                f"Invalid autofitType '{autofit_type}' found in request {i}. "
+                                f"Only 'NONE' is supported. Changing to 'NONE'."
+                            )
+                            request["updateShapeProperties"]["shapeProperties"][
+                                "autofit"
+                            ]["autofitType"] = "NONE"
 
-                    # Check for invalid indices
-                    if end_index <= start_index or start_index < 0:
-                        logger.warning(
-                            f"Skipping request with invalid text range: {start_index}-{end_index}"
-                        )
-                        is_safe = False
+                        if fields != "autofit.autofitType":
+                            logger.warning(
+                                f"Fixing autofit field mask in request {i}, was: '{fields}'"
+                            )
+                            request["updateShapeProperties"][
+                                "fields"
+                            ] = "autofit.autofitType"
 
-            if is_safe:
-                safe_requests.append(req)
-            else:
-                logger.warning(f"Skipping potentially problematic request: {req}")
-
-        # Update the batch with safe requests
-        current_batch["requests"] = safe_requests
         logger.debug(
-            f"Proceeding with {len(safe_requests)} safe requests after validation"
+            f"Executing batch update with {len(batch.get('requests', []))} requests"
         )
+        retries = 0
+        current_batch = batch
 
-        # Regular retry loop
         while retries <= self.max_retries:
             try:
                 response = (

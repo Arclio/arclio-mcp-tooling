@@ -58,15 +58,8 @@ class TextRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_textbox_request)
 
-        if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE):
-            autofit_request = {
-                "updateShapeProperties": {
-                    "objectId": element.object_id,
-                    "fields": "autofit",
-                    "shapeProperties": {"autofit": {"autofitType": "SHAPE_AUTOFIT"}},
-                }
-            }
-            requests.append(autofit_request)
+        # Removed autofit request since only NONE is supported by the Google Slides REST API
+        # and NONE is the default state, so we don't need to set it explicitly
 
         # --- CORRECTED SECTION FOR CONTENT ALIGNMENT ---
         # Define content alignment for text box (vertical alignment)
@@ -214,20 +207,18 @@ class TextRequestBuilder(BaseRequestBuilder):
                 valign_map = {"top": "TOP", "middle": "MIDDLE", "bottom": "BOTTOM"}
                 api_valign = valign_map.get(valign_value.lower())
                 if api_valign:
-                    # This updates ShapeProperties.contentVerticalAlignment
+                    # This updates ShapeProperties.contentAlignment
                     requests.append(
                         {
                             "updateShapeProperties": {
                                 "objectId": element.object_id,
-                                "fields": "contentVerticalAlignment",
-                                "shapeProperties": {
-                                    "contentVerticalAlignment": api_valign
-                                },
+                                "fields": "contentAlignment",
+                                "shapeProperties": {"contentAlignment": api_valign},
                             }
                         }
                     )
                     logger.debug(
-                        f"Applied contentVerticalAlignment '{api_valign}' to element {element.object_id}"
+                        f"Applied contentAlignment '{api_valign}' to element {element.object_id}"
                     )
         self._apply_paragraph_styling(
             element, requests

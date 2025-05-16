@@ -124,17 +124,73 @@ class SlideRequestBuilder(BaseRequestBuilder):
 
         if background_type == "color":
             if background_value.startswith("#"):
-                rgb = self._hex_to_rgb(background_value)
-                page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
-                fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
+                try:
+                    rgb = self._hex_to_rgb(background_value)
+                    page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
+                    fields_mask_parts.append(
+                        "pageBackgroundFill.solidFill.color.rgbColor"
+                    )
+                except ValueError:
+                    logger.warning(
+                        f"Invalid hex color for background: {background_value}. Using default color."
+                    )
+                    # Fallback to a default color on error
+                    page_background_fill["solidFill"] = {
+                        "color": {
+                            "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                        }
+                    }
+                    fields_mask_parts.append(
+                        "pageBackgroundFill.solidFill.color.rgbColor"
+                    )
             else:
-                page_background_fill["solidFill"] = {
-                    "color": {"themeColor": background_value.upper()}
-                }
-                fields_mask_parts.append(
-                    "pageBackgroundFill.solidFill.color.themeColor"
-                )
-        elif background_type == "image":
+                # List of valid theme colors
+                theme_colors = [
+                    "TEXT1",
+                    "TEXT2",
+                    "BACKGROUND1",
+                    "BACKGROUND2",
+                    "ACCENT1",
+                    "ACCENT2",
+                    "ACCENT3",
+                    "ACCENT4",
+                    "ACCENT5",
+                    "ACCENT6",
+                ]
+
+                # Check if the value is a valid theme color
+                if background_value.upper() in theme_colors:
+                    page_background_fill["solidFill"] = {
+                        "color": {"themeColor": background_value.upper()}
+                    }
+                    fields_mask_parts.append(
+                        "pageBackgroundFill.solidFill.color.themeColor"
+                    )
+                else:
+                    # If it looks like a URL, switch to image type
+                    if background_value.startswith(("http://", "https://")):
+                        logger.warning(
+                            f"Value '{background_value}' looks like a URL but was provided as color type. "
+                            f"Switching to image type."
+                        )
+                        background_type = "image"
+                        # Continue to the image handling code below
+                    else:
+                        logger.warning(
+                            f"Unknown theme color name: {background_value}. Using default color."
+                        )
+                        # Fallback to a default color
+                        page_background_fill["solidFill"] = {
+                            "color": {
+                                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                            }
+                        }
+                        fields_mask_parts.append(
+                            "pageBackgroundFill.solidFill.color.rgbColor"
+                        )
+
+        # Now handle image backgrounds (including those switched from invalid color type)
+        if background_type == "image":
             # FIXED: Validate image URLs before including them in API requests
             if not self._is_valid_image_url(background_value):
                 logger.warning(
@@ -153,13 +209,21 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 fields_mask_parts.append(
                     "pageBackgroundFill.stretchedPictureFill.contentUrl"
                 )
-        else:
+        elif background_type != "color":  # Handle any other unknown background type
             logger.warning(
-                f"Unknown background type: {background_type} for slide {slide.object_id}"
+                f"Unknown background type: {background_type} for slide {slide.object_id}. "
+                f"Using default color."
             )
-            return {}
+            # Use a light gray color as fallback
+            page_background_fill["solidFill"] = {
+                "color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
+            }
+            fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
 
-        if not page_background_fill:
+        if not page_background_fill or not fields_mask_parts:
+            logger.warning(
+                f"No valid background properties generated for slide {slide.object_id}"
+            )
             return {}
 
         request = {

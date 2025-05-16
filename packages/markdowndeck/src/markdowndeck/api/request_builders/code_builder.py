@@ -60,20 +60,8 @@ class CodeRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_shape_request)
 
-        # Add autofit properties to enable vertical resizing
-        # FIXED: Corrected the fields path for autofit
-        autofit_request = {
-            "updateShapeProperties": {
-                "objectId": element.object_id,
-                "fields": "autofit",  # Correctly referencing the autofit property
-                "shapeProperties": {
-                    "autofit": {
-                        "autofitType": "SHAPE_AUTOFIT",
-                    }
-                },
-            }
-        }
-        requests.append(autofit_request)
+        # We're no longer setting autofit since only NONE is supported,
+        # and applying NONE is unnecessary as it's the default
 
         # Skip insertion if there's no code text
         if not element.code:
@@ -105,7 +93,7 @@ class CodeRequestBuilder(BaseRequestBuilder):
         )
         requests.append(style_request)
 
-        # FIXED: Set reasonable paragraph spacing to prevent excessive gaps
+        # Set reasonable paragraph spacing to prevent excessive gaps
         paragraph_style = {
             "updateParagraphStyle": {
                 "objectId": element.object_id,
@@ -122,7 +110,7 @@ class CodeRequestBuilder(BaseRequestBuilder):
         }
         requests.append(paragraph_style)
 
-        # Add shape background - FIXED: Corrected structure and field path
+        # Add shape background
         shape_background_request = {
             "updateShapeProperties": {
                 "objectId": element.object_id,

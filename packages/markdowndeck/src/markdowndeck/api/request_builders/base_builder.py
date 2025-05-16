@@ -238,9 +238,9 @@ class BaseRequestBuilder:
 
         # Add cell location for table text styling if provided
         if cell_location:
-            request["updateTextStyle"]["cellLocation"] = (
-                cell_location  # Corrected: cellLocation is part of updateTextStyle directly
-            )
+            request["updateTextStyle"][
+                "cellLocation"
+            ] = cell_location  # Corrected: cellLocation is part of updateTextStyle directly
             # The tableRange is not needed here if cellLocation is used.
             # The API docs for UpdateTextStyleRequest show cellLocation at the same level as textRange.
             # If textRange is also set, it applies within the specified cell.

@@ -245,19 +245,8 @@ class ListRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_shape_request)
 
-        # Add autofit properties to enable vertical resizing
-        autofit_request = {
-            "updateShapeProperties": {
-                "objectId": element.object_id,
-                "fields": "autofit",
-                "shapeProperties": {
-                    "autofit": {
-                        "autofitType": "SHAPE_AUTOFIT",
-                    }
-                },
-            }
-        }
-        requests.append(autofit_request)
+        # Removed autofit request since only NONE is supported by the Google Slides REST API
+        # and NONE is the default state, so we don't need to set it explicitly
 
         # Skip insertion if there are no items
         if not hasattr(element, "items") or not element.items:

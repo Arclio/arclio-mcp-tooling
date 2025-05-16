@@ -31,7 +31,7 @@ class TestTextRequestBuilderDirectivesAndTheme:
                 r
                 for r in requests
                 if "updateShapeProperties" in r
-                and "contentVerticalAlignment" in r["updateShapeProperties"]["fields"]
+                and "contentAlignment" in r["updateShapeProperties"]["fields"]
             ),
             None,
         )
@@ -39,7 +39,7 @@ class TestTextRequestBuilderDirectivesAndTheme:
         assert update_shape_req["updateShapeProperties"]["objectId"] == "txt_valign"
         assert (
             update_shape_req["updateShapeProperties"]["shapeProperties"][
-                "contentVerticalAlignment"
+                "contentAlignment"
             ]
             == "MIDDLE"
         )
