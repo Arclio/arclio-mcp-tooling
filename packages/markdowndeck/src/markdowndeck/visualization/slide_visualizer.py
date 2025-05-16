@@ -371,19 +371,102 @@ class SlideVisualizer:
                         # Fall back to default background color with error indication
                         face_color = "#FFEEEE"  # Light red to indicate error
             elif isinstance(slide.background, str):
-                # Direct string background might be a color
-                face_color = slide.background
+                # Direct string background might be a color or a URL
+                if slide.background.startswith(("http://", "https://", "www.")):
+                    # It's a URL, likely for an image background
+                    try:
+                        # Try to load the image
+                        response = requests.get(
+                            slide.background, stream=True, timeout=5
+                        )
+                        response.raise_for_status()
 
-        # Add slide boundary rectangle
-        slide_boundary = patches.Rectangle(
-            (0, 0),
-            self.slide_width,
-            self.slide_height,
-            linewidth=1.0,
-            edgecolor="black",
-            facecolor=face_color,
-            zorder=0.5,  # Above background image but below content
-        )
+                        img = PILImage.open(BytesIO(response.content))
+                        img_array = np.array(img)
+
+                        # Calculate aspect ratio and position to fill the slide
+                        img_aspect = img.width / img.height
+                        slide_aspect = self.slide_width / self.slide_height
+
+                        if img_aspect > slide_aspect:  # Image is wider than slide
+                            height = self.slide_height
+                            width = height * img_aspect
+                            x_offset = (width - self.slide_width) / 2
+                            ax.imshow(
+                                img_array,
+                                extent=[
+                                    -x_offset,
+                                    width - x_offset,
+                                    self.slide_height,
+                                    0,
+                                ],
+                                aspect="auto",
+                                zorder=0,
+                                alpha=0.3,
+                            )  # Semi-transparent
+                        else:  # Image is taller than slide
+                            width = self.slide_width
+                            height = width / img_aspect
+                            y_offset = (height - self.slide_height) / 2
+                            ax.imshow(
+                                img_array,
+                                extent=[
+                                    0,
+                                    self.slide_width,
+                                    height - y_offset,
+                                    -y_offset,
+                                ],
+                                aspect="auto",
+                                zorder=0,
+                                alpha=0.3,
+                            )  # Semi-transparent
+
+                        # Still add the boundary rectangle on top for clarity
+                        face_color = (
+                            "none"  # Make rectangle transparent since we have an image
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to load background image URL: {e}")
+                        # Fall back to default background color with error indication
+                        face_color = "#FFEEEE"  # Light red to indicate error
+                else:
+                    # Treat it as a color
+                    face_color = slide.background
+
+        # Make sure face_color is not a URL before using it for Rectangle
+        if isinstance(face_color, str) and face_color.startswith(
+            ("http://", "https://", "www.")
+        ):
+            # If face_color is still a URL string (which shouldn't happen with our previous fix),
+            # force it to a safe default color
+            logger.warning(
+                f"Found URL as face_color, replacing with safe default: {face_color}"
+            )
+            face_color = "#FFEEEE"  # Light red as an error indicator
+
+        # Add slide boundary rectangle with error handling
+        try:
+            slide_boundary = patches.Rectangle(
+                (0, 0),
+                self.slide_width,
+                self.slide_height,
+                linewidth=1.0,
+                edgecolor="black",
+                facecolor=face_color,
+                zorder=0.5,  # Above background image but below content
+            )
+        except ValueError as e:
+            # If there's still an error with face_color, use a safe fallback
+            logger.warning(f"Error creating Rectangle with color {face_color}: {e}")
+            slide_boundary = patches.Rectangle(
+                (0, 0),
+                self.slide_width,
+                self.slide_height,
+                linewidth=1.0,
+                edgecolor="black",
+                facecolor="#FFEEEE",  # Safe fallback color
+                zorder=0.5,
+            )
         ax.add_patch(slide_boundary)
 
         # Reduce fontsize of labels to save space

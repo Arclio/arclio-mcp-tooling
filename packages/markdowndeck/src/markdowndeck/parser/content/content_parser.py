@@ -58,6 +58,7 @@ class ContentParser:
         slide_title_text: str,
         sections: list[Section],
         slide_footer_text: str | None,
+        title_directives: dict[str, Any] = None,  # New parameter
     ) -> list[Element]:
         """
         Parse content into slide elements and populate section.elements.
@@ -67,11 +68,14 @@ class ContentParser:
             slide_title_text: The slide title text
             sections: The list of Section models for the slide
             slide_footer_text: Optional footer text
+            title_directives: Optional directives from the slide title
 
         Returns:
             List of all elements for the slide (for the slide.elements list)
         """
-        logger.debug("Parsing content into slide elements and populating section.elements")
+        logger.debug(
+            "Parsing content into slide elements and populating section.elements"
+        )
         all_elements: list[Element] = []
 
         # Process the title (H1)
@@ -79,7 +83,12 @@ class ContentParser:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_title_text, self.md
             )
-            title_element = self.element_factory.create_title_element(slide_title_text, formatting)
+
+            # Apply title directives if present
+            title_element = self.element_factory.create_title_element(
+                slide_title_text, formatting, title_directives
+            )
+
             all_elements.append(title_element)
             logger.debug(f"Added title element: {slide_title_text[:30]}")
 
@@ -94,7 +103,9 @@ class ContentParser:
                     f"Tokens for section {current_section.id}: {[t.type for t in tokens if t.type != 'softbreak']}"
                 )
                 # Process tokens and populate section.elements
-                parsed_elements = self._process_tokens(tokens, current_section.directives)
+                parsed_elements = self._process_tokens(
+                    tokens, current_section.directives
+                )
                 current_section.elements.extend(parsed_elements)
                 all_elements.extend(parsed_elements)
                 logger.debug(
@@ -116,10 +127,14 @@ class ContentParser:
             all_elements.append(footer_element)
             logger.debug(f"Added footer element: {slide_footer_text[:30]}")
 
-        logger.info(f"Created {len(all_elements)} total elements from content using formatters.")
+        logger.info(
+            f"Created {len(all_elements)} total elements from content using formatters."
+        )
         return all_elements
 
-    def _process_tokens(self, tokens: list[Token], directives: dict[str, Any]) -> list[Element]:
+    def _process_tokens(
+        self, tokens: list[Token], directives: dict[str, Any]
+    ) -> list[Element]:
         elements: list[Element] = []
         current_index = 0
 
@@ -146,7 +161,9 @@ class ContentParser:
                 else:
                     # CRITICAL FIX: Make sure ALL section headers are captured
                     section_heading_indices.add(i)
-                    logger.debug(f"Marked heading at index {i} as section heading (level {level})")
+                    logger.debug(
+                        f"Marked heading at index {i} as section heading (level {level})"
+                    )
 
         # Second pass: process all tokens
         while current_index < len(tokens):
@@ -157,9 +174,14 @@ class ContentParser:
                 if formatter.can_handle(token, tokens[current_index:]):
                     try:
                         # Pass section_heading_indices to formatters that need it
-                        if isinstance(formatter, TextFormatter) and token.type == "heading_open":
+                        if (
+                            isinstance(formatter, TextFormatter)
+                            and token.type == "heading_open"
+                        ):
                             # FIXED: Always pass correct is_section_heading flag
-                            is_section_heading = current_index in section_heading_indices
+                            is_section_heading = (
+                                current_index in section_heading_indices
+                            )
                             is_subtitle = current_index in subtitle_indices
 
                             # Log what we're processing for debugging

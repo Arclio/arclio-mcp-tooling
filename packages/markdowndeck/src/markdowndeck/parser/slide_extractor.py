@@ -181,12 +181,46 @@ class SlideExtractor:
         )  # lstrip to catch titles at start of part
         title = None
         content_after_title = main_content_segment
+        title_directives = {}  # Store any directives from the title
 
         if title_match:
             title = title_match.group(1).strip()
-            # Remove title line from content_after_title
-            # To avoid removing parts of other lines if title is a substring, replace only the exact match
-            # including its line break if it's not the only content.
+
+            # Extract directives from the title
+            directive_pattern = r"^\s*(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
+            title_directive_match = re.match(directive_pattern, title)
+
+            if title_directive_match:
+                # Extract directive text
+                directive_text = title_directive_match.group(0)
+                # Remove directives from the title
+                title = title[len(directive_text) :].strip()
+
+                # Parse directives
+                directive_pattern = r"\[([^=\[\]]+)=([^\[\]]*)\]"
+                directive_matches = re.findall(directive_pattern, directive_text)
+
+                # Process each directive
+                for key, value in directive_matches:
+                    key = key.strip().lower()
+                    value = value.strip()
+
+                    # Handle special directive conversions
+                    if key == "align":
+                        title_directives[key] = value.lower()
+                    elif key == "fontsize":
+                        try:
+                            title_directives[key] = float(value)
+                        except ValueError:
+                            logger.warning(f"Invalid fontsize value in title: {value}")
+                    elif key == "color":
+                        title_directives[key] = value
+                    else:
+                        title_directives[key] = value
+
+                logger.debug(f"Extracted directives from title: {title_directives}")
+
+            # Continue with existing code...
             title_line_pattern = (
                 r"^#\s+" + re.escape(title_match.group(1).strip()) + r"\s*(\n|$)"
             )
@@ -240,6 +274,7 @@ class SlideExtractor:
             "index": index,
             "object_id": slide_object_id,
             "speaker_notes_object_id": speaker_notes_placeholder_id,
+            "title_directives": title_directives,  # Add title directives to slide data
         }
 
         logger.debug(
