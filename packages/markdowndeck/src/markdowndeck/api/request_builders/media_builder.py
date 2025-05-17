@@ -41,9 +41,112 @@ class MediaRequestBuilder(BaseRequestBuilder):
 
         # Validate image URL
         if not element.url or not self._is_valid_image_url(element.url):
-            logger.warning(
-                f"Invalid image URL: {element.url}. Skipping image creation."
-            )
+            logger.warning(f"Invalid image URL: {element.url}. Creating a placeholder.")
+
+            # Create a placeholder shape instead of image
+            create_shape_request = {
+                "createShape": {
+                    "objectId": element.object_id,
+                    "shapeType": "TEXT_BOX",
+                    "elementProperties": {
+                        "pageObjectId": slide_id,
+                        "size": {
+                            "width": {"magnitude": size[0], "unit": "PT"},
+                            "height": {"magnitude": size[1], "unit": "PT"},
+                        },
+                        "transform": {
+                            "scaleX": 1,
+                            "scaleY": 1,
+                            "translateX": position[0],
+                            "translateY": position[1],
+                            "unit": "PT",
+                        },
+                    },
+                }
+            }
+            requests.append(create_shape_request)
+
+            # Add placeholder text
+            insert_text_request = {
+                "insertText": {
+                    "objectId": element.object_id,
+                    "insertionIndex": 0,
+                    "text": "[Image not available]",
+                }
+            }
+            requests.append(insert_text_request)
+
+            # Style the placeholder text to be centered
+            style_request = {
+                "updateParagraphStyle": {
+                    "objectId": element.object_id,
+                    "textRange": {"type": "ALL"},
+                    "style": {"alignment": "CENTER"},
+                    "fields": "alignment",
+                }
+            }
+            requests.append(style_request)
+
+            # Style the placeholder text to be
+
+            # Style the placeholder text to be centered vertically
+            style_request2 = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "contentAlignment",
+                    "shapeProperties": {"contentAlignment": "MIDDLE"},
+                }
+            }
+            requests.append(style_request2)
+
+            # Add a light border to indicate it's a placeholder
+            border_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "outline.outlineFill.solidFill.color,outline.weight,outline.dashStyle",
+                    "shapeProperties": {
+                        "outline": {
+                            "outlineFill": {
+                                "solidFill": {
+                                    "color": {
+                                        "rgbColor": {
+                                            "red": 0.7,
+                                            "green": 0.7,
+                                            "blue": 0.7,
+                                        }
+                                    }
+                                }
+                            },
+                            "weight": {"magnitude": 1.0, "unit": "PT"},
+                            "dashStyle": "DASH",
+                        }
+                    },
+                }
+            }
+            requests.append(border_request)
+
+            # Add light gray background
+            bg_request = {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "shapeBackgroundFill.solidFill.color",
+                    "shapeProperties": {
+                        "shapeBackgroundFill": {
+                            "solidFill": {
+                                "color": {
+                                    "rgbColor": {
+                                        "red": 0.95,
+                                        "green": 0.95,
+                                        "blue": 0.95,
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+            requests.append(bg_request)
+
             return requests
 
         # Create image
