@@ -168,10 +168,7 @@ export RUN_INTEGRATION_TESTS="0"  # Set to "1" to enable integration tests
 
 ```bash
 # Directly
-python -m arclio_mcp_gsuite
-
-# As a module
-python -c "from arclio_mcp_gsuite import main; main()"
+uvx --from arclio-mcp-gsuite arclio-gsuite-worker
 ```
 
 ### Integrating with MCP Hub
