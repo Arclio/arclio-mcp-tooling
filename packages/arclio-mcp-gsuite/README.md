@@ -4,7 +4,7 @@
 
 **Google Workspace integration for AI assistants via Model Context Protocol (MCP)**
 
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests: 125 passing](https://img.shields.io/badge/tests-125%20passing-brightgreen.svg)](https://github.com/arclio/arclio-mcp-gsuite)
 
@@ -13,6 +13,138 @@ _Developed and maintained by [Arclio](https://arclio.com)_ - _Secure MCP service
 </div>
 
 ---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+1. **Google OAuth Credentials**: Get these from [Google Cloud Console](https://console.cloud.google.com/)
+2. **Python 3.10+**: Required for the MCP server
+
+### Instant Setup with MCP Inspector
+
+Test the server immediately using MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector \
+  -e GSUITE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
+  -e GSUITE_CLIENT_SECRET="your-client-secret" \
+  -e GSUITE_REFRESH_TOKEN="your-refresh-token" \
+  -e GSUITE_ENABLED_CAPABILITIES="slides,calendar,drive,gmail" \
+  -- \
+  uvx --from arclio-mcp-gsuite arclio-gsuite-worker
+```
+
+### Direct Installation & Usage
+
+```bash
+# Install the package
+pip install arclio-mcp-gsuite
+
+# Set environment variables
+export GSUITE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+export GSUITE_CLIENT_SECRET="your-client-secret"
+export GSUITE_REFRESH_TOKEN="your-refresh-token"
+export GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides"
+
+# Run the MCP server
+arclio-gsuite-worker
+```
+
+### Using with uvx (Recommended)
+
+```bash
+# Run without installation
+uvx --from arclio-mcp-gsuite arclio-gsuite-worker
+
+# Or with environment variables inline
+GSUITE_CLIENT_ID="your-id" GSUITE_CLIENT_SECRET="your-secret" \
+GSUITE_REFRESH_TOKEN="your-token" GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+uvx --from arclio-mcp-gsuite arclio-gsuite-worker
+```
+
+## 🔑 Authentication Setup
+
+### Step 1: Google Cloud Console Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing one
+3. Enable the required APIs:
+   - Google Drive API
+   - Gmail API
+   - Google Calendar API
+   - Google Slides API
+4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
+5. Choose "Web application" as application type
+6. Add authorized redirect URIs (for OAuth flow)
+
+### Step 2: Get Refresh Token
+
+**Option A: Using OAuth 2.0 Playground (Easiest)**
+
+1. Go to [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/)
+2. Click the gear icon (⚙️) and check "Use your own OAuth credentials"
+3. Enter your Client ID and Client Secret
+4. In Step 1, select the required scopes:
+   ```
+   https://www.googleapis.com/auth/drive
+   https://www.googleapis.com/auth/gmail.modify
+   https://www.googleapis.com/auth/calendar
+   https://www.googleapis.com/auth/presentations
+   ```
+5. Click "Authorize APIs" and complete the OAuth flow
+6. In Step 2, click "Exchange authorization code for tokens"
+7. Copy the `refresh_token` value
+
+**Option B: Using Python Script**
+
+```python
+from google_auth_oauthlib.flow import Flow
+
+# Configure the OAuth flow
+flow = Flow.from_client_config(
+    {
+        "web": {
+            "client_id": "your-client-id",
+            "client_secret": "your-client-secret",
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost:8080/callback"]
+        }
+    },
+    scopes=[
+        "https://www.googleapis.com/auth/drive",
+        "https://www.googleapis.com/auth/gmail.modify",
+        "https://www.googleapis.com/auth/calendar",
+        "https://www.googleapis.com/auth/presentations"
+    ]
+)
+
+flow.redirect_uri = "http://localhost:8080/callback"
+auth_url, _ = flow.authorization_url(prompt='consent')
+print(f"Visit this URL: {auth_url}")
+
+# After visiting URL and getting the code:
+# flow.fetch_token(code="authorization-code-from-callback")
+# print(f"Refresh token: {flow.credentials.refresh_token}")
+```
+
+### Step 3: Environment Variables
+
+Set these environment variables before running the server:
+
+```bash
+# Required
+export GSUITE_CLIENT_ID="144233821775-example.apps.googleusercontent.com"
+export GSUITE_CLIENT_SECRET="GOCSPX-example_secret"
+export GSUITE_REFRESH_TOKEN="1//05example_refresh_token"
+
+# Optional - specify which services to enable (default: all)
+export GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides"
+
+# Optional - for development/testing
+export RUN_INTEGRATION_TESTS="0"
+```
 
 ## 📋 Overview
 
@@ -116,69 +248,66 @@ arclio-mcp-gsuite/
    - The tool handler uses a service implementation to interact with Google APIs
    - Results are formatted and returned to the model through the MCP Hub
 
-![Architecture Flow](https://i.imgur.com/XPSXYzM.png)
+## 🔧 Integration Examples
 
-## 📦 Installation & Setup
-
-### Prerequisites
-
-- Python 3.9 or higher
-- Google Cloud project with API access
-- OAuth credentials with appropriate scopes
-
-### Installation
+### With MCP Inspector
 
 ```bash
-# Install from source
-git clone https://github.com/arclio/arclio-mcp-gsuite.git
-cd arclio-mcp-gsuite
-pip install -e .
+# Test all capabilities
+npx @modelcontextprotocol/inspector \
+  -e GSUITE_CLIENT_ID="your-client-id" \
+  -e GSUITE_CLIENT_SECRET="your-secret" \
+  -e GSUITE_REFRESH_TOKEN="your-token" \
+  -e GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+  -- \
+  uvx --from arclio-mcp-gsuite arclio-gsuite-worker
 
-# Or via pip (when available)
-pip install arclio-mcp-gsuite
-
-# For development with CLI tools
-pip install "arclio-mcp-gsuite[dev]"
+# Test only specific services
+npx @modelcontextprotocol/inspector \
+  -e GSUITE_CLIENT_ID="your-client-id" \
+  -e GSUITE_CLIENT_SECRET="your-secret" \
+  -e GSUITE_REFRESH_TOKEN="your-token" \
+  -e GSUITE_ENABLED_CAPABILITIES="drive,gmail" \
+  -- \
+  uvx --from arclio-mcp-gsuite arclio-gsuite-worker
 ```
 
-### OAuth Setup
+### With Claude Desktop
 
-1. Create a project in [Google Cloud Console](https://console.cloud.google.com/)
-2. Enable the APIs you need (Drive, Gmail, Calendar, Slides)
-3. Create OAuth credentials (web application type)
-4. Use the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/) or your own app to get a refresh token
-5. Set environment variables with your credentials
+Add to your Claude Desktop configuration:
 
-### Environment Variables
-
-```bash
-# Required variables
-export GSUITE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-export GSUITE_CLIENT_SECRET="your-client-secret"
-export GSUITE_REFRESH_TOKEN="your-refresh-token"
-export GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides"
-
-# Optional variables
-export RUN_INTEGRATION_TESTS="0"  # Set to "1" to enable integration tests
+```json
+{
+  "mcpServers": {
+    "arclio-gsuite": {
+      "command": "uvx",
+      "args": ["--from", "arclio-mcp-gsuite", "arclio-gsuite-worker"],
+      "env": {
+        "GSUITE_CLIENT_ID": "your-client-id",
+        "GSUITE_CLIENT_SECRET": "your-secret",
+        "GSUITE_REFRESH_TOKEN": "your-token",
+        "GSUITE_ENABLED_CAPABILITIES": "drive,gmail,calendar,slides"
+      }
+    }
+  }
+}
 ```
 
-## 🚀 Usage
+### With Other MCP Clients
 
-### Running the Server
+The server can be started directly and connected to via stdio:
 
 ```bash
-# Directly
+# Start the server
+GSUITE_CLIENT_ID="your-id" \
+GSUITE_CLIENT_SECRET="your-secret" \
+GSUITE_REFRESH_TOKEN="your-token" \
+GSUITE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+arclio-gsuite-worker
+
+# Or using uvx
 uvx --from arclio-mcp-gsuite arclio-gsuite-worker
 ```
-
-### Integrating with MCP Hub
-
-1. Ensure your MCP Hub is configured to connect to this server
-2. Provide the required environment variables
-3. The MCP Hub will handle communication with this server, allowing AI models to:
-   - Discover available tools
-   - Call tools with appropriate arguments
-   - Receive structured responses
 
 ### Tool Call Format
 
@@ -470,11 +599,36 @@ The server's dynamic discovery mechanism will automatically find and register ne
 
 ## 🔍 Troubleshooting
 
+### Common Issues
+
 - **Authentication Errors**: Verify OAuth credentials and scopes
-- **Missing Dependencies**: Run `make install-dev` to install all dependencies
 - **Tool Not Found**: Ensure the capability is enabled in `GSUITE_ENABLED_CAPABILITIES`
 - **API Limits**: Be aware of Google API quotas and rate limits
 - **Permission Issues**: Check that the authenticated user has appropriate permissions
+
+### Debug Mode
+
+Enable debug logging by setting:
+
+```bash
+export PYTHONPATH=.
+export DEBUG=1
+uvx --from arclio-mcp-gsuite arclio-gsuite-worker
+```
+
+### Testing Your Setup
+
+Use MCP Inspector to verify your configuration:
+
+```bash
+npx @modelcontextprotocol/inspector \
+  -e GSUITE_CLIENT_ID="your-client-id" \
+  -e GSUITE_CLIENT_SECRET="your-secret" \
+  -e GSUITE_REFRESH_TOKEN="your-token" \
+  -e GSUITE_ENABLED_CAPABILITIES="drive" \
+  -- \
+  uvx --from arclio-mcp-gsuite arclio-gsuite-worker
+```
 
 ## 📝 Contributing
 
@@ -501,3 +655,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 <div align="center">
 <p>Built with ❤️ by the Arclio team</p>
 </div>
+
+```
+
+```
