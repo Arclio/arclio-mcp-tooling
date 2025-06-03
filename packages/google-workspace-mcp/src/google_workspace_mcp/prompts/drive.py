@@ -14,7 +14,5 @@ async def suggest_drive_outline(topic: str) -> list[UserMessage]:
     """Suggests a document outline for a given topic."""
     logger.info(f"Executing suggest_drive_outline prompt for topic: {topic}")
     return [
-        UserMessage(
-            f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
-        )
+        UserMessage(f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}")
     ]

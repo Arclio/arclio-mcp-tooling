@@ -16,9 +16,7 @@ class TestDriveDeleteFile:
     @pytest.fixture
     def mock_drive_service(self):
         """Patch DriveService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.drive.DriveService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service

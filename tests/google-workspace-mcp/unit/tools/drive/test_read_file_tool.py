@@ -1,83 +1,90 @@
 """
-Unit tests for Drive gdrive_read_file tool.
+Unit tests for Drive drive_read_file_content tool.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google_workspace_mcp.tools.drive import gdrive_read_file
+from google_workspace_mcp.tools.drive import drive_read_file_content
 
 pytestmark = pytest.mark.anyio
 
 
-class TestGdriveReadFileTool:
-    """Tests for the gdrive_read_file tool function."""
+class TestDriveReadFileContentTool:
+    """Tests for the drive_read_file_content tool function."""
 
     @pytest.fixture
-    def mock_drive_service(self):
+    def mock_drive_service_for_tool(self):
         """Patch DriveService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.drive.DriveService"
-        ) as mock_service_class:
-            mock_service = MagicMock()
-            mock_service_class.return_value = mock_service
-            yield mock_service
+        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+            mock_service_instance = MagicMock()
+            mock_service_class.return_value = mock_service_instance
+            yield mock_service_instance
 
-    async def test_read_success_text(self, mock_drive_service):
-        """Test gdrive_read_file successful text file read."""
-        mock_service_response = {
+    async def test_tool_read_file_content_successful_text_file_read(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content successful text file read."""
+        mock_file_content = {
+            "content": "This is the file content",
             "mimeType": "text/plain",
-            "content": "This is the file content.",
-            "encoding": "utf-8",
-            "filename": "myfile.txt",
+            "name": "test.txt",
         }
-        mock_drive_service.read_file.return_value = mock_service_response
+        mock_drive_service_for_tool.read_file_content.return_value = mock_file_content
 
-        args = {"file_id": "file_txt_123"}
-        result = await gdrive_read_file(**args)
+        args = {"file_id": "valid_file_id_123"}
+        result = await drive_read_file_content(**args)
 
-        mock_drive_service.read_file.assert_called_once_with(file_id="file_txt_123")
-        assert result == mock_service_response
+        assert result == mock_file_content
+        mock_drive_service_for_tool.read_file_content.assert_called_once_with(file_id="valid_file_id_123")
 
-    async def test_read_success_binary(self, mock_drive_service):
-        """Test gdrive_read_file successful binary file read."""
-        mock_service_response = {
-            "mimeType": "image/png",
-            "data": "base64encodedstring",
-            "encoding": "base64",
-            "filename": "image.png",
+    async def test_tool_read_file_content_successful_binary_file_read(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content successful binary file read."""
+        mock_file_content = {
+            "data": "base64encodeddata",
+            "mimeType": "application/pdf",
+            "name": "document.pdf",
         }
-        mock_drive_service.read_file.return_value = mock_service_response
+        mock_drive_service_for_tool.read_file_content.return_value = mock_file_content
 
-        args = {"file_id": "file_png_456"}
-        result = await gdrive_read_file(**args)
+        args = {"file_id": "pdf_file_id_456"}
+        result = await drive_read_file_content(**args)
 
-        mock_drive_service.read_file.assert_called_once_with(file_id="file_png_456")
-        assert result == mock_service_response
+        assert result == mock_file_content
+        mock_drive_service_for_tool.read_file_content.assert_called_once_with(file_id="pdf_file_id_456")
 
-    async def test_read_service_error(self, mock_drive_service):
-        """Test gdrive_read_file when the service call fails."""
-        mock_drive_service.read_file.return_value = {
-            "error": True,
-            "message": "API Error: File not found",
-        }
+    async def test_tool_read_file_content_when_service_call_fails(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content when the service call fails."""
+        error_response = {"error": True, "message": "File not found"}
+        mock_drive_service_for_tool.read_file_content.return_value = error_response
 
-        args = {"file_id": "nonexistent_id"}
-        with pytest.raises(ValueError, match="API Error: File not found"):
-            await gdrive_read_file(**args)
+        args = {"file_id": "nonexistent_file_id"}
+        with pytest.raises(ValueError, match="File not found"):
+            await drive_read_file_content(**args)
 
-    async def test_read_service_returns_none(self, mock_drive_service):
-        """Test gdrive_read_file when the service returns None (unexpected)."""
-        mock_drive_service.read_file.return_value = None
+    async def test_tool_read_file_content_when_service_returns_none(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content when the service returns None (unexpected)."""
+        mock_drive_service_for_tool.read_file_content.return_value = None
 
-        args = {"file_id": "weird_case_id"}
-        with pytest.raises(
-            ValueError, match="Failed to read file with ID 'weird_case_id'"
-        ):
-            await gdrive_read_file(**args)
+        args = {"file_id": "some_file_id"}
+        with pytest.raises(ValueError, match="File not found or could not be read"):
+            await drive_read_file_content(**args)
 
-    async def test_read_empty_file_id(self):
-        """Test gdrive_read_file tool validation for empty file_id."""
+    async def test_tool_read_file_content_validation_for_empty_file_id(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content tool validation for empty file_id."""
         args = {"file_id": ""}
         with pytest.raises(ValueError, match="File ID cannot be empty"):
-            await gdrive_read_file(**args)
+            await drive_read_file_content(**args)
+
+    async def test_tool_read_file_content_whitespace_file_id(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content tool validation for whitespace-only file_id."""
+        args = {"file_id": "   "}
+        with pytest.raises(ValueError, match="File ID cannot be empty"):
+            await drive_read_file_content(**args)
+
+    async def test_tool_read_file_content_error_without_message(self, mock_drive_service_for_tool):
+        """Test drive_read_file_content when service returns error without message."""
+        error_response = {"error": True, "error_type": "unknown"}
+        mock_drive_service_for_tool.read_file_content.return_value = error_response
+
+        args = {"file_id": "error_file_id"}
+        with pytest.raises(ValueError, match="Error reading file"):
+            await drive_read_file_content(**args)

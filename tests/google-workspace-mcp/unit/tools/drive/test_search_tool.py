@@ -1,89 +1,100 @@
 """
-Unit tests for Drive gdrive_search tool.
+Unit tests for Drive drive_search_files tool.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google_workspace_mcp.tools.drive import gdrive_search
+from google_workspace_mcp.tools.drive import drive_search_files
 
 pytestmark = pytest.mark.anyio
 
 
-class TestGdriveSearchTool:
-    """Tests for the gdrive_search tool function."""
+class TestDriveSearchFilesTool:
+    """Tests for the drive_search_files tool function."""
 
     @pytest.fixture
-    def mock_drive_service(self):
+    def mock_drive_service_for_tool(self):
         """Patch DriveService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.drive.DriveService"
-        ) as mock_service_class:
-            mock_service = MagicMock()
-            mock_service_class.return_value = mock_service
-            yield mock_service
+        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+            mock_service_instance = MagicMock()
+            mock_service_class.return_value = mock_service_instance
+            yield mock_service_instance
 
-    async def test_search_success(self, mock_drive_service):
-        """Test gdrive_search successful case."""
-        mock_service_response = [
-            {"id": "file1", "name": "Test Report Q1.docx"},
-            {"id": "file2", "name": "Final Report Q1.pdf"},
+    async def test_tool_search_files_success(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool successful search."""
+        mock_files = [
+            {"id": "file1", "name": "test1.txt", "mimeType": "text/plain"},
+            {"id": "file2", "name": "test2.pdf", "mimeType": "application/pdf"},
         ]
-        mock_drive_service.search_files.return_value = mock_service_response
+        mock_drive_service_for_tool.search_files.return_value = mock_files
 
-        args = {"query": "name contains 'Report Q1'"}
-        result = await gdrive_search(**args)
+        result = await drive_search_files(query="test documents", page_size=5)
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="name contains 'Report Q1'", page_size=10
+        assert result == {"files": mock_files}
+        mock_drive_service_for_tool.search_files.assert_called_once_with(
+            query="test documents", page_size=5, shared_drive_id=None
         )
-        assert result == {"count": 2, "files": mock_service_response}
 
-    async def test_search_with_page_size(self, mock_drive_service):
-        """Test gdrive_search with custom page size."""
-        mock_service_response = [{"id": "file1", "name": "Test Report Q1.docx"}]
-        mock_drive_service.search_files.return_value = mock_service_response
+    async def test_tool_search_files_with_shared_drive(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool with shared drive."""
+        mock_files = [
+            {"id": "shared1", "name": "shared_doc.txt", "mimeType": "text/plain"},
+        ]
+        mock_drive_service_for_tool.search_files.return_value = mock_files
 
-        args = {
-            "query": "name contains 'Report Q1'",
-            "page_size": 1,
-        }
-        result = await gdrive_search(**args)
+        result = await drive_search_files(query="shared documents", page_size=10, shared_drive_id="drive123")
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="name contains 'Report Q1'", page_size=1
+        assert result == {"files": mock_files}
+        mock_drive_service_for_tool.search_files.assert_called_once_with(
+            query="shared documents", page_size=10, shared_drive_id="drive123"
         )
-        assert result == {"count": 1, "files": mock_service_response}
 
-    async def test_search_no_results(self, mock_drive_service):
-        """Test gdrive_search when no files are found."""
-        mock_drive_service.search_files.return_value = []
+    async def test_tool_search_files_empty_results(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool with no results."""
+        mock_drive_service_for_tool.search_files.return_value = []
 
-        args = {"query": "gobbledygook"}
-        result = await gdrive_search(**args)
+        result = await drive_search_files(query="nonexistent")
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="gobbledygook", page_size=10
-        )
-        assert result == {"message": "No files found matching your query."}
+        assert result == {"files": []}
 
-    async def test_search_service_error(self, mock_drive_service):
-        """Test gdrive_search when the service call fails."""
-        mock_drive_service.search_files.return_value = {
+    async def test_tool_search_files_empty_query(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool with empty query."""
+        with pytest.raises(ValueError, match="Query cannot be empty"):
+            await drive_search_files(query="")
+
+    async def test_tool_search_files_whitespace_query(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool with whitespace-only query."""
+        with pytest.raises(ValueError, match="Query cannot be empty"):
+            await drive_search_files(query="   ")
+
+    async def test_tool_search_files_service_error(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool when service returns an error."""
+        error_response = {
             "error": True,
-            "message": "API Error: Invalid query",
+            "message": "API rate limit exceeded",
+            "error_type": "rate_limit",
         }
+        mock_drive_service_for_tool.search_files.return_value = error_response
 
-        args = {"query": "invalid:query'"}
-        with pytest.raises(ValueError, match="API Error: Invalid query"):
-            await gdrive_search(**args)
+        with pytest.raises(Exception, match="Search failed: API rate limit exceeded"):
+            await drive_search_files(query="test")
 
-    async def test_search_empty_query(self):
-        """Test gdrive_search tool validation for empty query."""
-        args = {"query": ""}
-        # Tool itself raises ValueError for empty query
-        with pytest.raises(
-            ValueError,
-            match="Search query parameter cannot be empty for gdrive_search",
-        ):
-            await gdrive_search(**args)
+    async def test_tool_search_files_service_unknown_error(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool when service returns error without message."""
+        error_response = {"error": True, "error_type": "unknown"}
+        mock_drive_service_for_tool.search_files.return_value = error_response
+
+        with pytest.raises(Exception, match="Search failed: Unknown error"):
+            await drive_search_files(query="test")
+
+    async def test_tool_search_files_default_parameters(self, mock_drive_service_for_tool):
+        """Test drive_search_files tool with default parameters."""
+        mock_files = [{"id": "file1", "name": "test.txt"}]
+        mock_drive_service_for_tool.search_files.return_value = mock_files
+
+        result = await drive_search_files(query="test")
+
+        # Verify default parameters
+        mock_drive_service_for_tool.search_files.assert_called_once_with(query="test", page_size=10, shared_drive_id=None)
+        assert result == {"files": mock_files}

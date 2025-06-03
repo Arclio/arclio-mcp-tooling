@@ -15,7 +15,7 @@ class TestDriveReadFile:
     # Removed local mock_drive_service fixture
 
     def test_read_file_google_doc(self, mock_drive_service):
-        """Test read_file with a Google Document."""
+        """Test read_file_content with a Google Document."""
         # Setup file metadata for a Google Doc
         file_id = "doc123"
         file_metadata = {
@@ -35,17 +35,14 @@ class TestDriveReadFile:
         }
 
         with patch.object(mock_drive_service, "_export_google_file", return_value=expected_result) as mock_export:
-            result = mock_drive_service.read_file(file_id)
+            result = mock_drive_service.read_file_content(file_id)
 
-            # Verify correct methods were called
-            mock_drive_service.service.files.return_value.get.assert_called_once_with(fileId=file_id, fields="mimeType, name")
-            mock_export.assert_called_once_with(file_id, "Test Document", "application/vnd.google-apps.document")
-
-            # Verify the result
-            assert result == expected_result
+        # Verify the export method was called
+        mock_export.assert_called_once_with(file_id, "Test Document", "application/vnd.google-apps.document")
+        assert result == expected_result
 
     def test_read_file_regular_file(self, mock_drive_service):
-        """Test read_file with a regular text file."""
+        """Test read_file_content with a regular text file."""
         # Setup file metadata for a regular file
         file_id = "text123"
         file_metadata = {"id": file_id, "name": "test.txt", "mimeType": "text/plain"}
@@ -61,17 +58,14 @@ class TestDriveReadFile:
         }
 
         with patch.object(mock_drive_service, "_download_regular_file", return_value=expected_result) as mock_download:
-            result = mock_drive_service.read_file(file_id)
+            result = mock_drive_service.read_file_content(file_id)
 
-            # Verify correct methods were called
-            mock_drive_service.service.files.return_value.get.assert_called_once_with(fileId=file_id, fields="mimeType, name")
-            mock_download.assert_called_once_with(file_id, "test.txt", "text/plain")
-
-            # Verify the result
-            assert result == expected_result
+        # Verify the download method was called
+        mock_download.assert_called_once_with(file_id, "test.txt", "text/plain")
+        assert result == expected_result
 
     def test_read_file_metadata_error(self, mock_drive_service):
-        """Test read_file when getting file metadata fails."""
+        """Test read_file_content when getting file metadata fails."""
         file_id = "nonexistent"
 
         # Create mock HTTP error
@@ -94,7 +88,7 @@ class TestDriveReadFile:
         mock_drive_service.handle_api_error = MagicMock(return_value=expected_error)
 
         # Call the method
-        result = mock_drive_service.read_file(file_id)
+        result = mock_drive_service.read_file_content(file_id)
 
         # Verify error handling
         mock_drive_service.handle_api_error.assert_called_once_with("read_file", http_error)

@@ -16,9 +16,7 @@ class TestGetPresentationTool:
     @pytest.fixture
     def mock_slides_service(self):
         """Patch SlidesService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.slides.SlidesService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.slides.SlidesService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -38,9 +36,7 @@ class TestGetPresentationTool:
         args = {"presentation_id": "pres123"}
         result = await get_presentation(**args)
 
-        mock_slides_service.get_presentation.assert_called_once_with(
-            presentation_id="pres123"
-        )
+        mock_slides_service.get_presentation.assert_called_once_with(presentation_id="pres123")
         assert result == mock_service_response
 
     async def test_get_presentation_service_error(self, mock_slides_service):

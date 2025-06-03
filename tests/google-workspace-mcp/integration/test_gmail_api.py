@@ -14,9 +14,7 @@ import pytest
 from google_workspace_mcp.services.gmail import GmailService
 
 # Skip these tests unless integration testing is explicitly enabled
-pytestmark = pytest.mark.skipif(
-    not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-)
+pytestmark = pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
 
 
 class TestGmailIntegration:
@@ -81,9 +79,7 @@ class TestGmailIntegration:
 
         try:
             # 1. Create a draft email
-            draft_result = self.service.create_draft(
-                to=to_email, subject=draft_subject, body=draft_body
-            )
+            draft_result = self.service.create_draft(to=to_email, subject=draft_subject, body=draft_body)
 
             # Verify draft creation
             assert isinstance(draft_result, dict)
@@ -93,9 +89,7 @@ class TestGmailIntegration:
 
             # 2. Query for drafts that match our test draft
             # We use the test_id in the body to find our specific draft
-            emails = self.service.query_emails(
-                query=f"in:drafts {self.test_id}", max_results=10
-            )
+            emails = self.service.query_emails(query=f"in:drafts {self.test_id}", max_results=10)
 
             # Verify we can find our draft
             assert len(emails) >= 1, "Created draft not found in query results"
@@ -111,9 +105,7 @@ class TestGmailIntegration:
 
                 # Verify email content matches what we created
                 assert email_details["subject"] == draft_subject
-                assert self.test_id in email_details.get(
-                    "body", ""
-                ), "Draft body does not contain test ID"
+                assert self.test_id in email_details.get("body", ""), "Draft body does not contain test ID"
 
         finally:
             # 4. Clean up by deleting the draft

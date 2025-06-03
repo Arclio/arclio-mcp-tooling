@@ -14,9 +14,7 @@ import pytest
 from google_workspace_mcp.services.drive import DriveService
 
 # Skip these tests unless integration testing is explicitly enabled
-pytestmark = pytest.mark.skipif(
-    not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-)
+pytestmark = pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
 
 
 class TestDriveIntegration:
@@ -99,9 +97,7 @@ class TestDriveIntegration:
             assert "mimeType" in result
             assert result["mimeType"] == "text/plain"
             assert "content" in result
-            assert (
-                self.test_id in result["content"]
-            ), "Retrieved content doesn't match what was uploaded"
+            assert self.test_id in result["content"], "Retrieved content doesn't match what was uploaded"
 
             # 3. Search for the file by name
             search_query = f"name contains '{self.test_id}'"
@@ -122,9 +118,7 @@ class TestDriveIntegration:
                 for file_id in self.files_to_delete:
                     delete_result = self.service.delete_file(file_id)
                     assert isinstance(delete_result, dict)
-                    assert delete_result.get(
-                        "success", False
-                    ), f"Failed to delete file {file_id}"
+                    assert delete_result.get("success", False), f"Failed to delete file {file_id}"
 
     def test_error_handling_integration(self):
         """Test error handling with invalid file IDs."""

@@ -16,9 +16,7 @@ class TestDriveUploadFile:
     @pytest.fixture
     def mock_drive_service(self):
         """Patch DriveService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.drive.DriveService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -44,9 +42,7 @@ class TestDriveUploadFile:
         result = await gdrive_upload_file(**args)
 
         # Verify the service call
-        mock_drive_service.upload_file.assert_called_once_with(
-            file_path="/fake/path/to/file.txt"
-        )
+        mock_drive_service.upload_file.assert_called_once_with(file_path="/fake/path/to/file.txt")
         assert result == mock_service_response
 
     async def test_upload_file_service_error(self, mock_drive_service):

@@ -16,9 +16,7 @@ class TestGetGmailAttachment:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -39,9 +37,7 @@ class TestGetGmailAttachment:
         }
         result = await get_gmail_attachment(**args)
 
-        mock_gmail_service.get_attachment.assert_called_once_with(
-            message_id="msg123", attachment_id="attach456"
-        )
+        mock_gmail_service.get_attachment.assert_called_once_with(message_id="msg123", attachment_id="attach456")
         assert result == mock_service_response
 
     async def test_get_attachment_service_error(self, mock_gmail_service):
@@ -62,14 +58,10 @@ class TestGetGmailAttachment:
         """Test get_gmail_attachment with missing required arguments."""
         # Test missing message_id
         args = {"message_id": "", "attachment_id": "attach123"}
-        with pytest.raises(
-            ValueError, match="Message ID and attachment ID are required"
-        ):
+        with pytest.raises(ValueError, match="Message ID and attachment ID are required"):
             await get_gmail_attachment(**args)
 
         # Test missing attachment_id
         args = {"message_id": "msg123", "attachment_id": ""}
-        with pytest.raises(
-            ValueError, match="Message ID and attachment ID are required"
-        ):
+        with pytest.raises(ValueError, match="Message ID and attachment ID are required"):
             await get_gmail_attachment(**args)

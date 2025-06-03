@@ -64,3 +64,30 @@ async def get_shared_files() -> dict[str, Any]:
         return {"message": "No shared files found."}
 
     return {"count": len(files), "files": files}
+
+
+@mcp.resource("drive://files/{file_id}/metadata")
+async def get_drive_file_metadata(file_id: str) -> dict[str, Any]:
+    """
+    Get metadata for a specific file from Google Drive.
+
+    Maps to URI: drive://files/{file_id}/metadata
+
+    Args:
+        file_id: The ID of the file to get metadata for
+
+    Returns:
+        A dictionary containing the file metadata.
+    """
+    logger.info(f"Executing get_drive_file_metadata resource for file_id: {file_id}")
+
+    if not file_id or not file_id.strip():
+        raise ValueError("File ID cannot be empty")
+
+    drive_service = DriveService()
+    metadata = drive_service.get_file_metadata(file_id=file_id)
+
+    if isinstance(metadata, dict) and metadata.get("error"):
+        raise ValueError(metadata.get("message", "Error getting file metadata"))
+
+    return metadata

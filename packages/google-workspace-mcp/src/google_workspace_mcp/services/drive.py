@@ -27,86 +27,52 @@ class DriveService(BaseGoogleService):
         """Initialize the Drive service."""
         super().__init__("drive", "v3")
 
-    def search_files(self, query: str, page_size: int = 10) -> list[dict[str, Any]]:
+    def search_files(self, query: str, page_size: int = 10, shared_drive_id: str | None = None) -> list[dict[str, Any]]:
         """
-        Search for files in Google Drive based on a query string.
+        Search for files in Google Drive.
 
         Args:
-            query: The search query string (e.g., 'name contains \"report\"', 'My Important Document', '*')
-            page_size: Maximum number of files to return
+            query: Search query string
+            page_size: Maximum number of files to return (1-1000)
+            shared_drive_id: Optional shared drive ID to search within a specific shared drive
 
         Returns:
-            List of file metadata dictionaries
+            List of file metadata dictionaries (id, name, mimeType, etc.) or an error dictionary
         """
         try:
-            formatted_query = ""
+            logger.info(f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}")
 
-            if query == "*":
-                formatted_query = "trashed = false"
+            # Validate and constrain page_size
+            page_size = max(1, min(page_size, 1000))
+
+            # Format query with proper escaping
+            formatted_query = query.replace("'", "\\'")
+
+            # Build list parameters with shared drive support
+            list_params = {
+                "q": formatted_query,
+                "pageSize": page_size,
+                "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
+                "supportsAllDrives": True,
+                "includeItemsFromAllDrives": True,
+            }
+
+            if shared_drive_id:
+                list_params["driveId"] = shared_drive_id
+                list_params["corpora"] = "drive"  # Search within the specified shared drive
             else:
-                # Check if the query looks like it already has operators or specific syntax
-                # More robust check considering common operators, quotes, and boolean logic
-                has_operators_or_quotes = any(
-                    op in query.lower()
-                    for op in [
-                        "contains",
-                        "mimetype",
-                        "modifiedtime",
-                        "viewedbymetime",
-                        "trashed",
-                        "sharedwithme",
-                        "owners",
-                        "writers",
-                        "readers",
-                        "properties",
-                        "appproperties",
-                        "parents",
-                        "and",
-                        "or",
-                        "not",
-                        "=",
-                        "<",
-                        ">",
-                    ]
-                ) or any(quote in query for quote in ["'", '"'])
+                list_params["corpora"] = "user"  # Default to user's files if no specific shared drive ID
 
-                if has_operators_or_quotes:
-                    # Assume query is pre-formatted or complex.
-                    # Append 'trashed = false' only if 'trashed' isn't already mentioned.
-                    formatted_query = f"({query}) and trashed = false" if "trashed" not in query.lower() else query
-                else:
-                    # Treat as a simple phrase, use fullText contains
-                    # Escape single quotes for the query string
-                    # Google Drive API requires escaping ' as \\' within a string literal
-                    escaped_query = query.replace("'", "\\\\'")
-                    formatted_query = f"fullText contains '{escaped_query}' and trashed = false"
-
-            logger.info(f"Searching Drive with formatted query: '{formatted_query}' and page size: {page_size}")
-
-            # Execute search
-            results = (
-                self.service.files()
-                .list(
-                    q=formatted_query,
-                    pageSize=page_size,
-                    fields="files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
-                )
-                .execute()
-            )
-
+            results = self.service.files().list(**list_params).execute()
             files = results.get("files", [])
-            logger.info(f"Found {len(files)} files matching query")
 
-            # Ensure size is included for all files
-            for file_info in files:
-                file_info["size"] = file_info.get("size", 0)
-
+            logger.info(f"Found {len(files)} files matching query '{query}'")
             return files
 
         except Exception as e:
             return self.handle_api_error("search_files", e)
 
-    def read_file(self, file_id: str) -> dict[str, Any] | None:
+    def read_file_content(self, file_id: str) -> dict[str, Any] | None:
         """
         Read the content of a file from Google Drive.
 
@@ -132,6 +98,97 @@ class DriveService(BaseGoogleService):
 
         except Exception as e:
             return self.handle_api_error("read_file", e)
+
+    def get_file_metadata(self, file_id: str) -> dict[str, Any]:
+        """
+        Get metadata information for a file from Google Drive.
+
+        Args:
+            file_id: The ID of the file to get metadata for
+
+        Returns:
+            Dict containing file metadata or error information
+        """
+        try:
+            if not file_id:
+                return {"error": True, "message": "File ID cannot be empty"}
+
+            logger.info(f"Getting metadata for file with ID: {file_id}")
+
+            # Retrieve file metadata with comprehensive field selection
+            file_metadata = (
+                self.service.files()
+                .get(
+                    fileId=file_id,
+                    fields="id, name, mimeType, size, createdTime, modifiedTime, "
+                    "webViewLink, webContentLink, iconLink, parents, owners, "
+                    "shared, trashed, capabilities, permissions, "
+                    "description, starred, explicitlyTrashed",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(f"Successfully retrieved metadata for file: {file_metadata.get('name', 'Unknown')}")
+            return file_metadata
+
+        except Exception as e:
+            return self.handle_api_error("get_file_metadata", e)
+
+    def create_folder(
+        self,
+        folder_name: str,
+        parent_folder_id: str | None = None,
+        shared_drive_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Create a new folder in Google Drive.
+
+        Args:
+            folder_name: The name for the new folder
+            parent_folder_id: Optional parent folder ID to create the folder within
+            shared_drive_id: Optional shared drive ID to create the folder in a shared drive
+
+        Returns:
+            Dict containing the created folder information or error details
+        """
+        try:
+            if not folder_name or not folder_name.strip():
+                return {"error": True, "message": "Folder name cannot be empty"}
+
+            logger.info(
+                f"Creating folder '{folder_name}' with parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+            )
+
+            # Build folder metadata
+            folder_metadata = {
+                "name": folder_name.strip(),
+                "mimeType": "application/vnd.google-apps.folder",
+            }
+
+            # Set parent folder if specified
+            if parent_folder_id:
+                folder_metadata["parents"] = [parent_folder_id]
+            elif shared_drive_id:
+                # If shared drive is specified but no parent, set shared drive as parent
+                folder_metadata["parents"] = [shared_drive_id]
+
+            # Create the folder with shared drive support
+            created_folder = (
+                self.service.files()
+                .create(
+                    body=folder_metadata,
+                    fields="id, name, parents, webViewLink, createdTime",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(f"Successfully created folder '{folder_name}' with ID: {created_folder.get('id')}")
+            return created_folder
+
+        except Exception as e:
+            return self.handle_api_error("create_folder", e)
 
     def _export_google_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
         """Export a Google Workspace file in an appropriate format."""
@@ -308,3 +365,41 @@ class DriveService(BaseGoogleService):
 
         except Exception as e:
             return self.handle_api_error("delete_file", e)
+
+    def list_shared_drives(self, page_size: int = 100) -> list[dict[str, Any]]:
+        """
+        Lists the user's shared drives.
+
+        Args:
+            page_size: Maximum number of shared drives to return. Max is 100.
+
+        Returns:
+            List of shared drive metadata dictionaries (id, name) or an error dictionary.
+        """
+        try:
+            logger.info(f"Listing shared drives with page size: {page_size}")
+            # API allows pageSize up to 100 for drives.list
+            actual_page_size = min(max(1, page_size), 100)
+
+            results = self.service.drives().list(pageSize=actual_page_size, fields="drives(id, name, kind)").execute()
+            drives = results.get("drives", [])
+
+            # Filter for kind='drive#drive' just to be sure, though API should only return these
+            processed_drives = [
+                {"id": d.get("id"), "name": d.get("name")}
+                for d in drives
+                if d.get("kind") == "drive#drive" and d.get("id") and d.get("name")
+            ]
+            logger.info(f"Found {len(processed_drives)} shared drives.")
+            return processed_drives
+        except HttpError as error:
+            logger.error(f"Error listing shared drives: {error}")
+            return self.handle_api_error("list_shared_drives", error)
+        except Exception as e:
+            logger.exception("Unexpected error listing shared drives")
+            return {
+                "error": True,
+                "error_type": "unexpected_service_error",
+                "message": str(e),
+                "operation": "list_shared_drives",
+            }

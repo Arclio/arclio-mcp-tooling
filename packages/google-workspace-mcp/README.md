@@ -30,7 +30,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="slides,calendar,drive,gmail" \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["slides", "calendar", "drive", "gmail"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```
@@ -45,7 +45,7 @@ pip install google-workspace-mcp
 export GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
 export GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret"
 export GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token"
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides"
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
 
 # Run the MCP server
 google-workspace-worker
@@ -59,7 +59,7 @@ uvx --from google-workspace-mcp google-workspace-worker
 
 # Or with environment variables inline
 GOOGLE_WORKSPACE_CLIENT_ID="your-id" GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
 uvx --from google-workspace-mcp google-workspace-worker
 ```
 
@@ -140,11 +140,45 @@ export GOOGLE_WORKSPACE_CLIENT_SECRET="GOCSPX-example_secret"
 export GOOGLE_WORKSPACE_REFRESH_TOKEN="1//05example_refresh_token"
 
 # Optional - specify which services to enable (default: all)
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides"
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
 
 # Optional - for development/testing
 export RUN_INTEGRATION_TESTS="0"
 ```
+
+### Capabilities Configuration
+
+The `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` environment variable specifies which Google Workspace services should be enabled. This must be formatted as a **JSON array of strings**.
+
+**Valid format examples:**
+
+```bash
+# Enable all services
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
+
+# Enable only specific services
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail"]'
+
+# Enable single service
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive"]'
+
+# Empty array (disables all services)
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
+```
+
+**Available capability values:**
+
+- `"drive"` - Google Drive file operations
+- `"gmail"` - Gmail email management
+- `"calendar"` - Google Calendar events
+- `"slides"` - Google Slides presentations
+
+**⚠️ Important Notes:**
+
+- The value **must** be valid JSON (use single quotes around the JSON string in bash)
+- Service names are case-insensitive but should be lowercase
+- Invalid JSON or non-array values will result in all services being disabled
+- If the environment variable is not set, defaults to empty array (all services disabled)
 
 ## 📋 Overview
 
@@ -258,7 +292,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 
@@ -267,7 +301,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail" \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```
@@ -286,7 +320,7 @@ Add to your Claude Desktop configuration:
         "GOOGLE_WORKSPACE_CLIENT_ID": "your-client-id",
         "GOOGLE_WORKSPACE_CLIENT_SECRET": "your-secret",
         "GOOGLE_WORKSPACE_REFRESH_TOKEN": "your-token",
-        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "drive,gmail,calendar,slides"
+        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"gmail\", \"calendar\", \"slides\"]"
       }
     }
   }
@@ -302,7 +336,7 @@ The server can be started directly and connected to via stdio:
 GOOGLE_WORKSPACE_CLIENT_ID="your-id" \
 GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
 GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive,gmail,calendar,slides" \
+GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
 google-workspace-worker
 
 # Or using uvx
@@ -610,7 +644,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES="drive" \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```

@@ -92,16 +92,12 @@ async def get_gmail_attachment(message_id: str, attachment_id: str) -> dict[str,
     Returns:
         A dictionary containing filename, mimeType, size, and base64 data.
     """
-    logger.info(
-        f"Executing get_gmail_attachment tool - Msg: {message_id}, Attach: {attachment_id}"
-    )
+    logger.info(f"Executing get_gmail_attachment tool - Msg: {message_id}, Attach: {attachment_id}")
     if not message_id or not attachment_id:
         raise ValueError("Message ID and attachment ID are required")
 
     gmail_service = GmailService()
-    result = gmail_service.get_attachment(
-        message_id=message_id, attachment_id=attachment_id
-    )
+    result = gmail_service.get_attachment(message_id=message_id, attachment_id=attachment_id)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error getting attachment"
@@ -143,9 +139,7 @@ async def create_gmail_draft(
 
     gmail_service = GmailService()
     # Pass bcc parameter even though service may not use it (for test compatibility)
-    result = gmail_service.create_draft(
-        to=to, subject=subject, body=body, cc=cc, bcc=bcc
-    )
+    result = gmail_service.create_draft(to=to, subject=subject, body=body, cc=cc, bcc=bcc)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error creating draft"
@@ -183,9 +177,7 @@ async def delete_gmail_draft(
         # Attempt to check if the service returned an error dict
         # (Assuming handle_api_error might return dict or False/None)
         # This part might need adjustment based on actual service error handling
-        error_info = getattr(
-            gmail_service, "last_error", None
-        )  # Hypothetical error capture
+        error_info = getattr(gmail_service, "last_error", None)  # Hypothetical error capture
         error_msg = "Failed to delete draft"
         if isinstance(error_info, dict) and error_info.get("error"):
             error_msg = error_info.get("message", error_msg)
