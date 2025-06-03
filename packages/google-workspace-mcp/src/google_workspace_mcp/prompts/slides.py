@@ -13,10 +13,13 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.prompt()
-async def suggest_slide_content(presentation_topic: str, slide_objective: str, user_id: str) -> list[UserMessage]:
+async def suggest_slide_content(
+    presentation_topic: str, slide_objective: str
+) -> list[UserMessage]:
     """Suggests content for a presentation slide."""
-    logger.info(f"Executing suggest_slide_content prompt for topic '{presentation_topic}' and objective '{slide_objective}'")
-    # user_id is available if needed
+    logger.info(
+        f"Executing suggest_slide_content prompt for topic '{presentation_topic}' and objective '{slide_objective}'"
+    )
     return [
         UserMessage(
             f"Generate content suggestions for one presentation slide.\n"
@@ -28,7 +31,7 @@ async def suggest_slide_content(presentation_topic: str, slide_objective: str, u
 
 
 @mcp.prompt()
-def create_slides_presentation(title: str, user_id: str, ctx: Context = None) -> list[UserMessage]:
+def create_slides_presentation(title: str, ctx: Context = None) -> list[UserMessage]:
     """Creates a new Google Slides presentation with the specified title."""
     if ctx is None:
         # Context should be automatically injected by the MCP framework

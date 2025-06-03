@@ -16,7 +16,9 @@ class TestGdriveSearchTool:
     @pytest.fixture
     def mock_drive_service(self):
         """Patch DriveService for tool tests."""
-        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.drive.DriveService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -29,12 +31,11 @@ class TestGdriveSearchTool:
         ]
         mock_drive_service.search_files.return_value = mock_service_response
 
-        args = {"query": "name contains 'Report Q1'", "user_id": "user@example.com"}
+        args = {"query": "name contains 'Report Q1'"}
         result = await gdrive_search(**args)
 
         mock_drive_service.search_files.assert_called_once_with(
-            query="name contains 'Report Q1'",
-            page_size=10,  # Check internal default
+            query="name contains 'Report Q1'", page_size=10
         )
         assert result == {"count": 2, "files": mock_service_response}
 
@@ -45,22 +46,25 @@ class TestGdriveSearchTool:
 
         args = {
             "query": "name contains 'Report Q1'",
-            "user_id": "user@example.com",
             "page_size": 1,
         }
         result = await gdrive_search(**args)
 
-        mock_drive_service.search_files.assert_called_once_with(query="name contains 'Report Q1'", page_size=1)
+        mock_drive_service.search_files.assert_called_once_with(
+            query="name contains 'Report Q1'", page_size=1
+        )
         assert result == {"count": 1, "files": mock_service_response}
 
     async def test_search_no_results(self, mock_drive_service):
         """Test gdrive_search when no files are found."""
         mock_drive_service.search_files.return_value = []
 
-        args = {"query": "gobbledygook", "user_id": "user@example.com"}
+        args = {"query": "gobbledygook"}
         result = await gdrive_search(**args)
 
-        mock_drive_service.search_files.assert_called_once_with(query="gobbledygook", page_size=10)
+        mock_drive_service.search_files.assert_called_once_with(
+            query="gobbledygook", page_size=10
+        )
         assert result == {"message": "No files found matching your query."}
 
     async def test_search_service_error(self, mock_drive_service):
@@ -70,13 +74,13 @@ class TestGdriveSearchTool:
             "message": "API Error: Invalid query",
         }
 
-        args = {"query": "invalid:query'", "user_id": "user@example.com"}
+        args = {"query": "invalid:query'"}
         with pytest.raises(ValueError, match="API Error: Invalid query"):
             await gdrive_search(**args)
 
     async def test_search_empty_query(self):
         """Test gdrive_search tool validation for empty query."""
-        args = {"query": "", "user_id": "user@example.com"}
+        args = {"query": ""}
         # Tool itself raises ValueError for empty query
         with pytest.raises(
             ValueError,

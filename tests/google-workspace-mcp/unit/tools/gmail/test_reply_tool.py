@@ -1,5 +1,5 @@
 """
-Unit tests for Gmail reply_gmail_email tool function.
+Unit tests for Gmail reply_gmail_email tool.
 """
 
 from unittest.mock import MagicMock, patch
@@ -11,168 +11,88 @@ pytestmark = pytest.mark.anyio
 
 
 class TestReplyGmailEmail:
-    """Tests for the reply_gmail_email function."""
+    """Tests for the reply_gmail_email tool function."""
 
     @pytest.fixture
     def mock_gmail_service(self):
-        """Create a patched GmailService for tool tests."""
-        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
+        """Patch GmailService for tool tests."""
+        with patch(
+            "google_workspace_mcp.tools.gmail.GmailService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
-
-            # Mock get_email_by_id used internally by the tool
-            def mock_get_email(email_id, parse_body):
-                if email_id == "original_msg_123":
-                    return {
-                        "id": "original_msg_123",
-                        "threadId": "thread456",
-                        "from": "sender@example.com",
-                        "subject": "Original Subject",
-                        # Other fields needed for reply construction?
-                    }
-                if email_id == "not_found_id":
-                    return {"error": True, "message": "Original message not found"}
-                return {
-                    "error": True,
-                    "message": "Unknown error getting original message",
-                }
-
-            mock_service.get_email_by_id.side_effect = mock_get_email
-
             yield mock_service
 
-    async def test_reply_success_draft(self, mock_gmail_service):
-        """Test reply_gmail_email creating a draft successfully."""
-        # Mock service response for creating the reply draft
-        mock_reply_response = {
-            "id": "draft789",
-            "message": {"id": "reply_msg_abc", "threadId": "thread456"},
+    async def test_reply_email_success(self, mock_gmail_service):
+        """Test reply_gmail_email successful case."""
+        mock_service_response = {
+            "id": "reply123",
+            "threadId": "thread456",
+            "snippet": "Reply sent successfully",
         }
-        mock_gmail_service.create_reply.return_value = mock_reply_response
+        mock_gmail_service.reply_to_email.return_value = mock_service_response
 
         args = {
-            "original_message_id": "original_msg_123",
-            "reply_body": "This is my reply body.",
-            "user_id": "user@example.com",
-            "send": False,
-            "cc": ["cc_reply@example.com"],
+            "email_id": "msg123",
+            "reply_body": "Thank you for your email!",
         }
-
         result = await reply_gmail_email(**args)
 
-        # Verify get_email_by_id call
-        mock_gmail_service.get_email_by_id.assert_called_once_with("original_msg_123", parse_body=False)
-
-        # Verify create_reply call
-        expected_original_message = {
-            "id": "original_msg_123",
-            "threadId": "thread456",
-            "from": "sender@example.com",
-            "subject": "Original Subject",
-        }
-        mock_gmail_service.create_reply.assert_called_once_with(
-            original_message=expected_original_message,
-            reply_body="This is my reply body.",
-            send=False,
-            cc=["cc_reply@example.com"],
+        mock_gmail_service.reply_to_email.assert_called_once_with(
+            email_id="msg123",
+            reply_body="Thank you for your email!",
+            reply_all=False,
         )
+        assert result == mock_service_response
 
-        # Verify raw result
-        assert result == mock_reply_response
-
-    async def test_reply_success_send(self, mock_gmail_service):
-        """Test reply_gmail_email sending successfully."""
-        # Mock service response for sending the reply
-        mock_reply_response = {
-            "id": "sent_msg_xyz",
-            "threadId": "thread456",
-            "labelIds": ["SENT", "INBOX"],
+    async def test_reply_email_with_reply_all(self, mock_gmail_service):
+        """Test reply_gmail_email with reply_all=True."""
+        mock_service_response = {
+            "id": "reply456",
+            "threadId": "thread789",
+            "snippet": "Reply all sent successfully",
         }
-        mock_gmail_service.create_reply.return_value = mock_reply_response
+        mock_gmail_service.reply_to_email.return_value = mock_service_response
 
         args = {
-            "original_message_id": "original_msg_123",
-            "reply_body": "This is my sent reply.",
-            "user_id": "user@example.com",
-            "send": True,
+            "email_id": "msg456",
+            "reply_body": "Thank you all for the discussion!",
+            "reply_all": True,
         }
-
         result = await reply_gmail_email(**args)
 
-        # Verify get_email_by_id call
-        mock_gmail_service.get_email_by_id.assert_called_once_with("original_msg_123", parse_body=False)
-
-        # Verify create_reply call
-        expected_original_message = {
-            "id": "original_msg_123",
-            "threadId": "thread456",
-            "from": "sender@example.com",
-            "subject": "Original Subject",
-        }
-        mock_gmail_service.create_reply.assert_called_once_with(
-            original_message=expected_original_message,
-            reply_body="This is my sent reply.",
-            send=True,
-            cc=None,  # Default cc is None
+        mock_gmail_service.reply_to_email.assert_called_once_with(
+            email_id="msg456",
+            reply_body="Thank you all for the discussion!",
+            reply_all=True,
         )
+        assert result == mock_service_response
 
-        # Verify raw result
-        assert result == mock_reply_response
-
-    async def test_reply_fail_getting_original(self, mock_gmail_service):
-        """Test reply_gmail_email when fetching original message fails."""
-        args = {
-            "original_message_id": "not_found_id",
-            "reply_body": "Does not matter",
-            "user_id": "user@example.com",
-        }
-
-        with pytest.raises(ValueError, match="Original message not found"):
-            await reply_gmail_email(**args)
-
-        mock_gmail_service.get_email_by_id.assert_called_once_with("not_found_id", parse_body=False)
-        mock_gmail_service.create_reply.assert_not_called()
-
-    async def test_reply_fail_creating_reply(self, mock_gmail_service):
-        """Test reply_gmail_email when creating the reply fails."""
-        # Simulate error during the create_reply call
-        mock_gmail_service.create_reply.return_value = {
+    async def test_reply_email_service_error(self, mock_gmail_service):
+        """Test reply_gmail_email when the service returns an error."""
+        mock_gmail_service.reply_to_email.return_value = {
             "error": True,
-            "message": "API failed to create reply draft",
+            "message": "API Error: Original email not found",
         }
 
         args = {
-            "original_message_id": "original_msg_123",
-            "reply_body": "This reply will fail",
-            "user_id": "user@example.com",
-            "send": False,  # Trying to create draft
+            "email_id": "nonexistent",
+            "reply_body": "This should fail",
         }
-
-        # Expect the specific error message from the service
-        with pytest.raises(ValueError, match="API failed to create reply draft"):
+        with pytest.raises(ValueError, match="API Error: Original email not found"):
             await reply_gmail_email(**args)
 
-        mock_gmail_service.get_email_by_id.assert_called_once()
-        mock_gmail_service.create_reply.assert_called_once()
-
-    async def test_reply_missing_args(self):
+    async def test_reply_email_missing_args(self):
         """Test reply_gmail_email with missing required arguments."""
-        base_args = {
-            "original_message_id": "original_msg_123",
-            "reply_body": "Some reply",
-            "user_id": "user@example.com",
-        }
+        # Test missing email_id
+        args = {"email_id": "", "reply_body": "Some reply"}
+        with pytest.raises(ValueError, match="Email ID and reply body are required"):
+            await reply_gmail_email(**args)
 
-        args_missing_id = base_args.copy()
-        args_missing_id["original_message_id"] = ""
-        with pytest.raises(ValueError, match="Original message ID and reply body are required"):
-            await reply_gmail_email(**args_missing_id)
-
-        # Note: reply_body=None should also trigger the check
-        args_missing_body = base_args.copy()
-        args_missing_body["reply_body"] = None
-        with pytest.raises(ValueError, match="Original message ID and reply body are required"):
-            await reply_gmail_email(**args_missing_body)
+        # Test missing reply_body
+        args = {"email_id": "msg123", "reply_body": ""}
+        with pytest.raises(ValueError, match="Email ID and reply body are required"):
+            await reply_gmail_email(**args)
 
     @patch("google_workspace_mcp.tools.gmail.GmailService")
     def test_patch_gmail_service(self, mock_service_class):

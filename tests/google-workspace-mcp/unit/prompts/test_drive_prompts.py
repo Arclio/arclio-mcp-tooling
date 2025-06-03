@@ -13,29 +13,25 @@ class TestSuggestDriveOutlinePrompt:
     async def test_suggest_outline_success(self):
         """Test successful generation of the outline suggestion prompt."""
         topic = "Quarterly Business Review"
-        args = {"topic": topic, "user_id": "drive_user@example.com"}
+        args = {"topic": topic}
 
         messages = await suggest_drive_outline(**args)
 
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         assert messages[0].role == "user"
-        expected_content = (
-            f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
-        )
+        expected_content = f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
         # Assuming content is stored directly in TextContent
         assert messages[0].content.text == expected_content
 
     async def test_suggest_outline_empty_topic(self):
         """Test with an empty topic."""
         topic = ""
-        args = {"topic": topic, "user_id": "drive_user@example.com"}
+        args = {"topic": topic}
 
         messages = await suggest_drive_outline(**args)
 
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
-        expected_content = (
-            f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
-        )
+        expected_content = f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
         assert messages[0].content.text == expected_content

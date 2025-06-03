@@ -9,8 +9,8 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "arclio-mcp-gsuite",
     "arclio-mcp-tooling",
+    "google-workspace-mcp",
     "markdowndeck",
 ]
 
@@ -46,38 +46,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/35/5d/752690df9ef5b76e1
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/29/5ecc3a15d5a33e31b26c11426c45c501e439cb865d0bff96315d86443b78/appnope-0.1.4-py2.py3-none-any.whl", hash = "sha256:502575ee11cd7a28c0205f379b525beefebab9d161b7c964670864014ed7213c", size = 4321, upload-time = "2024-02-06T09:43:09.663Z" },
 ]
-
-[[package]]
-name = "arclio-mcp-gsuite"
-version = "0.1.1"
-source = { editable = "packages/arclio-mcp-gsuite" }
-dependencies = [
-    { name = "beautifulsoup4" },
-    { name = "google-api-python-client" },
-    { name = "google-auth" },
-    { name = "google-auth-httplib2" },
-    { name = "google-auth-oauthlib" },
-    { name = "markdown" },
-    { name = "markdowndeck" },
-    { name = "mcp" },
-    { name = "python-dotenv" },
-    { name = "pytz" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "beautifulsoup4", specifier = ">=4.12.0" },
-    { name = "google-api-python-client", specifier = ">=2.86.0" },
-    { name = "google-auth", specifier = ">=2.22.0" },
-    { name = "google-auth-httplib2", specifier = ">=0.1.0" },
-    { name = "google-auth-oauthlib", specifier = ">=1.0.0" },
-    { name = "markdown", specifier = ">=3.5.0" },
-    { name = "markdowndeck", editable = "packages/markdowndeck" },
-    { name = "mcp", specifier = ">=1.7.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "pytz", specifier = ">=2023.3" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "arclio-mcp-tooling"
@@ -616,6 +584,38 @@ sdist = { url = "https://files.pythonhosted.org/packages/fb/87/e10bf24f7bcffc142
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ac/84/40ee070be95771acd2f4418981edb834979424565c3eec3cd88b6aa09d24/google_auth_oauthlib-1.2.2-py3-none-any.whl", hash = "sha256:fd619506f4b3908b5df17b65f39ca8d66ea56986e5472eb5978fd8f3786f00a2", size = 19072, upload-time = "2025-04-22T16:40:28.174Z" },
 ]
+
+[[package]]
+name = "google-workspace-mcp"
+version = "1.0.0"
+source = { editable = "packages/google-workspace-mcp" }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "google-api-python-client" },
+    { name = "google-auth" },
+    { name = "google-auth-httplib2" },
+    { name = "google-auth-oauthlib" },
+    { name = "markdown" },
+    { name = "markdowndeck" },
+    { name = "mcp" },
+    { name = "python-dotenv" },
+    { name = "pytz" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.12.0" },
+    { name = "google-api-python-client", specifier = ">=2.86.0" },
+    { name = "google-auth", specifier = ">=2.22.0" },
+    { name = "google-auth-httplib2", specifier = ">=0.1.0" },
+    { name = "google-auth-oauthlib", specifier = ">=1.0.0" },
+    { name = "markdown", specifier = ">=3.5.0" },
+    { name = "markdowndeck", editable = "packages/markdowndeck" },
+    { name = "mcp", specifier = ">=1.7.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "pytz", specifier = ">=2023.3" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "googleapis-common-protos"

@@ -21,13 +21,9 @@ async def list_calendars() -> dict[str, Any]:
 
     Maps to URI: calendar://list
 
-    Args:
-        # user_id is passed implicitly via context.
-
     Returns:
         A dictionary containing the list of calendars or an error message.
     """
-    # user_id assumed available in context
     logger.info("Executing list_calendars resource")
 
     calendar_service = CalendarService()
@@ -72,7 +68,9 @@ async def get_today_events() -> dict[str, Any]:
     time_min = start_of_day.isoformat()
     time_max = end_of_day.isoformat()
 
-    events = calendar_service.get_events(calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50)
+    events = calendar_service.get_events(
+        calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50
+    )
 
     if isinstance(events, dict) and events.get("error"):
         raise ValueError(events.get("message", "Error getting today's events"))

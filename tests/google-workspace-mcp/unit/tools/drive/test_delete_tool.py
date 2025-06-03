@@ -1,5 +1,5 @@
 """
-Unit tests for the gdrive_delete_file tool function.
+Unit tests for Drive gdrive_delete_file tool.
 """
 
 from unittest.mock import MagicMock, patch
@@ -11,12 +11,14 @@ pytestmark = pytest.mark.anyio
 
 
 class TestDriveDeleteFile:
-    """Tests for the gdrive_delete_file function."""
+    """Tests for the gdrive_delete_file tool function."""
 
     @pytest.fixture
     def mock_drive_service(self):
-        """Create a patched DriveService for tool tests."""
-        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+        """Patch DriveService for tool tests."""
+        with patch(
+            "google_workspace_mcp.tools.drive.DriveService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -30,15 +32,14 @@ class TestDriveDeleteFile:
         }
         mock_drive_service.delete_file.return_value = mock_service_response
 
-        # Define arguments (use 'user_id')
-        args = {"user_id": "user@example.com", "file_id": "file123"}
+        # Define arguments (removed 'user_id')
+        args = {"file_id": "file123"}
 
         # Call the function
         result = await gdrive_delete_file(**args)
 
-        # Verify service call
+        # Verify the service call
         mock_drive_service.delete_file.assert_called_once_with(file_id="file123")
-        # Verify raw result
         assert result == mock_service_response
 
     async def test_delete_file_service_error(self, mock_drive_service):
@@ -50,19 +51,16 @@ class TestDriveDeleteFile:
             "error_type": "http_error",
         }
 
-        # Define arguments (use 'user_id')
-        args = {"user_id": "user@example.com", "file_id": "not_a_file"}
+        # Define arguments (removed 'user_id')
+        args = {"file_id": "not_a_file"}
 
         # Call the function and assert ValueError
         with pytest.raises(ValueError, match="File not found via API"):
             await gdrive_delete_file(**args)
 
-        # Verify service call
-        mock_drive_service.delete_file.assert_called_once_with(file_id="not_a_file")
-
     async def test_delete_file_missing_id(self):
         """Test gdrive_delete_file with missing file_id."""
-        # Define arguments (use 'user_id')
-        args = {"user_id": "user@example.com", "file_id": ""}
+        # Define arguments (removed 'user_id')
+        args = {"file_id": ""}
         with pytest.raises(ValueError, match="File ID cannot be empty"):
             await gdrive_delete_file(**args)

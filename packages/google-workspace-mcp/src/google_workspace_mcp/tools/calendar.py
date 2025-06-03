@@ -18,21 +18,16 @@ logger = logging.getLogger(__name__)
 #     name="list_calendars",
 #     description="Lists all calendars accessible by the user.",
 # )
-# async def list_calendars(user_id: str) -> dict[str, Any]:
+# async def list_calendars() -> dict[str, Any]:
 #     """
 #     Lists all calendars accessible by the user.
-
-#     Args:
-#         user_id: The email address of the Google account (passed by Hub, required).
 
 #     Returns:
 #         A dictionary containing the list of calendars or an error message.
 #     """
-#     # user_id assumed available in context
-#     logger.info(f"Executing list_calendars tool for user {user_id}")
+#     logger.info("Executing list_calendars tool")
 
 #     calendar_service = CalendarService()
-#     # TODO: Pass user_id if needed
 #     calendars = calendar_service.list_calendars()
 
 #     if isinstance(calendars, dict) and calendars.get("error"):
@@ -52,7 +47,6 @@ logger = logging.getLogger(__name__)
 async def get_calendar_events(
     time_min: str,
     time_max: str,
-    user_id: str,
     calendar_id: str = "primary",
     max_results: int = 250,
     show_deleted: bool = False,
@@ -63,7 +57,6 @@ async def get_calendar_events(
     Args:
         time_min: Start time in RFC3339 format (e.g., "2024-01-01T00:00:00Z").
         time_max: End time in RFC3339 format (e.g., "2024-01-01T23:59:59Z").
-        user_id: The email address of the Google account (passed by Hub, required).
         calendar_id: ID of the calendar (defaults to 'primary').
         max_results: Maximum number of events to return (default: 250).
         show_deleted: Whether to include deleted events (default: False).
@@ -72,7 +65,7 @@ async def get_calendar_events(
         A dictionary containing the list of events or an error message.
     """
     logger.info(
-        f"Executing get_calendar_events tool for user {user_id} on calendar '{calendar_id}' between {time_min} and {time_max}"
+        f"Executing get_calendar_events tool on calendar '{calendar_id}' between {time_min} and {time_max}"
     )
 
     if not calendar_id:
@@ -83,7 +76,6 @@ async def get_calendar_events(
         raise ValueError("time_max parameter is required")
 
     calendar_service = CalendarService()
-    # TODO: Pass user_id if needed
     events = calendar_service.get_events(
         calendar_id=calendar_id,
         time_min=time_min,
@@ -110,7 +102,6 @@ async def create_calendar_event(
     summary: str,
     start_time: str,
     end_time: str,
-    user_id: str,
     calendar_id: str = "primary",
     location: str | None = None,
     description: str | None = None,
@@ -125,7 +116,6 @@ async def create_calendar_event(
         summary: Title of the event.
         start_time: Start time in RFC3339 format (e.g. 2024-12-01T10:00:00Z).
         end_time: End time in RFC3339 format (e.g. 2024-12-01T11:00:00Z).
-        user_id: The email address of the Google account (passed by Hub, required).
         calendar_id: Calendar ID (defaults to "primary").
         location: Location of the event (optional).
         description: Description or notes (optional).
@@ -136,14 +126,11 @@ async def create_calendar_event(
     Returns:
         A dictionary containing the created event details.
     """
-    logger.info(f"Executing create_calendar_event for user {user_id} on calendar '{calendar_id}'")
-    if not user_id:
-        raise ValueError("user_id is required")
+    logger.info(f"Executing create_calendar_event on calendar '{calendar_id}'")
     if not summary or not start_time or not end_time:
         raise ValueError("Summary, start_time, and end_time are required")
 
     calendar_service = CalendarService()
-    # TODO: Pass user_id if needed
     result = calendar_service.create_event(
         summary=summary,
         start_time=start_time,
@@ -171,7 +158,6 @@ async def create_calendar_event(
 )
 async def delete_calendar_event(
     event_id: str,
-    user_id: str,
     calendar_id: str = "primary",
     send_notifications: bool = True,
 ) -> dict[str, Any]:
@@ -180,21 +166,19 @@ async def delete_calendar_event(
 
     Args:
         event_id: The ID of the event to delete.
-        user_id: The email address of the Google account (passed by Hub, required).
         calendar_id: Calendar ID containing the event (defaults to "primary").
         send_notifications: Whether to send cancellation notifications (default True).
 
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(f"Executing delete_calendar_event for user {user_id} on calendar '{calendar_id}', event '{event_id}'")
-    if not user_id:
-        raise ValueError("user_id is required")
+    logger.info(
+        f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'"
+    )
     if not event_id:
         raise ValueError("Event ID is required")
 
     calendar_service = CalendarService()
-    # TODO: Pass user_id if needed
     success = calendar_service.delete_event(
         event_id=event_id,
         send_notifications=send_notifications,

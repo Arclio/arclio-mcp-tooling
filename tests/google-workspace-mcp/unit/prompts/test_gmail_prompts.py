@@ -43,7 +43,6 @@ class TestSummarizeRecentEmailsPrompt:
         query = "is:recent"
         args = {
             "query": query,
-            "user_id": "gmail_user@example.com",
             "max_emails": 2,
             "ctx": mock_ctx,
         }
@@ -65,7 +64,7 @@ class TestSummarizeRecentEmailsPrompt:
         mock_email_data = {"count": 0, "emails": []}
         mock_ctx = self._create_mock_context(resource_return_value=mock_email_data)
         query = "label:archive"
-        args = {"query": query, "user_id": "gmail_user@example.com", "ctx": mock_ctx}
+        args = {"query": query, "ctx": mock_ctx}
 
         messages = await summarize_recent_emails(**args)
 
@@ -81,7 +80,7 @@ class TestSummarizeRecentEmailsPrompt:
         mock_email_data = {"message": "No emails found matching your query."}
         mock_ctx = self._create_mock_context(resource_return_value=mock_email_data)
         query = "is:invalid"
-        args = {"query": query, "user_id": "gmail_user@example.com", "ctx": mock_ctx}
+        args = {"query": query, "ctx": mock_ctx}
 
         messages = await summarize_recent_emails(**args)
 
@@ -97,7 +96,7 @@ class TestSummarizeRecentEmailsPrompt:
         error_message = "Invalid query format"
         mock_ctx = self._create_mock_context(raise_exception=ValueError(error_message))
         query = "bad:query"
-        args = {"query": query, "user_id": "gmail_user@example.com", "ctx": mock_ctx}
+        args = {"query": query, "ctx": mock_ctx}
 
         messages = await summarize_recent_emails(**args)
 
@@ -112,7 +111,7 @@ class TestSummarizeRecentEmailsPrompt:
         """Test summarization when the resource call raises an unexpected Exception."""
         mock_ctx = self._create_mock_context(raise_exception=Exception("Network Error"))
         query = "is:inbox"
-        args = {"query": query, "user_id": "gmail_user@example.com", "ctx": mock_ctx}
+        args = {"query": query, "ctx": mock_ctx}
 
         messages = await summarize_recent_emails(**args)
 
@@ -127,8 +126,9 @@ class TestSummarizeRecentEmailsPrompt:
         """Test calling the prompt without providing context."""
         args = {
             "query": "is:important",
-            "user_id": "gmail_user@example.com",
             "ctx": None,
         }
-        with pytest.raises(ValueError, match=r"Context \(ctx\) is required for this prompt."):
+        with pytest.raises(
+            ValueError, match=r"Context \(ctx\) is required for this prompt."
+        ):
             await summarize_recent_emails(**args)

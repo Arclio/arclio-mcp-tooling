@@ -1,5 +1,5 @@
 """
-Unit tests for the create_presentation_from_markdown tool function.
+Unit tests for Slides create_presentation_from_markdown tool.
 """
 
 from unittest.mock import MagicMock, patch
@@ -7,88 +7,84 @@ from unittest.mock import MagicMock, patch
 import pytest
 from google_workspace_mcp.tools.slides import create_presentation_from_markdown
 
-pytestmark = pytest.mark.anyio  # Apply to all tests in this module
+pytestmark = pytest.mark.anyio
 
 
 class TestCreatePresentationFromMarkdown:
-    """Tests for the create_presentation_from_markdown function."""
+    """Tests for the create_presentation_from_markdown tool function."""
 
     @pytest.fixture
     def mock_slides_service(self):
-        """Create a patched SlidesService for tool tests."""
-        # Patch the service used *by the tool function*
-        with patch("google_workspace_mcp.tools.slides.SlidesService") as mock_service_class:
+        """Patch SlidesService for tool tests."""
+        with patch(
+            "google_workspace_mcp.tools.slides.SlidesService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
 
-    async def test_create_presentation_success(self, mock_slides_service):
-        """Test create_presentation_from_markdown with successful creation."""
-        # Setup mock response (raw service result)
+    async def test_create_presentation_from_markdown_success(self, mock_slides_service):
+        """Test create_presentation_from_markdown successful case."""
         mock_service_response = {
-            "presentationId": "pres123",
+            "presentationId": "new_pres_123",
             "title": "Test Presentation",
-            "slides": [{"objectId": "slide1"}, {"objectId": "slide2"}],
+            "slides": [
+                {"objectId": "slide1", "pageType": "SLIDE"},
+                {"objectId": "slide2", "pageType": "SLIDE"},
+            ],
         }
-        mock_slides_service.create_presentation_from_markdown.return_value = mock_service_response
+        mock_slides_service.create_presentation_from_markdown.return_value = (
+            mock_service_response
+        )
 
-        # Define arguments (use 'user_id')
+        markdown_content = """# First Slide
+
+Content for the first slide.
+
+---
+
+# Second Slide
+
+More content here."""
+
         args = {
-            "user_id": "user@example.com",
             "title": "Test Presentation",
-            "markdown_content": "# Slide 1\n---\n# Slide 2",
+            "markdown_content": markdown_content,
         }
-
-        # Call the function
         result = await create_presentation_from_markdown(**args)
 
-        # Verify service call
         mock_slides_service.create_presentation_from_markdown.assert_called_once_with(
-            title="Test Presentation", markdown_content="# Slide 1\n---\n# Slide 2"
+            title="Test Presentation",
+            markdown_content=markdown_content,
         )
-        # Verify raw result
         assert result == mock_service_response
 
-    async def test_create_presentation_service_error(self, mock_slides_service):
+    async def test_create_presentation_from_markdown_service_error(
+        self, mock_slides_service
+    ):
         """Test create_presentation_from_markdown when the service returns an error."""
-        # Setup mock error response
         mock_slides_service.create_presentation_from_markdown.return_value = {
             "error": True,
-            "message": "API Error",
+            "message": "API Error: Failed to create presentation",
         }
 
-        # Define arguments (use 'user_id')
         args = {
-            "user_id": "user@example.com",
-            "title": "Test Presentation",
-            "markdown_content": "# Slide 1",
+            "title": "Failed Presentation",
+            "markdown_content": "# Test",
         }
-
-        # Call the function and assert ValueError
-        with pytest.raises(ValueError, match="API Error"):
+        with pytest.raises(
+            ValueError, match="API Error: Failed to create presentation"
+        ):
             await create_presentation_from_markdown(**args)
 
-        # Verify service call
-        mock_slides_service.create_presentation_from_markdown.assert_called_once_with(
-            title="Test Presentation", markdown_content="# Slide 1"
-        )
-
-    async def test_create_presentation_missing_title(self):
-        """Test with missing title (validation handled by function)."""
-        args = {
-            "user_id": "user@example.com",
-            "title": "",
-            "markdown_content": "# Slide 1",
-        }
-        with pytest.raises(ValueError, match="Title and Markdown content are required"):
+    async def test_create_presentation_from_markdown_missing_args(self):
+        """Test create_presentation_from_markdown with missing required arguments."""
+        # Test missing title
+        args = {"title": "", "markdown_content": "# Test"}
+        with pytest.raises(ValueError, match="Title and markdown content are required"):
             await create_presentation_from_markdown(**args)
 
-    async def test_create_presentation_missing_markdown(self):
-        """Test with missing markdown (validation handled by function)."""
-        args = {
-            "user_id": "user@example.com",
-            "title": "Test Title",
-            "markdown_content": "",
-        }
-        with pytest.raises(ValueError, match="Title and Markdown content are required"):
+        # Test missing markdown_content
+        args = {"title": "Test Title", "markdown_content": ""}
+        with pytest.raises(ValueError, match="Title and markdown content are required"):
             await create_presentation_from_markdown(**args)
