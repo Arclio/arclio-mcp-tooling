@@ -45,7 +45,7 @@ pip install google-workspace-mcp
 export GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
 export GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret"
 export GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token"
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
 
 # Run the MCP server
 google-workspace-worker
@@ -59,7 +59,7 @@ uvx --from google-workspace-mcp google-workspace-worker
 
 # Or with environment variables inline
 GOOGLE_WORKSPACE_CLIENT_ID="your-id" GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
+GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
 uvx --from google-workspace-mcp google-workspace-worker
 ```
 
@@ -140,7 +140,7 @@ export GOOGLE_WORKSPACE_CLIENT_SECRET="GOCSPX-example_secret"
 export GOOGLE_WORKSPACE_REFRESH_TOKEN="1//05example_refresh_token"
 
 # Optional - specify which services to enable (default: all)
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
 
 # Optional - for development/testing
 export RUN_INTEGRATION_TESTS="0"
@@ -154,13 +154,13 @@ The `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` environment variable specifies which
 
 ```bash
 # Enable all services
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]'
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
 
 # Enable only specific services
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail"]'
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail"]'
 
 # Enable single service
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive"]'
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["docs"]'
 
 # Empty array (disables all services)
 export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
@@ -169,6 +169,7 @@ export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
 **Available capability values:**
 
 - `"drive"` - Google Drive file operations
+- `"docs"` - Google Docs document creation and metadata retrieval
 - `"gmail"` - Gmail email management
 - `"calendar"` - Google Calendar events
 - `"slides"` - Google Slides presentations
@@ -193,13 +194,13 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 - **AI-Ready Integration**: Purpose-built for AI assistants to interact with Google Workspace
 - **Standardized Protocol**: Clean integration with MCP-compatible AI systems
 - **Enterprise Security**: Credentials remain isolated from AI models
-- **Comprehensive APIs**: Support for Drive, Gmail, Calendar, and Slides
+- **Comprehensive APIs**: Support for Drive, Gmail, Calendar, Slides, and Docs
 - **Robust Error Handling**: Consistent error patterns and graceful failure modes
-- **Extensive Testing**: 125+ tests ensuring reliability and correctness
+- **Extensive Testing**: 447+ tests ensuring reliability and correctness
 
 ## 🛠️ Capabilities
 
-`google-workspace-mcp` provides tools across four major Google Workspace services:
+`google-workspace-mcp` provides tools across five major Google Workspace services:
 
 ### 📁 Google Drive
 
@@ -207,6 +208,11 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 - **gdrive_read_file**: Read file content with automatic format handling
 - **gdrive_upload_file**: Upload local files to Google Drive
 - **gdrive_delete_file**: Remove files from Google Drive
+
+### 📄 Google Docs
+
+- **docs_create_document**: Create new Google Documents with specified titles
+- **docs_get_document_metadata**: Retrieve metadata (title, ID, link) for existing documents
 
 ### 📧 Gmail
 
@@ -241,6 +247,7 @@ The tools above enable AI assistants to handle complex workflows such as:
 
 - **Email Analysis → Presentation Creation**: Parse emails and convert insights into slides
 - **Drive Document Processing**: Read, analyze, and create summaries of documents
+- **Document Creation & Management**: Create new Google Docs and retrieve metadata for existing documents
 - **Calendar Management**: Schedule meetings based on email communications
 - **Document Generation**: Create structured documents from AI-generated content
 - **Multi-stage Operations**: Combine tools for complex operations like creating a presentation based on data from a spreadsheet
@@ -259,6 +266,7 @@ google-workspace-mcp/
 │   ├── __init__.py
 │   ├── base.py           # Base service class
 │   ├── drive.py          # Google Drive implementation
+│   ├── docs_service.py   # Google Docs implementation
 │   ├── gmail.py          # Gmail implementation
 │   ├── calendar.py       # Calendar implementation
 │   └── slides.py         # Slides implementation
@@ -266,6 +274,7 @@ google-workspace-mcp/
     ├── __init__.py
     ├── base.py           # Base tool handler
     ├── drive.py          # Drive tools
+    ├── docs_tools.py     # Docs tools
     ├── gmail.py          # Gmail tools
     ├── calendar.py       # Calendar tools
     └── slides.py         # Slides tools
@@ -292,7 +301,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 
@@ -301,7 +310,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail"]' \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```
@@ -320,7 +329,7 @@ Add to your Claude Desktop configuration:
         "GOOGLE_WORKSPACE_CLIENT_ID": "your-client-id",
         "GOOGLE_WORKSPACE_CLIENT_SECRET": "your-secret",
         "GOOGLE_WORKSPACE_REFRESH_TOKEN": "your-token",
-        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"gmail\", \"calendar\", \"slides\"]"
+        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"docs\", \"gmail\", \"calendar\", \"slides\"]"
       }
     }
   }
@@ -336,7 +345,7 @@ The server can be started directly and connected to via stdio:
 GOOGLE_WORKSPACE_CLIENT_ID="your-id" \
 GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
 GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar", "slides"]' \
+GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
 google-workspace-worker
 
 # Or using uvx
@@ -397,6 +406,32 @@ Reads file content from Google Drive.
 - For binary files: mimeType, base64-encoded content, encoding
 - For Google Docs: Converts to Markdown
 - For Google Sheets: Converts to CSV
+
+### Google Docs Tools
+
+#### docs_create_document
+
+Creates a new Google Document with a specified title.
+
+**Arguments:**
+
+- `title` (string, required): The title for the new Google Document
+
+**Returns:**
+
+- Dictionary containing `document_id`, `title`, and `document_link` of the created document
+
+#### docs_get_document_metadata
+
+Retrieves metadata for a specific Google Document.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+
+**Returns:**
+
+- Dictionary containing the document's `document_id`, `title`, and `document_link`
 
 ### Gmail Tools
 
@@ -538,23 +573,26 @@ make run
 
 ### Testing Structure
 
-The project features a comprehensive testing suite with 125+ tests organized by service and functionality:
+The project features a comprehensive testing suite with 447+ tests organized by service and functionality:
 
 ```
 tests/
 ├── unit/                     # Unit tests
 │   ├── services/             # Service tests
 │   │   ├── drive/            # Drive service tests
+│   │   ├── docs/             # Docs service tests
 │   │   ├── gmail/            # Gmail service tests
 │   │   ├── calendar/         # Calendar service tests
 │   │   └── slides/           # Slides service tests
 │   └── tools/                # Tool handler tests
 │       ├── drive/            # Drive tool tests
+│       ├── docs/             # Docs tool tests
 │       ├── gmail/            # Gmail tool tests
 │       ├── calendar/         # Calendar tool tests
 │       └── slides/           # Slides tool tests
 └── integration/              # Integration tests (requires API credentials)
     ├── test_drive_api.py
+    ├── test_docs_api.py
     ├── test_gmail_api.py
     ├── test_calendar_api.py
     └── test_slides_api.py

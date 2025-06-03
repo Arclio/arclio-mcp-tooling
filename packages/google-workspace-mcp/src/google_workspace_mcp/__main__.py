@@ -21,6 +21,7 @@ from google_workspace_mcp.resources import slides as slides_resources  # noqa: F
 
 # Register tools
 from google_workspace_mcp.tools import calendar as calendar_tools  # noqa: F401
+from google_workspace_mcp.tools import docs_tools  # noqa: F401
 from google_workspace_mcp.tools import drive as drive_tools  # noqa: F401
 from google_workspace_mcp.tools import gmail as gmail_tools  # noqa: F401
 from google_workspace_mcp.tools import slides as slides_tools  # noqa: F401
