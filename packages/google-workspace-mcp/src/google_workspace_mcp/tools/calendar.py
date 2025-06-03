@@ -41,10 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
-    name="get_calendar_events",
+    name="calendar_get_events",
     description="Retrieve calendar events within a specified time range.",
 )
-async def get_calendar_events(
+async def calendar_get_events(
     time_min: str,
     time_max: str,
     calendar_id: str = "primary",
@@ -64,7 +64,9 @@ async def get_calendar_events(
     Returns:
         A dictionary containing the list of events or an error message.
     """
-    logger.info(f"Executing get_calendar_events tool on calendar '{calendar_id}' between {time_min} and {time_max}")
+    logger.info(
+        f"Executing calendar_get_events tool on calendar '{calendar_id}' between {time_min} and {time_max}"
+    )
 
     if not calendar_id:
         raise ValueError("calendar_id parameter is required")
@@ -90,6 +92,48 @@ async def get_calendar_events(
 
     # Return raw service result
     return {"count": len(events), "events": events}
+
+
+@mcp.tool(
+    name="calendar_get_event_details",
+    description="Retrieves detailed information for a specific calendar event by its ID.",
+)
+async def calendar_get_event_details(
+    event_id: str, calendar_id: str = "primary"
+) -> dict[str, Any]:
+    """
+    Retrieves details for a specific event in a Google Calendar.
+
+    Args:
+        event_id: The ID of the event to retrieve.
+        calendar_id: The ID of the calendar containing the event. Defaults to 'primary'.
+
+    Returns:
+        A dictionary containing the event details (summary, start, end, description, attendees, etc.),
+        or an error message.
+    """
+    logger.info(
+        f"Executing calendar_get_event_details tool for event_id: '{event_id}', calendar_id: '{calendar_id}'"
+    )
+    if not event_id or not event_id.strip():
+        raise ValueError("Event ID cannot be empty.")
+    if not calendar_id or not calendar_id.strip():
+        raise ValueError(
+            "Calendar ID cannot be empty."
+        )  # Ensure calendar_id is also validated
+
+    calendar_service = CalendarService()
+    event_details = calendar_service.get_event_details(
+        event_id=event_id, calendar_id=calendar_id
+    )
+
+    if isinstance(event_details, dict) and event_details.get("error"):
+        raise ValueError(event_details.get("message", "Error retrieving event details"))
+
+    if not event_details:  # Should be caught by error dict check
+        raise ValueError(f"Failed to retrieve details for event '{event_id}'")
+
+    return event_details
 
 
 @mcp.tool(
@@ -170,7 +214,9 @@ async def delete_calendar_event(
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'")
+    logger.info(
+        f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'"
+    )
     if not event_id:
         raise ValueError("Event ID is required")
 
