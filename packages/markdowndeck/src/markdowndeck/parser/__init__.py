@@ -25,7 +25,9 @@ class Parser:
         self.directive_parser = DirectiveParser()
         self.content_parser = ContentParser()
 
-    def parse(self, markdown: str, title: str = None, theme_id: str | None = None) -> Deck:
+    def parse(
+        self, markdown: str, title: str = None, theme_id: str | None = None
+    ) -> Deck:
         """
         Parse markdown into a presentation deck.
 
@@ -52,8 +54,12 @@ class Parser:
                 logger.debug(f"Processing slide {slide_index + 1}")
 
                 # Step 2: Parse slide sections
-                section_models = self.section_parser.parse_sections(slide_data["content"])
-                logger.debug(f"Parsed {len(section_models)} sections for slide {slide_index + 1}")
+                section_models = self.section_parser.parse_sections(
+                    slide_data["content"]
+                )
+                logger.debug(
+                    f"Parsed {len(section_models)} sections for slide {slide_index + 1}"
+                )
 
                 # Step 3: Parse directives for each section
                 for section_model in section_models:
@@ -65,10 +71,16 @@ class Parser:
                             self.directive_parser.parse_directives(subsection_model)
 
                 # Step 4: Parse content in each section to create elements
-                # ContentParser now populates elements within each Section model
-                # and returns a flat list of all elements for the slide
-                elements = self.content_parser.parse_content(slide_data["title"], section_models, slide_data.get("footer"))
-                logger.debug(f"Created {len(elements)} elements for slide {slide_index + 1}")
+                # CRITICAL FIX P2: Pass title_directives to content parser
+                elements = self.content_parser.parse_content(
+                    slide_data["title"],
+                    section_models,
+                    slide_data.get("footer"),
+                    title_directives=slide_data.get("title_directives"),
+                )
+                logger.debug(
+                    f"Created {len(elements)} elements for slide {slide_index + 1}"
+                )
 
                 # Step 5: Determine layout based on element types
                 layout = self._determine_layout(elements)
@@ -81,7 +93,7 @@ class Parser:
                     footer=slide_data.get("footer"),
                     background=slide_data.get("background"),
                     object_id=f"slide_{slide_index}",
-                    sections=section_models,  # Now passing Section model instances
+                    sections=section_models,
                 )
 
                 slides.append(slide)
@@ -89,17 +101,25 @@ class Parser:
 
             except Exception as e:
                 # Log error but continue with other slides
-                logger.error(f"Error processing slide {slide_index + 1}: {e}", exc_info=True)
+                logger.error(
+                    f"Error processing slide {slide_index + 1}: {e}", exc_info=True
+                )
 
                 # Create an error slide
-                error_slide = self._create_error_slide(slide_index, str(e), slide_data.get("title"))
+                error_slide = self._create_error_slide(
+                    slide_index, str(e), slide_data.get("title")
+                )
                 slides.append(error_slide)
 
         # Create and return deck
-        inferred_title = title or (slides_data[0].get("title") if slides_data else "Untitled")
+        inferred_title = title or (
+            slides_data[0].get("title") if slides_data else "Untitled"
+        )
 
         deck = Deck(slides=slides, title=inferred_title, theme_id=theme_id)
-        logger.info(f"Created deck with {len(slides)} slides and title: {inferred_title}")
+        logger.info(
+            f"Created deck with {len(slides)} slides and title: {inferred_title}"
+        )
 
         return deck
 
@@ -120,12 +140,21 @@ class Parser:
         has_subtitle = any(e.element_type == ElementType.SUBTITLE for e in elements)
         has_image = any(e.element_type == ElementType.IMAGE for e in elements)
         has_table = any(e.element_type == ElementType.TABLE for e in elements)
-        has_list = any(e.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST) for e in elements)
+        has_list = any(
+            e.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST)
+            for e in elements
+        )
         has_code = any(e.element_type == ElementType.CODE for e in elements)
 
         # Determine layout based on content
         if has_title:
-            if has_subtitle and not has_image and not has_table and not has_list and not has_code:
+            if (
+                has_subtitle
+                and not has_image
+                and not has_table
+                and not has_list
+                and not has_code
+            ):
                 return SlideLayout.TITLE
             if has_subtitle and (has_list or has_table or has_code):
                 return SlideLayout.TITLE_AND_BODY
@@ -138,7 +167,9 @@ class Parser:
         # Default to blank layout if no title
         return SlideLayout.BLANK
 
-    def _create_error_slide(self, slide_index: int, error_message: str, original_title: str | None = None) -> Slide:
+    def _create_error_slide(
+        self, slide_index: int, error_message: str, original_title: str | None = None
+    ) -> Slide:
         """
         Create an error slide for when processing fails.
 

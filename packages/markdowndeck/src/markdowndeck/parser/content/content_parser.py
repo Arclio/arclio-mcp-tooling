@@ -1,4 +1,4 @@
-"""Parse markdown content into slide elements with improved handling using formatters."""
+"""Parse markdown content into slide elements with improved directive handling."""
 
 import logging
 from typing import Any
@@ -6,9 +6,7 @@ from typing import Any
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
-from markdowndeck.models import (
-    Element,
-)
+from markdowndeck.models import Element
 from markdowndeck.models.slide import Section
 from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
@@ -26,7 +24,12 @@ logger = logging.getLogger(__name__)
 
 class ContentParser:
     """
-    Parse markdown content into slide elements by dispatching to specialized formatters.
+    Parse markdown content into slide elements with improved directive handling.
+
+    Key improvements:
+    - Robust element-specific directive detection and association
+    - Proper directive consumption to prevent spurious text elements
+    - Enhanced block element directive support
     """
 
     def __init__(self):
@@ -42,19 +45,16 @@ class ContentParser:
         self.md.enable("strikethrough")
 
         self.element_factory = ElementFactory()
+        # ARCHITECTURAL IMPROVEMENT: Create single DirectiveParser instance
         self.directive_parser = DirectiveParser()
 
-        # Initialize formatters, injecting the element factory
-        # Order matters: ImageFormatter should attempt to handle image-only paragraphs
-        # before TextFormatter handles general paragraphs.
+        # Initialize formatters with dependency injection
         self.formatters: list[BaseFormatter] = [
-            # ImageFormatter needs to run before TextFormatter so image-only
-            # paragraphs are consumed correctly.
             ImageFormatter(self.element_factory),
             ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
-            TextFormatter(self.element_factory),  # Handles headings, paragraphs, quotes
+            TextFormatter(self.element_factory, self.directive_parser),
         ]
 
     def parse_content(
@@ -62,11 +62,10 @@ class ContentParser:
         slide_title_text: str,
         sections: list[Section],
         slide_footer_text: str | None,
-        title_directives: dict[str, Any] = None,  # New parameter
+        title_directives: dict[str, Any] = None,
     ) -> list[Element]:
         """
         Parse content into slide elements and populate section.elements.
-        Also returns a flat list of all elements for the slide's main elements list.
 
         Args:
             slide_title_text: The slide title text
@@ -75,20 +74,17 @@ class ContentParser:
             title_directives: Optional directives from the slide title
 
         Returns:
-            List of all elements for the slide (for the slide.elements list)
+            List of all elements for the slide
         """
-        logger.debug(
-            "Parsing content into slide elements and populating section.elements"
-        )
+        logger.debug("Parsing content with improved directive handling")
         all_elements: list[Element] = []
 
-        # Process the title (H1)
+        # Process the title (H1) with directives
         if slide_title_text:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_title_text, self.md
             )
 
-            # Apply title directives if present
             title_element = self.element_factory.create_title_element(
                 slide_title_text, formatting, title_directives
             )
@@ -96,29 +92,9 @@ class ContentParser:
             all_elements.append(title_element)
             logger.debug(f"Added title element: {slide_title_text[:30]}")
 
-        # Helper function to process a single section and its subsections
-        def _process_section_recursively(current_section: Section):
-            if current_section.type == "row" and current_section.subsections:
-                for subsection in current_section.subsections:
-                    _process_section_recursively(subsection)
-            elif current_section.type == "section" and current_section.content:
-                tokens = self.md.parse(current_section.content)
-                logger.debug(
-                    f"Tokens for section {current_section.id}: {[t.type for t in tokens if t.type != 'softbreak']}"
-                )
-                # Process tokens and populate section.elements
-                parsed_elements = self._process_tokens(
-                    tokens, current_section.directives
-                )
-                current_section.elements.extend(parsed_elements)
-                all_elements.extend(parsed_elements)
-                logger.debug(
-                    f"Added {len(parsed_elements)} elements to section {current_section.id}"
-                )
-
-        # Process all sections and populate their elements
+        # Process all sections recursively
         for section in sections:
-            _process_section_recursively(section)
+            self._process_section_recursively(section, all_elements)
 
         # Process the footer
         if slide_footer_text:
@@ -131,165 +107,234 @@ class ContentParser:
             all_elements.append(footer_element)
             logger.debug(f"Added footer element: {slide_footer_text[:30]}")
 
-        logger.info(
-            f"Created {len(all_elements)} total elements from content using formatters."
-        )
+        logger.info(f"Created {len(all_elements)} total elements from content")
         return all_elements
 
-    def _find_element_specific_directives(
-        self, tokens: list[Token], element_start_index: int
-    ) -> dict[str, Any] | None:
-        """
-        Look for element-specific directives immediately before a block element.
+    def _process_section_recursively(
+        self, section: Section, all_elements: list[Element]
+    ):
+        """Process a section and its subsections recursively."""
+        if section.type == "row" and section.subsections:
+            for subsection in section.subsections:
+                self._process_section_recursively(subsection, all_elements)
+        elif section.type == "section" and section.content:
+            tokens = self.md.parse(section.content)
+            logger.debug(f"Processing section {section.id} with {len(tokens)} tokens")
 
-        Args:
-            tokens: List of all tokens
-            element_start_index: Index where the block element starts
+            # CRITICAL FIX P1: Enhanced token processing with directive detection
+            parsed_elements = self._process_tokens_with_directive_detection(
+                tokens, section.directives
+            )
 
-        Returns:
-            Dictionary of element-specific directives if found, None otherwise
-        """
-        # For now, let TextFormatter handle directive extraction entirely
-        # This avoids the infinite loop issue and centralizes directive parsing
-        return None
+            section.elements.extend(parsed_elements)
+            all_elements.extend(parsed_elements)
+            logger.debug(
+                f"Added {len(parsed_elements)} elements to section {section.id}"
+            )
 
-    def _get_plain_text_from_inline_token(self, inline_token: Token) -> str:
-        """
-        Extract plain text content from an inline token.
-
-        Args:
-            inline_token: A markdown-it inline token with children
-
-        Returns:
-            Plain text content
-        """
-        if not hasattr(inline_token, "children"):
-            return getattr(inline_token, "content", "")
-
-        plain_text = ""
-        for child in inline_token.children:
-            if child.type == "text":
-                plain_text += child.content
-            elif child.type == "softbreak":
-                plain_text += " "
-            elif child.type == "hardbreak":
-                plain_text += "\n"
-
-        return plain_text
-
-    def _process_tokens(
-        self, tokens: list[Token], directives: dict[str, Any]
+    def _process_tokens_with_directive_detection(
+        self, tokens: list[Token], section_directives: dict[str, Any]
     ) -> list[Element]:
+        """
+        Process tokens with enhanced directive detection for block elements.
+
+        CRITICAL FIX P1: This method implements proper element-specific directive
+        detection and association for block elements (lists, tables, code blocks).
+        """
         elements: list[Element] = []
         current_index = 0
 
-        # FIXED: Improved logic for identifying all headings
-        # First pass: track all headings, not just the first one
-        section_heading_indices = set()
-        subtitle_indices = set()
+        # First pass: identify heading types for proper classification
+        heading_info = self._analyze_headings(tokens)
 
-        # Track if we've seen the first H1
+        while current_index < len(tokens):
+            if current_index >= len(tokens):
+                break
+
+            tokens[current_index]
+
+            # CRITICAL FIX P1: Detect and consume directive-only paragraphs
+            element_directives, consumed_tokens = self._extract_preceding_directives(
+                tokens, current_index
+            )
+
+            if consumed_tokens > 0:
+                # We consumed directive tokens, advance index
+                current_index += consumed_tokens
+                if current_index >= len(tokens):
+                    break
+                tokens[current_index]
+
+            # Merge section and element-specific directives
+            merged_directives = self._merge_directives(
+                section_directives, element_directives
+            )
+
+            # Dispatch to appropriate formatter
+            element, new_index = self._dispatch_to_formatter(
+                tokens, current_index, merged_directives, heading_info
+            )
+
+            if element is not None:
+                elements.append(element)
+                logger.debug(f"Added element: {element.element_type}")
+
+            # Advance to next token
+            current_index = max(new_index + 1, current_index + 1)
+
+        return elements
+
+    def _extract_preceding_directives(
+        self, tokens: list[Token], current_index: int
+    ) -> tuple[dict[str, Any], int]:
+        """
+        Extract directives from directive-only paragraphs that precede block elements.
+
+        CRITICAL FIX P1: This implements the missing functionality to detect
+        directive lines like '[cell-align=center][border=1pt solid #DEE2E6]'
+        that should apply to subsequent block elements.
+
+        Returns:
+            Tuple of (extracted_directives, number_of_tokens_consumed)
+        """
+        if current_index >= len(tokens):
+            return {}, 0
+
+        token = tokens[current_index]
+
+        # Only check paragraph tokens for directive content
+        if token.type != "paragraph_open":
+            return {}, 0
+
+        # Look for inline token
+        if (
+            current_index + 1 >= len(tokens)
+            or tokens[current_index + 1].type != "inline"
+        ):
+            return {}, 0
+
+        inline_token = tokens[current_index + 1]
+        if not hasattr(inline_token, "content"):
+            return {}, 0
+
+        # Check if this paragraph contains only directives
+        content = inline_token.content.strip()
+        if not content:
+            return {}, 0
+
+        # Use DirectiveParser to check if this is a directive-only line
+        directives, remaining_text = self.directive_parser.parse_inline_directives(
+            content
+        )
+
+        if directives and not remaining_text.strip():
+            # This is a directive-only paragraph, consume it
+            logger.debug(f"Found element-specific directives: {directives}")
+
+            # Find the closing paragraph token
+            close_index = current_index + 2
+            while (
+                close_index < len(tokens)
+                and tokens[close_index].type != "paragraph_close"
+            ):
+                close_index += 1
+
+            tokens_consumed = close_index - current_index + 1
+            return directives, tokens_consumed
+
+        return {}, 0
+
+    def _analyze_headings(self, tokens: list[Token]) -> dict[int, dict]:
+        """
+        Analyze heading tokens to determine their types (title, subtitle, section).
+
+        ARCHITECTURAL IMPROVEMENT: Centralized heading analysis for consistent
+        classification across the parser.
+        """
+        heading_info = {}
         first_h1_index = -1
 
         for i, token in enumerate(tokens):
             if token.type == "heading_open":
                 level = int(token.tag[1])
-                # Track the first H1 as the title
+
                 if level == 1 and first_h1_index == -1:
                     first_h1_index = i
-                # The first H2 that immediately follows the first H1 is a subtitle
-                elif (
-                    level == 2 and first_h1_index != -1 and i == first_h1_index + 3
-                ):  # H1_open, inline, H1_close, H2_open
-                    subtitle_indices.add(i)
-                # All other headings are section headings (H2-H6)
+                    heading_info[i] = {"type": "title", "level": level}
+                elif level == 2 and first_h1_index != -1 and i == first_h1_index + 3:
+                    # H2 immediately following first H1 is subtitle
+                    heading_info[i] = {"type": "subtitle", "level": level}
                 else:
-                    # CRITICAL FIX: Make sure ALL section headers are captured
-                    section_heading_indices.add(i)
-                    logger.debug(
-                        f"Marked heading at index {i} as section heading (level {level})"
+                    # All other headings are section headings
+                    heading_info[i] = {"type": "section", "level": level}
+
+        return heading_info
+
+    def _dispatch_to_formatter(
+        self,
+        tokens: list[Token],
+        current_index: int,
+        directives: dict[str, Any],
+        heading_info: dict,
+    ) -> tuple[Element | None, int]:
+        """
+        Dispatch token processing to the appropriate formatter.
+
+        ARCHITECTURAL IMPROVEMENT: Enhanced dispatcher with better error handling
+        and consistent directive passing.
+        """
+        if current_index >= len(tokens):
+            return None, current_index
+
+        token = tokens[current_index]
+
+        for formatter in self.formatters:
+            if formatter.can_handle(token, tokens[current_index:]):
+                try:
+                    # Pass additional context for heading classification
+                    kwargs = {}
+                    if (
+                        isinstance(formatter, TextFormatter)
+                        and token.type == "heading_open"
+                    ):
+                        heading_data = heading_info.get(current_index, {})
+                        kwargs["is_section_heading"] = (
+                            heading_data.get("type") == "section"
+                        )
+                        kwargs["is_subtitle"] = heading_data.get("type") == "subtitle"
+
+                    element, end_index = formatter.process(
+                        tokens, current_index, directives, None, **kwargs
                     )
 
-        # Second pass: process all tokens
-        while current_index < len(tokens):
-            token = tokens[current_index]
-            dispatched = False
+                    return element, end_index
 
-            # Removed problematic _should_skip_directive_paragraph check
-            # Let formatters handle directive extraction directly
-
-            for formatter in self.formatters:
-                if formatter.can_handle(token, tokens[current_index:]):
-                    try:
-                        # Look for element-specific directives before this element
-                        element_specific_directives = (
-                            self._find_element_specific_directives(
-                                tokens, current_index
-                            )
-                        )
-
-                        # Pass both section and element-specific directives to formatters
-                        if (
-                            type(formatter).__name__ == "TextFormatter"
-                            and token.type == "heading_open"
-                        ):
-                            # FIXED: Always pass correct is_section_heading flag
-                            is_section_heading = (
-                                current_index in section_heading_indices
-                            )
-                            is_subtitle = current_index in subtitle_indices
-
-                            # Log what we're processing for debugging
-                            level = int(token.tag[1])
-                            logger.debug(
-                                f"Processing heading level {level} at index {current_index} "
-                                f"(is_section_heading={is_section_heading}, is_subtitle={is_subtitle})"
-                            )
-
-                            element, new_index_offset = formatter.process(
-                                tokens,
-                                current_index,
-                                directives,
-                                element_specific_directives,
-                                is_section_heading=is_section_heading,
-                                is_subtitle=is_subtitle,
-                            )
-                        else:
-                            element, new_index_offset = formatter.process(
-                                tokens,
-                                current_index,
-                                directives,
-                                element_specific_directives,
-                            )
-
-                        if element is not None or new_index_offset >= current_index:
-                            # Formatter successfully handled the token and/or advanced the index
-                            if element:
-                                elements.append(element)
-                                logger.debug(
-                                    f"Added element of type {element.element_type} to elements list: {getattr(element, 'text', '')[:30]}"
-                                )
-
-                            current_index = new_index_offset + 1
-                            dispatched = True
-                            break
-                        # Formatter chose not to handle this token; try next formatter
-                        continue
-                    except Exception as e:
-                        logger.error(
-                            f"Error processing token type {token.type} at index {current_index} "
-                            f"with formatter {formatter.__class__.__name__}: {e}",
-                            exc_info=True,
-                        )
-                        # Skip error handling logic (unchanged)
-                        current_index += 1
-                        break
-
-            if not dispatched:
-                if token.type not in ["softbreak", "hardbreak"] and token.type:
-                    logger.debug(
-                        f"No formatter handled token: {token.type} at index {current_index}. Content: '{token.content[:50]}...' Skipping."
+                except Exception as e:
+                    logger.error(
+                        f"Error in {formatter.__class__.__name__} processing token "
+                        f"{token.type} at index {current_index}: {e}",
+                        exc_info=True,
                     )
-                current_index += 1
+                    return None, current_index
 
-        return [e for e in elements if e is not None]
+        # No formatter handled the token
+        if token.type not in ["softbreak", "hardbreak"]:
+            logger.debug(
+                f"No formatter handled token: {token.type} at index {current_index}"
+            )
+
+        return None, current_index
+
+    def _merge_directives(
+        self, section_directives: dict[str, Any], element_directives: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Merge section and element-specific directives.
+
+        Element-specific directives take precedence over section directives.
+        """
+        merged = section_directives.copy()
+        if element_directives:
+            merged.update(element_directives)
+            logger.debug(f"Merged directives: {merged}")
+        return merged
