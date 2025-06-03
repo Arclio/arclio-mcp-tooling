@@ -205,10 +205,10 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 
 ### 📁 Google Drive
 
-- **gdrive_search**: Find files in Google Drive using query syntax
-- **gdrive_read_file**: Read file content with automatic format handling
-- **gdrive_upload_file**: Upload local files to Google Drive
-- **gdrive_delete_file**: Remove files from Google Drive
+- **drive_search_files**: Find files in Google Drive using query syntax
+- **drive_read_file_content**: Read file content with automatic format handling
+- **drive_upload_file**: Upload local files to Google Drive
+- **drive_delete_file**: Remove files from Google Drive
 
 ### 📄 Google Docs
 
