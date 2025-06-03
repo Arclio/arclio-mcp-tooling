@@ -24,17 +24,13 @@ class TestDocsCreateDocument:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_document_response)
-        mock_docs_service.service.documents.return_value.create.return_value.execute = (
-            mock_execute
-        )
+        mock_docs_service.service.documents.return_value.create.return_value.execute = mock_execute
 
         # Call the method
         result = mock_docs_service.create_document(title)
 
         # Verify API call
-        mock_docs_service.service.documents.return_value.create.assert_called_once_with(
-            body={"title": title}
-        )
+        mock_docs_service.service.documents.return_value.create.assert_called_once_with(body={"title": title})
 
         # Verify result
         expected_result = {
@@ -53,14 +49,10 @@ class TestDocsCreateDocument:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Insufficient permissions"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Insufficient permissions"}}')
 
         # Setup the mock to raise the error
-        mock_docs_service.service.documents.return_value.create.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_docs_service.service.documents.return_value.create.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -76,9 +68,7 @@ class TestDocsCreateDocument:
         result = mock_docs_service.create_document(title)
 
         # Verify error handling
-        mock_docs_service.handle_api_error.assert_called_once_with(
-            "create_document", http_error
-        )
+        mock_docs_service.handle_api_error.assert_called_once_with("create_document", http_error)
         assert result == expected_error
 
     def test_create_document_unexpected_error(self, mock_docs_service):
@@ -88,9 +78,7 @@ class TestDocsCreateDocument:
 
         # Setup the mock to raise an unexpected error
         unexpected_error = Exception("Unexpected error occurred")
-        mock_docs_service.service.documents.return_value.create.return_value.execute.side_effect = (
-            unexpected_error
-        )
+        mock_docs_service.service.documents.return_value.create.return_value.execute.side_effect = unexpected_error
 
         # Call the method
         result = mock_docs_service.create_document(title)
@@ -112,9 +100,7 @@ class TestDocsCreateDocument:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_document_response)
-        mock_docs_service.service.documents.return_value.create.return_value.execute = (
-            mock_execute
-        )
+        mock_docs_service.service.documents.return_value.create.return_value.execute = mock_execute
 
         # Call the method
         result = mock_docs_service.create_document(title)

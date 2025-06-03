@@ -16,9 +16,7 @@ class TestGmailReplyToEmailTool:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -51,9 +49,7 @@ class TestGmailReplyToEmailTool:
         mock_gmail_service.reply_to_email.return_value = expected_result
 
         # Call the tool with reply_all=True
-        result = await gmail_reply_to_email(
-            "original_msg123", "Reply to all", reply_all=True
-        )
+        result = await gmail_reply_to_email("original_msg123", "Reply to all", reply_all=True)
 
         # Verify service was called correctly
         mock_gmail_service.reply_to_email.assert_called_once_with(

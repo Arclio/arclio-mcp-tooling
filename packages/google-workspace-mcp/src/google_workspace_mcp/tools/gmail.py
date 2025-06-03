@@ -81,9 +81,7 @@ async def gmail_get_message_details(email_id: str) -> dict[str, Any]:
     name="gmail_get_attachment_content",
     description="Retrieves a specific attachment from a Gmail message.",
 )
-async def gmail_get_attachment_content(
-    message_id: str, attachment_id: str
-) -> dict[str, Any]:
+async def gmail_get_attachment_content(message_id: str, attachment_id: str) -> dict[str, Any]:
     """
     Retrieves a specific attachment from a Gmail message.
 
@@ -94,16 +92,12 @@ async def gmail_get_attachment_content(
     Returns:
         A dictionary containing filename, mimeType, size, and base64 data.
     """
-    logger.info(
-        f"Executing gmail_get_attachment_content tool - Msg: {message_id}, Attach: {attachment_id}"
-    )
+    logger.info(f"Executing gmail_get_attachment_content tool - Msg: {message_id}, Attach: {attachment_id}")
     if not message_id or not attachment_id:
         raise ValueError("Message ID and attachment ID are required")
 
     gmail_service = GmailService()
-    result = gmail_service.get_attachment_content(
-        message_id=message_id, attachment_id=attachment_id
-    )
+    result = gmail_service.get_attachment_content(message_id=message_id, attachment_id=attachment_id)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error getting attachment"
@@ -145,9 +139,7 @@ async def create_gmail_draft(
 
     gmail_service = GmailService()
     # Pass bcc parameter even though service may not use it (for test compatibility)
-    result = gmail_service.create_draft(
-        to=to, subject=subject, body=body, cc=cc, bcc=bcc
-    )
+    result = gmail_service.create_draft(to=to, subject=subject, body=body, cc=cc, bcc=bcc)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error creating draft"
@@ -185,9 +177,7 @@ async def delete_gmail_draft(
         # Attempt to check if the service returned an error dict
         # (Assuming handle_api_error might return dict or False/None)
         # This part might need adjustment based on actual service error handling
-        error_info = getattr(
-            gmail_service, "last_error", None
-        )  # Hypothetical error capture
+        error_info = getattr(gmail_service, "last_error", None)  # Hypothetical error capture
         error_msg = "Failed to delete draft"
         if isinstance(error_info, dict) and error_info.get("error"):
             error_msg = error_info.get("message", error_msg)
@@ -335,17 +325,11 @@ async def gmail_send_email(
         A dictionary containing the details of the sent message or an error.
     """
     logger.info(f"Executing gmail_send_email tool to: {to}, subject: '{subject}'")
-    if (
-        not to
-        or not isinstance(to, list)
-        or not all(isinstance(email, str) and email.strip() for email in to)
-    ):
+    if not to or not isinstance(to, list) or not all(isinstance(email, str) and email.strip() for email in to):
         raise ValueError("Recipients 'to' must be a non-empty list of email strings.")
     if not subject or not subject.strip():
         raise ValueError("Subject cannot be empty.")
-    if (
-        body is None
-    ):  # Allow empty string for body, but not None if it implies missing arg.
+    if body is None:  # Allow empty string for body, but not None if it implies missing arg.
         raise ValueError("Body cannot be None (can be an empty string).")
 
     gmail_service = GmailService()

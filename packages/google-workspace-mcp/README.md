@@ -196,7 +196,7 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 - **Enterprise Security**: Credentials remain isolated from AI models
 - **Comprehensive APIs**: Support for Drive, Gmail, Calendar, Slides, and Docs
 - **Robust Error Handling**: Consistent error patterns and graceful failure modes
-- **Extensive Testing**: 447+ tests ensuring reliability and correctness
+- **Extensive Testing**: 536+ tests ensuring reliability and correctness
 
 ## 🛠️ Capabilities
 
@@ -213,6 +213,11 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 
 - **docs_create_document**: Create new Google Documents with specified titles
 - **docs_get_document_metadata**: Retrieve metadata (title, ID, link) for existing documents
+- **docs_get_content_as_markdown**: Retrieve the content of a Google Document as Markdown
+- **docs_append_text**: Append text to the end of a specified Google Document
+- **docs_prepend_text**: Prepend text to the beginning of a specified Google Document
+- **docs_insert_text**: Insert text at a specific location within a Google Document
+- **docs_batch_update**: Apply multiple raw Google Docs API requests in a single operation (advanced)
 
 ### 📧 Gmail
 
@@ -433,36 +438,75 @@ Retrieves metadata for a specific Google Document.
 
 - Dictionary containing the document's `document_id`, `title`, and `document_link`
 
+#### docs_get_content_as_markdown
+
+Retrieves the content of a Google Document as Markdown.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+
+**Returns:**
+
+- Markdown formatted content of the document
+
+#### docs_append_text
+
+Appends text to the end of a specified Google Document.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+- `text` (string, required): The text to append to the document
+
+**Returns:**
+
+- Updated document object with appended text
+
+#### docs_prepend_text
+
+Prepends text to the beginning of a specified Google Document.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+- `text` (string, required): The text to prepend to the document
+
+**Returns:**
+
+- Updated document object with prepended text
+
+#### docs_insert_text
+
+Inserts text at a specific location within a specified Google Document.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+- `text` (string, required): The text to insert into the document
+- `index` (integer, optional): The 0-based index where text should be inserted (defaults to 1 for beginning of body)
+- `segment_id` (string, optional): The ID of a specific document segment (e.g., header, footer)
+
+**Returns:**
+
+- Dictionary indicating success or failure of the operation
+
+#### docs_batch_update
+
+Applies multiple raw Google Docs API requests in a single operation.
+
+**Arguments:**
+
+- `document_id` (string, required): The ID of the Google Document
+- `requests` (array, required): An array of raw Google Docs API request objects
+
+**Returns:**
+
+- API response containing replies for each request and write control information
+
 ### Gmail Tools
 
 #### query_gmail_emails
-
-Searches for emails using Gmail query syntax.
-
-**Arguments:**
-
-- `query` (string, optional): Gmail search query (e.g., `"is:unread from:example.com"`)
-- `max_results` (integer, optional): Maximum emails to return (default: 100)
-
-**Returns:**
-
-- List of email metadata objects (subject, from, to, date, snippet, id)
-
-#### get_gmail_email
-
-Retrieves a complete email message by ID.
-
-**Arguments:**
-
-- `email_id` (string, required): Gmail message ID
-
-**Returns:**
-
-- Complete email object with headers, body content, and attachment information
-
-### Calendar Tools
-
-#### calendar_get_event_details
 
 Retrieves detailed information for a specific calendar event by its ID.
 
@@ -573,7 +617,7 @@ make run
 
 ### Testing Structure
 
-The project features a comprehensive testing suite with 447+ tests organized by service and functionality:
+The project features a comprehensive testing suite with 536+ tests organized by service and functionality:
 
 ```
 tests/

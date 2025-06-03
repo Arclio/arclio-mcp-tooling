@@ -67,9 +67,7 @@ class TestDocsServiceInit:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "API Quota Exceeded"
-        mock_build.side_effect = HttpError(
-            mock_resp, b'{"error": {"message": "API Quota Exceeded"}}'
-        )
+        mock_build.side_effect = HttpError(mock_resp, b'{"error": {"message": "API Quota Exceeded"}}')
 
         # Create the service instance
         docs_service = DocsService()

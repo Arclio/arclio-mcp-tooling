@@ -23,9 +23,7 @@ class TestDocsGetDocumentMetadata:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_document_response)
-        mock_docs_service.service.documents.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_docs_service.service.documents.return_value.get.return_value.execute = mock_execute
 
         # Call the method
         result = mock_docs_service.get_document_metadata(document_id)
@@ -52,14 +50,10 @@ class TestDocsGetDocumentMetadata:
         mock_resp = MagicMock()
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Document not found"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Document not found"}}')
 
         # Setup the mock to raise the error
-        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -75,9 +69,7 @@ class TestDocsGetDocumentMetadata:
         result = mock_docs_service.get_document_metadata(document_id)
 
         # Verify error handling
-        mock_docs_service.handle_api_error.assert_called_once_with(
-            "get_document_metadata", http_error
-        )
+        mock_docs_service.handle_api_error.assert_called_once_with("get_document_metadata", http_error)
         assert result == expected_error
 
     def test_get_document_metadata_permission_denied(self, mock_docs_service):
@@ -89,14 +81,10 @@ class TestDocsGetDocumentMetadata:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Permission denied"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Permission denied"}}')
 
         # Setup the mock to raise the error
-        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -112,9 +100,7 @@ class TestDocsGetDocumentMetadata:
         result = mock_docs_service.get_document_metadata(document_id)
 
         # Verify error handling
-        mock_docs_service.handle_api_error.assert_called_once_with(
-            "get_document_metadata", http_error
-        )
+        mock_docs_service.handle_api_error.assert_called_once_with("get_document_metadata", http_error)
         assert result == expected_error
 
     def test_get_document_metadata_unexpected_error(self, mock_docs_service):
@@ -124,9 +110,7 @@ class TestDocsGetDocumentMetadata:
 
         # Setup the mock to raise an unexpected error
         unexpected_error = Exception("Network timeout")
-        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = (
-            unexpected_error
-        )
+        mock_docs_service.service.documents.return_value.get.return_value.execute.side_effect = unexpected_error
 
         # Call the method
         result = mock_docs_service.get_document_metadata(document_id)
@@ -148,9 +132,7 @@ class TestDocsGetDocumentMetadata:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_document_response)
-        mock_docs_service.service.documents.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_docs_service.service.documents.return_value.get.return_value.execute = mock_execute
 
         # Call the method
         result = mock_docs_service.get_document_metadata(document_id)

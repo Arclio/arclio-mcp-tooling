@@ -26,9 +26,7 @@ class TestGmailSendEmail:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_sent_message)
-        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute = (
-            mock_execute
-        )
+        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute = mock_execute
 
         # Mock MIMEText
         with patch("google_workspace_mcp.services.gmail.MIMEText") as mock_mime_text:
@@ -37,9 +35,7 @@ class TestGmailSendEmail:
             mock_mime_text.return_value = mock_message
 
             with patch("google_workspace_mcp.services.gmail.base64") as mock_base64:
-                mock_base64.urlsafe_b64encode.return_value.decode.return_value = (
-                    "encoded_message"
-                )
+                mock_base64.urlsafe_b64encode.return_value.decode.return_value = "encoded_message"
 
                 # Call the method
                 result = mock_gmail_service.send_email(to, subject, body)
@@ -67,9 +63,7 @@ class TestGmailSendEmail:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_sent_message)
-        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute = (
-            mock_execute
-        )
+        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute = mock_execute
 
         # Mock MIMEText
         with patch("google_workspace_mcp.services.gmail.MIMEText") as mock_mime_text:
@@ -78,14 +72,10 @@ class TestGmailSendEmail:
             mock_mime_text.return_value = mock_message
 
             with patch("google_workspace_mcp.services.gmail.base64") as mock_base64:
-                mock_base64.urlsafe_b64encode.return_value.decode.return_value = (
-                    "encoded_message"
-                )
+                mock_base64.urlsafe_b64encode.return_value.decode.return_value = "encoded_message"
 
                 # Call the method
-                result = mock_gmail_service.send_email(
-                    to, subject, body, cc=cc, bcc=bcc
-                )
+                result = mock_gmail_service.send_email(to, subject, body, cc=cc, bcc=bcc)
 
         # Verify MIME headers were set
         mock_message.__setitem__.assert_any_call("To", "recipient@example.com")
@@ -138,14 +128,10 @@ class TestGmailSendEmail:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Invalid recipient"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Invalid recipient"}}')
 
         # Setup the mock to raise the error
-        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_gmail_service.service.users.return_value.messages.return_value.send.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -166,7 +152,5 @@ class TestGmailSendEmail:
             result = mock_gmail_service.send_email(to, subject, body)
 
         # Verify error handling
-        mock_gmail_service.handle_api_error.assert_called_once_with(
-            "send_email", http_error
-        )
+        mock_gmail_service.handle_api_error.assert_called_once_with("send_email", http_error)
         assert result == expected_error
