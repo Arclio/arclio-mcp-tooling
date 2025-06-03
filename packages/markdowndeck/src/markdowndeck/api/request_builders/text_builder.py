@@ -1,6 +1,7 @@
 """Text request builder for Google Slides API requests."""
 
 import logging
+
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import (
     AlignmentType,
@@ -124,9 +125,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                         end_index=end_index,
                     )
                     requests.append(style_request)
-                elif text_format.start == text_format.end == 0 and not element.text:
-                    pass
-                elif text_format.start == text_format.end and text_format.start == len(
+                elif text_format.start == text_format.end == 0 and not element.text or text_format.start == text_format.end and text_format.start == len(
                     element.text
                 ):
                     pass
@@ -175,7 +174,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 is_heading = text.startswith("#") or (
                     hasattr(element, "directives")
                     and "fontsize" in element.directives
-                    and isinstance(element.directives["fontsize"], (int, float))
+                    and isinstance(element.directives["fontsize"], int | float)
                     and element.directives["fontsize"] >= 16
                 )
                 if is_heading:
@@ -271,9 +270,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                                 end_index=end_index,
                             )
                         )
-                    elif text_format.start == text_format.end == 0 and not element.text:
-                        pass
-                    elif (
+                    elif text_format.start == text_format.end == 0 and not element.text or (
                         text_format.start == text_format.end
                         and text_format.start == len(element.text)
                     ):
@@ -325,14 +322,14 @@ class TextRequestBuilder(BaseRequestBuilder):
         fields = []
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
-            if isinstance(spacing, (int, float)) and spacing > 0:
+            if isinstance(spacing, int | float) and spacing > 0:
                 style_updates["lineSpacing"] = float(
                     spacing
                 )  # API expects float (e.g., 1.15 for 115%)
                 fields.append("lineSpacing")
         if "para-spacing-before" in element.directives:
             spacing = element.directives["para-spacing-before"]
-            if isinstance(spacing, (int, float)) and spacing >= 0:
+            if isinstance(spacing, int | float) and spacing >= 0:
                 style_updates["spaceAbove"] = {
                     "magnitude": float(spacing),
                     "unit": "PT",
@@ -340,7 +337,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 fields.append("spaceAbove")
         if "para-spacing-after" in element.directives:
             spacing = element.directives["para-spacing-after"]
-            if isinstance(spacing, (int, float)) and spacing >= 0:
+            if isinstance(spacing, int | float) and spacing >= 0:
                 style_updates["spaceBelow"] = {
                     "magnitude": float(spacing),
                     "unit": "PT",
@@ -348,7 +345,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 fields.append("spaceBelow")
         if "indent-start" in element.directives:
             indent = element.directives["indent-start"]
-            if isinstance(indent, (int, float)) and indent >= 0:
+            if isinstance(indent, int | float) and indent >= 0:
                 style_updates["indentStart"] = {
                     "magnitude": float(indent),
                     "unit": "PT",
@@ -356,7 +353,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 fields.append("indentStart")
         if "indent-first-line" in element.directives:
             indent = element.directives["indent-first-line"]
-            if isinstance(indent, (int, float)):
+            if isinstance(indent, int | float):
                 style_updates["indentFirstLine"] = {
                     "magnitude": float(indent),
                     "unit": "PT",
@@ -369,7 +366,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                         "objectId": element.object_id,
                         "textRange": {"type": "ALL"},
                         "style": style_updates,
-                        "fields": ",".join(sorted(list(set(fields)))),
+                        "fields": ",".join(sorted(set(fields))),
                     }
                 }
             )
@@ -444,7 +441,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         ):
             return
         font_size_val = element.directives["fontsize"]
-        if isinstance(font_size_val, (int, float)) and font_size_val > 0:
+        if isinstance(font_size_val, int | float) and font_size_val > 0:
             requests.append(
                 self._apply_text_formatting(
                     element_id=element.object_id,
@@ -598,7 +595,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 {
                     "updateShapeProperties": {
                         "objectId": element.object_id,
-                        "fields": ",".join(sorted(list(set(final_fields)))),
+                        "fields": ",".join(sorted(set(final_fields))),
                         "shapeProperties": {
                             "outline": {
                                 "outlineFill": {"solidFill": {"color": rgb_or_theme}},
@@ -634,7 +631,7 @@ class TextRequestBuilder(BaseRequestBuilder):
             return
 
         padding_value = element.directives["padding"]
-        if isinstance(padding_value, (int, float)) and padding_value >= 0:
+        if isinstance(padding_value, int | float) and padding_value >= 0:
             logger.warning(
                 f"Padding directive with value {padding_value} cannot be applied: "
                 "textBoxProperties is not supported in the Google Slides REST API. "

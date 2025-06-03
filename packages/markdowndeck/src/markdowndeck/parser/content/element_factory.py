@@ -46,12 +46,10 @@ class ElementFactory:
         # Process directives for alignment, font size, etc.
         alignment = AlignmentType.CENTER  # Default for titles
 
-        if directives:
-            # Handle alignment directive
-            if "align" in directives:
-                alignment_value = directives["align"].lower()
-                if alignment_value in ["left", "center", "right", "justify"]:
-                    alignment = AlignmentType(alignment_value)
+        if directives and "align" in directives:
+            alignment_value = directives["align"].lower()
+            if alignment_value in ["left", "center", "right", "justify"]:
+                alignment = AlignmentType(alignment_value)
 
         return TextElement(
             element_type=ElementType.TITLE,

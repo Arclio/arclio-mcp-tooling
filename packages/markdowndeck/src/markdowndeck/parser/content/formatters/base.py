@@ -50,7 +50,8 @@ class BaseFormatter(ABC):
         self,
         tokens: list[Token],
         start_index: int,
-        directives: dict[str, Any],
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
         **kwargs,
     ) -> tuple[Element | None, int]:
         """
@@ -59,7 +60,8 @@ class BaseFormatter(ABC):
         Args:
             tokens: The full list of tokens for the current parsing scope.
             start_index: The index of the token that this formatter should start processing.
-            directives: Directives from the current section to apply to the element.
+            section_directives: Directives from the current section to apply to the element.
+            element_specific_directives: Directives specific to this element that override section directives.
             **kwargs: Additional keyword arguments for specific formatters.
 
         Returns:
@@ -68,6 +70,31 @@ class BaseFormatter(ABC):
                 - The index of the last token consumed by this formatter.
         """
         raise NotImplementedError("Subclasses must implement process()")
+
+    def merge_directives(
+        self,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Merge section-level and element-specific directives.
+
+        Element-specific directives take precedence over section-level directives.
+
+        Args:
+            section_directives: Directives from the section
+            element_specific_directives: Element-specific directives (optional)
+
+        Returns:
+            Merged directives dictionary
+        """
+        merged = section_directives.copy()
+        if element_specific_directives:
+            merged.update(element_specific_directives)
+            logger.debug(
+                f"Merged directives: section={section_directives}, element={element_specific_directives}, result={merged}"
+            )
+        return merged
 
     def find_closing_token(
         self,
@@ -102,7 +129,9 @@ class BaseFormatter(ABC):
                     if depth == 0:
                         return i
             # Also consider tokens that might affect depth at higher levels
-            elif current_token.level < nesting_level:  # Exited the current nesting context
+            elif (
+                current_token.level < nesting_level
+            ):  # Exited the current nesting context
                 logger.warning(
                     f"Exited nesting level {nesting_level} looking for {close_tag_type} after {open_tag_type} at index {open_token_index}. Found {current_token.type} at level {current_token.level}."
                 )
@@ -136,7 +165,9 @@ class BaseFormatter(ABC):
             elif child.type == "hardbreak":
                 plain_text += "\n"
             elif child.type == "image":
-                plain_text += child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                plain_text += (
+                    child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                )
             elif child.type.endswith("_open") or child.type.endswith("_close"):
                 # Skip formatting markers
                 pass

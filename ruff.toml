@@ -8,7 +8,7 @@ exclude = [
 ]
 
 # Line length and target version
-line-length = 100
+line-length = 127
 target-version = "py310"
 unsafe-fixes = true
 

@@ -1,13 +1,12 @@
 """Validation utilities for Google Slides API requests."""
 
 import logging
-from typing import Any, Dict
-
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
-def validate_api_request(request: Dict[str, Any]) -> bool:
+def validate_api_request(request: dict[str, Any]) -> bool:
     """
     Validate an API request against known valid Google Slides API structures.
 
@@ -289,7 +288,7 @@ def validate_api_request(request: Dict[str, Any]) -> bool:
     return valid
 
 
-def validate_batch_requests(batch: Dict[str, Any]) -> Dict[str, Any]:
+def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
     """
     Validate and fix a batch of API requests.
 

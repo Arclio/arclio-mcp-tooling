@@ -2,6 +2,7 @@
 
 import logging
 import re
+from typing import Any
 
 from markdowndeck.models.slide import Section
 from markdowndeck.parser.directive.converters import (
@@ -52,6 +53,134 @@ class DirectiveParser:
             "float": float,
             "string": str,
         }
+
+    def _process_style_directive_value(
+        self, key: str, style_tuple: tuple[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Process the tuple output from convert_style into a clean, directly consumable format.
+
+        Args:
+            key: The directive key (e.g., 'color', 'background', 'border')
+            style_tuple: Tuple from convert_style with (type, structured_value)
+
+        Returns:
+            Dictionary with processed directives ready for direct consumption
+        """
+        style_type, style_value = style_tuple
+        result = {}
+
+        if style_type == "color":
+            # Direct color value - store directly under the key
+            result[key] = style_value
+
+        elif style_type == "url":
+            # Background image URL
+            if key == "background":
+                result["background_type"] = "image"
+                result["background_image_url"] = style_value["value"]
+            else:
+                # For other keys that might have URL values
+                result[f"{key}_url"] = style_value["value"]
+
+        elif style_type == "border":
+            # Structured border data - store directly under the key
+            result[key] = style_value
+
+        elif style_type == "border_style":
+            # Simple border style - store as border with just the style
+            result[key] = {"style": style_value}
+
+        else:
+            # Generic value - store directly
+            result[key] = style_value
+
+        return result
+
+    def parse_inline_directives(self, text_line: str) -> tuple[dict[str, Any], str]:
+        """
+        Parse directives from a single line of text that may contain only directives.
+
+        This method is used to identify and parse element-specific directives that appear
+        immediately before block elements within section content.
+
+        Args:
+            text_line: A single line of text that might contain directives
+
+        Returns:
+            Tuple of (parsed_directives_dict, remaining_text) where:
+            - parsed_directives_dict: Dictionary of parsed directives if the line contains only directives
+            - remaining_text: The original text if it's not all directives, or empty string if it was
+        """
+        text_line = text_line.strip()
+        if not text_line:
+            return {}, ""
+
+        # Check if the entire line consists only of directive patterns
+        # This pattern matches a line that contains only directives (one or more)
+        full_directive_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)\s*$"
+
+        match = re.match(full_directive_pattern, text_line)
+        if not match:
+            # Line contains non-directive content
+            return {}, text_line
+
+        directive_text = match.group(1)
+        logger.debug(f"Found inline directives: {directive_text!r}")
+
+        # Parse the directives using the same logic as parse_directives
+        directives = {}
+        directive_pattern = r"\[([^=\[\]]+)=([^\[\]]*)\]"
+        matches = re.findall(directive_pattern, directive_text)
+
+        for key, value in matches:
+            key = key.strip().lower()
+            value = value.strip()
+
+            logger.debug(f"Processing inline directive: '{key}'='{value}'")
+
+            if key in self.directive_types:
+                directive_type = self.directive_types[key]
+                converter = self.converters.get(directive_type)
+
+                if converter:
+                    try:
+                        converted_value = converter(value)
+
+                        # Handle style directives with special processing
+                        if directive_type == "style" and isinstance(
+                            converted_value, tuple
+                        ):
+                            processed_directives = self._process_style_directive_value(
+                                key, converted_value
+                            )
+                            directives.update(processed_directives)
+                        else:
+                            # Direct storage for non-style directives
+                            directives[key] = converted_value
+
+                        logger.debug(
+                            f"Processed inline directive: {key}={converted_value}"
+                        )
+                    except ValueError as e:
+                        logger.warning(
+                            f"Error processing inline directive {key}={value}: {e}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Unexpected error processing inline directive {key}={value}: {e}"
+                        )
+                else:
+                    directives[key] = value
+                    logger.debug(
+                        f"Added inline directive without conversion: {key}={value}"
+                    )
+            else:
+                logger.warning(f"Unknown inline directive: {key}")
+                directives[key] = value
+
+        # Return the parsed directives and empty string since the line was consumed
+        return directives, ""
 
     def parse_directives(self, section: Section) -> None:
         """
@@ -115,7 +244,19 @@ class DirectiveParser:
                 if converter:
                     try:
                         converted_value = converter(value)
-                        directives[key] = converted_value
+
+                        # Handle style directives with special processing
+                        if directive_type == "style" and isinstance(
+                            converted_value, tuple
+                        ):
+                            processed_directives = self._process_style_directive_value(
+                                key, converted_value
+                            )
+                            directives.update(processed_directives)
+                        else:
+                            # Direct storage for non-style directives
+                            directives[key] = converted_value
+
                         logger.debug(f"Processed directive: {key}={converted_value}")
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")

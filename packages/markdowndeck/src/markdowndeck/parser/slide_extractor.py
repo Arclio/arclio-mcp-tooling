@@ -230,11 +230,6 @@ class SlideExtractor:
 
         # Extract speaker notes from content_after_title
         notes_from_content = self._extract_notes(content_after_title)
-        if notes_from_content:
-            notes_pattern_to_remove = r""  # Non-greedy match for notes
-            content_after_title = re.sub(
-                notes_pattern_to_remove, "", content_after_title, flags=re.DOTALL
-            )
 
         final_notes = notes_from_content
         speaker_notes_placeholder_id = (
@@ -249,7 +244,8 @@ class SlideExtractor:
                 speaker_notes_placeholder_id = (
                     f"{slide_object_id}_notesShape"  # Ensure ID is set
                 )
-                notes_pattern_to_remove = r""
+                # Remove notes from footer using the same pattern as _extract_notes
+                notes_pattern_to_remove = r"<!--\s*notes:\s*.*?\s*-->"
                 footer = re.sub(
                     notes_pattern_to_remove, "", footer, flags=re.DOTALL
                 ).strip()
@@ -261,6 +257,16 @@ class SlideExtractor:
             content_after_title = re.sub(
                 background_pattern, "", content_after_title, count=1, flags=re.MULTILINE
             )
+
+        # Remove ALL notes comments from content_after_title before it becomes final_slide_content
+        # This ensures that SectionParser doesn't receive content with embedded, already-processed notes
+        notes_pattern_to_remove_all = (
+            r"<!--\s*notes:\s*.*?\s*-->"  # Non-greedy match for all notes
+        )
+        content_after_title = re.sub(
+            notes_pattern_to_remove_all, "", content_after_title, flags=re.DOTALL
+        )
+        logger.debug("Removed all speaker notes comments from slide content")
 
         # The final slide content is what remains of content_after_title after stripping
         final_slide_content = content_after_title.strip()

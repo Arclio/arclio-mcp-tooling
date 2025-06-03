@@ -93,10 +93,8 @@ def _distribute_space_and_position_sections(
     )
 
     # CRITICAL FIX: Row sections in horizontal layouts should get full width
-    is_row_with_columns = False
     for section in sections:
         if section.type == "row" and section.subsections:
-            is_row_with_columns = True
             # Ensure row sections have no width directive when being placed horizontally
             if not is_vertical_split and "width" in section.directives:
                 logger.debug(
@@ -158,7 +156,7 @@ def _distribute_space_and_position_sections(
                     logger.debug(
                         f"Set {dim_key} for section {section.id} to {explicit_sections[i]:.1f} ({dim_directive * 100}%)"
                     )
-                elif isinstance(dim_directive, (int, float)) and dim_directive > 1.0:
+                elif isinstance(dim_directive, int | float) and dim_directive > 1.0:
                     # FIXED: Cap absolute dimensions to available space
                     explicit_sections[i] = min(
                         float(dim_directive), main_dimension - total_spacing
@@ -540,7 +538,7 @@ def _position_elements_within_section(
 
     # FIXED: Apply padding more efficiently
     padding = directives.get("padding", 0.0)
-    if isinstance(padding, (int, float)) and padding > 0:
+    if isinstance(padding, int | float) and padding > 0:
         padding = min(
             padding, area_width * 0.1, area_height * 0.1
         )  # Limit excessive padding
@@ -593,7 +591,7 @@ def _position_elements_within_section(
             element._section_height = area_height
             element._section_width = area_width
             # For images, limit to 80% of section width if no explicit size
-            if element.size[0] > area_width * 0.9 and not "width" in getattr(
+            if element.size[0] > area_width * 0.9 and "width" not in getattr(
                 element, "directives", {}
             ):
                 element_width = area_width * 0.8
@@ -687,7 +685,7 @@ def _position_elements_within_section(
         current_group.append(element)
 
         # FIXED: Check for overflow and related elements
-        element_bottom = current_y + element.size[1]
+        current_y + element.size[1]
         is_last_in_group = i == len(elements) - 1 or not getattr(
             element, "related_to_next", False
         )
@@ -710,14 +708,13 @@ def _position_elements_within_section(
         element_groups.append(current_group)
 
     # FIXED: Store logical element groups with the section for overflow handling
-    if element_groups:
-        # This is a fix for the AttributeError - check if directives is a Section or dict
-        if (
-            isinstance(directives, dict)
-            and "section" in directives
-            and hasattr(directives["section"], "element_groups")
-        ):
-            directives["section"].element_groups = element_groups
-            logger.debug(
-                f"Stored {len(element_groups)} logical element groups for overflow handling"
-            )
+    if (
+        element_groups
+        and isinstance(directives, dict)
+        and "section" in directives
+        and hasattr(directives["section"], "element_groups")
+    ):
+        directives["section"].element_groups = element_groups
+        logger.debug(
+            f"Stored {len(element_groups)} logical element groups for overflow handling"
+        )

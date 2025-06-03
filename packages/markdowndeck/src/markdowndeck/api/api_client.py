@@ -109,35 +109,34 @@ class ApiClient:
 
         # Process each slide that has notes
         for i, slide in enumerate(deck.slides):
-            if slide.notes:
-                if i < len(updated_presentation.get("slides", [])):
-                    # Get the actual slide from the API response
-                    actual_slide = updated_presentation["slides"][i]
+            if slide.notes and i < len(updated_presentation.get("slides", [])):
+                # Get the actual slide from the API response
+                actual_slide = updated_presentation["slides"][i]
 
-                    # Extract the speaker notes ID from the slide
-                    speaker_notes_id = self._find_speaker_notes_id(actual_slide)
+                # Extract the speaker notes ID from the slide
+                speaker_notes_id = self._find_speaker_notes_id(actual_slide)
 
-                    if speaker_notes_id:
-                        # Update the slide model with the speaker notes ID
-                        slide.speaker_notes_object_id = speaker_notes_id
+                if speaker_notes_id:
+                    # Update the slide model with the speaker notes ID
+                    slide.speaker_notes_object_id = speaker_notes_id
 
-                        # Create notes requests
-                        notes_batch = {
-                            "presentationId": presentation_id,
-                            "requests": [
-                                # Insert the notes text (will replace any existing text)
-                                {
-                                    "insertText": {
-                                        "objectId": speaker_notes_id,
-                                        "insertionIndex": 0,
-                                        "text": slide.notes,
-                                    }
+                    # Create notes requests
+                    notes_batch = {
+                        "presentationId": presentation_id,
+                        "requests": [
+                            # Insert the notes text (will replace any existing text)
+                            {
+                                "insertText": {
+                                    "objectId": speaker_notes_id,
+                                    "insertionIndex": 0,
+                                    "text": slide.notes,
                                 }
-                            ],
-                        }
-                        notes_batches.append(notes_batch)
-                        slides_with_notes += 1
-                        logger.debug(f"Created notes requests for slide {i + 1}")
+                            }
+                        ],
+                    }
+                    notes_batches.append(notes_batch)
+                    slides_with_notes += 1
+                    logger.debug(f"Created notes requests for slide {i + 1}")
 
         # Step 7: Execute the notes batches if any exist
         if notes_batches:
@@ -473,13 +472,13 @@ class ApiClient:
                                         if (
                                             problem_index >= 0
                                             and actual_text_length > 0
+                                            and i > problem_index
                                         ):
                                             # For any request that's after the one that failed, be extra cautious
-                                            if i > problem_index:
-                                                text_range["endIndex"] = min(
-                                                    text_range["endIndex"],
-                                                    actual_text_length - 1,
-                                                )
+                                            text_range["endIndex"] = min(
+                                                text_range["endIndex"],
+                                                actual_text_length - 1,
+                                            )
 
                                         # Apply a general safety limit
                                         if text_range["endIndex"] > start_index + 500:

@@ -1,6 +1,7 @@
 """Slide request builder for Google Slides API requests."""
 
 import logging
+
 import requests
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
