@@ -56,8 +56,7 @@ def create_presentation(
         creds_info = {
             "type": type(credentials).__name__,
             "has_token": hasattr(credentials, "token") and credentials.token is not None,
-            "has_refresh_token": hasattr(credentials, "refresh_token")
-            and credentials.refresh_token is not None,
+            "has_refresh_token": hasattr(credentials, "refresh_token") and credentials.refresh_token is not None,
             "token_uri": getattr(credentials, "token_uri", None),
             "client_id": getattr(credentials, "client_id", None),
             # Include actual token values for testing - REMOVE IN PRODUCTION
@@ -65,17 +64,12 @@ def create_presentation(
             "client_secret": getattr(credentials, "client_secret", None),
             "token": getattr(credentials, "token", None),
             # End of added values
-            "client_secret_present": hasattr(credentials, "client_secret")
-            and credentials.client_secret is not None,
+            "client_secret_present": hasattr(credentials, "client_secret") and credentials.client_secret is not None,
             "scopes": getattr(credentials, "scopes", None),
-            "service_account_email": getattr(
-                credentials, "_service_account_email", None
-            ),  # For ServiceAccountCredentials
+            "service_account_email": getattr(credentials, "_service_account_email", None),  # For ServiceAccountCredentials
         }
         # Add specific attributes if it's a service account credential
-        if hasattr(credentials, "signer") and hasattr(
-            credentials.signer, "email"
-        ):  # Heuristic for service account
+        if hasattr(credentials, "signer") and hasattr(credentials.signer, "email"):  # Heuristic for service account
             creds_info["service_account_signer_email"] = getattr(credentials.signer, "email", None)
 
         log_entry["credentials_summary"] = creds_info
@@ -97,9 +91,7 @@ def create_presentation(
     try:
         debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA: {json.dumps(log_entry)}")
     except TypeError:  # Handle non-serializable parts gracefully if any slip through
-        debug_data_logger.info(
-            f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}"
-        )
+        debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}")
     # --- END TEMPORARY DEBUG LOGGING ---
 
     try:

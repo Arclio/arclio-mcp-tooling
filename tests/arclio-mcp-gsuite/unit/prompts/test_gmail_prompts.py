@@ -57,9 +57,7 @@ class TestSummarizeRecentEmailsPrompt:
             "- From: colleague@example.com\n  Subject: Meeting Follow-up\n  Snippet: Just wanted to follow up on our meeting...\n"
             "- From: boss@example.com\n  Subject: Project Update\n  Snippet: Quick update on the project status..."
         )
-        expected_content = (
-            f"Please summarize the key points from these recent emails:\n\n{expected_context}"
-        )
+        expected_content = f"Please summarize the key points from these recent emails:\n\n{expected_context}"
         assert messages[0].content.text == expected_content
 
     async def test_summarize_no_emails_found(self):
@@ -75,9 +73,7 @@ class TestSummarizeRecentEmailsPrompt:
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         expected_context = "No emails found matching the query."
-        expected_content = (
-            f"Please summarize the key points from these recent emails:\n\n{expected_context}"
-        )
+        expected_content = f"Please summarize the key points from these recent emails:\n\n{expected_context}"
         assert messages[0].content.text == expected_content
 
     async def test_summarize_resource_returns_message(self):
@@ -93,9 +89,7 @@ class TestSummarizeRecentEmailsPrompt:
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         expected_context = "No emails found matching your query."
-        expected_content = (
-            f"Please summarize the key points from these recent emails:\n\n{expected_context}"
-        )
+        expected_content = f"Please summarize the key points from these recent emails:\n\n{expected_context}"
         assert messages[0].content.text == expected_content
 
     async def test_summarize_resource_value_error(self):
@@ -111,9 +105,7 @@ class TestSummarizeRecentEmailsPrompt:
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         expected_context = f"Error: Could not fetch emails - {error_message}"
-        expected_content = (
-            f"Please summarize the key points from these recent emails:\n\n{expected_context}"
-        )
+        expected_content = f"Please summarize the key points from these recent emails:\n\n{expected_context}"
         assert messages[0].content.text == expected_content
 
     async def test_summarize_resource_other_error(self):
@@ -128,9 +120,7 @@ class TestSummarizeRecentEmailsPrompt:
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         expected_context = "Error: An unexpected error occurred while fetching emails."
-        expected_content = (
-            f"Please summarize the key points from these recent emails:\n\n{expected_context}"
-        )
+        expected_content = f"Please summarize the key points from these recent emails:\n\n{expected_context}"
         assert messages[0].content.text == expected_content
 
     async def test_summarize_no_context(self):

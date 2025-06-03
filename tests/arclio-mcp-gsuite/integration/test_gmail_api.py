@@ -76,9 +76,7 @@ class TestGmailIntegration:
 
         try:
             # 1. Create a draft email
-            draft_result = self.service.create_draft(
-                to=to_email, subject=draft_subject, body=draft_body
-            )
+            draft_result = self.service.create_draft(to=to_email, subject=draft_subject, body=draft_body)
 
             # Verify draft creation
             assert isinstance(draft_result, dict)
@@ -104,9 +102,7 @@ class TestGmailIntegration:
 
                 # Verify email content matches what we created
                 assert email_details["subject"] == draft_subject
-                assert self.test_id in email_details.get("body", ""), (
-                    "Draft body does not contain test ID"
-                )
+                assert self.test_id in email_details.get("body", ""), "Draft body does not contain test ID"
 
         finally:
             # 4. Clean up by deleting the draft

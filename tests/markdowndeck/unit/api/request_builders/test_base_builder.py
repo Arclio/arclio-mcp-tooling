@@ -42,12 +42,8 @@ class TestBaseRequestBuilder:
         }
 
     def test_rgb_to_color_dict(self, builder: BaseRequestBuilder):
-        assert builder._rgb_to_color_dict(255, 0, 0) == {
-            "rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}
-        }
-        assert builder._rgb_to_color_dict(0, 128, 255) == {
-            "rgbColor": {"red": 0.0, "green": 128 / 255.0, "blue": 1.0}
-        }
+        assert builder._rgb_to_color_dict(255, 0, 0) == {"rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}}
+        assert builder._rgb_to_color_dict(0, 128, 255) == {"rgbColor": {"red": 0.0, "green": 128 / 255.0, "blue": 1.0}}
 
     # Tests for _format_to_style and _format_to_fields
     # These were identified as needing updates in Phase 1.
@@ -74,11 +70,7 @@ class TestBaseRequestBuilder:
             ),
             (
                 TextFormat(0, 0, TextFormatType.COLOR, value="#FF0000"),
-                {
-                    "foregroundColor": {
-                        "opaqueColor": {"rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}}
-                    }
-                },
+                {"foregroundColor": {"opaqueColor": {"rgbColor": {"red": 1.0, "green": 0.0, "blue": 0.0}}}},
                 "foregroundColor",
             ),
             (
@@ -88,11 +80,7 @@ class TestBaseRequestBuilder:
             ),
             (
                 TextFormat(0, 0, TextFormatType.BACKGROUND_COLOR, value="#00FF00"),
-                {
-                    "backgroundColor": {
-                        "opaqueColor": {"rgbColor": {"red": 0.0, "green": 1.0, "blue": 0.0}}
-                    }
-                },
+                {"backgroundColor": {"opaqueColor": {"rgbColor": {"red": 0.0, "green": 1.0, "blue": 0.0}}}},
                 "backgroundColor",
             ),
             (
@@ -119,9 +107,7 @@ class TestBaseRequestBuilder:
                 TextFormat(0, 0, TextFormatType.CODE),
                 {
                     "fontFamily": "Courier New",
-                    "backgroundColor": {
-                        "opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}
-                    },
+                    "backgroundColor": {"opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}},
                 },
                 "fontFamily,backgroundColor",
             ),
@@ -140,9 +126,7 @@ class TestBaseRequestBuilder:
         assert fields == expected_fields_str
 
     def test_apply_text_formatting_specific_range(self, builder: BaseRequestBuilder):
-        req = builder._apply_text_formatting(
-            "el1", {"bold": True}, "bold", start_index=0, end_index=5
-        )
+        req = builder._apply_text_formatting("el1", {"bold": True}, "bold", start_index=0, end_index=5)
         assert req["updateTextStyle"]["textRange"] == {
             "type": "FIXED_RANGE",
             "startIndex": 0,
@@ -169,6 +153,4 @@ class TestBaseRequestBuilder:
             "rowIndex": 1,
             "columnIndex": 2,
         }
-        assert req["updateTextStyle"]["textRange"] == {
-            "type": "ALL"
-        }  # TextRange applies within the cell
+        assert req["updateTextStyle"]["textRange"] == {"type": "ALL"}  # TextRange applies within the cell

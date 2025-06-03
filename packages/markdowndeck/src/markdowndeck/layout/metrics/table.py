@@ -26,11 +26,7 @@ def calculate_table_element_height(element: TableElement | dict, available_width
     Returns:
         Calculated height in points.
     """
-    table_element = (
-        cast(TableElement, element)
-        if isinstance(element, TableElement)
-        else TableElement(**element)
-    )
+    table_element = cast(TableElement, element) if isinstance(element, TableElement) else TableElement(**element)
 
     if not table_element.rows and not table_element.headers:
         return 30  # Min height for an empty table shell
@@ -57,9 +53,7 @@ def calculate_table_element_height(element: TableElement | dict, available_width
             # Create a temporary TextElement for height calculation
             temp_text_el = TextElement(element_type=ElementType.TEXT, text=str(header_text))
             cell_content_height = calculate_text_element_height(temp_text_el, col_width_estimate)
-            max_header_cell_content_height = max(
-                max_header_cell_content_height, cell_content_height
-            )
+            max_header_cell_content_height = max(max_header_cell_content_height, cell_content_height)
         total_height += max(min_cell_height, max_header_cell_content_height + cell_vertical_padding)
 
     # Calculate height for data rows
@@ -82,9 +76,7 @@ def calculate_table_element_height(element: TableElement | dict, available_width
 
 # estimate_table_columns_width might be useful later for more sophisticated layout
 # but for height calculation, a simple average is often used as a first pass.
-def estimate_table_columns_width(
-    col_count: int, available_width: float, has_header: bool = False
-) -> list[float]:
+def estimate_table_columns_width(col_count: int, available_width: float, has_header: bool = False) -> list[float]:
     """
     Estimate the width for each column in a table. (Kept for potential future use)
     """
@@ -96,9 +88,7 @@ def estimate_table_columns_width(
         widths = [col_width] * col_count
         # OPTIMIZED: More balanced column proportions
         widths[0] = col_width * 1.15  # Reduced from 1.2
-        reduction = (widths[0] - col_width) / max(
-            1, (col_count - 1)
-        )  # Avoid division by zero if col_count is 1
+        reduction = (widths[0] - col_width) / max(1, (col_count - 1))  # Avoid division by zero if col_count is 1
         for i in range(1, col_count):
             widths[i] -= reduction
         return [max(10.0, w) for w in widths]  # Ensure minimum width

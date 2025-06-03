@@ -38,18 +38,11 @@ class TestTableRequestBuilderStyling:
         assert props["dashStyle"] == "SOLID"
         assert props["color"]["rgbColor"] == {"red": 1.0, "green": 0.0, "blue": 0.0}
         assert "tableBorderProperties.weight" in border_req["updateTableBorderProperties"]["fields"]
-        assert (
-            "tableBorderProperties.dashStyle" in border_req["updateTableBorderProperties"]["fields"]
-        )
-        assert (
-            "tableBorderProperties.color.rgbColor"
-            in border_req["updateTableBorderProperties"]["fields"]
-        )
+        assert "tableBorderProperties.dashStyle" in border_req["updateTableBorderProperties"]["fields"]
+        assert "tableBorderProperties.color.rgbColor" in border_req["updateTableBorderProperties"]["fields"]
         assert border_req["updateTableBorderProperties"]["borderPosition"] == "ALL"  # Default
 
-    def test_generate_table_with_border_directive_specific_position(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_border_directive_specific_position(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1"],
@@ -92,14 +85,9 @@ class TestTableRequestBuilderStyling:
         assert align_req is not None
         props = align_req["updateTableCellProperties"]["tableCellProperties"]
         assert props["contentAlignment"] == "CENTER"
-        assert (
-            align_req["updateTableCellProperties"]["fields"]
-            == "tableCellProperties.contentAlignment"
-        )
+        assert align_req["updateTableCellProperties"]["fields"] == "tableCellProperties.contentAlignment"
 
-    def test_generate_table_with_cell_vertical_alignment_directive(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_vertical_alignment_directive(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H"],
@@ -114,8 +102,7 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "contentVerticalAlignment"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "contentVerticalAlignment" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )
@@ -136,20 +123,9 @@ class TestTableRequestBuilderStyling:
         # field_name is correctly set to "contentVerticalAlignment" for "middle".
         # The API value for table cell vertical alignment is indeed "MIDDLE".
 
-        assert (
-            "contentVerticalAlignment"
-            in valign_req["updateTableCellProperties"]["tableCellProperties"]
-        )
-        assert (
-            valign_req["updateTableCellProperties"]["tableCellProperties"][
-                "contentVerticalAlignment"
-            ]
-            == "MIDDLE"
-        )
-        assert (
-            valign_req["updateTableCellProperties"]["fields"]
-            == "tableCellProperties.contentVerticalAlignment"
-        )
+        assert "contentVerticalAlignment" in valign_req["updateTableCellProperties"]["tableCellProperties"]
+        assert valign_req["updateTableCellProperties"]["tableCellProperties"]["contentVerticalAlignment"] == "MIDDLE"
+        assert valign_req["updateTableCellProperties"]["fields"] == "tableCellProperties.contentVerticalAlignment"
 
     def test_generate_table_with_cell_background_directive(
         self, builder: TableRequestBuilder, base_builder: BaseRequestBuilder
@@ -168,15 +144,12 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "tableCellBackgroundFill"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "tableCellBackgroundFill" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )
         assert bg_req is not None
-        props = bg_req["updateTableCellProperties"]["tableCellProperties"][
-            "tableCellBackgroundFill"
-        ]["solidFill"]["color"]
+        props = bg_req["updateTableCellProperties"]["tableCellProperties"]["tableCellBackgroundFill"]["solidFill"]["color"]
         # Check that we have RGB color values (without exact comparison)
         assert "rgbColor" in props
         rgb = props["rgbColor"]
@@ -184,10 +157,7 @@ class TestTableRequestBuilderStyling:
         assert "green" in rgb
         assert "blue" in rgb
         # Check that fields contains the correct substring, without being too strict on the exact format
-        assert (
-            "tableCellProperties.tableCellBackgroundFill.solidFill.color"
-            in bg_req["updateTableCellProperties"]["fields"]
-        )
+        assert "tableCellProperties.tableCellBackgroundFill.solidFill.color" in bg_req["updateTableCellProperties"]["fields"]
 
     def test_generate_table_with_cell_range_for_directives(self, builder: TableRequestBuilder):
         element = TableElement(
@@ -208,8 +178,7 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and r["updateTableCellProperties"]["tableCellProperties"].get("contentAlignment")
-                == "END"
+                and r["updateTableCellProperties"]["tableCellProperties"].get("contentAlignment") == "END"
             ),
             None,
         )
@@ -234,8 +203,7 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "tableCellBackgroundFill"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "tableCellBackgroundFill" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )

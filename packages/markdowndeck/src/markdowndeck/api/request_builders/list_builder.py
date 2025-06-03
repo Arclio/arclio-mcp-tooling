@@ -19,9 +19,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         """Check if this formatter can handle the given token."""
         return token.type in ["bullet_list_open", "ordered_list_open"]
 
-    def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
-    ) -> tuple[Element | None, int]:
+    def process(self, tokens: list[Token], start_index: int, directives: dict[str, Any]) -> tuple[Element | None, int]:
         """Create a list element from tokens."""
         open_token = tokens[start_index]
         ordered = open_token.type == "ordered_list_open"
@@ -32,14 +30,10 @@ class ListRequestBuilder(BaseRequestBuilder):
         items = self._extract_list_items(tokens, start_index + 1, end_index, 0)
 
         if not items:
-            logger.debug(
-                f"No list items found for list at index {start_index}, skipping element."
-            )
+            logger.debug(f"No list items found for list at index {start_index}, skipping element.")
             return None, end_index
 
-        element = self.element_factory.create_list_element(
-            items=items, ordered=ordered, directives=directives.copy()
-        )
+        element = self.element_factory.create_list_element(items=items, ordered=ordered, directives=directives.copy())
         logger.debug(
             f"Created {'ordered' if ordered else 'bullet'} list with {len(items)} top-level items from token index {start_index} to {end_index}"
         )
@@ -69,33 +63,21 @@ class ListRequestBuilder(BaseRequestBuilder):
                 j = item_content_start_idx
                 item_content_processed_up_to = j
 
-                while j < list_end_idx and not (
-                    tokens[j].type == "list_item_close"
-                    and tokens[j].level == token.level
-                ):
+                while j < list_end_idx and not (tokens[j].type == "list_item_close" and tokens[j].level == token.level):
                     item_token = tokens[j]
-                    if (
-                        item_token.type == "paragraph_open"
-                    ):  # Text content of list item is usually in a paragraph
+                    if item_token.type == "paragraph_open":  # Text content of list item is usually in a paragraph
                         inline_idx = j + 1
-                        if (
-                            inline_idx < list_end_idx
-                            and tokens[inline_idx].type == "inline"
-                        ):
+                        if inline_idx < list_end_idx and tokens[inline_idx].type == "inline":
                             # Append text, if multiple paragraphs, join with newline
                             if item_text:
                                 item_text += "\n"
                             current_text_offset = len(item_text)
 
                             # Use helper method to extract plain text instead of raw markdown
-                            plain_text = self._get_plain_text_from_inline_token(
-                                tokens[inline_idx]
-                            )
+                            plain_text = self._get_plain_text_from_inline_token(tokens[inline_idx])
                             item_text += plain_text
 
-                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(
-                                tokens[inline_idx]
-                            )
+                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(tokens[inline_idx])
                             for fmt in extracted_fmts:
                                 item_formatting.append(
                                     TextFormat(
@@ -110,23 +92,13 @@ class ListRequestBuilder(BaseRequestBuilder):
                     elif item_token.type in ["bullet_list_open", "ordered_list_open"]:
                         # This is a nested list
                         nested_list_close_tag = (
-                            "bullet_list_close"
-                            if item_token.type == "bullet_list_open"
-                            else "ordered_list_close"
+                            "bullet_list_close" if item_token.type == "bullet_list_open" else "ordered_list_close"
                         )
-                        nested_list_end_idx = self.find_closing_token(
-                            tokens, j, nested_list_close_tag
-                        )
-                        children.extend(
-                            self._extract_list_items(
-                                tokens, j + 1, nested_list_end_idx, level + 1
-                            )
-                        )
+                        nested_list_end_idx = self.find_closing_token(tokens, j, nested_list_close_tag)
+                        children.extend(self._extract_list_items(tokens, j + 1, nested_list_end_idx, level + 1))
                         j = nested_list_end_idx
 
-                    item_content_processed_up_to = (
-                        j  # update how far we've processed for this item
-                    )
+                    item_content_processed_up_to = j  # update how far we've processed for this item
                     j += 1
 
                 list_item_obj = ListItem(
@@ -136,9 +108,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                     children=children,
                 )
                 items.append(list_item_obj)
-                i = (
-                    item_content_processed_up_to + 1
-                )  # Continue after the list_item_close or processed content
+                i = item_content_processed_up_to + 1  # Continue after the list_item_close or processed content
 
             else:  # Not a list_item_open, means we are past the items at current_level or malformed
                 i += 1
@@ -218,9 +188,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"list_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for list element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for list element: {element.object_id}")
 
         # Create shape
         create_shape_request = {
@@ -348,9 +316,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             # Safety check: ensure end_index doesn't exceed the text length
             text_length = len(full_text)
             if end_index >= text_length:
-                logger.warning(
-                    f"Correcting end_index from {end_index} to {text_length - 1} for bullet range"
-                )
+                logger.warning(f"Correcting end_index from {end_index} to {text_length - 1} for bullet range")
                 end_index = max(start_index, text_length - 1)
 
             # Create bullets for this range
@@ -396,12 +362,8 @@ class ListRequestBuilder(BaseRequestBuilder):
             if item and hasattr(item, "formatting") and item.formatting:
                 for text_format in item.formatting:
                     # Adjust start and end indices based on offset mapping
-                    adjusted_start = offset_mapping.get(
-                        text_format.start, range_info["start"]
-                    )
-                    adjusted_end = offset_mapping.get(
-                        text_format.end, range_info["end"]
-                    )
+                    adjusted_start = offset_mapping.get(text_format.start, range_info["start"])
+                    adjusted_end = offset_mapping.get(text_format.end, range_info["end"])
 
                     # Adjust for any title offset
                     adjusted_start += title_offset
@@ -456,9 +418,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         # Override placeholder_id if specified in subheading_data
         if subheading_data and "placeholder_id" in subheading_data:
             placeholder_id = subheading_data["placeholder_id"]
-            logger.debug(
-                f"Using specific placeholder ID from subheading: {placeholder_id}"
-            )
+            logger.debug(f"Using specific placeholder ID from subheading: {placeholder_id}")
 
         # Store the placeholder ID as the element's object_id for future reference
         element.object_id = placeholder_id
@@ -468,9 +428,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             return requests
 
         # First, always delete any existing text in the placeholder
-        delete_text_request = {
-            "deleteText": {"objectId": placeholder_id, "textRange": {"type": "ALL"}}
-        }
+        delete_text_request = {"deleteText": {"objectId": placeholder_id, "textRange": {"type": "ALL"}}}
         requests.append(delete_text_request)
 
         # Prepare subheading text if provided
@@ -532,9 +490,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             # Apply paragraph alignment for the subheading
             if subheading_alignment:
                 alignment_value = (
-                    subheading_alignment.value
-                    if hasattr(subheading_alignment, "value")
-                    else subheading_alignment
+                    subheading_alignment.value if hasattr(subheading_alignment, "value") else subheading_alignment
                 )
                 api_alignment = {
                     "left": "START",
@@ -584,9 +540,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             # Safety check: ensure end_index doesn't exceed the text length
             text_length = len(full_text)
             if end_index >= text_length:
-                logger.warning(
-                    f"Correcting end_index from {end_index} to {text_length - 1} for bullet range"
-                )
+                logger.warning(f"Correcting end_index from {end_index} to {text_length - 1} for bullet range")
                 end_index = max(start_index, text_length - 1)
 
             # Create bullets for this range
@@ -632,12 +586,8 @@ class ListRequestBuilder(BaseRequestBuilder):
             if item and hasattr(item, "formatting") and item.formatting:
                 for text_format in item.formatting:
                     # Adjust start and end indices based on offset mapping
-                    adjusted_start = offset_mapping.get(
-                        text_format.start, range_info["start"]
-                    )
-                    adjusted_end = offset_mapping.get(
-                        text_format.end, range_info["end"]
-                    )
+                    adjusted_start = offset_mapping.get(text_format.start, range_info["start"])
+                    adjusted_end = offset_mapping.get(text_format.end, range_info["end"])
 
                     # Adjust for any title offset
                     adjusted_start += title_offset
@@ -661,11 +611,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                     requests.append(style_request)
 
         # Apply color directive if specified
-        if (
-            hasattr(element, "directives")
-            and element.directives
-            and "color" in element.directives
-        ):
+        if hasattr(element, "directives") and element.directives and "color" in element.directives:
             color_value = element.directives["color"]
             if isinstance(color_value, str) and not color_value.startswith("#"):
                 # Theme color handling
@@ -684,11 +630,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                 if color_value.upper() in theme_colors:
                     style_request = self._apply_text_formatting(
                         element_id=placeholder_id,
-                        style={
-                            "foregroundColor": {
-                                "opaqueColor": {"themeColor": color_value.upper()}
-                            }
-                        },
+                        style={"foregroundColor": {"opaqueColor": {"themeColor": color_value.upper()}}},
                         fields="foregroundColor",
                         range_type="ALL",
                     )
@@ -704,14 +646,10 @@ class ListRequestBuilder(BaseRequestBuilder):
                 )
                 requests.append(style_request)
 
-        logger.debug(
-            f"Generated {len(requests)} requests for themed list using placeholder {placeholder_id}"
-        )
+        logger.debug(f"Generated {len(requests)} requests for themed list using placeholder {placeholder_id}")
         return requests
 
-    def _format_list_with_nesting(
-        self, items: list[ListItem]
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def _format_list_with_nesting(self, items: list[ListItem]) -> tuple[str, list[dict[str, Any]]]:
         """
         Format list items with proper nesting using tab characters.
         Google Slides API uses tabs to determine nesting level for bullets.
@@ -730,9 +668,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
             for item in items_list:
                 # Get item text and remove trailing newlines
-                item_text = (
-                    item.text.rstrip() if hasattr(item, "text") else str(item).rstrip()
-                )
+                item_text = item.text.rstrip() if hasattr(item, "text") else str(item).rstrip()
 
                 # Add tabs based on nesting level
                 tabs = "\t" * level
@@ -797,9 +733,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
         return text_content, text_ranges
 
-    def _apply_color_directive(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_color_directive(self, element: ListElement, requests: list[dict]) -> None:
         """
         Apply color directive to a list element.
 
@@ -807,11 +741,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             element: The list element
             requests: List to append requests to
         """
-        if not (
-            hasattr(element, "directives")
-            and element.directives
-            and "color" in element.directives
-        ):
+        if not (hasattr(element, "directives") and element.directives and "color" in element.directives):
             return
 
         color_value = element.directives["color"]
@@ -833,11 +763,7 @@ class ListRequestBuilder(BaseRequestBuilder):
             if color_value.upper() in theme_colors:
                 style_request = self._apply_text_formatting(
                     element_id=element.object_id,
-                    style={
-                        "foregroundColor": {
-                            "opaqueColor": {"themeColor": color_value.upper()}
-                        }
-                    },
+                    style={"foregroundColor": {"opaqueColor": {"themeColor": color_value.upper()}}},
                     fields="foregroundColor",
                     range_type="ALL",
                 )
@@ -855,9 +781,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         else:
             logger.warning(f"Unsupported color directive value: {color_value}")
 
-    def _apply_list_styling_directives(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_list_styling_directives(self, element: ListElement, requests: list[dict]) -> None:
         """
         Apply additional styling directives to the list element.
 

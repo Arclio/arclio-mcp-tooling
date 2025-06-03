@@ -60,9 +60,7 @@ class TestQueryGmailEmailsTool:
         args = {"query": "from:noone@example.com", "user_id": "test@example.com"}
         result = await query_gmail_emails(**args)
 
-        mock_gmail_service.query_emails.assert_called_once_with(
-            query="from:noone@example.com", max_results=100
-        )
+        mock_gmail_service.query_emails.assert_called_once_with(query="from:noone@example.com", max_results=100)
         assert result == {"message": "No emails found matching your query."}
 
     async def test_query_service_error(self, mock_gmail_service):

@@ -32,14 +32,10 @@ class TestSlidesAddText:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_response)
-        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = mock_execute
 
         # Call the method
-        result = mock_slides_service.add_text(
-            presentation_id, slide_id, text, position=position, size=size
-        )
+        result = mock_slides_service.add_text(presentation_id, slide_id, text, position=position, size=size)
 
         # Verify API call with correct parameters
         mock_slides_service.service.presentations.return_value.batchUpdate.assert_called_once()

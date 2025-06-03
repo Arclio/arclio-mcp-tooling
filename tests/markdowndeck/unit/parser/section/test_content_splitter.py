@@ -13,9 +13,7 @@ class TestContentSplitter:
 
     def test_no_code_blocks(self, splitter: ContentSplitter):
         content = "Simple content\n---\nMore simple content"
-        protected_content, blocks = splitter._protect_blocks(
-            content, splitter.code_block_regex, "CODE"
-        )
+        protected_content, blocks = splitter._protect_blocks(content, splitter.code_block_regex, "CODE")
         assert not blocks
         assert protected_content == content
         restored_content = splitter._restore_blocks(protected_content, blocks)
@@ -24,9 +22,7 @@ class TestContentSplitter:
     def test_single_code_block_protection_restoration(self, splitter: ContentSplitter):
         code = "def hello():\n    print('world')"
         content = f"Before\n```python\n{code}\n```\nAfter"
-        protected_content, blocks = splitter._protect_blocks(
-            content, splitter.code_block_regex, "CODE"
-        )
+        protected_content, blocks = splitter._protect_blocks(content, splitter.code_block_regex, "CODE")
         assert len(blocks) == 1
         placeholder = list(blocks.keys())[0]
         assert placeholder in protected_content
@@ -37,18 +33,14 @@ class TestContentSplitter:
 
     def test_multiple_code_blocks(self, splitter: ContentSplitter):
         content = "Text1\n```\ncode1\n```\nText2\n```\ncode2\n```\nText3"
-        protected_content, blocks = splitter._protect_blocks(
-            content, splitter.code_block_regex, "CODE"
-        )
+        protected_content, blocks = splitter._protect_blocks(content, splitter.code_block_regex, "CODE")
         assert len(blocks) == 2
         restored_content = splitter._restore_blocks(protected_content, blocks)
         assert restored_content == content
 
     def test_code_block_with_internal_separator_like_patterns(self, splitter: ContentSplitter):
         content = "Section A\n```\n---\n***\n```\nSection B"
-        protected_content, blocks = splitter._protect_blocks(
-            content, splitter.code_block_regex, "CODE"
-        )
+        protected_content, blocks = splitter._protect_blocks(content, splitter.code_block_regex, "CODE")
         assert "---" not in protected_content
         assert "***" not in protected_content
         restored_content = splitter._restore_blocks(protected_content, blocks)
@@ -56,9 +48,7 @@ class TestContentSplitter:
 
     def test_unterminated_code_block(self, splitter: ContentSplitter):
         content = "Text before\n```python\ncode here\nOops, no closing fence."
-        protected_content, blocks = splitter._protect_blocks(
-            content, splitter.code_block_regex, "CODE"
-        )
+        protected_content, blocks = splitter._protect_blocks(content, splitter.code_block_regex, "CODE")
         assert len(blocks) == 0
         assert protected_content == content
 
@@ -73,9 +63,7 @@ class TestContentSplitter:
             assert result.parts == ["Part 1\n---\nPart 2", "Part 3"]
 
     @pytest.mark.parametrize("separator", [r"^\s*---\s*$", r"^\s*\*\*\*\s*$"])
-    def test_split_with_code_blocks_containing_separators(
-        self, splitter: ContentSplitter, separator: str
-    ):
+    def test_split_with_code_blocks_containing_separators(self, splitter: ContentSplitter, separator: str):
         content = "First part\n```\nContent with --- inside code\n```\nActualSeparator\n---\nThird part\n```\nAnother --- in code\n```"
         result = splitter.split_by_separator(content, r"^\s*---\s*$")
         assert len(result.parts) == 2

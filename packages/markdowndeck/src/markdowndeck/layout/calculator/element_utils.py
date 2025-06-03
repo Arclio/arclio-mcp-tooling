@@ -126,11 +126,7 @@ def _mark_heading_hierarchies(elements: list[Element]) -> None:
 
             # Simple heuristic: if both start with # and current has fewer #s,
             # consider them related (heading + subheading)
-            if (
-                current_text.startswith("#")
-                and next_text.startswith("#")
-                and current_text.count("#") < next_text.count("#")
-            ):
+            if current_text.startswith("#") and next_text.startswith("#") and current_text.count("#") < next_text.count("#"):
                 current.related_to_next = True
                 next_elem.related_to_prev = True
                 logger.debug(

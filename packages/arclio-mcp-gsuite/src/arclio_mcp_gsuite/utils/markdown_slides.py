@@ -97,9 +97,7 @@ class MarkdownSlidesConverter:
             return [s.strip() for s in processed_sections_by_h2 if s.strip()]
 
         # If we get here, we couldn't find multiple slides, so return the whole content as one slide
-        logger.info(
-            "Could not find slide separators (HR or H2), treating content as a single slide"
-        )
+        logger.info("Could not find slide separators (HR or H2), treating content as a single slide")
         return [normalized_content.strip()] if normalized_content.strip() else []
 
     def parse_slide_markdown(self, markdown_section: str) -> tuple[str, list[dict[str, Any]]]:
@@ -296,9 +294,7 @@ class MarkdownSlidesConverter:
                 current_y += 120  # Increment Y position for next element
 
             # Determine best layout based on content
-            layout = self._determine_layout(
-                has_title, has_subtitle, has_bullets, has_image, has_table
-            )
+            layout = self._determine_layout(has_title, has_subtitle, has_bullets, has_image, has_table)
 
             # Check for speaker notes (special syntax: <!-- notes: ... -->)
             notes_match = re.search(r"<!--\s*notes:\s*(.*?)\s*-->", markdown_section, re.DOTALL)
@@ -333,9 +329,7 @@ class MarkdownSlidesConverter:
             return element
 
         formatted_text = ""
-        logger.info(
-            f"Extracting formatted text from element: {element.name if hasattr(element, 'name') else 'text node'}"
-        )
+        logger.info(f"Extracting formatted text from element: {element.name if hasattr(element, 'name') else 'text node'}")
 
         # Process all nested elements to preserve formatting
         for child in element.children:
@@ -394,9 +388,7 @@ class MarkdownSlidesConverter:
             return self.LAYOUTS["TITLE_ONLY"]
         return self.LAYOUTS["BLANK"]
 
-    def create_text_style_requests(
-        self, formatted_text: str, element_id: str, start_index: int = 0
-    ) -> tuple[str, list[dict]]:
+    def create_text_style_requests(self, formatted_text: str, element_id: str, start_index: int = 0) -> tuple[str, list[dict]]:
         """
         Create requests to apply text styling for formatted text.
 
@@ -410,8 +402,7 @@ class MarkdownSlidesConverter:
         """
         # Don't try to style if no formatting is detected
         if (
-            "**" not in formatted_text
-            and "*" not in formatted_text  # Only handle bold/italic for now
+            "**" not in formatted_text and "*" not in formatted_text  # Only handle bold/italic for now
             # and "`" not in formatted_text # Code handling TBD
         ):
             return formatted_text, []

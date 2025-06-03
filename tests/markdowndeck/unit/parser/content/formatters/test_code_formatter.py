@@ -28,18 +28,14 @@ class TestCodeFormatter:
         tokens = md_parser.parse("Just text")
         assert not formatter.can_handle(tokens[0], tokens)  # paragraph_open
 
-    def test_process_code_block_with_language(
-        self, formatter: CodeFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_code_block_with_language(self, formatter: CodeFormatter, md_parser: MarkdownIt):
         markdown = "```python\ndef hello():\n  return 'world'\n```"
         tokens = md_parser.parse(markdown)  # This is a single 'fence' token
         element, end_index = formatter.process(tokens, 0, {"custom": "val"})
 
         assert isinstance(element, CodeElement)
         assert element.element_type == ElementType.CODE
-        assert (
-            element.code == "def hello():\n  return 'world'\n"
-        )  # Content includes trailing newline
+        assert element.code == "def hello():\n  return 'world'\n"  # Content includes trailing newline
         assert element.language == "python"
         assert element.directives.get("custom") == "val"
         assert end_index == 0  # Fence token is self-contained

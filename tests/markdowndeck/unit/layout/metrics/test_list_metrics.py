@@ -24,17 +24,13 @@ class TestListMetrics:
             ListItem(text="Item 3"),
         ]
         element = ListElement(items=items, element_type=ElementType.ORDERED_LIST)
-        height1 = calculate_list_element_height(
-            ListElement(items=[items[0]], element_type=ElementType.ORDERED_LIST), 500
-        )
+        height1 = calculate_list_element_height(ListElement(items=[items[0]], element_type=ElementType.ORDERED_LIST), 500)
         height3 = calculate_list_element_height(element, 500)
         assert height3 > height1  # More items should lead to more height
 
     def test_calculate_list_height_wrapping_text(self):
         item_short = ListItem(text="Short")
-        item_long = ListItem(
-            text="This is a very long list item that will definitely wrap several times to test height."
-        )
+        item_long = ListItem(text="This is a very long list item that will definitely wrap several times to test height.")
 
         element_short = ListElement(items=[item_short], element_type=ElementType.BULLET_LIST)
         element_long = ListElement(items=[item_long], element_type=ElementType.BULLET_LIST)
@@ -47,9 +43,7 @@ class TestListMetrics:
         l3 = ListItem(text="Level 3")
         l2 = ListItem(text="Level 2", children=[l3])
         l1 = ListItem(text="Level 1", children=[l2])
-        element = ListElement(
-            items=[l1, ListItem("Another L1")], element_type=ElementType.BULLET_LIST
-        )
+        element = ListElement(items=[l1, ListItem("Another L1")], element_type=ElementType.BULLET_LIST)
 
         height = calculate_list_element_height(element, 500)
 

@@ -39,9 +39,7 @@ def position_header_elements(calculator, slide):
         subtitle.size = (subtitle_width, subtitle_height)
 
         # Center the subtitle horizontally
-        subtitle_x = (
-            calculator.margins["left"] + (calculator.max_content_width - subtitle_width) / 2
-        )
+        subtitle_x = calculator.margins["left"] + (calculator.max_content_width - subtitle_width) / 2
 
         # Position below title if title exists, otherwise from top margin
         subtitle_y = title.position[1] + title.size[1] + 10 if title_elements else calculator.margins["top"] + 30

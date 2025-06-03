@@ -25,9 +25,7 @@ class TestDriveReadFile:
         }
 
         # Setup mocks
-        mock_drive_service.service.files.return_value.get.return_value.execute.return_value = (
-            file_metadata
-        )
+        mock_drive_service.service.files.return_value.get.return_value.execute.return_value = file_metadata
 
         # Mock the export method
         expected_result = {
@@ -36,18 +34,12 @@ class TestDriveReadFile:
             "encoding": "utf-8",
         }
 
-        with patch.object(
-            mock_drive_service, "_export_google_file", return_value=expected_result
-        ) as mock_export:
+        with patch.object(mock_drive_service, "_export_google_file", return_value=expected_result) as mock_export:
             result = mock_drive_service.read_file(file_id)
 
             # Verify correct methods were called
-            mock_drive_service.service.files.return_value.get.assert_called_once_with(
-                fileId=file_id, fields="mimeType, name"
-            )
-            mock_export.assert_called_once_with(
-                file_id, "Test Document", "application/vnd.google-apps.document"
-            )
+            mock_drive_service.service.files.return_value.get.assert_called_once_with(fileId=file_id, fields="mimeType, name")
+            mock_export.assert_called_once_with(file_id, "Test Document", "application/vnd.google-apps.document")
 
             # Verify the result
             assert result == expected_result
@@ -59,9 +51,7 @@ class TestDriveReadFile:
         file_metadata = {"id": file_id, "name": "test.txt", "mimeType": "text/plain"}
 
         # Setup mocks
-        mock_drive_service.service.files.return_value.get.return_value.execute.return_value = (
-            file_metadata
-        )
+        mock_drive_service.service.files.return_value.get.return_value.execute.return_value = file_metadata
 
         # Mock the download method
         expected_result = {
@@ -70,15 +60,11 @@ class TestDriveReadFile:
             "encoding": "utf-8",
         }
 
-        with patch.object(
-            mock_drive_service, "_download_regular_file", return_value=expected_result
-        ) as mock_download:
+        with patch.object(mock_drive_service, "_download_regular_file", return_value=expected_result) as mock_download:
             result = mock_drive_service.read_file(file_id)
 
             # Verify correct methods were called
-            mock_drive_service.service.files.return_value.get.assert_called_once_with(
-                fileId=file_id, fields="mimeType, name"
-            )
+            mock_drive_service.service.files.return_value.get.assert_called_once_with(fileId=file_id, fields="mimeType, name")
             mock_download.assert_called_once_with(file_id, "test.txt", "text/plain")
 
             # Verify the result
@@ -95,9 +81,7 @@ class TestDriveReadFile:
         http_error = HttpError(mock_resp, b'{"error": {"message": "File not found"}}')
 
         # Setup the mock to raise the error
-        mock_drive_service.service.files.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_drive_service.service.files.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -158,9 +142,7 @@ class TestDriveReadFile:
         result = mock_drive_service._export_google_file(file_id, file_name, mime_type)
 
         # Verify export_media was called with correct parameters
-        mock_drive_service.service.files.return_value.export_media.assert_called_once_with(
-            fileId=file_id, mimeType="text/csv"
-        )
+        mock_drive_service.service.files.return_value.export_media.assert_called_once_with(fileId=file_id, mimeType="text/csv")
 
         # Verify result format and content
         assert result["mimeType"] == "text/csv"
@@ -295,9 +277,7 @@ class TestDriveReadFile:
         result = mock_drive_service._download_regular_file(file_id, "text.txt", mime_type)
 
         # Verify get_media was called with correct parameters
-        mock_drive_service.service.files.return_value.get_media.assert_called_once_with(
-            fileId=file_id
-        )
+        mock_drive_service.service.files.return_value.get_media.assert_called_once_with(fileId=file_id)
 
         # Verify _download_content was called
         mock_download_content.assert_called_once()
@@ -385,9 +365,7 @@ class TestDriveReadFile:
 
     @patch("arclio_mcp_gsuite.services.drive.io.BytesIO")
     @patch("arclio_mcp_gsuite.services.drive.MediaIoBaseDownload")
-    def test_download_content_success(
-        self, mock_media_download_class, mock_bytesio_class, mock_drive_service
-    ):
+    def test_download_content_success(self, mock_media_download_class, mock_bytesio_class, mock_drive_service):
         """Test _download_content with successful download."""
         # Setup mocks
         mock_request = MagicMock()
@@ -422,9 +400,7 @@ class TestDriveReadFile:
 
     @patch("arclio_mcp_gsuite.services.drive.io.BytesIO")
     @patch("arclio_mcp_gsuite.services.drive.MediaIoBaseDownload")
-    def test_download_content_error(
-        self, mock_media_download_class, mock_bytesio_class, mock_drive_service
-    ):
+    def test_download_content_error(self, mock_media_download_class, mock_bytesio_class, mock_drive_service):
         """Test _download_content when an error occurs."""
         # Setup mocks
         mock_request = MagicMock()

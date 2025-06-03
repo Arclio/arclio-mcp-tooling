@@ -37,9 +37,7 @@ class TestSectionParser:
         assert len(sections[0].subsections) == 2
         assert sections[0].subsections[0].content == "Content Left"
         assert sections[0].subsections[1].content == "Content Right"
-        assert (
-            sections[0].content == content
-        )  # Row's content is the original un-horizontally-split part
+        assert sections[0].content == content  # Row's content is the original un-horizontally-split part
 
     def test_parse_mixed_vertical_and_horizontal(self, parser: SectionParser):
         content = "Top Section\n---\nLeft Col\n***\nRight Col\n---\nBottom Section"
@@ -52,9 +50,7 @@ class TestSectionParser:
         assert len(sections[1].subsections) == 2
         assert sections[1].subsections[0].content == "Left Col"
         assert sections[1].subsections[1].content == "Right Col"
-        assert (
-            sections[1].content == "Left Col\n***\nRight Col"
-        )  # Original content for this vertical part
+        assert sections[1].content == "Left Col\n***\nRight Col"  # Original content for this vertical part
 
         assert sections[2].type == "section"
         assert sections[2].content == "Bottom Section"
@@ -127,9 +123,7 @@ class TestSectionParser:
 
     def test_preservation_of_content_for_directive_parsing(self, parser: SectionParser):
         """Ensures raw content (including potential directives) is passed through."""
-        content = (
-            "[dir1=val1]\nContent A\n---\n[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
-        )
+        content = "[dir1=val1]\nContent A\n---\n[dir2=val2]\nContent B1\n***\n[dir3=val3]\nContent B2"
         sections = parser.parse_sections(content)
 
         assert sections[0].content == "[dir1=val1]\nContent A"

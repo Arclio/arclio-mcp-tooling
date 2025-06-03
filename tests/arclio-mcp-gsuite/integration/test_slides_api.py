@@ -76,9 +76,7 @@ class TestSlidesIntegration:
             assert self.presentation_id, "Presentation creation did not return an ID"
 
             # 2. Add a slide with TITLE_AND_BODY layout
-            slide_result = self.service.create_slide(
-                presentation_id=self.presentation_id, layout="TITLE_AND_BODY"
-            )
+            slide_result = self.service.create_slide(presentation_id=self.presentation_id, layout="TITLE_AND_BODY")
 
             assert "slideId" in slide_result, "Slide creation did not return a slide ID"
             slide_id = slide_result["slideId"]

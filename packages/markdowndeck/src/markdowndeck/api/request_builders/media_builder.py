@@ -13,9 +13,7 @@ logger = logging.getLogger(__name__)
 class MediaRequestBuilder(BaseRequestBuilder):
     """Builder for media-related Google Slides API requests."""
 
-    def generate_image_element_requests(
-        self, element: ImageElement, slide_id: str
-    ) -> list[dict]:
+    def generate_image_element_requests(self, element: ImageElement, slide_id: str) -> list[dict]:
         """
         Generate requests for an image element.
 
@@ -35,9 +33,7 @@ class MediaRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"image_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for image element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for image element: {element.object_id}")
 
         # Validate image URL
         if not element.url or not self._is_valid_image_url(element.url):
@@ -222,17 +218,13 @@ class MediaRequestBuilder(BaseRequestBuilder):
 
             # Check status code first
             if head_response.status_code != 200:
-                logger.warning(
-                    f"Image URL returned status code {head_response.status_code}: {url}"
-                )
+                logger.warning(f"Image URL returned status code {head_response.status_code}: {url}")
                 return False
 
             # Verify content type is an image
             content_type = head_response.headers.get("content-type", "")
             if not content_type.startswith("image/"):
-                logger.warning(
-                    f"URL does not point to an image (content-type: {content_type}): {url}"
-                )
+                logger.warning(f"URL does not point to an image (content-type: {content_type}): {url}")
                 return False
 
             # Get content length from headers
@@ -241,9 +233,7 @@ class MediaRequestBuilder(BaseRequestBuilder):
             # Check if content length is available and validate size
             # 25 MB limit (conservative, actual limit is higher but varies)
             if content_length and int(content_length) > 25 * 1024 * 1024:
-                logger.warning(
-                    f"Image URL too large ({int(content_length) / (1024 * 1024):.2f} MB): {url}"
-                )
+                logger.warning(f"Image URL too large ({int(content_length) / (1024 * 1024):.2f} MB): {url}")
                 return False
 
             return True

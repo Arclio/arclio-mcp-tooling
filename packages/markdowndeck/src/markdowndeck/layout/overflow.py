@@ -42,9 +42,7 @@ class OverflowHandler:
         self.body_top = self.margins["top"] + self.HEADER_HEIGHT
         self.body_left = self.margins["left"]
         self.body_width = self.slide_width - self.margins["left"] - self.margins["right"]
-        self.body_height = (
-            self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
-        )
+        self.body_height = self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
         self.body_bottom = self.body_top + self.body_height
 
         logger.debug(
@@ -67,12 +65,7 @@ class OverflowHandler:
 
         # Check each body element for overflow
         for element in self._get_body_elements(slide):
-            if (
-                not hasattr(element, "position")
-                or not element.position
-                or not hasattr(element, "size")
-                or not element.size
-            ):
+            if not hasattr(element, "position") or not element.position or not hasattr(element, "size") or not element.size:
                 logger.warning(
                     f"Element {getattr(element, 'object_id', 'unknown')} type {element.element_type} lacks position/size for overflow check."
                 )
@@ -141,9 +134,7 @@ class OverflowHandler:
                     while j < len(remaining_elements):
                         current_element = remaining_elements[j]
                         if not hasattr(current_element, "size") or not current_element.size:
-                            logger.warning(
-                                f"Element {getattr(current_element, 'object_id', 'unknown')} has no size"
-                            )
+                            logger.warning(f"Element {getattr(current_element, 'object_id', 'unknown')} has no size")
                             j += 1
                             continue
 
@@ -191,10 +182,7 @@ class OverflowHandler:
                             # OPTIMIZATION: Apply same spacing optimizations as in zone_layout.py
                             next_spacing = self.vertical_spacing
                             # Reduce spacing before related elements
-                            if (
-                                hasattr(copied_element, "related_to_next")
-                                and copied_element.related_to_next
-                            ):
+                            if hasattr(copied_element, "related_to_next") and copied_element.related_to_next:
                                 next_spacing *= 0.7  # Reduce spacing by 30%
 
                             current_y += copied_element.size[1] + next_spacing
@@ -239,11 +227,7 @@ class OverflowHandler:
                         # OPTIMIZATION: Apply same spacing optimizations as in zone_layout.py
                         next_spacing = self.vertical_spacing
                         # Reduce spacing before related elements
-                        if (
-                            i < len(remaining_elements) - 1
-                            and hasattr(element, "related_to_next")
-                            and element.related_to_next
-                        ):
+                        if i < len(remaining_elements) - 1 and hasattr(element, "related_to_next") and element.related_to_next:
                             next_spacing *= 0.7  # Reduce spacing by 30%
 
                         current_y += element_height + next_spacing
@@ -317,14 +301,10 @@ class OverflowHandler:
                 )
                 result_slides.append(current_slide)
 
-        logger.info(
-            f"Created {len(result_slides)} slides from original slide {original_slide.object_id}"
-        )
+        logger.info(f"Created {len(result_slides)} slides from original slide {original_slide.object_id}")
         return result_slides
 
-    def _create_base_slide(
-        self, original_slide: Slide, is_first: bool, continuation_number: int = 0
-    ) -> Slide:
+    def _create_base_slide(self, original_slide: Slide, is_first: bool, continuation_number: int = 0) -> Slide:
         """
         Create a base slide with header and footer elements.
 
@@ -401,8 +381,7 @@ class OverflowHandler:
         return [
             element
             for element in slide.elements
-            if element.element_type
-            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
     def _extract_footer_text(self, full_footer_text: str) -> str:

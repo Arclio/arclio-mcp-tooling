@@ -28,9 +28,7 @@ def get_credentials_from_env() -> Credentials | None:
     if service_account_file and os.path.exists(service_account_file):
         try:
             logger.info(f"Using service account credentials from {service_account_file}")
-            return service_account.Credentials.from_service_account_file(
-                service_account_file, scopes=SCOPES
-            )
+            return service_account.Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
         except Exception as e:
             logger.warning(f"Failed to use service account: {e}")
 

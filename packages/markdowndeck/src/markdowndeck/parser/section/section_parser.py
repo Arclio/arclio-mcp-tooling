@@ -39,11 +39,7 @@ class SectionParser:
             return []
 
         # Log content length to help with debugging
-        content_preview = (
-            normalized_content[:100] + "..."
-            if len(normalized_content) > 100
-            else normalized_content
-        )
+        content_preview = normalized_content[:100] + "..." if len(normalized_content) > 100 else normalized_content
         logger.debug(f"Parsing content ({len(normalized_content)} chars): {content_preview}")
 
         return self._parse_vertical_sections(normalized_content)
@@ -54,23 +50,17 @@ class SectionParser:
         into horizontal sections (***).
         """
         vertical_separator = r"^\s*---\s*$"
-        vertical_split_result = self.content_splitter.split_by_separator(
-            content, vertical_separator
-        )
+        vertical_split_result = self.content_splitter.split_by_separator(content, vertical_separator)
         vertical_parts = vertical_split_result.parts
 
         # Log how many vertical sections were found
-        logger.debug(
-            f"Split content into {len(vertical_parts)} vertical parts using '---' separator"
-        )
+        logger.debug(f"Split content into {len(vertical_parts)} vertical parts using '---' separator")
 
         final_sections = []
         if not vertical_parts:
             if content and not re.fullmatch(vertical_separator + r"\s*", content, re.MULTILINE):
                 vertical_parts = [content]
-                logger.debug(
-                    "No vertical parts found but content exists. Creating a single section."
-                )
+                logger.debug("No vertical parts found but content exists. Creating a single section.")
             else:
                 logger.debug("Content only contained separators. No sections created.")
                 return []
@@ -83,9 +73,7 @@ class SectionParser:
             # CRITICAL FIX: Extract and preserve headers at the beginning of sections
             # This ensures H2/H3 headers are preserved when they start a section
             # Log first few characters for debugging
-            v_part_preview = (
-                v_part_content[:50] + "..." if len(v_part_content) > 50 else v_part_content
-            )
+            v_part_preview = v_part_content[:50] + "..." if len(v_part_content) > 50 else v_part_content
             logger.debug(f"Processing vertical part {v_idx + 1}: {v_part_preview}")
 
             horizontal_sections = self._parse_horizontal_sections(v_part_content, f"v{v_idx}")
@@ -103,51 +91,33 @@ class SectionParser:
                         elements=[],
                     )
                 )
-                logger.debug(
-                    f"Added row section {row_id} with {len(horizontal_sections)} horizontal subsections."
-                )
+                logger.debug(f"Added row section {row_id} with {len(horizontal_sections)} horizontal subsections.")
             elif horizontal_sections:
                 final_sections.append(horizontal_sections[0])
-                logger.debug(
-                    f"Added single section {horizontal_sections[0].id} (no horizontal splits found)"
-                )
+                logger.debug(f"Added single section {horizontal_sections[0].id} (no horizontal splits found)")
             else:
-                logger.debug(
-                    f"Vertical part {v_idx + 1} produced no horizontal sections. Skipping."
-                )
+                logger.debug(f"Vertical part {v_idx + 1} produced no horizontal sections. Skipping.")
 
         logger.info(f"Parsed into {len(final_sections)} top-level section structures")
         return final_sections
 
-    def _parse_horizontal_sections(
-        self, vertical_part_content: str, v_id_prefix: str
-    ) -> list[Section]:
+    def _parse_horizontal_sections(self, vertical_part_content: str, v_id_prefix: str) -> list[Section]:
         """
         Parse a given vertical section's content into horizontal sections (***).
         """
         horizontal_separator = r"^\s*\*\*\*\s*$"
-        horizontal_split_result = self.content_splitter.split_by_separator(
-            vertical_part_content, horizontal_separator
-        )
+        horizontal_split_result = self.content_splitter.split_by_separator(vertical_part_content, horizontal_separator)
         horizontal_parts = horizontal_split_result.parts
 
-        logger.debug(
-            f"Split vertical part into {len(horizontal_parts)} horizontal parts using '***' separator"
-        )
+        logger.debug(f"Split vertical part into {len(horizontal_parts)} horizontal parts using '***' separator")
 
         subsections = []
         if not horizontal_parts:
-            if vertical_part_content and not re.fullmatch(
-                horizontal_separator + r"\s*", vertical_part_content, re.MULTILINE
-            ):
+            if vertical_part_content and not re.fullmatch(horizontal_separator + r"\s*", vertical_part_content, re.MULTILINE):
                 horizontal_parts = [vertical_part_content]
-                logger.debug(
-                    "No horizontal parts found but content exists. Creating a single horizontal section."
-                )
+                logger.debug("No horizontal parts found but content exists. Creating a single horizontal section.")
             else:
-                logger.debug(
-                    "Vertical part only contained separators. No horizontal sections created."
-                )
+                logger.debug("Vertical part only contained separators. No horizontal sections created.")
                 return []
 
         for h_idx, h_part_content in enumerate(horizontal_parts):
@@ -157,9 +127,7 @@ class SectionParser:
 
             # CRITICAL FIX: Preserve the full content including any headers
             # Log the content for debugging
-            h_part_preview = (
-                h_part_content[:50] + "..." if len(h_part_content) > 50 else h_part_content
-            )
+            h_part_preview = h_part_content[:50] + "..." if len(h_part_content) > 50 else h_part_content
             logger.debug(f"Processing horizontal part {h_idx + 1}: {h_part_preview}")
 
             subsection_id = f"section-{v_id_prefix}-h{h_idx}-{self._generate_id()}"
@@ -193,13 +161,9 @@ class SectionParser:
         indent_str = "  " * indent
         for section in sections:
             if section.type == "row":
-                logger.debug(
-                    f"{indent_str}Row section {section.id} with {len(section.subsections)} subsections"
-                )
+                logger.debug(f"{indent_str}Row section {section.id} with {len(section.subsections)} subsections")
                 self._log_section_hierarchy(section.subsections, indent + 1)
             else:
-                content_preview = (
-                    section.content[:30] + "..." if len(section.content) > 30 else section.content
-                )
+                content_preview = section.content[:30] + "..." if len(section.content) > 30 else section.content
                 content_preview = content_preview.replace("\n", "\\n")
                 logger.debug(f"{indent_str}Section {section.id}: '{content_preview}'")

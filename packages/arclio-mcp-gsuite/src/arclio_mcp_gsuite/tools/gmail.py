@@ -225,9 +225,7 @@ async def reply_gmail_email(
     Returns:
         A dictionary containing the sent message or created draft details.
     """
-    logger.info(
-        f"Executing reply_gmail_email for user {user_id} to message: '{original_message_id}'"
-    )
+    logger.info(f"Executing reply_gmail_email for user {user_id} to message: '{original_message_id}'")
     if not original_message_id or reply_body is None:
         raise ValueError("Original message ID and reply body are required")
 
@@ -236,9 +234,7 @@ async def reply_gmail_email(
 
     # First, get the original message details needed for reply headers
     original_message = gmail_service.get_email_by_id(original_message_id, parse_body=False)
-    if not original_message or (
-        isinstance(original_message, dict) and original_message.get("error")
-    ):
+    if not original_message or (isinstance(original_message, dict) and original_message.get("error")):
         error_msg = "Failed to retrieve original message to reply to"
         if isinstance(original_message, dict):
             error_msg = original_message.get("message", error_msg)
@@ -284,9 +280,7 @@ async def bulk_delete_gmail_emails(
     if not message_ids or not isinstance(message_ids, list):
         raise ValueError("A non-empty list of message_ids is required")
 
-    logger.info(
-        f"Executing bulk_delete_gmail_emails for user {user_id} with {len(message_ids)} IDs"
-    )
+    logger.info(f"Executing bulk_delete_gmail_emails for user {user_id} with {len(message_ids)} IDs")
 
     gmail_service = GmailService()
     # TODO: Pass user_id if needed

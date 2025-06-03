@@ -25,9 +25,7 @@ class TestSlidesCreateSlide:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_response)
-        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = mock_execute
 
         # Call the method
         result = mock_slides_service.create_slide(presentation_id, layout)
@@ -42,10 +40,7 @@ class TestSlidesCreateSlide:
         assert "requests" in request_body
         assert len(request_body["requests"]) == 1
         assert "createSlide" in request_body["requests"][0]
-        assert (
-            request_body["requests"][0]["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            == layout
-        )
+        assert request_body["requests"][0]["createSlide"]["slideLayoutReference"]["predefinedLayout"] == layout
 
         # Verify result has expected fields
         assert result["presentationId"] == presentation_id

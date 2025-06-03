@@ -39,9 +39,7 @@ class TestSlideRequestBuilder:
         assert "createSlide" in request
         cs_data = request["createSlide"]
         assert cs_data["objectId"] == sample_slide_model.object_id
-        assert (
-            cs_data["slideLayoutReference"]["predefinedLayout"] == sample_slide_model.layout.value
-        )
+        assert cs_data["slideLayoutReference"]["predefinedLayout"] == sample_slide_model.layout.value
         assert "placeholderIdMappings" in cs_data  # Check if mappings are present
         # Further checks on placeholder_id_mappings if specific layouts are tested
 
@@ -50,13 +48,9 @@ class TestSlideRequestBuilder:
         request = builder.create_slide_request(slide)
         assert "createSlide" in request
         assert request["createSlide"]["objectId"] is not None
-        assert (
-            slide.object_id == request["createSlide"]["objectId"]
-        )  # Ensure slide object is updated
+        assert slide.object_id == request["createSlide"]["objectId"]  # Ensure slide object is updated
 
-    def test_create_slide_request_with_title_body_layout_populates_mappings(
-        self, builder: SlideRequestBuilder
-    ):
+    def test_create_slide_request_with_title_body_layout_populates_mappings(self, builder: SlideRequestBuilder):
         slide = Slide(layout=SlideLayout.TITLE_AND_BODY)
         builder.create_slide_request(slide)  # This populates slide.placeholder_mappings
 
@@ -87,9 +81,7 @@ class TestSlideRequestBuilder:
         assert fill["solidFill"]["color"]["rgbColor"] == base_builder._hex_to_rgb("#ABCDEF")
         assert upp_data["fields"] == "pageBackgroundFill.solidFill.color.rgbColor"
 
-    def test_create_background_request_color_theme(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_background_request_color_theme(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         sample_slide_model.background = {"type": "color", "value": "ACCENT1"}
         request = builder.create_background_request(sample_slide_model)
 
@@ -101,9 +93,7 @@ class TestSlideRequestBuilder:
         assert fill["solidFill"]["color"]["themeColor"] == "ACCENT1"
         assert upp_data["fields"] == "pageBackgroundFill.solidFill.color.themeColor"
 
-    def test_create_background_request_image(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_background_request_image(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         sample_slide_model.background = {
             "type": "image",
             "value": "http://example.com/bg.png",
@@ -117,16 +107,12 @@ class TestSlideRequestBuilder:
         assert fill["stretchedPictureFill"]["contentUrl"] == "http://example.com/bg.png"
         assert upp_data["fields"] == "pageBackgroundFill.stretchedPictureFill.contentUrl"
 
-    def test_create_background_request_no_background(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_background_request_no_background(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         sample_slide_model.background = None
         request = builder.create_background_request(sample_slide_model)
         assert request == {}
 
-    def test_create_notes_request_with_id(
-        self, builder: SlideRequestBuilder, slide_with_notes_and_id: Slide
-    ):
+    def test_create_notes_request_with_id(self, builder: SlideRequestBuilder, slide_with_notes_and_id: Slide):
         requests = builder.create_notes_request(slide_with_notes_and_id)
 
         assert isinstance(requests, list)
@@ -146,17 +132,13 @@ class TestSlideRequestBuilder:
         assert it_data["text"] == "This is a speaker note."
         assert it_data["insertionIndex"] == 0
 
-    def test_create_notes_request_no_notes_content(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_notes_request_no_notes_content(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         sample_slide_model.notes = None  # No notes content
         sample_slide_model.speaker_notes_object_id = "notes_id_123"
         requests = builder.create_notes_request(sample_slide_model)
         assert requests == []
 
-    def test_create_notes_request_no_speaker_notes_id(
-        self, builder: SlideRequestBuilder, sample_slide_model: Slide
-    ):
+    def test_create_notes_request_no_speaker_notes_id(self, builder: SlideRequestBuilder, sample_slide_model: Slide):
         sample_slide_model.notes = "Some notes"
         sample_slide_model.speaker_notes_object_id = None  # ID is missing
         requests = builder.create_notes_request(sample_slide_model)

@@ -130,9 +130,7 @@ class TestMarkdownSlidesConverter:
 
     def test_parse_slide_markdown_with_notes(self, converter):
         """Test parsing markdown with speaker notes."""
-        markdown_content = (
-            "# Slide with Notes\n\nSome content\n\n<!-- notes: These are speaker notes -->"
-        )
+        markdown_content = "# Slide with Notes\n\nSome content\n\n<!-- notes: These are speaker notes -->"
 
         layout, elements = converter.parse_slide_markdown(markdown_content)
 

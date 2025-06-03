@@ -45,28 +45,21 @@ class TextFormatter(BaseFormatter):
         if token.type == "paragraph_open":
             # Check if it's NOT an image-only paragraph.
             # This relies on ImageFormatter running first and "consuming" image-only paragraphs.
-            if (
-                len(leading_tokens) > 1 and leading_tokens[1].type == "inline"
-            ):  # leading_tokens[0] is current token
+            if len(leading_tokens) > 1 and leading_tokens[1].type == "inline":  # leading_tokens[0] is current token
                 inline_children = getattr(leading_tokens[1], "children", [])
                 if inline_children:
-                    image_children = [
-                        child for child in inline_children if child.type == "image"
-                    ]
+                    image_children = [child for child in inline_children if child.type == "image"]
                     other_content = [
                         child
                         for child in inline_children
-                        if child.type != "image"
-                        and (child.type != "text" or child.content.strip())
+                        if child.type != "image" and (child.type != "text" or child.content.strip())
                     ]
                     if len(image_children) > 0 and not other_content:
                         return False  # This is an image-only paragraph, ImageFormatter should take it.
             return True  # It's a paragraph, and not clearly image-only from this limited peek.
         return False
 
-    def _extract_element_directives_from_text(
-        self, text_content: str
-    ) -> tuple[dict[str, Any], str]:
+    def _extract_element_directives_from_text(self, text_content: str) -> tuple[dict[str, Any], str]:
         """
         Extract element-specific directives from the beginning of text content.
 
@@ -96,9 +89,7 @@ class TextFormatter(BaseFormatter):
             parser = DirectiveParser()
 
             # Try to parse this line as directives
-            line_directives, remaining_text = parser.parse_inline_directives(
-                line_stripped
-            )
+            line_directives, remaining_text = parser.parse_inline_directives(line_stripped)
 
             if line_directives and not remaining_text:
                 # This line contains only directives
@@ -138,31 +129,23 @@ class TextFormatter(BaseFormatter):
     ) -> tuple[Element | None, int]:
         # Add guard clause for empty tokens
         if not tokens or start_index >= len(tokens):
-            logger.debug(
-                f"TextFormatter received empty tokens or invalid start_index {start_index}."
-            )
+            logger.debug(f"TextFormatter received empty tokens or invalid start_index {start_index}.")
             return None, start_index
 
         token = tokens[start_index]
 
         # Merge section and element-specific directives
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
         if token.type == "heading_open":
             # Pass any additional kwargs to _process_heading
-            return self._process_heading(
-                tokens, start_index, merged_directives, **kwargs
-            )
+            return self._process_heading(tokens, start_index, merged_directives, **kwargs)
         if token.type == "paragraph_open":
             return self._process_paragraph(tokens, start_index, merged_directives)
         if token.type == "blockquote_open":
             return self._process_quote(tokens, start_index, merged_directives)
 
-        logger.warning(
-            f"TextFormatter cannot process token type: {token.type} at index {start_index}"
-        )
+        logger.warning(f"TextFormatter cannot process token type: {token.type} at index {start_index}")
         return None, start_index
 
     def _process_heading(
@@ -187,22 +170,15 @@ class TextFormatter(BaseFormatter):
         level = int(open_token.tag[1])
 
         inline_token_index = start_index + 1
-        if not (
-            inline_token_index < len(tokens)
-            and tokens[inline_token_index].type == "inline"
-        ):
-            logger.warning(
-                f"No inline content found for heading at index {start_index}"
-            )
+        if not (inline_token_index < len(tokens) and tokens[inline_token_index].type == "inline"):
+            logger.warning(f"No inline content found for heading at index {start_index}")
             end_idx = self.find_closing_token(tokens, start_index, "heading_close")
             return None, end_idx
 
         inline_token = tokens[inline_token_index]
         # Use helper method to get plain text instead of raw markdown
         text_content = self._get_plain_text_from_inline_token(inline_token)
-        formatting = self.element_factory._extract_formatting_from_inline_token(
-            inline_token
-        )
+        formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
 
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
 
@@ -229,9 +205,7 @@ class TextFormatter(BaseFormatter):
                 directives["margin_bottom"] = 8
 
         # Get alignment from directives or use default
-        horizontal_alignment = AlignmentType(
-            directives.get("align", default_alignment.value)
-        )
+        horizontal_alignment = AlignmentType(directives.get("align", default_alignment.value))
 
         # Create the appropriate element based on element_type
         element: TextElement | None = None
@@ -276,27 +250,20 @@ class TextFormatter(BaseFormatter):
         raw_text_content = inline_token.content or ""
 
         # Extract element-specific directives from the beginning of the text
-        element_directives, cleaned_text_content = (
-            self._extract_element_directives_from_text(raw_text_content)
-        )
+        element_directives, cleaned_text_content = self._extract_element_directives_from_text(raw_text_content)
 
         # Merge element-specific directives with existing directives (element-specific take precedence)
         final_directives = self.merge_directives(directives, element_directives)
 
         # Extract formatting and create the text element
-        formatting = self.element_factory.extract_formatting_from_text(
-            cleaned_text_content, self.md
-        )
+        formatting = self.element_factory.extract_formatting_from_text(cleaned_text_content, self.md)
 
         # Skip empty paragraphs (after directive extraction)
         if not cleaned_text_content.strip():
             logger.debug("Skipping empty paragraph after directive extraction")
             # Find the paragraph_close token
             close_index = inline_index + 1
-            while (
-                close_index < len(tokens)
-                and tokens[close_index].type != "paragraph_close"
-            ):
+            while close_index < len(tokens) and tokens[close_index].type != "paragraph_close":
                 close_index += 1
             return None, close_index
 
@@ -308,9 +275,7 @@ class TextFormatter(BaseFormatter):
 
         # Find the paragraph_close token to determine the end of this token sequence
         close_index = inline_index + 1
-        while (
-            close_index < len(tokens) and tokens[close_index].type != "paragraph_close"
-        ):
+        while close_index < len(tokens) and tokens[close_index].type != "paragraph_close":
             close_index += 1
 
         logger.debug(f"Created text element with directives: {final_directives}")
@@ -330,18 +295,11 @@ class TextFormatter(BaseFormatter):
             token_i = tokens[i]
             if token_i.type == "paragraph_open":
                 para_inline_idx = i + 1
-                if (
-                    para_inline_idx < end_idx
-                    and tokens[para_inline_idx].type == "inline"
-                ):
+                if para_inline_idx < end_idx and tokens[para_inline_idx].type == "inline":
                     inline_token = tokens[para_inline_idx]
                     # Use helper method to get plain text instead of raw markdown
                     text_part = self._get_plain_text_from_inline_token(inline_token)
-                    part_formatting = (
-                        self.element_factory._extract_formatting_from_inline_token(
-                            inline_token
-                        )
-                    )
+                    part_formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
 
                     if quote_text_parts:  # Add newline if not the first paragraph
                         current_text_len += 1  # for the \n
@@ -365,9 +323,7 @@ class TextFormatter(BaseFormatter):
         if not final_quote_text.strip():
             return None, end_idx
 
-        horizontal_alignment = AlignmentType(
-            directives.get("align", AlignmentType.LEFT.value)
-        )
+        horizontal_alignment = AlignmentType(directives.get("align", AlignmentType.LEFT.value))
 
         element = self.element_factory.create_quote_element(
             text=final_quote_text,
@@ -375,7 +331,5 @@ class TextFormatter(BaseFormatter):
             alignment=horizontal_alignment,
             directives=directives.copy(),
         )
-        logger.debug(
-            f"Created blockquote element from token index {start_index} to {end_idx}"
-        )
+        logger.debug(f"Created blockquote element from token index {start_index} to {end_idx}")
         return element, end_idx

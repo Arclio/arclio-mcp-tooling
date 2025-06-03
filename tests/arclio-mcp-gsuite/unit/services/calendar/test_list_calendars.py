@@ -40,9 +40,7 @@ class TestCalendarListCalendars:
 
         # Setup execute mock to return our test data
         mock_execute = MagicMock(return_value=mock_calendars)
-        mock_calendar_service.service.calendarList.return_value.list.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service.service.calendarList.return_value.list.return_value.execute = mock_execute
 
         # Call the method
         result = mock_calendar_service.list_calendars()
@@ -67,9 +65,7 @@ class TestCalendarListCalendars:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_calendars)
-        mock_calendar_service.service.calendarList.return_value.list.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service.service.calendarList.return_value.list.return_value.execute = mock_execute
 
         # Call the method
         result = mock_calendar_service.list_calendars()

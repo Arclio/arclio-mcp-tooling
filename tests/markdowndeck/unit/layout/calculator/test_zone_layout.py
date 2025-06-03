@@ -31,15 +31,12 @@ class TestZoneLayout:
         result_slide = calculate_zone_based_positions(calculator, slide)
 
         # Title should be positioned within header zone
-        positioned_title = next(
-            e for e in result_slide.elements if e.element_type == ElementType.TITLE
-        )
+        positioned_title = next(e for e in result_slide.elements if e.element_type == ElementType.TITLE)
         assert positioned_title.position is not None
         assert positioned_title.position[1] == pytest.approx(calculator.margins["top"] + 20)
         # Title should be horizontally centered
         assert positioned_title.position[0] == pytest.approx(
-            calculator.margins["left"]
-            + (calculator.max_content_width - positioned_title.size[0]) / 2
+            calculator.margins["left"] + (calculator.max_content_width - positioned_title.size[0]) / 2
         )
 
     def test_calculate_zone_based_positions_body_elements(self, calculator: PositionCalculator):
@@ -60,9 +57,7 @@ class TestZoneLayout:
             assert element.position[0] >= calculator.body_left
             # Updated assertion to account for BODY_TOP_ADJUSTMENT
             assert element.position[1] >= calculator.body_top - BODY_TOP_ADJUSTMENT
-            assert (element.position[0] + element.size[0]) <= (
-                calculator.body_left + calculator.body_width
-            )
+            assert (element.position[0] + element.size[0]) <= (calculator.body_left + calculator.body_width)
 
         # Elements should be stacked vertically
         assert body_elements[0].position[1] < body_elements[1].position[1]
@@ -77,15 +72,11 @@ class TestZoneLayout:
         result_slide = calculate_zone_based_positions(calculator, slide)
 
         # Footer should be at the bottom of the slide
-        positioned_footer = next(
-            e for e in result_slide.elements if e.element_type == ElementType.FOOTER
-        )
+        positioned_footer = next(e for e in result_slide.elements if e.element_type == ElementType.FOOTER)
         assert positioned_footer.position is not None
 
         # Footer should be at the bottom - margins - footer height
-        expected_footer_y = (
-            calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
-        )
+        expected_footer_y = calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
         assert positioned_footer.position[1] == pytest.approx(expected_footer_y)
 
     def test_calculate_zone_based_positions_element_alignment(self, calculator: PositionCalculator):
@@ -128,18 +119,12 @@ class TestZoneLayout:
         right_x = calculator.body_left + calculator.body_width - right_element.size[0]
         assert right_element.position[0] == pytest.approx(right_x)
 
-    def test_calculate_zone_based_positions_element_width_directive(
-        self, calculator: PositionCalculator
-    ):
+    def test_calculate_zone_based_positions_element_width_directive(self, calculator: PositionCalculator):
         """Test that elements with width directives have correct sizes."""
         # Create elements with width directives
         text_full = TextElement(element_type=ElementType.TEXT, text="Full width")
-        text_half = TextElement(
-            element_type=ElementType.TEXT, text="Half width", directives={"width": 0.5}
-        )
-        text_fixed = TextElement(
-            element_type=ElementType.TEXT, text="Fixed width", directives={"width": 200}
-        )
+        text_half = TextElement(element_type=ElementType.TEXT, text="Half width", directives={"width": 0.5})
+        text_fixed = TextElement(element_type=ElementType.TEXT, text="Fixed width", directives={"width": 200})
 
         slide = Slide(elements=[deepcopy(text_full), deepcopy(text_half), deepcopy(text_fixed)])
 

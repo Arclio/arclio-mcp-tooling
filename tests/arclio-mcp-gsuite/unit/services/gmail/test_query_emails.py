@@ -105,9 +105,7 @@ class TestQueryEmails:
             mp.setattr(
                 mock_gmail_service,
                 "_parse_message",
-                lambda txt, **kwargs: (
-                    parsed_messages[0] if txt["id"] == "msg1" else parsed_messages[1]
-                ),
+                lambda txt, **kwargs: (parsed_messages[0] if txt["id"] == "msg1" else parsed_messages[1]),
             )
 
             # Call the method with max_results=2

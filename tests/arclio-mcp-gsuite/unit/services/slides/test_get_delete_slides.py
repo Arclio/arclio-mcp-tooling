@@ -45,17 +45,13 @@ class TestSlidesGetAndDeleteSlides:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_presentation)
-        mock_slides_service.service.presentations.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.get.return_value.execute = mock_execute
 
         # Call the method
         result = mock_slides_service.get_slides(presentation_id)
 
         # Verify API call
-        mock_slides_service.service.presentations.return_value.get.assert_called_once_with(
-            presentationId=presentation_id
-        )
+        mock_slides_service.service.presentations.return_value.get.assert_called_once_with(presentationId=presentation_id)
 
         # Verify result structure
         assert isinstance(result, list)
@@ -114,9 +110,7 @@ class TestSlidesGetAndDeleteSlides:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_response)
-        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.batchUpdate.return_value.execute = mock_execute
 
         # Call the method
         result = mock_slides_service.delete_slide(presentation_id, slide_id)

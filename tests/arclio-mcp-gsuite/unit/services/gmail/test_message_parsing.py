@@ -114,11 +114,7 @@ class TestGmailParsingMethods:
                 {"mimeType": "text/plain", "body": {"data": encoded_body}},
                 {
                     "mimeType": "text/html",
-                    "body": {
-                        "data": base64.urlsafe_b64encode(
-                            b"<html><body>HTML content</body></html>"
-                        ).decode()
-                    },
+                    "body": {"data": base64.urlsafe_b64encode(b"<html><body>HTML content</body></html>").decode()},
                 },
             ],
         }

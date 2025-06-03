@@ -61,9 +61,7 @@ class TestReplyGmailEmail:
         result = await reply_gmail_email(**args)
 
         # Verify get_email_by_id call
-        mock_gmail_service.get_email_by_id.assert_called_once_with(
-            "original_msg_123", parse_body=False
-        )
+        mock_gmail_service.get_email_by_id.assert_called_once_with("original_msg_123", parse_body=False)
 
         # Verify create_reply call
         expected_original_message = {
@@ -102,9 +100,7 @@ class TestReplyGmailEmail:
         result = await reply_gmail_email(**args)
 
         # Verify get_email_by_id call
-        mock_gmail_service.get_email_by_id.assert_called_once_with(
-            "original_msg_123", parse_body=False
-        )
+        mock_gmail_service.get_email_by_id.assert_called_once_with("original_msg_123", parse_body=False)
 
         # Verify create_reply call
         expected_original_message = {

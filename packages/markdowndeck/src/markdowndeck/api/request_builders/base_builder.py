@@ -102,9 +102,7 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(color_value_str)
                     style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 else:  # Assume theme color name if not a hex string
-                    style["foregroundColor"] = {
-                        "opaqueColor": {"themeColor": color_value_str.upper()}
-                    }
+                    style["foregroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
         elif text_format.format_type == TextFormatType.BACKGROUND_COLOR:
             color_value_str = text_format.value
             if isinstance(color_value_str, str):
@@ -112,9 +110,7 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(color_value_str)
                     style["backgroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 else:  # Assume theme color name
-                    style["backgroundColor"] = {
-                        "opaqueColor": {"themeColor": color_value_str.upper()}
-                    }
+                    style["backgroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
         elif text_format.format_type == TextFormatType.FONT_SIZE:
             if isinstance(text_format.value, int | float):
                 style["fontSize"] = {
@@ -238,9 +234,9 @@ class BaseRequestBuilder:
 
         # Add cell location for table text styling if provided
         if cell_location:
-            request["updateTextStyle"][
-                "cellLocation"
-            ] = cell_location  # Corrected: cellLocation is part of updateTextStyle directly
+            request["updateTextStyle"]["cellLocation"] = (
+                cell_location  # Corrected: cellLocation is part of updateTextStyle directly
+            )
             # The tableRange is not needed here if cellLocation is used.
             # The API docs for UpdateTextStyleRequest show cellLocation at the same level as textRange.
             # If textRange is also set, it applies within the specified cell.
