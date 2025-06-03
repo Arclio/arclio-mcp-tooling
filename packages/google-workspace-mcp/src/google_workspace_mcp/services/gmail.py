@@ -23,9 +23,7 @@ class GmailService(BaseGoogleService):
         """Initialize the Gmail service."""
         super().__init__("gmail", "v1")
 
-    def query_emails(
-        self, query: str | None = None, max_results: int = 100
-    ) -> list[dict[str, Any]]:
+    def query_emails(self, query: str | None = None, max_results: int = 100) -> list[dict[str, Any]]:
         """
         Query emails from Gmail based on a search query with pagination support.
 
@@ -49,9 +47,7 @@ class GmailService(BaseGoogleService):
             # Loop until we have enough results or run out of pages
             while results_fetched < max_results:
                 # Calculate how many results to request in this page
-                page_size = min(
-                    100, max_results - results_fetched
-                )  # Gmail API max page size is 100
+                page_size = min(100, max_results - results_fetched)  # Gmail API max page size is 100
 
                 # Make the API request
                 request_params = {
@@ -65,9 +61,7 @@ class GmailService(BaseGoogleService):
                     request_params["pageToken"] = next_page_token
 
                 # Get this page of message IDs
-                result = (
-                    self.service.users().messages().list(**request_params).execute()
-                )
+                result = self.service.users().messages().list(**request_params).execute()
 
                 # Extract messages and nextPageToken
                 page_messages = result.get("messages", [])
@@ -80,12 +74,7 @@ class GmailService(BaseGoogleService):
                 # Fetch full message details for each message in this page
                 for msg in page_messages:
                     try:
-                        txt = (
-                            self.service.users()
-                            .messages()
-                            .get(userId="me", id=msg["id"])
-                            .execute()
-                        )
+                        txt = self.service.users().messages().get(userId="me", id=msg["id"]).execute()
                         parsed_message = self._parse_message(txt=txt, parse_body=False)
                         if parsed_message:
                             messages.append(parsed_message)
@@ -102,9 +91,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("query_emails", e)
 
-    def get_email_by_id(
-        self, email_id: str, parse_body: bool = True
-    ) -> dict[str, Any] | None:
+    def get_email_by_id(self, email_id: str, parse_body: bool = True) -> dict[str, Any] | None:
         """
         Get a single email by its ID.
 
@@ -116,9 +103,7 @@ class GmailService(BaseGoogleService):
             Email data dictionary if successful
         """
         try:
-            message = (
-                self.service.users().messages().get(userId="me", id=email_id).execute()
-            )
+            message = self.service.users().messages().get(userId="me", id=email_id).execute()
             return self._parse_message(message, parse_body=parse_body)
 
         except Exception as e:
@@ -136,9 +121,7 @@ class GmailService(BaseGoogleService):
         """
         return self.get_email_by_id(email_id, parse_body=True)
 
-    def get_email_with_attachments(
-        self, email_id: str
-    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    def get_email_with_attachments(self, email_id: str) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
         """
         Get an email with its attachments.
 
@@ -150,9 +133,7 @@ class GmailService(BaseGoogleService):
         """
         try:
             # Get the email message
-            message = (
-                self.service.users().messages().get(userId="me", id=email_id).execute()
-            )
+            message = self.service.users().messages().get(userId="me", id=email_id).execute()
             email_data = self._parse_message(message, parse_body=True)
 
             if not email_data:
@@ -220,17 +201,10 @@ class GmailService(BaseGoogleService):
                 pass
 
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
-                "utf-8"
-            )
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
 
             # Create the draft
-            return (
-                self.service.users()
-                .drafts()
-                .create(userId="me", body={"message": {"raw": raw_message}})
-                .execute()
-            )
+            return self.service.users().drafts().create(userId="me", body={"message": {"raw": raw_message}}).execute()
 
         except Exception as e:
             return self.handle_api_error("create_draft", e)
@@ -267,16 +241,9 @@ class GmailService(BaseGoogleService):
             logger.info(f"Sending draft with ID: {draft_id}")
 
             # Send the draft - the Python client library handles this with the id parameter
-            message = (
-                self.service.users()
-                .drafts()
-                .send(userId="me", body={"id": draft_id})
-                .execute()
-            )
+            message = self.service.users().drafts().send(userId="me", body={"id": draft_id}).execute()
 
-            logger.info(
-                f"Successfully sent draft {draft_id}, new message ID: {message.get('id')}"
-            )
+            logger.info(f"Successfully sent draft {draft_id}, new message ID: {message.get('id')}")
             return message  # Returns the sent Message resource
         except Exception as e:
             return self.handle_api_error("send_draft", e)
@@ -328,12 +295,7 @@ class GmailService(BaseGoogleService):
             encoded_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode()
             message_body = {"raw": encoded_message}
 
-            message = (
-                self.service.users()
-                .messages()
-                .send(userId="me", body=message_body)
-                .execute()
-            )
+            message = self.service.users().messages().send(userId="me", body=message_body).execute()
             logger.info(f"Successfully sent email, message ID: {message.get('id')}")
             return message
         except Exception as e:
@@ -379,11 +341,7 @@ class GmailService(BaseGoogleService):
             # )
 
             # First, prepare the quoted body text
-            quoted_body = (
-                original_body.replace("\n", "\n> ")
-                if original_body
-                else "[No message body]"
-            )
+            quoted_body = original_body.replace("\n", "\n> ") if original_body else "[No message body]"
 
             # Then use the prepared text in the f-string
             full_reply_body = f"{reply_body}\n\nOn {original_date}, {original_from} wrote:\n> {quoted_body}"
@@ -402,9 +360,7 @@ class GmailService(BaseGoogleService):
                 mime_message["References"] = original_message["message_id"]
 
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
-                "utf-8"
-            )
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
 
             message_body = {"raw": raw_message}
 
@@ -414,29 +370,17 @@ class GmailService(BaseGoogleService):
 
             if send:
                 # Send the reply immediately
-                result = (
-                    self.service.users()
-                    .messages()
-                    .send(userId="me", body=message_body)
-                    .execute()
-                )
+                result = self.service.users().messages().send(userId="me", body=message_body).execute()
             else:
                 # Save as draft
-                result = (
-                    self.service.users()
-                    .drafts()
-                    .create(userId="me", body={"message": message_body})
-                    .execute()
-                )
+                result = self.service.users().drafts().create(userId="me", body={"message": message_body}).execute()
 
             return result
 
         except Exception as e:
             return self.handle_api_error("create_reply", e)
 
-    def reply_to_email(
-        self, email_id: str, reply_body: str, reply_all: bool = False
-    ) -> dict[str, Any] | None:
+    def reply_to_email(self, email_id: str, reply_body: str, reply_all: bool = False) -> dict[str, Any] | None:
         """
         Reply to an email (wrapper for compatibility).
 
@@ -472,9 +416,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("reply_to_email", e)
 
-    def get_attachment_content(
-        self, message_id: str, attachment_id: str
-    ) -> dict[str, Any] | None:
+    def get_attachment_content(self, message_id: str, attachment_id: str) -> dict[str, Any] | None:
         """
         Get the content of an attachment from an email message.
 
@@ -495,15 +437,8 @@ class GmailService(BaseGoogleService):
             )
 
             # Get the full message to extract metadata
-            message = (
-                self.service.users()
-                .messages()
-                .get(userId="me", id=message_id)
-                .execute()
-            )
-            attachment_info = self._find_attachment_in_payload(
-                message.get("payload", {}), attachment_id
-            )
+            message = self.service.users().messages().get(userId="me", id=message_id).execute()
+            attachment_info = self._find_attachment_in_payload(message.get("payload", {}), attachment_id)
 
             return {
                 "data": attachment.get("data", ""),
@@ -515,9 +450,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("get_attachment_content", e)
 
-    def _find_attachment_in_payload(
-        self, payload: dict[str, Any], attachment_id: str
-    ) -> dict[str, Any]:
+    def _find_attachment_in_payload(self, payload: dict[str, Any], attachment_id: str) -> dict[str, Any]:
         """
         Find attachment information in the message payload.
 
@@ -545,9 +478,7 @@ class GmailService(BaseGoogleService):
         result = search_parts(payload)
         return result or {"filename": "unknown", "mimeType": "application/octet-stream"}
 
-    def _parse_message(
-        self, txt: dict[str, Any], parse_body: bool = False
-    ) -> dict[str, Any] | None:
+    def _parse_message(self, txt: dict[str, Any], parse_body: bool = False) -> dict[str, Any] | None:
         """
         Parse a Gmail message into a structured format.
 
@@ -675,9 +606,7 @@ class GmailService(BaseGoogleService):
             return {"success": False, "message": "No message IDs provided"}
 
         # Validate message IDs
-        if not all(
-            isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids
-        ):
+        if not all(isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids):
             return {
                 "success": False,
                 "message": "Invalid message IDs - all IDs must be non-empty strings",
@@ -697,9 +626,7 @@ class GmailService(BaseGoogleService):
 
                 batch = message_ids[i : i + max_batch_size]
 
-                self.service.users().messages().batchDelete(
-                    userId="me", body={"ids": batch}
-                ).execute()
+                self.service.users().messages().batchDelete(userId="me", body={"ids": batch}).execute()
 
                 batch_count = len(batch)
                 total_count += batch_count

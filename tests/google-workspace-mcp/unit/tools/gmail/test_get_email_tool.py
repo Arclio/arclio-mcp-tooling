@@ -16,9 +16,7 @@ class TestGmailGetMessageDetailsTool:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -60,9 +58,7 @@ class TestGmailGetMessageDetailsTool:
         with pytest.raises(ValueError, match="Message not found"):
             await gmail_get_message_details("nonexistent_id")
 
-    async def test_gmail_get_message_details_service_returns_none(
-        self, mock_gmail_service
-    ):
+    async def test_gmail_get_message_details_service_returns_none(self, mock_gmail_service):
         """Test message details retrieval when service returns None."""
         # Mock service returning None
         mock_gmail_service.get_email.return_value = None

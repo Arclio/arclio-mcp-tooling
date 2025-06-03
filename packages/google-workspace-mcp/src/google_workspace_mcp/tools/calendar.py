@@ -64,9 +64,7 @@ async def calendar_get_events(
     Returns:
         A dictionary containing the list of events or an error message.
     """
-    logger.info(
-        f"Executing calendar_get_events tool on calendar '{calendar_id}' between {time_min} and {time_max}"
-    )
+    logger.info(f"Executing calendar_get_events tool on calendar '{calendar_id}' between {time_min} and {time_max}")
 
     if not calendar_id:
         raise ValueError("calendar_id parameter is required")
@@ -98,9 +96,7 @@ async def calendar_get_events(
     name="calendar_get_event_details",
     description="Retrieves detailed information for a specific calendar event by its ID.",
 )
-async def calendar_get_event_details(
-    event_id: str, calendar_id: str = "primary"
-) -> dict[str, Any]:
+async def calendar_get_event_details(event_id: str, calendar_id: str = "primary") -> dict[str, Any]:
     """
     Retrieves details for a specific event in a Google Calendar.
 
@@ -112,20 +108,14 @@ async def calendar_get_event_details(
         A dictionary containing the event details (summary, start, end, description, attendees, etc.),
         or an error message.
     """
-    logger.info(
-        f"Executing calendar_get_event_details tool for event_id: '{event_id}', calendar_id: '{calendar_id}'"
-    )
+    logger.info(f"Executing calendar_get_event_details tool for event_id: '{event_id}', calendar_id: '{calendar_id}'")
     if not event_id or not event_id.strip():
         raise ValueError("Event ID cannot be empty.")
     if not calendar_id or not calendar_id.strip():
-        raise ValueError(
-            "Calendar ID cannot be empty."
-        )  # Ensure calendar_id is also validated
+        raise ValueError("Calendar ID cannot be empty.")  # Ensure calendar_id is also validated
 
     calendar_service = CalendarService()
-    event_details = calendar_service.get_event_details(
-        event_id=event_id, calendar_id=calendar_id
-    )
+    event_details = calendar_service.get_event_details(event_id=event_id, calendar_id=calendar_id)
 
     if isinstance(event_details, dict) and event_details.get("error"):
         raise ValueError(event_details.get("message", "Error retrieving event details"))
@@ -214,9 +204,7 @@ async def delete_calendar_event(
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(
-        f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'"
-    )
+    logger.info(f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'")
     if not event_id:
         raise ValueError("Event ID is required")
 

@@ -16,9 +16,7 @@ class TestGmailBulkDeleteMessagesTool:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -38,9 +36,7 @@ class TestGmailBulkDeleteMessagesTool:
         result = await gmail_bulk_delete_messages(message_ids)
 
         # Verify service was called correctly
-        mock_gmail_service.bulk_delete_messages.assert_called_once_with(
-            message_ids=message_ids
-        )
+        mock_gmail_service.bulk_delete_messages.assert_called_once_with(message_ids=message_ids)
 
         # Verify result
         assert result == expected_result
@@ -64,9 +60,7 @@ class TestGmailBulkDeleteMessagesTool:
         with pytest.raises(ValueError, match="Invalid message IDs"):
             await gmail_bulk_delete_messages(["invalid_id"])
 
-    async def test_gmail_bulk_delete_messages_service_returns_none(
-        self, mock_gmail_service
-    ):
+    async def test_gmail_bulk_delete_messages_service_returns_none(self, mock_gmail_service):
         """Test bulk delete when service returns None."""
         # Mock service returning None
         mock_gmail_service.bulk_delete_messages.return_value = None

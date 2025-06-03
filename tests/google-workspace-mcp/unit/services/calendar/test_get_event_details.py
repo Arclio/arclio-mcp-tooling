@@ -29,17 +29,13 @@ class TestCalendarGetEventDetails:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_event_response)
-        mock_calendar_service.service.events.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service.service.events.return_value.get.return_value.execute = mock_execute
 
         # Call the method
         result = mock_calendar_service.get_event_details(event_id, calendar_id)
 
         # Verify API call
-        mock_calendar_service.service.events.return_value.get.assert_called_once_with(
-            calendarId=calendar_id, eventId=event_id
-        )
+        mock_calendar_service.service.events.return_value.get.assert_called_once_with(calendarId=calendar_id, eventId=event_id)
 
         # Verify result
         assert result == mock_event_response
@@ -56,17 +52,13 @@ class TestCalendarGetEventDetails:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_event_response)
-        mock_calendar_service.service.events.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service.service.events.return_value.get.return_value.execute = mock_execute
 
         # Call the method without calendar_id (should use default 'primary')
         result = mock_calendar_service.get_event_details(event_id)
 
         # Verify API call with default calendar_id
-        mock_calendar_service.service.events.return_value.get.assert_called_once_with(
-            calendarId="primary", eventId=event_id
-        )
+        mock_calendar_service.service.events.return_value.get.assert_called_once_with(calendarId="primary", eventId=event_id)
 
         # Verify result
         assert result == mock_event_response
@@ -84,9 +76,7 @@ class TestCalendarGetEventDetails:
         http_error = HttpError(mock_resp, b'{"error": {"message": "Event not found"}}')
 
         # Setup the mock to raise the error
-        mock_calendar_service.service.events.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_calendar_service.service.events.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -102,9 +92,7 @@ class TestCalendarGetEventDetails:
         result = mock_calendar_service.get_event_details(event_id, calendar_id)
 
         # Verify error handling
-        mock_calendar_service.handle_api_error.assert_called_once_with(
-            "get_event_details", http_error
-        )
+        mock_calendar_service.handle_api_error.assert_called_once_with("get_event_details", http_error)
         assert result == expected_error
 
     def test_get_event_details_invalid_calendar(self, mock_calendar_service):
@@ -117,14 +105,10 @@ class TestCalendarGetEventDetails:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Calendar not found"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Calendar not found"}}')
 
         # Setup the mock to raise the error
-        mock_calendar_service.service.events.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_calendar_service.service.events.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -140,7 +124,5 @@ class TestCalendarGetEventDetails:
         result = mock_calendar_service.get_event_details(event_id, calendar_id)
 
         # Verify error handling
-        mock_calendar_service.handle_api_error.assert_called_once_with(
-            "get_event_details", http_error
-        )
+        mock_calendar_service.handle_api_error.assert_called_once_with("get_event_details", http_error)
         assert result == expected_error

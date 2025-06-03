@@ -41,12 +41,8 @@ class TestGmailAttachments:
         mock_attachment_execute = MagicMock(return_value=mock_attachment)
         mock_message_execute = MagicMock(return_value=mock_message)
 
-        mock_gmail_service.service.users.return_value.messages.return_value.attachments.return_value.get.return_value.execute = (
-            mock_attachment_execute
-        )
-        mock_gmail_service.service.users.return_value.messages.return_value.get.return_value.execute = (
-            mock_message_execute
-        )
+        mock_gmail_service.service.users.return_value.messages.return_value.attachments.return_value.get.return_value.execute = mock_attachment_execute
+        mock_gmail_service.service.users.return_value.messages.return_value.get.return_value.execute = mock_message_execute
 
         # Call the method
         result = mock_gmail_service.get_attachment_content(message_id, attachment_id)
@@ -75,14 +71,10 @@ class TestGmailAttachments:
         mock_resp = MagicMock()
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Attachment not found"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Attachment not found"}}')
 
         # Setup the mock to raise the error
-        mock_gmail_service.service.users.return_value.messages.return_value.attachments.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_gmail_service.service.users.return_value.messages.return_value.attachments.return_value.get.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -98,7 +90,5 @@ class TestGmailAttachments:
         result = mock_gmail_service.get_attachment_content(message_id, attachment_id)
 
         # Verify error handling
-        mock_gmail_service.handle_api_error.assert_called_once_with(
-            "get_attachment_content", http_error
-        )
+        mock_gmail_service.handle_api_error.assert_called_once_with("get_attachment_content", http_error)
         assert result == expected_error
