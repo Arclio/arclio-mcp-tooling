@@ -5,8 +5,8 @@ from typing import Any
 
 from markdown_it.token import Token
 
-from markdowndeck.models import Element, ListItem, TextFormat
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.models import Element, ListItem, TextFormat
 from markdowndeck.models.elements.list import ListElement
 
 logger = logging.getLogger(__name__)
@@ -481,7 +481,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         if subheading_data:
             subheading_text = subheading_data.get("text", "")
             subheading_formatting = subheading_data.get("formatting", [])
-            subheading_alignment = subheading_data.get("horizontal_alignment", None)
+            subheading_alignment = subheading_data.get("horizontal_alignment")
 
             if subheading_text:
                 subheading_text += "\n"  # Add newline after subheading
@@ -768,7 +768,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                     tabbed_pos += len(tabs)
 
                     # Map positions for this line
-                    for i in range(len(line)):
+                    for _i in range(len(line)):
                         offset_mapping[orig_pos] = tabbed_pos
                         orig_pos += 1
                         tabbed_pos += 1
@@ -871,7 +871,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         # Handle font size directive
         if "fontsize" in element.directives:
             font_size = element.directives["fontsize"]
-            if isinstance(font_size, (int, float)) and font_size > 0:
+            if isinstance(font_size, int | float) and font_size > 0:
                 style_request = self._apply_text_formatting(
                     element_id=element.object_id,
                     style={"fontSize": {"magnitude": float(font_size), "unit": "PT"}},

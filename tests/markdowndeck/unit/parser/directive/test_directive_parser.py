@@ -34,7 +34,7 @@ class TestDirectiveParser:
         assert section.directives == {
             "width": 2 / 3,
             "align": "center",
-            "background": ("color", "#123456"),
+            "background": {"type": "hex", "value": "#123456"},
         }
         assert section.content == "Content"
 
@@ -100,7 +100,9 @@ class TestDirectiveParser:
         assert section.directives["width"] == 100
         assert section.content == "Content"
 
-    def test_directive_value_conversion_errors_handled(self, parser: DirectiveParser, caplog):
+    def test_directive_value_conversion_errors_handled(
+        self, parser: DirectiveParser, caplog
+    ):
         """Test that errors during value conversion are logged and directive might be skipped."""
         section = Section(
             content="[width=abc][height=1/0]\nContent",

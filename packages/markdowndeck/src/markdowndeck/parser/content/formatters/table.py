@@ -21,9 +21,19 @@ class TableFormatter(BaseFormatter):
         return token.type == "table_open"
 
     def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
+        self,
+        tokens: list[Token],
+        start_index: int,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+        **kwargs,
     ) -> tuple[Element | None, int]:
         """Create a table element from tokens."""
+        # Merge section and element-specific directives
+        merged_directives = self.merge_directives(
+            section_directives, element_specific_directives
+        )
+
         table_open_token = tokens[start_index]
         if table_open_token.type != "table_open":
             logger.warning(
@@ -49,7 +59,9 @@ class TableFormatter(BaseFormatter):
                 current_row_cells = []
             elif token.type == "tr_close":
                 if current_row_cells:
-                    if in_header_row:  # This should ideally only happen once for the table
+                    if (
+                        in_header_row
+                    ):  # This should ideally only happen once for the table
                         headers = list(current_row_cells)
                     else:
                         rows.append(list(current_row_cells))
@@ -58,7 +70,10 @@ class TableFormatter(BaseFormatter):
                 # Content of a cell is in the next inline token
                 cell_content_idx = i + 1
                 cell_text = ""
-                if cell_content_idx < end_index and tokens[cell_content_idx].type == "inline":
+                if (
+                    cell_content_idx < end_index
+                    and tokens[cell_content_idx].type == "inline"
+                ):
                     # Extract plain text from the inline token using the helper method
                     cell_text = self._get_plain_text_from_inline_token(
                         tokens[cell_content_idx]
@@ -78,7 +93,7 @@ class TableFormatter(BaseFormatter):
             return None, end_index
 
         element = self.element_factory.create_table_element(
-            headers=headers, rows=rows, directives=directives.copy()
+            headers=headers, rows=rows, directives=merged_directives.copy()
         )
         logger.debug(
             f"Created table element with {len(headers)} headers and {len(rows)} rows from token index {start_index} to {end_index}"

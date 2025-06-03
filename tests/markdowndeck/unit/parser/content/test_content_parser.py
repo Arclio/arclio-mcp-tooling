@@ -29,8 +29,13 @@ class TestContentParser:
         mock = Mock(spec=ElementFactory)
         # Setup mock return values for formatting extraction
         mock.extract_formatting_from_text.return_value = []
-        mock.create_title_element.side_effect = lambda text, formatting: TextElement(
-            element_type=ElementType.TITLE, text=text, formatting=formatting
+        mock.create_title_element.side_effect = (
+            lambda text, formatting, directives=None: TextElement(
+                element_type=ElementType.TITLE,
+                text=text,
+                formatting=formatting,
+                directives=directives or {},
+            )
         )
         mock.create_footer_element.side_effect = (
             lambda text, formatting, alignment=None: TextElement(
@@ -45,7 +50,9 @@ class TestContentParser:
     @pytest.fixture
     def mock_text_formatter(self, mock_element_factory: Mock) -> Mock:
         mock = Mock(spec=TextFormatter)
-        mock.element_factory = mock_element_factory  # Assign factory if formatters expect it
+        mock.element_factory = (
+            mock_element_factory  # Assign factory if formatters expect it
+        )
         # Ensure process always returns a tuple
         mock.process.return_value = (
             None,
@@ -132,9 +139,13 @@ class TestContentParser:
         assert len(elements) == 2  # Title and Footer only
 
         # Check only the factory calls, which is the core of what we want to test
-        mock_element_factory.create_title_element.assert_called_once_with(slide_title, [])
+        mock_element_factory.create_title_element.assert_called_once_with(
+            slide_title, [], None
+        )
         # Don't check optional alignment parameter as it appears the implementation doesn't pass it
-        mock_element_factory.create_footer_element.assert_called_once_with(slide_footer, [])
+        mock_element_factory.create_footer_element.assert_called_once_with(
+            slide_footer, []
+        )
 
     def test_parse_content_empty_sections(self, content_parser: ContentParser):
         elements = content_parser.parse_content("Title", [], "Footer")
@@ -187,7 +198,9 @@ class TestContentParser:
             lambda token, _: token.type == "bullet_list_open"
         )
         mock_list_formatter.process.return_value = (
-            ListElement(items=[ListItem(text="Item 1")], element_type=ElementType.BULLET_LIST),
+            ListElement(
+                items=[ListItem(text="Item 1")], element_type=ElementType.BULLET_LIST
+            ),
             len(tokens) - 1,
         )
 
@@ -198,7 +211,7 @@ class TestContentParser:
         elements = content_parser._process_tokens(tokens, directives)
         assert len(elements) == 1
         assert isinstance(elements[0], ListElement)
-        mock_list_formatter.process.assert_called_once_with(tokens, 0, directives)
+        mock_list_formatter.process.assert_called_once_with(tokens, 0, directives, None)
 
     def test_process_tokens_correct_index_advancement(
         self,
@@ -212,13 +225,17 @@ class TestContentParser:
         # Indices:         0           , 1    , 2              , 3
         directives = {}
 
-        mock_text_formatter.can_handle.side_effect = lambda token, _: token.type == "paragraph_open"
+        mock_text_formatter.can_handle.side_effect = (
+            lambda token, _: token.type == "paragraph_open"
+        )
         mock_text_formatter.process.return_value = (
             TextElement(element_type=ElementType.TEXT, text="Paragraph 1"),
             2,
         )  # Consumes up to index 2
 
-        mock_code_formatter.can_handle.side_effect = lambda token, _: token.type == "fence"
+        mock_code_formatter.can_handle.side_effect = (
+            lambda token, _: token.type == "fence"
+        )
         mock_code_formatter.process.return_value = (
             CodeElement(code="code", element_type=ElementType.CODE),
             3,
@@ -231,9 +248,9 @@ class TestContentParser:
 
         elements = content_parser._process_tokens(tokens, directives)
         assert len(elements) == 2
-        mock_text_formatter.process.assert_called_once_with(tokens, 0, directives)
+        mock_text_formatter.process.assert_called_once_with(tokens, 0, directives, None)
         # After text_formatter, current_index should be 2 + 1 = 3
-        mock_code_formatter.process.assert_called_once_with(tokens, 3, directives)
+        mock_code_formatter.process.assert_called_once_with(tokens, 3, directives, None)
 
     @pytest.mark.skip(
         reason="Implementation is correctly tested by other tests. This test hangs frequently."
@@ -253,7 +270,9 @@ class TestContentParser:
         # and test_process_tokens_no_formatter_handles
         pass
 
-    def test_process_tokens_no_formatter_handles(self, content_parser: ContentParser, caplog):
+    def test_process_tokens_no_formatter_handles(
+        self, content_parser: ContentParser, caplog
+    ):
         from markdown_it.token import Token
 
         tokens = [Token(type="unhandled_token", tag="", nesting=0, content="test")]
@@ -266,14 +285,18 @@ class TestContentParser:
         content_parser.formatters = [mock_formatter]
 
         # Use structured logger to ensure message is captured
-        with caplog.at_level("INFO", logger="markdowndeck.parser.content.content_parser"):
+        with caplog.at_level(
+            "INFO", logger="markdowndeck.parser.content.content_parser"
+        ):
             elements = content_parser._process_tokens(tokens, directives)
 
         assert len(elements) == 0
         # Check that the formatter was asked to handle the token
         mock_formatter.can_handle.assert_called_once()
 
-    def test_process_tokens_formatter_raises_exception(self, content_parser: ContentParser, caplog):
+    def test_process_tokens_formatter_raises_exception(
+        self, content_parser: ContentParser, caplog
+    ):
         """Test handling of formatter exceptions with a simplified approach."""
         from markdown_it.token import Token
 
@@ -291,7 +314,9 @@ class TestContentParser:
         content_parser.formatters = [mock_formatter]
 
         # Capture logs at INFO level
-        with caplog.at_level("INFO", logger="markdowndeck.parser.content.content_parser"):
+        with caplog.at_level(
+            "INFO", logger="markdowndeck.parser.content.content_parser"
+        ):
             elements = content_parser._process_tokens(tokens, directives)
 
         # Verify results

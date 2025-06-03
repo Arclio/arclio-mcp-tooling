@@ -1,11 +1,12 @@
 import logging
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import math
 from io import BytesIO
+
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import numpy as np
 import requests
 from PIL import Image as PILImage
-import numpy as np
-import math
 
 # Import the enhanced renderers
 from markdowndeck.visualization.element_renderer import render_elements
@@ -504,6 +505,5 @@ class SlideVisualizer:
             plt.close(fig)  # Clean up
             logger.info(f"Visualization saved to {filename}")
             return filename
-        else:
-            logger.error("Failed to create visualization to save")
-            return None
+        logger.error("Failed to create visualization to save")
+        return None

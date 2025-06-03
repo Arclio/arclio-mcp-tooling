@@ -1,3 +1,5 @@
+"""Unit tests for value converters in directive parsing."""
+
 from typing import Any
 
 import pytest
@@ -45,7 +47,9 @@ class TestDirectiveConverters:
             ("", "Invalid dimension format"),  # Empty string
         ],
     )
-    def test_convert_dimension_invalid_format(self, invalid_value: str, error_message_match: str):
+    def test_convert_dimension_invalid_format(
+        self, invalid_value: str, error_message_match: str
+    ):
         with pytest.raises(ValueError, match=error_message_match):
             convert_dimension(invalid_value)
 
@@ -84,38 +88,53 @@ class TestDirectiveConverters:
     @pytest.mark.parametrize(
         ("value", "expected_type", "expected_value"),
         [
-            ("#FF0000", "color", "#FF0000"),
-            (" #f00 ", "color", "#f00"),
-            ("blue", "color", "blue"),
-            ("transparent", "color", "transparent"),
+            ("#FF0000", "color", {"type": "hex", "value": "#FF0000"}),
+            (" #f00 ", "color", {"type": "hex", "value": "#f00"}),
+            ("blue", "color", {"type": "named", "value": "blue"}),
+            ("transparent", "color", {"type": "named", "value": "transparent"}),
             (
                 "url(http://example.com/image.jpg)",
                 "url",
-                "http://example.com/image.jpg",
+                {"type": "url", "value": "http://example.com/image.jpg"},
             ),
-            ("url('path/to/img.png')", "url", "path/to/img.png"),
+            (
+                "url('path/to/img.png')",
+                "url",
+                {"type": "url", "value": "path/to/img.png"},
+            ),
             (
                 'url( "another/img with spaces.gif" )',
                 "url",
-                "another/img with spaces.gif",
+                {"type": "url", "value": "another/img with spaces.gif"},
             ),
-            ("solid", "border-style", "solid"),
-            ("dotted", "border-style", "dotted"),
+            ("solid", "border_style", "solid"),
+            ("dotted", "border_style", "dotted"),
             ("custom_value", "value", "custom_value"),  # Generic value
             ("123", "value", "123"),  # Numeric string not matching other patterns
         ],
     )
-    def test_convert_style_valid(self, value: str, expected_type: str, expected_value: Any):
+    def test_convert_style_valid(
+        self, value: str, expected_type: str, expected_value: Any
+    ):
         assert convert_style(value) == (expected_type, expected_value)
 
     def test_convert_style_invalid_hex(self):
         """Test that invalid hex colors are still returned as type 'color' but value as is."""
         # The current convert_style logs a warning for invalid hex but returns it.
         # This test verifies that behavior.
-        assert convert_style("#12345G") == ("color", "#12345G")  # Invalid hex char G
-        assert convert_style("#1234") == ("color", "#1234")  # Invalid length
+        assert convert_style("#12345G") == (
+            "color",
+            {"type": "hex", "value": "#12345G"},
+        )  # Invalid hex char G
+        assert convert_style("#1234") == (
+            "color",
+            {"type": "hex", "value": "#1234"},
+        )  # Invalid length
         # Double hash now treated as a color
-        assert convert_style("##123456") == ("color", "##123456")
+        assert convert_style("##123456") == (
+            "color",
+            {"type": "hex", "value": "##123456"},
+        )
 
     def test_get_color_names(self):
         """Test the helper for color names (simple check)."""
@@ -123,3 +142,45 @@ class TestDirectiveConverters:
         assert "red" in names
         assert "fuchsia" in names
         assert "nonexistentcolor" not in names
+
+    def test_convert_style_theme_colors(self):
+        """Test theme color conversion."""
+        assert convert_style("ACCENT1") == (
+            "color",
+            {"type": "theme", "themeColor": "ACCENT1"},
+        )
+        assert convert_style("text1") == (
+            "color",
+            {"type": "theme", "themeColor": "TEXT1"},
+        )  # Case insensitive
+        assert convert_style("BACKGROUND2") == (
+            "color",
+            {"type": "theme", "themeColor": "BACKGROUND2"},
+        )
+
+    def test_convert_style_compound_border(self):
+        """Test compound border style parsing."""
+        result_type, result_value = convert_style("1pt solid #FF0000")
+        assert result_type == "border"
+        assert result_value["width"] == "1pt"
+        assert result_value["style"] == "solid"
+        assert result_value["color"]["type"] == "hex"
+        assert result_value["color"]["value"] == "#FF0000"
+
+    def test_convert_style_compound_border_with_theme_color(self):
+        """Test compound border with theme color."""
+        result_type, result_value = convert_style("2px dashed ACCENT1")
+        assert result_type == "border"
+        assert result_value["width"] == "2px"
+        assert result_value["style"] == "dashed"
+        assert result_value["color"]["type"] == "theme"
+        assert result_value["color"]["themeColor"] == "ACCENT1"
+
+    def test_convert_style_compound_border_with_named_color(self):
+        """Test compound border with named color."""
+        result_type, result_value = convert_style("3pt dotted blue")
+        assert result_type == "border"
+        assert result_value["width"] == "3pt"
+        assert result_value["style"] == "dotted"
+        assert result_value["color"]["type"] == "named"
+        assert result_value["color"]["value"] == "blue"

@@ -1,18 +1,16 @@
+import contextlib
+import io  # For image handling
 import logging
 import re
 import textwrap
-import io  # For image handling
-import requests  # For fetching images
-from PIL import Image as PILImage  # For image handling, aliased to avoid conflict
-import numpy as np
 
 import matplotlib.patches as patches
-import matplotlib.font_manager as fm
-import matplotlib.gridspec as gridspec
+import numpy as np
+import requests  # For fetching images
 from matplotlib.table import Table
+from PIL import Image as PILImage  # For image handling, aliased to avoid conflict
 
 from markdowndeck.models.elements.list import ListElement
-from markdowndeck.models.elements.table import TableElement
 
 logger = logging.getLogger(__name__)
 
@@ -123,10 +121,8 @@ def parse_border_directive(border_str):
 
     for part in parts:
         if part.endswith("pt") or part.endswith("px"):
-            try:
+            with contextlib.suppress(ValueError):
                 border_props["width"] = float(part.rstrip("ptx"))
-            except ValueError:
-                pass
         elif part in ["solid", "dashed", "dotted", "dashdot"]:  # Matplotlib linestyles
             border_props["style"] = part
         elif (
@@ -491,8 +487,8 @@ def render_table(ax, element, pos_x, pos_y, size_w, size_h, directives):
     has_headers = element.headers is not None and len(element.headers) > 0
 
     # Calculate cell sizes
-    cell_width = size_w / num_cols
-    cell_height = size_h / grid_height
+    size_w / num_cols
+    size_h / grid_height
 
     # Create a mini subplot for the table (for better control)
     table_ax = ax.inset_axes([pos_x, pos_y, size_w, size_h], transform=ax.transData)

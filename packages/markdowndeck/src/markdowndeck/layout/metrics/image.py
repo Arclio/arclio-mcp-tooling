@@ -2,8 +2,9 @@
 
 import logging
 import re
-from typing import cast, Tuple
+from typing import cast
 from urllib.parse import urlparse
+
 import requests
 
 from markdowndeck.models import ImageElement
@@ -151,7 +152,7 @@ def get_image_aspect_ratio(url: str) -> float:
                 chunk_size = 65536  # 64KB
                 with requests.get(url, stream=True, timeout=5) as response:
                     if response.status_code == 200:
-                        chunk = response.raw.read(chunk_size)
+                        response.raw.read(chunk_size)
                         # Here we could add format-specific dimension extraction
                         # But it's complex and beyond the scope of this fix
                         # For now, we'll use DEFAULT_ASPECT_RATIO
@@ -170,7 +171,7 @@ def get_image_aspect_ratio(url: str) -> float:
     return DEFAULT_ASPECT_RATIO
 
 
-def _extract_dimensions_from_data_url(url: str) -> Tuple[int, int] | None:
+def _extract_dimensions_from_data_url(url: str) -> tuple[int, int] | None:
     """Extract dimensions from a data URL if present."""
     if url.startswith("data:") and "width=" in url and "height=" in url:
         width_match = re.search(r"width=(\d+)", url)
@@ -186,7 +187,7 @@ def _extract_dimensions_from_data_url(url: str) -> Tuple[int, int] | None:
     return None
 
 
-def _extract_dimensions_from_url(url: str) -> Tuple[int, int] | None:
+def _extract_dimensions_from_url(url: str) -> tuple[int, int] | None:
     """
     Extract image dimensions from URL parameters (common in image services).
 

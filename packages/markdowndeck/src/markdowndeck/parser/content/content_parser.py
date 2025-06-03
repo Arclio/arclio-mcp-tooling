@@ -14,11 +14,11 @@ from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
     BaseFormatter,
     CodeFormatter,
-    ImageFormatter,
     ListFormatter,
     TableFormatter,
     TextFormatter,
 )
+from markdowndeck.parser.directive import DirectiveParser
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +41,13 @@ class ContentParser:
         self.md.enable("strikethrough")
 
         self.element_factory = ElementFactory()
+        self.directive_parser = DirectiveParser()
 
         # Initialize formatters, injecting the element factory
         # Order matters: ImageFormatter should attempt to handle image-only paragraphs
         # before TextFormatter handles general paragraphs.
         self.formatters: list[BaseFormatter] = [
-            ImageFormatter(self.element_factory),
+            # ImageFormatter(self.element_factory),  # TODO: Fix infinite loop in ImageFormatter
             ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
@@ -132,6 +133,47 @@ class ContentParser:
         )
         return all_elements
 
+    def _find_element_specific_directives(
+        self, tokens: list[Token], element_start_index: int
+    ) -> dict[str, Any] | None:
+        """
+        Look for element-specific directives immediately before a block element.
+
+        Args:
+            tokens: List of all tokens
+            element_start_index: Index where the block element starts
+
+        Returns:
+            Dictionary of element-specific directives if found, None otherwise
+        """
+        # For now, let TextFormatter handle directive extraction entirely
+        # This avoids the infinite loop issue and centralizes directive parsing
+        return None
+
+    def _get_plain_text_from_inline_token(self, inline_token: Token) -> str:
+        """
+        Extract plain text content from an inline token.
+
+        Args:
+            inline_token: A markdown-it inline token with children
+
+        Returns:
+            Plain text content
+        """
+        if not hasattr(inline_token, "children"):
+            return getattr(inline_token, "content", "")
+
+        plain_text = ""
+        for child in inline_token.children:
+            if child.type == "text":
+                plain_text += child.content
+            elif child.type == "softbreak":
+                plain_text += " "
+            elif child.type == "hardbreak":
+                plain_text += "\n"
+
+        return plain_text
+
     def _process_tokens(
         self, tokens: list[Token], directives: dict[str, Any]
     ) -> list[Element]:
@@ -170,12 +212,22 @@ class ContentParser:
             token = tokens[current_index]
             dispatched = False
 
+            # Removed problematic _should_skip_directive_paragraph check
+            # Let formatters handle directive extraction directly
+
             for formatter in self.formatters:
                 if formatter.can_handle(token, tokens[current_index:]):
                     try:
-                        # Pass section_heading_indices to formatters that need it
+                        # Look for element-specific directives before this element
+                        element_specific_directives = (
+                            self._find_element_specific_directives(
+                                tokens, current_index
+                            )
+                        )
+
+                        # Pass both section and element-specific directives to formatters
                         if (
-                            isinstance(formatter, TextFormatter)
+                            type(formatter).__name__ == "TextFormatter"
                             and token.type == "heading_open"
                         ):
                             # FIXED: Always pass correct is_section_heading flag
@@ -195,12 +247,16 @@ class ContentParser:
                                 tokens,
                                 current_index,
                                 directives,
+                                element_specific_directives,
                                 is_section_heading=is_section_heading,
                                 is_subtitle=is_subtitle,
                             )
                         else:
                             element, new_index_offset = formatter.process(
-                                tokens, current_index, directives
+                                tokens,
+                                current_index,
+                                directives,
+                                element_specific_directives,
                             )
 
                         if element:
@@ -219,7 +275,8 @@ class ContentParser:
                             exc_info=True,
                         )
                         # Skip error handling logic (unchanged)
-                        ...
+                        current_index += 1
+                        break
 
             if not dispatched:
                 if token.type not in ["softbreak", "hardbreak"] and token.type:
