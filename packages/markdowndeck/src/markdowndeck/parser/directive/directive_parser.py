@@ -192,6 +192,22 @@ class DirectiveParser:
 
         match = re.match(directive_block_pattern, content)
         if not match:
+            # Check for malformed directives that should be removed even if they can't be parsed
+            # This pattern matches any bracketed content at the start that doesn't follow [key=value] format
+            malformed_pattern = r"^\s*(\[[^\[\]]*\]\s*)"
+            malformed_match = re.match(malformed_pattern, content)
+            if malformed_match:
+                # Check if this is a valid directive format - if not, remove it
+                bracket_content = malformed_match.group(1).strip()
+                # Valid format should have exactly one = sign and non-empty key
+                if not re.match(r"^\s*\[[^=\[\]]+=[^\[\]]*\]\s*$", bracket_content):
+                    malformed_text = malformed_match.group(1)
+                    logger.warning(f"Found malformed directives that will be removed: {malformed_text!r}")
+                    section.content = content[malformed_match.end() :].lstrip()
+                    if section.directives is None:
+                        section.directives = {}
+                    return
+
             if section.directives is None:  # Should not happen with dataclass defaults
                 section.directives = {}
             return

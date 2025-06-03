@@ -36,6 +36,7 @@ class SlideExtractor:
                 or processed_slide["content"].strip()
                 or processed_slide["footer"]
                 or processed_slide["notes"]
+                or processed_slide["background"]  # Include slides with background directives
             ):
                 slides.append(processed_slide)
             else:
@@ -46,7 +47,7 @@ class SlideExtractor:
 
     def _split_content_with_code_block_awareness(self, content: str, pattern: str) -> list[str]:
         """
-        Split content by a pattern, but ignore the pattern if it appears inside a code block.
+        Split content by the given pattern (slide separator) while respecting code block boundaries.
         Slide separators (pattern) are given precedence to break out of misidentified code blocks.
 
         Args:
@@ -74,52 +75,46 @@ class SlideExtractor:
             return []
 
         for line_idx, line in enumerate(lines):
-            stripped_line = line.lstrip()  # Use lstrip for checking prefixes, original line for content
+            stripped_line = line.strip()
 
-            # Priority 1: Check for slide separator
-            if separator_re.match(line):  # Match on the original line to respect ^\s*
-                if in_code_block:
-                    logger.warning(
-                        f"Slide separator '===' found at line {line_idx + 1} and overriding active code block state. Current fence: {current_fence}"
-                    )
+            # Priority 1: Handle code block boundaries first
+            # Simplified fence detection: check if line starts with ``` or ~~~
+            is_code_fence_line = False
+            potential_fence = None
+
+            if stripped_line.startswith("```"):
+                potential_fence = "```"
+                is_code_fence_line = True
+            elif stripped_line.startswith("~~~"):
+                potential_fence = "~~~"
+                is_code_fence_line = True
+
+            if is_code_fence_line:
+                if not in_code_block:
+                    # Opening fence
+                    in_code_block = True
+                    current_fence = potential_fence
+                    logger.debug(f"Opening code block with fence {potential_fence} at line {line_idx + 1}")
+                elif potential_fence == current_fence:
+                    # Matching closing fence
                     in_code_block = False
                     current_fence = None
+                    logger.debug(f"Closing code block with fence {potential_fence} at line {line_idx + 1}")
+                # If it's a different fence type inside an existing code block, treat as content
 
+            # Priority 2: Check for slide separator only if NOT in a code block
+            if separator_re.match(line) and not in_code_block:  # Only split if not in code block
                 if current_part_lines:
                     parts.append("\n".join(current_part_lines))
                 current_part_lines = []
                 # Separator line itself is not added to any part
                 continue
+            if separator_re.match(line) and in_code_block:
+                # Slide separator found inside code block - treat as normal content
+                logger.debug(f"Slide separator '===' found inside code block at line {line_idx + 1}, treating as code content")
 
-            # Priority 2: Handle code block boundaries if not a slide separator
-            is_code_fence_line = False
-            potential_fence = None
-            if stripped_line.startswith("```") or stripped_line.startswith("~~~"):
-                potential_fence = stripped_line[0:3]
-                # A line is a fence if it's just the fence or fence + language identifier
-                if (
-                    stripped_line == potential_fence
-                    or (len(stripped_line) > 3 and stripped_line[3:].isalnum())
-                    or len(stripped_line) > 3
-                    and not stripped_line[3].isspace()
-                ):
-                    is_code_fence_line = True
-
-            if is_code_fence_line:
-                if not in_code_block:
-                    in_code_block = True
-                    current_fence = potential_fence
-                    current_part_lines.append(line)
-                elif potential_fence == current_fence:  # Matching closing fence
-                    in_code_block = False
-                    current_fence = None
-                    current_part_lines.append(line)
-                else:  # Different fence type inside an existing code block (treat as content)
-                    current_part_lines.append(line)
-            elif in_code_block:
-                current_part_lines.append(line)
-            else:  # Normal content line
-                current_part_lines.append(line)
+            # Add the line to current part
+            current_part_lines.append(line)
 
         # Add the last part if it has content
         if current_part_lines:

@@ -255,11 +255,48 @@ class TextFormatter(BaseFormatter):
         # Merge element-specific directives with existing directives (element-specific take precedence)
         final_directives = self.merge_directives(directives, element_directives)
 
-        # Extract formatting and create the text element
-        formatting = self.element_factory.extract_formatting_from_text(cleaned_text_content, self.md)
+        # Check if this is an image-only paragraph (should be handled by ImageFormatter)
+        if hasattr(inline_token, "children") and len(inline_token.children) == 1:
+            child = inline_token.children[0]
+            if child.type == "image":
+                logger.debug("Image-only paragraph detected, skipping for ImageFormatter")
+                # Find the paragraph_close token
+                close_index = inline_index + 1
+                while close_index < len(tokens) and tokens[close_index].type != "paragraph_close":
+                    close_index += 1
+                return None, close_index
+
+        # Use the proper method to extract plain text from inline token
+        if hasattr(inline_token, "children") and inline_token.children:
+            # Extract plain text using the inline token processing
+            plain_text_parts = []
+            for child in inline_token.children:
+                if child.type == "text":
+                    plain_text_parts.append(child.content)
+                elif child.type == "code_inline":
+                    # Apply directive stripping for code spans
+                    cleaned_content = self.element_factory._strip_directives_from_code_content(child.content)
+                    plain_text_parts.append(cleaned_content)
+                elif child.type == "softbreak":
+                    plain_text_parts.append(" ")
+                elif child.type == "hardbreak":
+                    plain_text_parts.append("\n")
+                elif child.type == "image":
+                    alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                    plain_text_parts.append(alt_text)
+                # Skip formatting tokens like strong_open, em_open, etc.
+
+            plain_text_content = "".join(plain_text_parts)
+
+            # Extract formatting using the proper method
+            formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
+        else:
+            # Fallback for simple text content
+            plain_text_content = cleaned_text_content
+            formatting = []
 
         # Skip empty paragraphs (after directive extraction)
-        if not cleaned_text_content.strip():
+        if not plain_text_content.strip():
             logger.debug("Skipping empty paragraph after directive extraction")
             # Find the paragraph_close token
             close_index = inline_index + 1
@@ -267,9 +304,22 @@ class TextFormatter(BaseFormatter):
                 close_index += 1
             return None, close_index
 
+        # Apply alignment from directives
+        alignment = AlignmentType.LEFT  # default
+        if "align" in final_directives:
+            align_value = final_directives["align"]
+            if isinstance(align_value, str) and align_value.lower() in [
+                "left",
+                "center",
+                "right",
+                "justify",
+            ]:
+                alignment = AlignmentType(align_value.lower())
+
         element = self.element_factory.create_text_element(
-            text=cleaned_text_content,
+            text=plain_text_content,
             formatting=formatting,
+            alignment=alignment,
             directives=final_directives,
         )
 
