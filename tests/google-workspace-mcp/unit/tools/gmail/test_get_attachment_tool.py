@@ -1,67 +1,84 @@
 """
-Unit tests for Gmail get_gmail_attachment tool.
+Unit tests for Gmail get attachment tool.
 """
 
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google_workspace_mcp.tools.gmail import get_gmail_attachment
+from google_workspace_mcp.tools.gmail import gmail_get_attachment_content
 
 pytestmark = pytest.mark.anyio
 
 
-class TestGetGmailAttachment:
-    """Tests for the get_gmail_attachment tool function."""
+class TestGmailGetAttachmentContentTool:
+    """Tests for the gmail_get_attachment_content tool."""
 
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.gmail.GmailService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
 
-    async def test_get_attachment_success(self, mock_gmail_service):
-        """Test get_gmail_attachment successful case."""
-        mock_service_response = {
-            "filename": "document.pdf",
+    async def test_gmail_get_attachment_content_success(self, mock_gmail_service):
+        """Test successful attachment content retrieval."""
+        # Mock successful service response
+        expected_result = {
+            "filename": "test_file.pdf",
             "mimeType": "application/pdf",
-            "data": "base64_encoded_data...",
-            "size": 1024,
+            "size": 12345,
+            "data": "base64encodeddata",
         }
-        mock_gmail_service.get_attachment.return_value = mock_service_response
+        mock_gmail_service.get_attachment_content.return_value = expected_result
 
-        args = {
-            "message_id": "msg123",
-            "attachment_id": "attach456",
-        }
-        result = await get_gmail_attachment(**args)
+        # Call the tool
+        result = await gmail_get_attachment_content("msg123", "att456")
 
-        mock_gmail_service.get_attachment.assert_called_once_with(message_id="msg123", attachment_id="attach456")
-        assert result == mock_service_response
+        # Verify service was called correctly
+        mock_gmail_service.get_attachment_content.assert_called_once_with(
+            message_id="msg123", attachment_id="att456"
+        )
 
-    async def test_get_attachment_service_error(self, mock_gmail_service):
-        """Test get_gmail_attachment when the service returns an error."""
-        mock_gmail_service.get_attachment.return_value = {
-            "error": True,
-            "message": "API Error: Attachment not found",
-        }
+        # Verify result
+        assert result == expected_result
 
-        args = {
-            "message_id": "msg123",
-            "attachment_id": "invalid_attach",
-        }
-        with pytest.raises(ValueError, match="API Error: Attachment not found"):
-            await get_gmail_attachment(**args)
+    async def test_gmail_get_attachment_content_missing_params(
+        self, mock_gmail_service
+    ):
+        """Test attachment content retrieval with missing parameters."""
+        with pytest.raises(
+            ValueError, match="Message ID and attachment ID are required"
+        ):
+            await gmail_get_attachment_content("", "att456")
 
-    async def test_get_attachment_missing_args(self):
-        """Test get_gmail_attachment with missing required arguments."""
-        # Test missing message_id
-        args = {"message_id": "", "attachment_id": "attach123"}
-        with pytest.raises(ValueError, match="Message ID and attachment ID are required"):
-            await get_gmail_attachment(**args)
+        with pytest.raises(
+            ValueError, match="Message ID and attachment ID are required"
+        ):
+            await gmail_get_attachment_content("msg123", "")
 
-        # Test missing attachment_id
-        args = {"message_id": "msg123", "attachment_id": ""}
-        with pytest.raises(ValueError, match="Message ID and attachment ID are required"):
-            await get_gmail_attachment(**args)
+        with pytest.raises(
+            ValueError, match="Message ID and attachment ID are required"
+        ):
+            await gmail_get_attachment_content("", "")
+
+    async def test_gmail_get_attachment_content_service_error(self, mock_gmail_service):
+        """Test attachment content retrieval with service error."""
+        # Mock service error response
+        error_response = {"error": True, "message": "Attachment not found"}
+        mock_gmail_service.get_attachment_content.return_value = error_response
+
+        with pytest.raises(ValueError, match="Attachment not found"):
+            await gmail_get_attachment_content("msg123", "nonexistent")
+
+    async def test_gmail_get_attachment_content_service_returns_none(
+        self, mock_gmail_service
+    ):
+        """Test attachment content retrieval when service returns None."""
+        # Mock service returning None
+        mock_gmail_service.get_attachment_content.return_value = None
+
+        with pytest.raises(ValueError, match="Error getting attachment"):
+            await gmail_get_attachment_content("msg123", "att456")
