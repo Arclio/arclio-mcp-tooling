@@ -5,7 +5,11 @@ Unit tests for Gmail create_gmail_draft and delete_gmail_draft tools.
 from unittest.mock import MagicMock, patch
 
 import pytest
-from google_workspace_mcp.tools.gmail import create_gmail_draft, delete_gmail_draft
+from google_workspace_mcp.tools.gmail import (
+    create_gmail_draft,
+    delete_gmail_draft,
+    gmail_send_draft,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -144,3 +148,54 @@ class TestDeleteGmailDraft:
         args = {"draft_id": ""}
         with pytest.raises(ValueError, match="Draft ID is required"):
             await delete_gmail_draft(**args)
+
+
+# --- Tests for gmail_send_draft --- #
+
+
+class TestGmailSendDraft:
+    """Tests for the gmail_send_draft tool function."""
+
+    async def test_gmail_send_draft_success(self, mock_gmail_service):
+        """Test successful draft sending."""
+        # Mock successful service response
+        expected_result = {
+            "id": "sent_msg123",
+            "threadId": "thread456",
+            "labelIds": ["SENT"],
+        }
+        mock_gmail_service.send_draft.return_value = expected_result
+
+        # Call the tool
+        result = await gmail_send_draft("draft123")
+
+        # Verify service was called correctly
+        mock_gmail_service.send_draft.assert_called_once_with(draft_id="draft123")
+
+        # Verify result
+        assert result == expected_result
+
+    async def test_gmail_send_draft_empty_id(self, mock_gmail_service):
+        """Test draft sending with empty draft ID."""
+        with pytest.raises(ValueError, match="Draft ID cannot be empty"):
+            await gmail_send_draft("")
+
+        with pytest.raises(ValueError, match="Draft ID cannot be empty"):
+            await gmail_send_draft("   ")
+
+    async def test_gmail_send_draft_service_error(self, mock_gmail_service):
+        """Test draft sending with service error."""
+        # Mock service error response
+        error_response = {"error": True, "message": "Draft not found"}
+        mock_gmail_service.send_draft.return_value = error_response
+
+        with pytest.raises(ValueError, match="Draft not found"):
+            await gmail_send_draft("nonexistent_draft")
+
+    async def test_gmail_send_draft_service_returns_none(self, mock_gmail_service):
+        """Test draft sending when service returns None."""
+        # Mock service returning None
+        mock_gmail_service.send_draft.return_value = None
+
+        with pytest.raises(ValueError, match="Failed to send draft"):
+            await gmail_send_draft("draft123")

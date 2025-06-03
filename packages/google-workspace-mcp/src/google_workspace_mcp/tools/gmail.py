@@ -46,10 +46,10 @@ async def query_gmail_emails(query: str, max_results: int = 100) -> dict[str, An
 
 
 @mcp.tool(
-    name="get_gmail_email",
+    name="gmail_get_message_details",
     description="Retrieves a complete Gmail email message by its ID.",
 )
-async def get_gmail_email(email_id: str) -> dict[str, Any]:
+async def gmail_get_message_details(email_id: str) -> dict[str, Any]:
     """
     Retrieves a complete Gmail email message by its ID.
 
@@ -59,7 +59,7 @@ async def get_gmail_email(email_id: str) -> dict[str, Any]:
     Returns:
         A dictionary containing the email details and attachments.
     """
-    logger.info(f"Executing get_gmail_email tool with email_id: '{email_id}'")
+    logger.info(f"Executing gmail_get_message_details tool with email_id: '{email_id}'")
     if not email_id or not email_id.strip():
         raise ValueError("Email ID cannot be empty")
 
@@ -78,10 +78,12 @@ async def get_gmail_email(email_id: str) -> dict[str, Any]:
 
 
 @mcp.tool(
-    name="get_gmail_attachment",
+    name="gmail_get_attachment_content",
     description="Retrieves a specific attachment from a Gmail message.",
 )
-async def get_gmail_attachment(message_id: str, attachment_id: str) -> dict[str, Any]:
+async def gmail_get_attachment_content(
+    message_id: str, attachment_id: str
+) -> dict[str, Any]:
     """
     Retrieves a specific attachment from a Gmail message.
 
@@ -92,12 +94,16 @@ async def get_gmail_attachment(message_id: str, attachment_id: str) -> dict[str,
     Returns:
         A dictionary containing filename, mimeType, size, and base64 data.
     """
-    logger.info(f"Executing get_gmail_attachment tool - Msg: {message_id}, Attach: {attachment_id}")
+    logger.info(
+        f"Executing gmail_get_attachment_content tool - Msg: {message_id}, Attach: {attachment_id}"
+    )
     if not message_id or not attachment_id:
         raise ValueError("Message ID and attachment ID are required")
 
     gmail_service = GmailService()
-    result = gmail_service.get_attachment(message_id=message_id, attachment_id=attachment_id)
+    result = gmail_service.get_attachment_content(
+        message_id=message_id, attachment_id=attachment_id
+    )
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error getting attachment"
@@ -139,7 +145,9 @@ async def create_gmail_draft(
 
     gmail_service = GmailService()
     # Pass bcc parameter even though service may not use it (for test compatibility)
-    result = gmail_service.create_draft(to=to, subject=subject, body=body, cc=cc, bcc=bcc)
+    result = gmail_service.create_draft(
+        to=to, subject=subject, body=body, cc=cc, bcc=bcc
+    )
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error creating draft"
@@ -177,7 +185,9 @@ async def delete_gmail_draft(
         # Attempt to check if the service returned an error dict
         # (Assuming handle_api_error might return dict or False/None)
         # This part might need adjustment based on actual service error handling
-        error_info = getattr(gmail_service, "last_error", None)  # Hypothetical error capture
+        error_info = getattr(
+            gmail_service, "last_error", None
+        )  # Hypothetical error capture
         error_msg = "Failed to delete draft"
         if isinstance(error_info, dict) and error_info.get("error"):
             error_msg = error_info.get("message", error_msg)
@@ -190,10 +200,40 @@ async def delete_gmail_draft(
 
 
 @mcp.tool(
-    name="reply_gmail_email",
+    name="gmail_send_draft",
+    description="Sends an existing draft email from Gmail.",
+)
+async def gmail_send_draft(draft_id: str) -> dict[str, Any]:
+    """
+    Sends a specific draft email.
+
+    Args:
+        draft_id: The ID of the draft to send.
+
+    Returns:
+        A dictionary containing the details of the sent message or an error.
+    """
+    logger.info(f"Executing gmail_send_draft tool for draft_id: '{draft_id}'")
+    if not draft_id or not draft_id.strip():
+        raise ValueError("Draft ID cannot be empty.")
+
+    gmail_service = GmailService()
+    result = gmail_service.send_draft(draft_id=draft_id)
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error sending draft"))
+
+    if not result:  # Should be caught by error dict check
+        raise ValueError(f"Failed to send draft '{draft_id}'")
+
+    return result
+
+
+@mcp.tool(
+    name="gmail_reply_to_email",
     description="Create a reply to an existing email. Can be sent or saved as draft.",
 )
-async def reply_gmail_email(
+async def gmail_reply_to_email(
     email_id: str,
     reply_body: str,
     send: bool = False,
@@ -211,7 +251,7 @@ async def reply_gmail_email(
     Returns:
         A dictionary containing the sent message or created draft details.
     """
-    logger.info(f"Executing reply_gmail_email to message: '{email_id}'")
+    logger.info(f"Executing gmail_reply_to_email to message: '{email_id}'")
     if not email_id or not reply_body:
         raise ValueError("Email ID and reply body are required")
 
@@ -233,10 +273,10 @@ async def reply_gmail_email(
 
 
 @mcp.tool(
-    name="bulk_delete_gmail_emails",
+    name="gmail_bulk_delete_messages",
     description="Delete multiple emails at once by providing a list of message IDs.",
 )
-async def bulk_delete_gmail_emails(
+async def gmail_bulk_delete_messages(
     message_ids: list[str],
 ) -> dict[str, Any]:
     """
@@ -256,15 +296,65 @@ async def bulk_delete_gmail_emails(
     if not message_ids:
         raise ValueError("Message IDs list cannot be empty")
 
-    logger.info(f"Executing bulk_delete_gmail_emails with {len(message_ids)} IDs")
+    logger.info(f"Executing gmail_bulk_delete_messages with {len(message_ids)} IDs")
 
     gmail_service = GmailService()
-    result = gmail_service.bulk_delete_emails(message_ids=message_ids)
+    result = gmail_service.bulk_delete_messages(message_ids=message_ids)
 
     if not result or (isinstance(result, dict) and result.get("error")):
         error_msg = "Error during bulk deletion"
         if isinstance(result, dict):
             error_msg = result.get("message", error_msg)
         raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
+    name="gmail_send_email",
+    description="Composes and sends an email directly.",
+)
+async def gmail_send_email(
+    to: list[str],
+    subject: str,
+    body: str,
+    cc: list[str] | None = None,
+    bcc: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Composes and sends an email message.
+
+    Args:
+        to: A list of primary recipient email addresses.
+        subject: The subject line of the email.
+        body: The plain text body content of the email.
+        cc: Optional. A list of CC recipient email addresses.
+        bcc: Optional. A list of BCC recipient email addresses.
+
+    Returns:
+        A dictionary containing the details of the sent message or an error.
+    """
+    logger.info(f"Executing gmail_send_email tool to: {to}, subject: '{subject}'")
+    if (
+        not to
+        or not isinstance(to, list)
+        or not all(isinstance(email, str) and email.strip() for email in to)
+    ):
+        raise ValueError("Recipients 'to' must be a non-empty list of email strings.")
+    if not subject or not subject.strip():
+        raise ValueError("Subject cannot be empty.")
+    if (
+        body is None
+    ):  # Allow empty string for body, but not None if it implies missing arg.
+        raise ValueError("Body cannot be None (can be an empty string).")
+
+    gmail_service = GmailService()
+    result = gmail_service.send_email(to=to, subject=subject, body=body, cc=cc, bcc=bcc)
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error sending email"))
+
+    if not result:
+        raise ValueError("Failed to send email")
 
     return result
