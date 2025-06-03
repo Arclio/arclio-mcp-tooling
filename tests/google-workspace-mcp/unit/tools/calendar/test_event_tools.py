@@ -19,9 +19,7 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture
 def mock_calendar_service():
     """Patch CalendarService for tool tests."""
-    with patch(
-        "google_workspace_mcp.tools.calendar.CalendarService"
-    ) as mock_service_class:
+    with patch("google_workspace_mcp.tools.calendar.CalendarService") as mock_service_class:
         mock_service = MagicMock()
         mock_service_class.return_value = mock_service
         # Hypothetical error tracking for boolean returns
@@ -98,9 +96,7 @@ class TestCreateCalendarEvent:
         for key in ["summary", "start_time", "end_time"]:
             args = base_args.copy()
             args[key] = ""
-            with pytest.raises(
-                ValueError, match="Summary, start_time, and end_time are required"
-            ):
+            with pytest.raises(ValueError, match="Summary, start_time, and end_time are required"):
                 await create_calendar_event(**args)
 
 
@@ -131,9 +127,7 @@ class TestDeleteCalendarEvent:
             "success": True,
         }
 
-    async def test_delete_event_service_failure_no_error_info(
-        self, mock_calendar_service
-    ):
+    async def test_delete_event_service_failure_no_error_info(self, mock_calendar_service):
         """Test delete_calendar_event when service returns False without error info."""
         mock_calendar_service.delete_event.return_value = False
         mock_calendar_service.last_error = None  # Ensure no specific error info
@@ -142,9 +136,7 @@ class TestDeleteCalendarEvent:
         with pytest.raises(ValueError, match="Failed to delete calendar event"):
             await delete_calendar_event(**args)
 
-    async def test_delete_event_service_failure_with_error_info(
-        self, mock_calendar_service
-    ):
+    async def test_delete_event_service_failure_with_error_info(self, mock_calendar_service):
         """Test delete_calendar_event when service returns False with specific error."""
         mock_calendar_service.delete_event.return_value = False
         mock_calendar_service.last_error = {

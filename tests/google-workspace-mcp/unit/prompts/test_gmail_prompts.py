@@ -128,7 +128,5 @@ class TestSummarizeRecentEmailsPrompt:
             "query": "is:important",
             "ctx": None,
         }
-        with pytest.raises(
-            ValueError, match=r"Context \(ctx\) is required for this prompt."
-        ):
+        with pytest.raises(ValueError, match=r"Context \(ctx\) is required for this prompt."):
             await summarize_recent_emails(**args)

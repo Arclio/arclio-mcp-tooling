@@ -35,9 +35,7 @@ class TestCalendarServiceInit:
 
         # Verify correct initialization
         mock_get_credentials.assert_called_once()
-        mock_build.assert_called_once_with(
-            "calendar", "v3", credentials=mock_credentials
-        )
+        mock_build.assert_called_once_with("calendar", "v3", credentials=mock_credentials)
         assert service_instance == mock_service
 
     @patch("google_workspace_mcp.services.base.gauth.get_credentials")
@@ -69,9 +67,7 @@ class TestCalendarServiceInit:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "API Quota Exceeded"
-        mock_build.side_effect = HttpError(
-            mock_resp, b'{"error": {"message": "API Quota Exceeded"}}'
-        )
+        mock_build.side_effect = HttpError(mock_resp, b'{"error": {"message": "API Quota Exceeded"}}')
 
         # Create the service instance
         calendar_service = CalendarService()

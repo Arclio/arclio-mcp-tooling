@@ -16,9 +16,7 @@ class TestCreatePresentationFromMarkdown:
     @pytest.fixture
     def mock_slides_service(self):
         """Patch SlidesService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.slides.SlidesService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.slides.SlidesService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -33,9 +31,7 @@ class TestCreatePresentationFromMarkdown:
                 {"objectId": "slide2", "pageType": "SLIDE"},
             ],
         }
-        mock_slides_service.create_presentation_from_markdown.return_value = (
-            mock_service_response
-        )
+        mock_slides_service.create_presentation_from_markdown.return_value = mock_service_response
 
         markdown_content = """# First Slide
 
@@ -59,9 +55,7 @@ More content here."""
         )
         assert result == mock_service_response
 
-    async def test_create_presentation_from_markdown_service_error(
-        self, mock_slides_service
-    ):
+    async def test_create_presentation_from_markdown_service_error(self, mock_slides_service):
         """Test create_presentation_from_markdown when the service returns an error."""
         mock_slides_service.create_presentation_from_markdown.return_value = {
             "error": True,
@@ -72,9 +66,7 @@ More content here."""
             "title": "Failed Presentation",
             "markdown_content": "# Test",
         }
-        with pytest.raises(
-            ValueError, match="API Error: Failed to create presentation"
-        ):
+        with pytest.raises(ValueError, match="API Error: Failed to create presentation"):
             await create_presentation_from_markdown(**args)
 
     async def test_create_presentation_from_markdown_missing_args(self):

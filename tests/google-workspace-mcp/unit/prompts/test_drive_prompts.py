@@ -20,7 +20,9 @@ class TestSuggestDriveOutlinePrompt:
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
         assert messages[0].role == "user"
-        expected_content = f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
+        expected_content = (
+            f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
+        )
         # Assuming content is stored directly in TextContent
         assert messages[0].content.text == expected_content
 
@@ -33,5 +35,7 @@ class TestSuggestDriveOutlinePrompt:
 
         assert len(messages) == 1
         assert isinstance(messages[0], UserMessage)
-        expected_content = f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
+        expected_content = (
+            f"Please suggest a standard document outline (sections and subsections) for a document about: {topic}"
+        )
         assert messages[0].content.text == expected_content

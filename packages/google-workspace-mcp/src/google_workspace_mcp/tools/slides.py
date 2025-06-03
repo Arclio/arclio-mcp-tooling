@@ -120,9 +120,7 @@ async def create_slide(
     Returns:
         Response data confirming slide creation or raises error.
     """
-    logger.info(
-        f"Executing create_slide in presentation '{presentation_id}' with layout '{layout}'"
-    )
+    logger.info(f"Executing create_slide in presentation '{presentation_id}' with layout '{layout}'")
     if not presentation_id or not presentation_id.strip():
         raise ValueError("Presentation ID cannot be empty")
     # Optional: Validate layout against known predefined layouts?
@@ -173,9 +171,7 @@ async def add_text_to_slide(
     # Validate shape_type
     valid_shape_types = {"TEXT_BOX"}
     if shape_type not in valid_shape_types:
-        raise ValueError(
-            f"Invalid shape_type '{shape_type}' provided. Must be one of {valid_shape_types}."
-        )
+        raise ValueError(f"Invalid shape_type '{shape_type}' provided. Must be one of {valid_shape_types}.")
 
     slides_service = SlidesService()
     result = slides_service.add_text(
@@ -438,16 +434,12 @@ async def delete_slide(
     Returns:
         Response data confirming slide deletion or raises error.
     """
-    logger.info(
-        f"Executing delete_slide: slide '{slide_id}' from presentation '{presentation_id}'"
-    )
+    logger.info(f"Executing delete_slide: slide '{slide_id}' from presentation '{presentation_id}'")
     if not presentation_id or not slide_id:
         raise ValueError("Presentation ID and Slide ID are required")
 
     slides_service = SlidesService()
-    result = slides_service.delete_slide(
-        presentation_id=presentation_id, slide_id=slide_id
-    )
+    result = slides_service.delete_slide(presentation_id=presentation_id, slide_id=slide_id)
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error deleting slide"))
@@ -474,22 +466,13 @@ async def create_presentation_from_markdown(
         Created presentation data or raises error.
     """
     logger.info(f"Executing create_presentation_from_markdown with title '{title}'")
-    if (
-        not title
-        or not title.strip()
-        or not markdown_content
-        or not markdown_content.strip()
-    ):
+    if not title or not title.strip() or not markdown_content or not markdown_content.strip():
         raise ValueError("Title and markdown content are required")
 
     slides_service = SlidesService()
-    result = slides_service.create_presentation_from_markdown(
-        title=title, markdown_content=markdown_content
-    )
+    result = slides_service.create_presentation_from_markdown(title=title, markdown_content=markdown_content)
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(
-            result.get("message", "Error creating presentation from Markdown")
-        )
+        raise ValueError(result.get("message", "Error creating presentation from Markdown"))
 
     return result

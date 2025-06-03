@@ -27,10 +27,10 @@ class TestDraftCalendarAgendaPrompt:
         assert isinstance(messages[0], UserMessage)
         assert messages[0].role == "user"
         # Check content based on the simulation
-        expected_details = (
-            f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
+        expected_details = f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
+        expected_content = (
+            f"Please draft a simple meeting agenda based on the following event information:\n\n{expected_details}"
         )
-        expected_content = f"Please draft a simple meeting agenda based on the following event information:\n\n{expected_details}"
         assert messages[0].content.text == expected_content
 
     # TODO: Add a test case that mocks ctx.read_resource once the event details resource exists

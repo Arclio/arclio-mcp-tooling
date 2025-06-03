@@ -19,9 +19,7 @@ async def draft_calendar_agenda(
     ctx: Context = None,  # Add default None for ctx
 ) -> list[UserMessage]:
     """Drafts a meeting agenda based on event info (currently simulated)."""
-    logger.info(
-        f"Executing draft_calendar_agenda prompt for event '{event_id}' on calendar '{calendar_id}'"
-    )
+    logger.info(f"Executing draft_calendar_agenda prompt for event '{event_id}' on calendar '{calendar_id}'")
     # TODO: Replace simulation with actual call to get event details via resource
     # try:
     #     event_details_dict = await ctx.read_resource(f"calendar://{calendar_id}/event/{event_id}")
@@ -33,12 +31,6 @@ async def draft_calendar_agenda(
     #     event_details = f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
 
     # Simulate details for now
-    event_details = (
-        f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
-    )
+    event_details = f"Meeting: {event_id} on Calendar: {calendar_id} - Details unavailable."
 
-    return [
-        UserMessage(
-            f"Please draft a simple meeting agenda based on the following event information:\n\n{event_details}"
-        )
-    ]
+    return [UserMessage(f"Please draft a simple meeting agenda based on the following event information:\n\n{event_details}")]

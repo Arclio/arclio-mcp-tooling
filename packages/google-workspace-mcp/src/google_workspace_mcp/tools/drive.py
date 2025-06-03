@@ -15,47 +15,46 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.tool(
-    name="gdrive_search",
-    description="Search for files in Google Drive based on a query string.",
+    name="drive_search_files",
+    description="Search for files in Google Drive with optional shared drive support.",
 )
-async def gdrive_search(query: str, page_size: int = 10) -> dict[str, Any]:
+async def drive_search_files(
+    query: str,
+    page_size: int = 10,
+    shared_drive_id: str | None = None,
+) -> dict[str, Any]:
     """
-    Search for files in Google Drive based on a query string.
+    Search for files in Google Drive, optionally within a specific shared drive.
 
     Args:
-        query: Search query following Google Drive query language syntax.
-        page_size: Maximum number of files to return (default: 10).
+        query: Search query string. Can be a simple text search or complex query with operators.
+        page_size: Maximum number of files to return (1 to 1000, default 10).
+        shared_drive_id: Optional shared drive ID to search within a specific shared drive.
 
     Returns:
-        A dictionary containing the list of files found or an error message.
+        A dictionary containing a list of files or an error message.
     """
-    logger.info(f"Executing gdrive_search tool with query: '{query}'")
-    if not query:
-        # While the API might allow empty queries, the tool implies query is required.
-        # Treat empty as a bad request for this tool endpoint.
-        raise ValueError("Search query parameter cannot be empty for gdrive_search")
+    logger.info(
+        f"Executing drive_search_files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+    )
+
+    if not query or not query.strip():
+        raise ValueError("Query cannot be empty")
 
     drive_service = DriveService()
-
-    files = drive_service.search_files(query=query, page_size=page_size)
+    files = drive_service.search_files(query=query, page_size=page_size, shared_drive_id=shared_drive_id)
 
     if isinstance(files, dict) and files.get("error"):
-        raise ValueError(files.get("message", "Error searching Drive"))
+        raise ValueError(f"Search failed: {files.get('message', 'Unknown error')}")
 
-    if not files:
-        # Return empty list instead of message for tool consistency?
-        # Or keep message? Keeping message for now.
-        return {"message": "No files found matching your query."}
-
-    # Return the raw list/dict from the service
-    return {"count": len(files), "files": files}
+    return {"files": files}
 
 
 @mcp.tool(
-    name="gdrive_read_file",
+    name="drive_read_file_content",
     description="Read the content of a file from Google Drive.",
 )
-async def gdrive_read_file(file_id: str) -> dict[str, Any]:
+async def drive_read_file_content(file_id: str) -> dict[str, Any]:
     """
     Read the content of a file from Google Drive.
 
@@ -63,23 +62,21 @@ async def gdrive_read_file(file_id: str) -> dict[str, Any]:
         file_id: The ID of the file to read.
 
     Returns:
-        A dictionary containing the file content and metadata, or an error.
+        A dictionary containing the file content and metadata or an error.
     """
-    logger.info(f"Executing gdrive_read_file tool with file_id: '{file_id}'")
+    logger.info(f"Executing drive_read_file_content tool with file_id: '{file_id}'")
     if not file_id or not file_id.strip():
-        # Should be caught by URI routing, but good to double-check
         raise ValueError("File ID cannot be empty")
 
     drive_service = DriveService()
-    result = drive_service.read_file(file_id=file_id)
+    result = drive_service.read_file_content(file_id=file_id)
 
-    if not result:
-        raise ValueError(f"Failed to read file with ID '{file_id}'")
+    if result is None:
+        raise ValueError("File not found or could not be read")
 
-    if result.get("error"):
+    if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error reading file"))
 
-    # FastMCP will handle formatting based on result content (mimeType, data/content)
     return result
 
 
@@ -113,6 +110,46 @@ async def gdrive_upload_file(
 
 
 @mcp.tool(
+    name="drive_create_folder",
+    description="Create a new folder in Google Drive.",
+)
+async def drive_create_folder(
+    folder_name: str,
+    parent_folder_id: str | None = None,
+    shared_drive_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Create a new folder in Google Drive.
+
+    Args:
+        folder_name: The name for the new folder.
+        parent_folder_id: Optional parent folder ID to create the folder within.
+        shared_drive_id: Optional shared drive ID to create the folder in a shared drive.
+
+    Returns:
+        A dictionary containing the created folder information.
+    """
+    logger.info(
+        f"Executing drive_create_folder with folder_name: '{folder_name}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+    )
+
+    if not folder_name or not folder_name.strip():
+        raise ValueError("Folder name cannot be empty")
+
+    drive_service = DriveService()
+    result = drive_service.create_folder(
+        folder_name=folder_name,
+        parent_folder_id=parent_folder_id,
+        shared_drive_id=shared_drive_id,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(f"Folder creation failed: {result.get('message', 'Unknown error')}")
+
+    return result
+
+
+@mcp.tool(
     name="gdrive_delete_file",
     description="Delete a file from Google Drive using its file ID.",
 )
@@ -139,3 +176,32 @@ async def gdrive_delete_file(
         raise ValueError(result.get("message", "Error deleting file"))
 
     return result
+
+
+@mcp.tool(
+    name="drive_list_shared_drives",
+    description="Lists shared drives accessible by the user.",
+)
+async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
+    """
+    Lists shared drives (formerly Team Drives) that the user has access to.
+
+    Args:
+        page_size: Maximum number of shared drives to return (1 to 100, default 100).
+
+    Returns:
+        A dictionary containing a list of shared drives with their 'id' and 'name',
+        or an error message.
+    """
+    logger.info(f"Executing drive_list_shared_drives tool with page_size: {page_size}")
+
+    drive_service = DriveService()
+    drives = drive_service.list_shared_drives(page_size=page_size)
+
+    if isinstance(drives, dict) and drives.get("error"):
+        raise ValueError(drives.get("message", "Error listing shared drives"))
+
+    if not drives:
+        return {"message": "No shared drives found or accessible."}
+
+    return {"count": len(drives), "shared_drives": drives}

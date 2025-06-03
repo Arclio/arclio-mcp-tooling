@@ -64,9 +64,7 @@ async def get_calendar_events(
     Returns:
         A dictionary containing the list of events or an error message.
     """
-    logger.info(
-        f"Executing get_calendar_events tool on calendar '{calendar_id}' between {time_min} and {time_max}"
-    )
+    logger.info(f"Executing get_calendar_events tool on calendar '{calendar_id}' between {time_min} and {time_max}")
 
     if not calendar_id:
         raise ValueError("calendar_id parameter is required")
@@ -172,9 +170,7 @@ async def delete_calendar_event(
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(
-        f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'"
-    )
+    logger.info(f"Executing delete_calendar_event on calendar '{calendar_id}', event '{event_id}'")
     if not event_id:
         raise ValueError("Event ID is required")
 

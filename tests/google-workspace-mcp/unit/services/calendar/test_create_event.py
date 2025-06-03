@@ -41,9 +41,7 @@ class TestCalendarCreateEvent:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_created_event)
-        mock_calendar_service._service.events.return_value.insert.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service._service.events.return_value.insert.return_value.execute = mock_execute
 
         # Call the method
         result = mock_calendar_service.create_event(
@@ -93,14 +91,10 @@ class TestCalendarCreateEvent:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_created_event)
-        mock_calendar_service._service.events.return_value.insert.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service._service.events.return_value.insert.return_value.execute = mock_execute
 
         # Call the method with only required fields
-        result = mock_calendar_service.create_event(
-            summary=summary, start_time=start_time, end_time=end_time
-        )
+        result = mock_calendar_service.create_event(summary=summary, start_time=start_time, end_time=end_time)
 
         # Verify API call
         mock_calendar_service._service.events.return_value.insert.assert_called_once()
@@ -126,14 +120,10 @@ class TestCalendarCreateEvent:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Invalid time format"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Invalid time format"}}')
 
         # Setup the mock to raise the error
-        mock_calendar_service._service.events.return_value.insert.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_calendar_service._service.events.return_value.insert.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -146,12 +136,8 @@ class TestCalendarCreateEvent:
         mock_calendar_service.handle_api_error = MagicMock(return_value=expected_error)
 
         # Call the method with invalid data
-        result = mock_calendar_service.create_event(
-            summary="Test Event", start_time="invalid-time", end_time="invalid-time"
-        )
+        result = mock_calendar_service.create_event(summary="Test Event", start_time="invalid-time", end_time="invalid-time")
 
         # Verify error handling
-        mock_calendar_service.handle_api_error.assert_called_once_with(
-            "create_event", http_error
-        )
+        mock_calendar_service.handle_api_error.assert_called_once_with("create_event", http_error)
         assert result == expected_error

@@ -16,9 +16,7 @@ class TestBulkDeleteGmailEmails:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -34,9 +32,7 @@ class TestBulkDeleteGmailEmails:
         args = {"message_ids": ["msg1", "msg2", "msg3"]}
         result = await bulk_delete_gmail_emails(**args)
 
-        mock_gmail_service.bulk_delete_emails.assert_called_once_with(
-            message_ids=["msg1", "msg2", "msg3"]
-        )
+        mock_gmail_service.bulk_delete_emails.assert_called_once_with(message_ids=["msg1", "msg2", "msg3"])
         assert result == mock_service_response
 
     async def test_bulk_delete_service_error(self, mock_gmail_service):

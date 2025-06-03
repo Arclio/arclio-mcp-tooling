@@ -14,23 +14,17 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.prompt()
-async def summarize_recent_emails(
-    query: str, max_emails: int = 5, ctx: Context = None
-) -> list[UserMessage]:
+async def summarize_recent_emails(query: str, max_emails: int = 5, ctx: Context = None) -> list[UserMessage]:
     """Summarizes recent emails based on a query."""
     if ctx is None:
         # This should ideally not happen if context injection works,
         # but handle defensively for direct calls or tests.
-        logger.error(
-            "Context (ctx) is required for summarize_recent_emails but was not provided."
-        )
+        logger.error("Context (ctx) is required for summarize_recent_emails but was not provided.")
         # Return an error message or raise an exception?
         # Raising seems more appropriate for a required dependency.
         raise ValueError("Context (ctx) is required for this prompt.")
 
-    logger.info(
-        f"Executing summarize_recent_emails prompt for query: '{query}', max: {max_emails}"
-    )
+    logger.info(f"Executing summarize_recent_emails prompt for query: '{query}', max: {max_emails}")
 
     email_context = "No emails found or error fetching emails."
     try:
@@ -51,9 +45,7 @@ async def summarize_recent_emails(
                     subject = email.get("subject", "No Subject")
                     sender = email.get("from", "Unknown Sender")
                     snippet = email.get("snippet", "...")
-                    summary_parts.append(
-                        f"- From: {sender}\n  Subject: {subject}\n  Snippet: {snippet}"
-                    )
+                    summary_parts.append(f"- From: {sender}\n  Subject: {subject}\n  Snippet: {snippet}")
 
                 if summary_parts:
                     email_context = "\n".join(summary_parts)
@@ -70,8 +62,4 @@ async def summarize_recent_emails(
         logger.exception(f"Unexpected error calling resource for email summary: {e}")
         email_context = "Error: An unexpected error occurred while fetching emails."
 
-    return [
-        UserMessage(
-            f"Please summarize the key points from these recent emails:\n\n{email_context}"
-        )
-    ]
+    return [UserMessage(f"Please summarize the key points from these recent emails:\n\n{email_context}")]

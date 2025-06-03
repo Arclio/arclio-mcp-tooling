@@ -16,9 +16,7 @@ class TestQueryGmailEmails:
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.gmail.GmailService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -34,9 +32,7 @@ class TestQueryGmailEmails:
         args = {"query": "is:unread"}
         result = await query_gmail_emails(**args)
 
-        mock_gmail_service.query_emails.assert_called_once_with(
-            query="is:unread", max_results=100
-        )
+        mock_gmail_service.query_emails.assert_called_once_with(query="is:unread", max_results=100)
         assert result == {"count": 2, "emails": mock_service_response}
 
     async def test_query_emails_with_max_results(self, mock_gmail_service):
@@ -47,9 +43,7 @@ class TestQueryGmailEmails:
         args = {"query": "from:test@example.com", "max_results": 5}
         result = await query_gmail_emails(**args)
 
-        mock_gmail_service.query_emails.assert_called_once_with(
-            query="from:test@example.com", max_results=5
-        )
+        mock_gmail_service.query_emails.assert_called_once_with(query="from:test@example.com", max_results=5)
         assert result == {"count": 1, "emails": mock_service_response}
 
     async def test_query_emails_no_results(self, mock_gmail_service):
@@ -59,9 +53,7 @@ class TestQueryGmailEmails:
         args = {"query": "nonexistent"}
         result = await query_gmail_emails(**args)
 
-        mock_gmail_service.query_emails.assert_called_once_with(
-            query="nonexistent", max_results=100
-        )
+        mock_gmail_service.query_emails.assert_called_once_with(query="nonexistent", max_results=100)
         assert result == {"message": "No emails found for the query."}
 
     async def test_query_emails_service_error(self, mock_gmail_service):

@@ -16,9 +16,7 @@ class TestGetSlidesTool:
     @pytest.fixture
     def mock_slides_service(self):
         """Patch SlidesService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.slides.SlidesService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.slides.SlidesService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -34,9 +32,7 @@ class TestGetSlidesTool:
         args = {"presentation_id": "pres123"}
         result = await get_slides(**args)
 
-        mock_slides_service.get_slides.assert_called_once_with(
-            presentation_id="pres123"
-        )
+        mock_slides_service.get_slides.assert_called_once_with(presentation_id="pres123")
         assert result == {"count": 2, "slides": mock_service_response}
 
     async def test_get_slides_no_results(self, mock_slides_service):
@@ -46,9 +42,7 @@ class TestGetSlidesTool:
         args = {"presentation_id": "empty_pres"}
         result = await get_slides(**args)
 
-        mock_slides_service.get_slides.assert_called_once_with(
-            presentation_id="empty_pres"
-        )
+        mock_slides_service.get_slides.assert_called_once_with(presentation_id="empty_pres")
         assert result == {"message": "No slides found in this presentation."}
 
     async def test_get_slides_service_error(self, mock_slides_service):
