@@ -1,36 +1,40 @@
-"""Configure pytest environment for all tests."""
+"""
+Global test configuration and fixtures.
+"""
 
+import logging
+import os
 import sys
 from pathlib import Path
 
-# Add the src directories to the Python path
-src_path = Path(__file__).parent.parent / "packages" / "arclio-mcp-gsuite" / "src"
-if src_path.exists() and str(src_path) not in sys.path:
-    sys.path.insert(0, str(src_path))
+# Add the package to Python path for testing
+package_path = Path(__file__).parent.parent / "packages" / "google-workspace-mcp" / "src"
+sys.path.insert(0, str(package_path))
 
-# Print debug information
-print(f"Python path in conftest.py: {sys.path}")
-print(f"Added src path: {src_path}")
-
-# Try to import the package to verify it works
+# Test that the import works
 try:
-    import arclio_mcp_gsuite
+    import google_workspace_mcp
 
-    print(f"Successfully imported arclio_mcp_gsuite from {arclio_mcp_gsuite.__file__}")
+    print(f"Successfully imported google_workspace_mcp from {google_workspace_mcp.__file__}")
 
-    try:
-        import arclio_mcp_gsuite.services
+    # Additional imports to test module structure
+    import google_workspace_mcp.services
 
-        print("Services module imported successfully")
-    except ImportError as e:
-        print(f"ERROR importing services: {e}")
+    print("Successfully imported services module")
 
-    try:
-        import arclio_mcp_gsuite.tools
+    # Import some tools to verify structure
+    import google_workspace_mcp.tools
 
-        print("Tools module imported successfully")
-    except ImportError as e:
-        print(f"ERROR importing tools: {e}")
+    print("Successfully imported tools module")
 
 except ImportError as e:
-    print(f"ERROR importing arclio_mcp_gsuite: {e}")
+    print(f"ERROR importing google_workspace_mcp: {e}")
+    print(f"Python path: {sys.path}")
+    print(f"Package path: {package_path}")
+    print(f"Package path exists: {package_path.exists()}")
+
+# Set up logging for tests
+logging.basicConfig(level=logging.DEBUG)
+
+# Skip integration tests by default unless explicitly enabled
+os.environ.setdefault("RUN_INTEGRATION_TESTS", "0")

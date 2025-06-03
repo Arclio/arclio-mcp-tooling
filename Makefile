@@ -1,6 +1,6 @@
 .PHONY: help setup clean lint format fix test test-unit test-integration build publish add \
         encrypt-root decrypt-root encrypt-pkg decrypt-pkg encrypt decrypt init-key \
-        run-gsuite install-editable
+        run-google-workspace install-editable
 
 .DEFAULT_GOAL := help
 
@@ -33,7 +33,7 @@ TESTS_ROOT_DIR := tests
 
 # --- Package Definitions ---
 # List package *directory names* under packages/
-PKG_NAMES := arclio-mcp-gsuite markdowndeck
+PKG_NAMES := google-workspace-mcp markdowndeck
 
 # --- Color Codes ---
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -71,7 +71,7 @@ install-editable: setup
 	@PKGS_TO_INSTALL="$(PKGS)"; \
 	if [ -z "$$PKGS_TO_INSTALL" ]; then \
 		echo "${RED}Error: PKGS argument is required. Provide space-separated package dir names.${RESET}"; \
-		echo "${YELLOW}Example: make install-editable PKGS=\"arclio-mcp-gsuite markdowndeck\"${RESET}"; \
+		echo "${YELLOW}Example: make install-editable PKGS=\"google-workspace-mcp markdowndeck\"${RESET}"; \
 		exit 1; \
 	fi; \
 	INSTALL_PATHS=""; \
@@ -95,6 +95,10 @@ clean:
 	find . -type f -name "*.pyc" -delete
 	rm -rf "$(VENV_DIR)" .ruff_cache
 	@echo "${GREEN}Cleanup complete.${RESET}"
+
+# --- Tree ---
+tree:
+	@tree -I "venv|__pycache__|*.pyc|*.pyo|*.pyd|.pytest_cache|.coverage|htmlcov|*.egg-info|build|dist|.git|*.log"
 
 # --- Code Quality ---
 lint format fix: setup
@@ -269,7 +273,7 @@ add: setup
 	if [ "$$num_args" -lt 2 ]; then \
 		echo "${RED}Error: Package name (for uv --package) and dependency specification are required.${RESET}"; \
 		echo "${YELLOW}Usage: make add <uv_project_name> <dependency_spec>${RESET}"; \
-		echo "${YELLOW}Example: make add arclio-mcp-gsuite pydantic==2.5.0${RESET}"; \
+		echo "${YELLOW}Example: make add google-workspace-mcp pydantic==2.5.0${RESET}"; \
 		exit 1; \
 	fi; \
 	pkg_for_uv=$$(echo $$ARGS_AFTER_ADD | awk '{print $$1}'); \
@@ -280,9 +284,9 @@ add: setup
 
 
 # --- Running Servers ---
-run-gsuite: setup
-	@echo "${CYAN}Running arclio-mcp-gsuite server...${RESET}"
-	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m arclio_mcp_gsuite
+run-google-workspace: setup
+	@echo "${CYAN}Running google-workspace-mcp server...${RESET}"
+	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m google_workspace_mcp
 	@echo "${GREEN}Server executed.${RESET}"
 
 # --- SOPS Encryption/Decryption ---
@@ -290,7 +294,7 @@ encrypt-pkg decrypt-pkg: setup
 	@CMD_NAME=$@; \
 	TARGET_PKG_DIR_NAME="$(PKG_DIR)"; \
 	if [ -z "$$TARGET_PKG_DIR_NAME" ]; then \
-		echo "${RED}Error: PKG_DIR argument is required (e.g., PKG_DIR=arclio-mcp-gsuite).${RESET}"; exit 1; \
+		echo "${RED}Error: PKG_DIR argument is required (e.g., PKG_DIR=google-workspace-mcp).${RESET}"; exit 1; \
 	fi; \
 	if ! [[ " $(PKG_NAMES) " =~ " $$TARGET_PKG_DIR_NAME " ]]; then \
 		echo "${RED}Unknown package directory '$$TARGET_PKG_DIR_NAME'. Available: $(PKG_NAMES)${RESET}"; exit 1; \
@@ -404,20 +408,21 @@ help:
 	@echo ""
 	@echo "$${BOLD}$${WHITE}Dependency Management:$${RESET}"
 	@echo "  $${GREEN}make add <uv_pkg_name> <dep_spec>$${RESET} Add dependency to a package."
-	@echo "    $${YELLOW}Example: make add arclio-mcp-gsuite pydantic==2.5.0$${RESET}"
+	@echo "    $${YELLOW}Example: make add google-workspace-mcp pydantic==2.5.0$${RESET}"
 	@echo ""
 	@echo "$${BOLD}$${WHITE}Running Servers:$${RESET}"
-	@echo "  $${GREEN}make run-gsuite$${RESET}                  Run the arclio-mcp-gsuite server."
+	@echo "  $${GREEN}make run-google-workspace$${RESET}                  Run the google-workspace-mcp server."
 	@echo ""
 	@echo "$${BOLD}$${WHITE}Secrets Management (SOPS):$${RESET}"
 	@echo "  $${GREEN}make encrypt-root / decrypt-root$${RESET} Encrypt/decrypt root .env file."
-	@echo "  $${GREEN}make encrypt-pkg PKG_DIR=<name>$${RESET}  Encrypt .env for package (e.g., PKG_DIR=arclio-mcp-gsuite)."
+	@echo "  $${GREEN}make encrypt-pkg PKG_DIR=<name>$${RESET}  Encrypt .env for package (e.g., PKG_DIR=google-workspace-mcp)."
 	@echo "  $${GREEN}make decrypt-pkg PKG_DIR=<name>$${RESET}  Decrypt .env.sops for package."
 	@echo "  $${GREEN}make encrypt / decrypt$${RESET}            Run root and all package SOPS operations."
 	@echo "  $${GREEN}make init-key$${RESET}                    Generate a new age key for SOPS."
 	@echo ""
 	@echo "$${BOLD}$${WHITE}Utilities:$${RESET}"
 	@echo "  $${GREEN}make clean$${RESET}                      Clean build artifacts, caches, and venv."
+	@echo "  $${GREEN}make tree$${RESET}                       Show directory tree."
 	@echo ""
 	@echo "$${BOLD}$${MAGENTA}Happy coding! 🚀$${RESET}"
 

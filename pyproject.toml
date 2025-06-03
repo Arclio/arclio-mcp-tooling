@@ -33,7 +33,7 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = [
     ".",
-    "packages/arclio-mcp-gsuite/src",
+    "packages/google-workspace-mcp/src",
     "packages/markdowndeck/src",
 ]
 markers = [
@@ -44,12 +44,12 @@ markers = [
 [tool.uv.workspace]
 # List all workspace packages
 members = [
-    "packages/arclio-mcp-gsuite",
+    "packages/google-workspace-mcp",
     "packages/markdowndeck",
 ]
 
 [tool.uv.sources]
-arclio-mcp-gsuite = {workspace = true}
+google-workspace-mcp = {workspace = true}
 markdowndeck = { workspace = true }
 
 
