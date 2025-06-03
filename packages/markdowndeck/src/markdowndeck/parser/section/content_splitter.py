@@ -16,9 +16,7 @@ class ContentSplitter:
         """Initialize the content splitter."""
         # Update the regex to correctly match both ```and ~~~ code blocks
         # The previous regex was having issues with the ~~~ style blocks
-        self.code_block_regex = re.compile(
-            r"^(```|~~~)[\w-]*\n.*?\n\1\s*$", re.MULTILINE | re.DOTALL
-        )
+        self.code_block_regex = re.compile(r"^(```|~~~)[\w-]*\n.*?\n\1\s*$", re.MULTILINE | re.DOTALL)
         self.placeholder_prefix = f"__MD_DECK_CODE_BLOCK_PLACEHOLDER_{uuid.uuid4().hex[:8]}__"
 
     def split_by_separator(self, content: str, separator_pattern: str) -> ContentSplit:
@@ -51,9 +49,7 @@ class ContentSplitter:
             return ContentSplit(parts=[content] if content.strip() else [], protected_blocks={})
 
         # First protect the code blocks
-        protected_content, protected_blocks_dict = self._protect_blocks(
-            content, self.code_block_regex, "CODE"
-        )
+        protected_content, protected_blocks_dict = self._protect_blocks(content, self.code_block_regex, "CODE")
         logger.debug(f"Protected {len(protected_blocks_dict)} code blocks.")
 
         try:
@@ -104,14 +100,10 @@ class ContentSplitter:
             if fully_restored_original.strip():
                 restored_parts = [fully_restored_original.strip()]
 
-        logger.debug(
-            f"Content split into {len(restored_parts)} parts after restoration and filtering."
-        )
+        logger.debug(f"Content split into {len(restored_parts)} parts after restoration and filtering.")
         return ContentSplit(parts=restored_parts, protected_blocks=protected_blocks_dict)
 
-    def _protect_blocks(
-        self, content: str, block_regex: re.Pattern, block_type_label: str
-    ) -> tuple[str, dict[str, str]]:
+    def _protect_blocks(self, content: str, block_regex: re.Pattern, block_type_label: str) -> tuple[str, dict[str, str]]:
         """
         Replaces blocks matching the regex with unique placeholders.
 
@@ -143,9 +135,7 @@ class ContentSplitter:
 
         return content_with_placeholders, protected_blocks
 
-    def _restore_blocks(
-        self, content_with_placeholders: str, protected_blocks: dict[str, str]
-    ) -> str:
+    def _restore_blocks(self, content_with_placeholders: str, protected_blocks: dict[str, str]) -> str:
         """
         Restores original blocks from their placeholders in the content.
 

@@ -245,9 +245,7 @@ class TestAuthRunOauthFlow:
         mock_write_text.assert_called_once_with(mock_google_creds.to_json())
         # Check that parent directory for token was created
         # mock_mkdir call is on the parent of write_text's path
-        assert (
-            mock_write_text.call_args[0][0] == mock_google_creds.to_json()
-        )  # Verify what's written
+        assert mock_write_text.call_args[0][0] == mock_google_creds.to_json()  # Verify what's written
         # Path object for write_text is tricky to get here, check mkdir call args
         assert mock_mkdir.call_args[1]["parents"] is True
         assert mock_mkdir.call_args[1]["exist_ok"] is True

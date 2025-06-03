@@ -130,9 +130,7 @@ class TestCalendarGetEvents:
         http_error = HttpError(mock_resp, b'{"error": {"message": "Calendar not found"}}')
 
         # Setup the mock to raise the error
-        mock_calendar_service.service.events.return_value.list.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_calendar_service.service.events.return_value.list.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {

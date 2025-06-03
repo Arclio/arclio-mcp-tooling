@@ -41,9 +41,7 @@ class TestBulkDeleteGmailEmails:
         result = await bulk_delete_gmail_emails(**args)
 
         # Verify service call
-        mock_gmail_service.bulk_delete_emails.assert_called_once_with(
-            message_ids=["msg1", "msg2", "msg3"]
-        )
+        mock_gmail_service.bulk_delete_emails.assert_called_once_with(message_ids=["msg1", "msg2", "msg3"])
         # Verify raw result
         assert result == mock_service_response
 

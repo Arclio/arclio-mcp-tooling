@@ -16,12 +16,7 @@ def render_sections(ax, sections, parent_color_idx=0):
         parent_color_idx: Color index for parent section (for nesting)
     """
     for idx, section in enumerate(sections):
-        if (
-            not hasattr(section, "position")
-            or not section.position
-            or not hasattr(section, "size")
-            or not section.size
-        ):
+        if not hasattr(section, "position") or not section.position or not hasattr(section, "size") or not section.size:
             continue
 
         # Get section properties

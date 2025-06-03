@@ -31,9 +31,7 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
         "element_type",
         element.get("element_type") if isinstance(element, dict) else ElementType.TEXT,
     )
-    text_content = getattr(
-        element, "text", element.get("text") if isinstance(element, dict) else ""
-    )
+    text_content = getattr(element, "text", element.get("text") if isinstance(element, dict) else "")
     formatting = getattr(
         element,
         "formatting",
@@ -143,9 +141,7 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
     # Verify height is reasonable (at least 8px for any visible text)
     if final_height < 8.0 and text_content.strip():
         final_height = max(final_height, 16.0)
-        logger.warning(
-            f"Adjusted unrealistically small text height from {final_height} to minimum 16pt"
-        )
+        logger.warning(f"Adjusted unrealistically small text height from {final_height} to minimum 16pt")
 
     logger.debug(
         f"Calculated height for {element_type}: {final_height:.2f}pt "

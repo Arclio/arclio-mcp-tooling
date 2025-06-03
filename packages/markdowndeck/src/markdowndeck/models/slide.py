@@ -88,8 +88,7 @@ class Slide:
         return [
             element
             for element in self.elements
-            if element.element_type
-            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
     def find_elements_by_type(self, element_type: ElementType) -> list[Element]:

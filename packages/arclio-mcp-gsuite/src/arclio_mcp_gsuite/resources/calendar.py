@@ -72,9 +72,7 @@ async def get_today_events() -> dict[str, Any]:
     time_min = start_of_day.isoformat()
     time_max = end_of_day.isoformat()
 
-    events = calendar_service.get_events(
-        calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50
-    )
+    events = calendar_service.get_events(calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50)
 
     if isinstance(events, dict) and events.get("error"):
         raise ValueError(events.get("message", "Error getting today's events"))

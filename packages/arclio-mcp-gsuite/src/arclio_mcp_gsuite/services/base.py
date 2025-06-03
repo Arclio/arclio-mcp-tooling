@@ -41,14 +41,10 @@ class BaseGoogleService:
             logger.info(f"Initialized {service_name} service (v{api_version})")
         except ValueError as e:
             logger.error(f"Credential error during {service_name} service initialization: {e}")
-            raise RuntimeError(
-                f"Failed to initialize {service_name} service due to credential error: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to initialize {service_name} service due to credential error: {e}") from e
         except HttpError as e:
             logger.error(f"HTTP error during {service_name} service initialization: {e}")
-            raise RuntimeError(
-                f"Failed to initialize {service_name} service due to API error: {e}"
-            ) from e
+            raise RuntimeError(f"Failed to initialize {service_name} service due to API error: {e}") from e
         except Exception as e:
             logger.exception(f"Unexpected error during {service_name} service initialization")
             raise RuntimeError(f"Unexpected error initializing {service_name} service: {e}") from e
@@ -67,9 +63,7 @@ class BaseGoogleService:
         if isinstance(error, HttpError):
             status_code = error.resp.status
             reason = error.reason
-            logger.error(
-                f"HTTP error during {self.service_name}.{operation}: {status_code} {reason}"
-            )
+            logger.error(f"HTTP error during {self.service_name}.{operation}: {status_code} {reason}")
             return {
                 "error": True,
                 "error_type": "http_error",

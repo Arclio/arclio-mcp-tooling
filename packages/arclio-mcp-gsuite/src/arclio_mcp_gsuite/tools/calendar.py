@@ -187,9 +187,7 @@ async def delete_calendar_event(
     Returns:
         A dictionary confirming the deletion.
     """
-    logger.info(
-        f"Executing delete_calendar_event for user {user_id} on calendar '{calendar_id}', event '{event_id}'"
-    )
+    logger.info(f"Executing delete_calendar_event for user {user_id} on calendar '{calendar_id}', event '{event_id}'")
     if not user_id:
         raise ValueError("user_id is required")
     if not event_id:

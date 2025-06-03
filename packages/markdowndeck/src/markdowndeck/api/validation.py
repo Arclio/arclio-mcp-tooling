@@ -48,17 +48,13 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
             # Check for suspiciously large end indices that might cause out-of-bounds errors
             if end_index > 10000:  # Arbitrary large number, unlikely to be valid
-                logger.warning(
-                    f"Suspiciously large endIndex: {end_index} - likely an error"
-                )
+                logger.warning(f"Suspiciously large endIndex: {end_index} - likely an error")
                 # We cannot fix this without knowing the actual text length
                 valid = False
 
         # Check for known invalid properties
         if "spaceMultiple" in style:
-            logger.warning(
-                "Invalid field 'spaceMultiple' in paragraph style. Use 'lineSpacing' instead."
-            )
+            logger.warning("Invalid field 'spaceMultiple' in paragraph style. Use 'lineSpacing' instead.")
             # Convert spaceMultiple to lineSpacing
             spacing_value = style.pop("spaceMultiple")
             style["lineSpacing"] = float(spacing_value) / 100.0
@@ -66,18 +62,14 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
         # Check if fields parameter includes invalid fields
         if "spaceMultiple" in fields:
-            logger.warning(
-                "Invalid field 'spaceMultiple' in fields parameter. Use 'lineSpacing' instead."
-            )
+            logger.warning("Invalid field 'spaceMultiple' in fields parameter. Use 'lineSpacing' instead.")
             fields = fields.replace("spaceMultiple", "lineSpacing")
             request["updateParagraphStyle"]["fields"] = fields
             valid = False
 
         # Check lineSpacing is a float value (not an object or integer)
         if "lineSpacing" in style and not isinstance(style["lineSpacing"], float):
-            logger.warning(
-                f"lineSpacing must be a float value, got {type(style['lineSpacing'])}."
-            )
+            logger.warning(f"lineSpacing must be a float value, got {type(style['lineSpacing'])}.")
             style["lineSpacing"] = float(style["lineSpacing"])
             valid = False
 
@@ -107,9 +99,7 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
             # Check for suspiciously large end indices that might cause out-of-bounds errors
             if end_index > 10000:  # Arbitrary large number, unlikely to be valid
-                logger.warning(
-                    f"Suspiciously large endIndex: {end_index} - likely an error"
-                )
+                logger.warning(f"Suspiciously large endIndex: {end_index} - likely an error")
                 # We cannot fix this without knowing the actual text length
                 valid = False
 
@@ -123,8 +113,7 @@ def validate_api_request(request: dict[str, Any]) -> bool:
             autofit_type = shape_props["autofit"].get("autofitType")
             if autofit_type != "NONE":
                 logger.warning(
-                    f"Invalid autofitType '{autofit_type}' found in request. "
-                    f"Only 'NONE' is supported. Changing to 'NONE'."
+                    f"Invalid autofitType '{autofit_type}' found in request. Only 'NONE' is supported. Changing to 'NONE'."
                 )
                 shape_props["autofit"]["autofitType"] = "NONE"
 
@@ -143,34 +132,24 @@ def validate_api_request(request: dict[str, Any]) -> bool:
                     "Invalid field mask '*' in updateShapeProperties (autofit not present): "
                     "Wildcard fields are not allowed. Replacing with safe default 'shapeBackgroundFill,contentAlignment'."
                 )
-                request["updateShapeProperties"][
-                    "fields"
-                ] = "shapeBackgroundFill,contentAlignment"
+                request["updateShapeProperties"]["fields"] = "shapeBackgroundFill,contentAlignment"
                 fields = "shapeBackgroundFill,contentAlignment"  # Update local var
                 valid = False
 
         # Check TextBoxProperties fields path - THIS IS INVALID IN GOOGLE SLIDES API
         # This check runs after autofit rules. If fields is "autofit", "textBoxProperties" in "autofit" is false.
-        if "autofit" not in fields and any(
-            "textBoxProperties" in f for f in fields.split(",")
-        ):
-            logger.warning(
-                "Invalid field 'textBoxProperties' found in fields string and autofit is not active."
-            )
+        if "autofit" not in fields and any("textBoxProperties" in f for f in fields.split(",")):
+            logger.warning("Invalid field 'textBoxProperties' found in fields string and autofit is not active.")
             # Remove textBoxProperties from fields
             current_fields_list = fields.split(",")
-            new_fields_list = [
-                f for f in current_fields_list if "textBoxProperties" not in f
-            ]
+            new_fields_list = [f for f in current_fields_list if "textBoxProperties" not in f]
 
             if not new_fields_list:
                 logger.warning(
                     "Fields string became empty after removing textBoxProperties. "
                     "Setting to safe default 'shapeBackgroundFill,contentAlignment'."
                 )
-                request["updateShapeProperties"][
-                    "fields"
-                ] = "shapeBackgroundFill,contentAlignment"
+                request["updateShapeProperties"]["fields"] = "shapeBackgroundFill,contentAlignment"
             else:
                 request["updateShapeProperties"]["fields"] = ",".join(new_fields_list)
 
@@ -178,44 +157,29 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
             # Remove textBoxProperties from shapeProperties
             if "textBoxProperties" in shape_props:
-                logger.warning(
-                    "Removing unsupported textBoxProperties from shapeProperties"
-                )
+                logger.warning("Removing unsupported textBoxProperties from shapeProperties")
                 shape_props.pop("textBoxProperties")
             valid = False
 
         # Check for wildcard fields again in case textBoxProperties removal logic didn't set a default
         # and autofit is not present.
-        if (
-            "autofit" not in shape_props
-            and request["updateShapeProperties"].get("fields", "") == ""
-        ):
+        if "autofit" not in shape_props and request["updateShapeProperties"].get("fields", "") == "":
             logger.warning(
                 "Fields string is empty and autofit is not present. Setting to safe default 'shapeBackgroundFill,contentAlignment'."
             )
-            request["updateShapeProperties"][
-                "fields"
-            ] = "shapeBackgroundFill,contentAlignment"
+            request["updateShapeProperties"]["fields"] = "shapeBackgroundFill,contentAlignment"
             valid = False
 
         # Check autofit fields path (This is more of a sanity check now, primary logic is above)
-        if (
-            "autofit" in fields
-            and fields == "autofit"
-            and not fields.startswith("autofit.")
-        ):
-            logger.warning(
-                "Invalid field path 'autofit'. Use 'autofit.autofitType' instead."
-            )
+        if "autofit" in fields and fields == "autofit" and not fields.startswith("autofit."):
+            logger.warning("Invalid field path 'autofit'. Use 'autofit.autofitType' instead.")
             fields = fields.replace("autofit", "autofit.autofitType")
             request["updateShapeProperties"]["fields"] = fields
             valid = False
 
         # Check for contentVerticalAlignment which should be contentAlignment
         if "contentVerticalAlignment" in fields:
-            logger.warning(
-                "Invalid field path 'contentVerticalAlignment'. Use 'contentAlignment' instead."
-            )
+            logger.warning("Invalid field path 'contentVerticalAlignment'. Use 'contentAlignment' instead.")
             fields = fields.replace("contentVerticalAlignment", "contentAlignment")
             request["updateShapeProperties"]["fields"] = fields
 
@@ -265,9 +229,7 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
         # Check if fields starts with "tableCellProperties."
         if fields.startswith("tableCellProperties."):
-            logger.warning(
-                f"Invalid field path starting with 'tableCellProperties.': {fields}"
-            )
+            logger.warning(f"Invalid field path starting with 'tableCellProperties.': {fields}")
             fields = fields.replace("tableCellProperties.", "")
             request["updateTableCellProperties"]["fields"] = fields
             valid = False
@@ -278,9 +240,7 @@ def validate_api_request(request: dict[str, Any]) -> bool:
 
         # Check if fields starts with "tableBorderProperties."
         if fields.startswith("tableBorderProperties."):
-            logger.warning(
-                f"Invalid field path starting with 'tableBorderProperties.': {fields}"
-            )
+            logger.warning(f"Invalid field path starting with 'tableBorderProperties.': {fields}")
             fields = fields.replace("tableBorderProperties.", "")
             request["updateTableBorderProperties"]["fields"] = fields
             valid = False
@@ -308,29 +268,19 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
         # Check for text range index issues in paragraph style
         if "updateParagraphStyle" in request:
             text_range = request["updateParagraphStyle"].get("textRange", {})
-            if (
-                "type" not in text_range
-                and "startIndex" in text_range
-                and "endIndex" in text_range
-            ):
+            if "type" not in text_range and "startIndex" in text_range and "endIndex" in text_range:
                 start_index = text_range["startIndex"]
                 end_index = text_range["endIndex"]
 
                 # Fix off-by-one errors (common issue with trailing newlines)
-                if (
-                    end_index - start_index > 1 and end_index % 50 == 1
-                ):  # Potential off-by-one error pattern
-                    logger.warning(
-                        f"Potential off-by-one error in request {i}: endIndex={end_index}"
-                    )
+                if end_index - start_index > 1 and end_index % 50 == 1:  # Potential off-by-one error pattern
+                    logger.warning(f"Potential off-by-one error in request {i}: endIndex={end_index}")
                     text_range["endIndex"] = end_index - 1
                     has_issues = True
 
                 # Add safety check for any text range that exceeds typical document sizes
                 if end_index > start_index + 10000:  # 10000 chars is a large text block
-                    logger.warning(
-                        f"Text range suspiciously large in request {i}: {start_index}-{end_index}. Limiting range."
-                    )
+                    logger.warning(f"Text range suspiciously large in request {i}: {start_index}-{end_index}. Limiting range.")
                     # Limit to a reasonable range
                     text_range["endIndex"] = start_index + 5000
                     has_issues = True
@@ -338,29 +288,19 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
         # Check for text range index issues in text style
         if "updateTextStyle" in request:
             text_range = request["updateTextStyle"].get("textRange", {})
-            if (
-                "type" not in text_range
-                and "startIndex" in text_range
-                and "endIndex" in text_range
-            ):
+            if "type" not in text_range and "startIndex" in text_range and "endIndex" in text_range:
                 start_index = text_range["startIndex"]
                 end_index = text_range["endIndex"]
 
                 # Fix off-by-one errors (common issue with trailing newlines)
-                if (
-                    end_index - start_index > 1 and end_index % 50 == 1
-                ):  # Potential off-by-one error pattern
-                    logger.warning(
-                        f"Potential off-by-one error in request {i}: endIndex={end_index}"
-                    )
+                if end_index - start_index > 1 and end_index % 50 == 1:  # Potential off-by-one error pattern
+                    logger.warning(f"Potential off-by-one error in request {i}: endIndex={end_index}")
                     text_range["endIndex"] = end_index - 1
                     has_issues = True
 
                 # Add safety check for any text range that exceeds typical document sizes
                 if end_index > start_index + 10000:  # 10000 chars is a large text block
-                    logger.warning(
-                        f"Text range suspiciously large in request {i}: {start_index}-{end_index}. Limiting range."
-                    )
+                    logger.warning(f"Text range suspiciously large in request {i}: {start_index}-{end_index}. Limiting range.")
                     # Limit to a reasonable range
                     text_range["endIndex"] = start_index + 5000
                     has_issues = True
@@ -369,8 +309,7 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
         if "createParagraphBullets" in request:
             text_range = request["createParagraphBullets"].get("textRange", {})
             if (
-                "type"
-                not in text_range  # Ensure it's a range with start/end, not 'ALL' etc.
+                "type" not in text_range  # Ensure it's a range with start/end, not 'ALL' etc.
                 and "startIndex" in text_range
                 and "endIndex" in text_range
             ):

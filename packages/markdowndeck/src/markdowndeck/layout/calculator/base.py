@@ -64,9 +64,7 @@ class PositionCalculator:
         self.body_top = self.margins["top"] + self.HEADER_HEIGHT
         self.body_left = self.margins["left"]
         self.body_width = self.max_content_width
-        self.body_height = (
-            self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
-        )
+        self.body_height = self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
         self.body_bottom = self.body_top + self.body_height
 
         # Log the fixed body zone dimensions for debugging
@@ -137,6 +135,5 @@ class PositionCalculator:
         return [
             element
             for element in slide.elements
-            if element.element_type
-            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]

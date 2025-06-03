@@ -59,9 +59,7 @@ class ImageFormatter(BaseFormatter):
         This primarily targets paragraphs that solely contain an image.
         """
         # Merge section and element-specific directives
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
         current_token = tokens[start_index]
         image_element: Element | None = None
@@ -76,18 +74,11 @@ class ImageFormatter(BaseFormatter):
                     paragraph_close_index = i
                     break
 
-            if (
-                inline_token_index < len(tokens)
-                and tokens[inline_token_index].type == "inline"
-            ):
+            if inline_token_index < len(tokens) and tokens[inline_token_index].type == "inline":
                 inline_token = tokens[inline_token_index]
                 if hasattr(inline_token, "children") and inline_token.children:
                     # Check if this paragraph only contains images and whitespace
-                    image_children = [
-                        child
-                        for child in inline_token.children
-                        if child.type == "image"
-                    ]
+                    image_children = [child for child in inline_token.children if child.type == "image"]
                     non_image_content = [
                         child
                         for child in inline_token.children
@@ -98,11 +89,7 @@ class ImageFormatter(BaseFormatter):
                     if len(image_children) == 1 and len(non_image_content) == 0:
                         # This is an image-only paragraph
                         image_child = image_children[0]
-                        src = (
-                            image_child.attrs.get("src", "")
-                            if hasattr(image_child, "attrs")
-                            else ""
-                        )
+                        src = image_child.attrs.get("src", "") if hasattr(image_child, "attrs") else ""
                         alt_text = image_child.content or ""
 
                         if src:
@@ -111,30 +98,22 @@ class ImageFormatter(BaseFormatter):
                                 alt_text=alt_text,
                                 directives=merged_directives.copy(),
                             )
-                            logger.debug(
-                                f"Created image element from paragraph at index {start_index}: {src}"
-                            )
+                            logger.debug(f"Created image element from paragraph at index {start_index}: {src}")
                             return image_element, paragraph_close_index
 
                 # If we reach here, it's not an image-only paragraph
                 # Return None and indicate we didn't consume any tokens so other formatters can try
-                logger.debug(
-                    f"Paragraph at index {start_index} is not image-only, deferring to other formatters"
-                )
+                logger.debug(f"Paragraph at index {start_index} is not image-only, deferring to other formatters")
                 return None, start_index - 1  # Don't consume any tokens
 
             # If no inline token found, it's an empty paragraph - don't handle it
             return None, start_index - 1
 
-        if (
-            current_token.type == "image"
-        ):  # Handles cases where 'image' token might be directly processable
+        if current_token.type == "image":  # Handles cases where 'image' token might be directly processable
             src = current_token.attrs.get("src", "")
             alt_text = current_token.content
             if not alt_text and current_token.children:
-                alt_text = "".join(
-                    c.content for c in current_token.children if c.type == "text"
-                )
+                alt_text = "".join(c.content for c in current_token.children if c.type == "text")
 
             if src:
                 image_element = self.element_factory.create_image_element(

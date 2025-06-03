@@ -21,9 +21,7 @@ def calculate_code_element_height(element: CodeElement | dict, available_width: 
     Returns:
         Calculated height in points.
     """
-    code_element = (
-        cast(CodeElement, element) if isinstance(element, CodeElement) else CodeElement(**element)
-    )
+    code_element = cast(CodeElement, element) if isinstance(element, CodeElement) else CodeElement(**element)
     code_content = code_element.code
     language = code_element.language
 

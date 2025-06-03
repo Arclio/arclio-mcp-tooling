@@ -67,9 +67,7 @@ class Parser:
                 # Step 4: Parse content in each section to create elements
                 # ContentParser now populates elements within each Section model
                 # and returns a flat list of all elements for the slide
-                elements = self.content_parser.parse_content(
-                    slide_data["title"], section_models, slide_data.get("footer")
-                )
+                elements = self.content_parser.parse_content(slide_data["title"], section_models, slide_data.get("footer"))
                 logger.debug(f"Created {len(elements)} elements for slide {slide_index + 1}")
 
                 # Step 5: Determine layout based on element types
@@ -122,9 +120,7 @@ class Parser:
         has_subtitle = any(e.element_type == ElementType.SUBTITLE for e in elements)
         has_image = any(e.element_type == ElementType.IMAGE for e in elements)
         has_table = any(e.element_type == ElementType.TABLE for e in elements)
-        has_list = any(
-            e.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST) for e in elements
-        )
+        has_list = any(e.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST) for e in elements)
         has_code = any(e.element_type == ElementType.CODE for e in elements)
 
         # Determine layout based on content
@@ -142,9 +138,7 @@ class Parser:
         # Default to blank layout if no title
         return SlideLayout.BLANK
 
-    def _create_error_slide(
-        self, slide_index: int, error_message: str, original_title: str | None = None
-    ) -> Slide:
+    def _create_error_slide(self, slide_index: int, error_message: str, original_title: str | None = None) -> Slide:
         """
         Create an error slide for when processing fails.
 

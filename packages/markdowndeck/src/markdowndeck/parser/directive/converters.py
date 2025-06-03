@@ -224,11 +224,7 @@ def convert_style(value: str) -> tuple[str, Any]:
         color_type, color_value = convert_style(color_str.strip())
 
         # Ensure color_value is in the right format
-        color_data = (
-            color_value
-            if color_type == "color"
-            else {"type": "unknown", "value": color_value}
-        )
+        color_data = color_value if color_type == "color" else {"type": "unknown", "value": color_value}
 
         border_info = {
             "width": width_str,

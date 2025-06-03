@@ -54,9 +54,7 @@ class DirectiveParser:
             "string": str,
         }
 
-    def _process_style_directive_value(
-        self, key: str, style_tuple: tuple[str, Any]
-    ) -> dict[str, Any]:
+    def _process_style_directive_value(self, key: str, style_tuple: tuple[str, Any]) -> dict[str, Any]:
         """
         Process the tuple output from convert_style into a clean, directly consumable format.
 
@@ -148,33 +146,21 @@ class DirectiveParser:
                         converted_value = converter(value)
 
                         # Handle style directives with special processing
-                        if directive_type == "style" and isinstance(
-                            converted_value, tuple
-                        ):
-                            processed_directives = self._process_style_directive_value(
-                                key, converted_value
-                            )
+                        if directive_type == "style" and isinstance(converted_value, tuple):
+                            processed_directives = self._process_style_directive_value(key, converted_value)
                             directives.update(processed_directives)
                         else:
                             # Direct storage for non-style directives
                             directives[key] = converted_value
 
-                        logger.debug(
-                            f"Processed inline directive: {key}={converted_value}"
-                        )
+                        logger.debug(f"Processed inline directive: {key}={converted_value}")
                     except ValueError as e:
-                        logger.warning(
-                            f"Error processing inline directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Error processing inline directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing inline directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Unexpected error processing inline directive {key}={value}: {e}")
                 else:
                     directives[key] = value
-                    logger.debug(
-                        f"Added inline directive without conversion: {key}={value}"
-                    )
+                    logger.debug(f"Added inline directive without conversion: {key}={value}")
             else:
                 logger.warning(f"Unknown inline directive: {key}")
                 directives[key] = value
@@ -193,9 +179,7 @@ class DirectiveParser:
             [width=2/3][align=center][background=#f5f5f5]
         """
         if not section or section.content == "":
-            if (
-                section and section.directives is None
-            ):  # Should not happen with dataclass defaults
+            if section and section.directives is None:  # Should not happen with dataclass defaults
                 section.directives = {}
             return
 
@@ -214,9 +198,7 @@ class DirectiveParser:
 
         # Get exact matched text including all whitespace
         directive_text = match.group(1)
-        logger.debug(
-            f"Found directives block: {directive_text!r} for section {section.id or 'unknown'}"
-        )
+        logger.debug(f"Found directives block: {directive_text!r} for section {section.id or 'unknown'}")
 
         # Extract directives with improved handling
         directives = {}
@@ -233,9 +215,7 @@ class DirectiveParser:
             key = key.strip().lower()
             value = value.strip()
 
-            logger.debug(
-                f"Processing directive: '{key}'='{value}' for section '{section.id or 'unknown'}'"
-            )
+            logger.debug(f"Processing directive: '{key}'='{value}' for section '{section.id or 'unknown'}'")
 
             if key in self.directive_types:
                 directive_type = self.directive_types[key]
@@ -246,12 +226,8 @@ class DirectiveParser:
                         converted_value = converter(value)
 
                         # Handle style directives with special processing
-                        if directive_type == "style" and isinstance(
-                            converted_value, tuple
-                        ):
-                            processed_directives = self._process_style_directive_value(
-                                key, converted_value
-                            )
+                        if directive_type == "style" and isinstance(converted_value, tuple):
+                            processed_directives = self._process_style_directive_value(key, converted_value)
                             directives.update(processed_directives)
                         else:
                             # Direct storage for non-style directives
@@ -261,9 +237,7 @@ class DirectiveParser:
                     except ValueError as e:  # Catch specific errors
                         logger.warning(f"Error processing directive {key}={value}: {e}")
                     except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
                 else:
                     # Use as-is if no converter
                     directives[key] = value
@@ -281,16 +255,11 @@ class DirectiveParser:
         match_end = match.end(1)
         section.content = content[match_end:].lstrip()
 
-        logger.debug(
-            f"Section content after directive removal: {section.content[:50]}..."
-        )
+        logger.debug(f"Section content after directive removal: {section.content[:50]}...")
 
         # Double-check that no directive patterns remain at the start
         if re.match(r"^\s*\[[\w\-]+=", section.content):
-            logger.warning(
-                f"Potential directive still present at start of content after removal: "
-                f"{section.content[:50]}..."
-            )
+            logger.warning(f"Potential directive still present at start of content after removal: {section.content[:50]}...")
             # Try a more aggressive second pass if directives remain
             second_pass = re.sub(r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content)
             section.content = second_pass.lstrip()

@@ -48,9 +48,7 @@ def calculate_zone_based_positions(calculator, slide):
     for element in body_elements:
         # Ensure element has a valid size, defaulting to more conservative sizes
         if not hasattr(element, "size") or not element.size:
-            element.size = calculator.default_sizes.get(
-                element.element_type, (calculator.body_width, 50)
-            )
+            element.size = calculator.default_sizes.get(element.element_type, (calculator.body_width, 50))
 
         # Calculate element width based on directives
         element_width = calculator.body_width

@@ -39,9 +39,7 @@ class TestGetRecentFilesResource:
 
         result = await get_recent_files()
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="modifiedTime > 'now-7d'", page_size=10
-        )
+        mock_drive_service.search_files.assert_called_once_with(query="modifiedTime > 'now-7d'", page_size=10)
         assert result == {"count": 2, "files": mock_service_response}
 
     async def test_get_recent_files_no_results(self, mock_drive_service):
@@ -50,9 +48,7 @@ class TestGetRecentFilesResource:
 
         result = await get_recent_files()
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="modifiedTime > 'now-7d'", page_size=10
-        )
+        mock_drive_service.search_files.assert_called_once_with(query="modifiedTime > 'now-7d'", page_size=10)
         assert result == {"message": "No recent files found."}
 
     async def test_get_recent_files_service_error(self, mock_drive_service):

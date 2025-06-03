@@ -102,9 +102,7 @@ def parse_color(color_value_input, default_color="#000000"):
     if color_value.upper() in NAMED_COLORS_HEX:
         return NAMED_COLORS_HEX[color_value.upper()]
 
-    logger.warning(
-        f"Unknown color value '{color_value_input}', defaulting to {default_color}."
-    )
+    logger.warning(f"Unknown color value '{color_value_input}', defaulting to {default_color}.")
     return default_color
 
 
@@ -125,11 +123,7 @@ def parse_border_directive(border_str):
                 border_props["width"] = float(part.rstrip("ptx"))
         elif part in ["solid", "dashed", "dotted", "dashdot"]:  # Matplotlib linestyles
             border_props["style"] = part
-        elif (
-            part.startswith("#")
-            or part in NAMED_COLORS_HEX
-            or part.upper() in NAMED_COLORS_HEX
-        ):
+        elif part.startswith("#") or part in NAMED_COLORS_HEX or part.upper() in NAMED_COLORS_HEX:
             border_props["color"] = parse_color(part, border_props["color"])
 
     # Convert Matplotlib linestyle if needed
@@ -155,9 +149,7 @@ def render_elements(ax, elements, slide_width, slide_height, show_metadata=True)
 
         pos_x, pos_y = element.position
         size_w, size_h = element.size
-        element_type_value = getattr(
-            getattr(element, "element_type", None), "value", "unknown"
-        )
+        element_type_value = getattr(getattr(element, "element_type", None), "value", "unknown")
 
         directives = getattr(element, "directives", {})
 
@@ -194,19 +186,13 @@ def render_elements(ax, elements, slide_width, slide_height, show_metadata=True)
             edgecolor=edge_color,
             facecolor=face_color,
             linestyle=line_style,
-            alpha=(
-                0.6 if face_color != "none" else 0
-            ),  # More opaque for better visibility if colored
+            alpha=(0.6 if face_color != "none" else 0),  # More opaque for better visibility if colored
             zorder=1,
         )
         ax.add_patch(rect)
 
         # Special handling for different element types
-        if (
-            element_type_value == "table"
-            and hasattr(element, "headers")
-            and hasattr(element, "rows")
-        ):
+        if element_type_value == "table" and hasattr(element, "headers") and hasattr(element, "rows"):
             render_table(ax, element, pos_x, pos_y, size_w, size_h, directives)
         elif element_type_value == "image" and hasattr(element, "url") and element.url:
             try_render_image(ax, element.url, pos_x, pos_y, size_w, size_h)
@@ -226,9 +212,7 @@ def render_elements(ax, elements, slide_width, slide_height, show_metadata=True)
             )
 
         if show_metadata:
-            render_element_metadata(
-                ax, element, el_idx, element_type_value, pos_x, pos_y
-            )
+            render_element_metadata(ax, element, el_idx, element_type_value, pos_x, pos_y)
 
 
 def extract_element_content(element):
@@ -274,9 +258,7 @@ def render_element_content(
         text_content = getattr(element, "text", "")
     elif hasattr(element, "code"):
         text_content = getattr(element, "code", "")
-    elif element_type_value in ["bullet_list", "ordered_list"] and hasattr(
-        element, "items"
-    ):
+    elif element_type_value in ["bullet_list", "ordered_list"] and hasattr(element, "items"):
         text_content = format_list_for_display(element)
     else:  # Fallback to content_summary for unknown or simple cases
         text_content = content_summary
@@ -475,9 +457,7 @@ def render_table(ax, element, pos_x, pos_y, size_w, size_h, directives):
 
     # Get table dimensions
     num_cols = element.get_column_count()
-    num_rows = element.get_row_count() + (
-        1 if element.headers else 0
-    )  # +1 for header row
+    num_rows = element.get_row_count() + (1 if element.headers else 0)  # +1 for header row
 
     if num_cols == 0 or num_rows == 0:
         return
@@ -526,9 +506,7 @@ def render_table(ax, element, pos_x, pos_y, size_w, size_h, directives):
             cell.set_edgecolor(border_color)
 
     # Process table rows (with limit to avoid excessive rows)
-    displayed_rows = element.rows[
-        : min(len(element.rows), grid_height - 1 if has_headers else grid_height)
-    ]
+    displayed_rows = element.rows[: min(len(element.rows), grid_height - 1 if has_headers else grid_height)]
     for row_idx, row in enumerate(displayed_rows):
         table_row = row_idx + 1 if has_headers else row_idx  # Adjust for header
         for col_idx, cell_content in enumerate(row[:num_cols]):
@@ -699,7 +677,7 @@ def format_list_for_display(element: ListElement) -> str:
         for i, item in enumerate(items_list):
             prefix = "  " * level
             if is_ordered:
-                prefix += f"{i+1}. "
+                prefix += f"{i + 1}. "
             else:
                 prefix += "• "
 

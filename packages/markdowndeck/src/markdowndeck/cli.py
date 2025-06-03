@@ -19,9 +19,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from markdowndeck import create_presentation, get_themes
 
 # Set up logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # OAuth scopes needed
@@ -42,9 +40,7 @@ def get_credentials() -> Credentials | None:
     if service_account_file and os.path.exists(service_account_file):
         try:
             logger.info(f"Using service account credentials from {service_account_file}")
-            return service_account.Credentials.from_service_account_file(
-                service_account_file, scopes=SCOPES
-            )
+            return service_account.Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
         except Exception as e:
             logger.warning(f"Failed to use service account: {e}")
 
@@ -193,9 +189,7 @@ def main() -> None:
     # Create presentation command
     create_parser = subparsers.add_parser("create", help="Create a presentation")
     create_parser.add_argument("input", help="Markdown file path or - for stdin")
-    create_parser.add_argument(
-        "-t", "--title", default="Markdown Presentation", help="Presentation title"
-    )
+    create_parser.add_argument("-t", "--title", default="Markdown Presentation", help="Presentation title")
     create_parser.add_argument("--theme", help="Google Slides theme ID")
     create_parser.add_argument("-o", "--output", help="Save presentation ID to specified file")
     create_parser.set_defaults(func=create_presentation_command)

@@ -178,9 +178,7 @@ class TestElementFactory:
 
         # Sort both lists of dataclasses by start index for consistent comparison
         sorted_extracted = sorted(extracted, key=lambda f: (f.start, f.end, f.format_type.value))
-        sorted_expected = sorted(
-            expected_formats, key=lambda f: (f.start, f.end, f.format_type.value)
-        )
+        sorted_expected = sorted(expected_formats, key=lambda f: (f.start, f.end, f.format_type.value))
 
         assert sorted_extracted == sorted_expected, f"Formatting mismatch for: {markdown_text}"
 

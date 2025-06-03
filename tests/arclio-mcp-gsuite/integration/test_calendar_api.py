@@ -64,9 +64,7 @@ class TestCalendarIntegration:
         """
         # Generate unique event data
         event_summary = f"Test Event {self.test_id}"
-        event_description = (
-            f"Integration test event - will be deleted automatically - {self.test_id}"
-        )
+        event_description = f"Integration test event - will be deleted automatically - {self.test_id}"
 
         # Schedule event for 1 day in the future (to avoid timezone issues)
         now = datetime.now(pytz.UTC)
@@ -90,9 +88,7 @@ class TestCalendarIntegration:
             event_id = create_result["id"]
 
             # 2. Retrieve events and verify our test event is present
-            events = self.service.get_events(
-                time_min=start_time, time_max=(now + timedelta(days=2)).isoformat()
-            )
+            events = self.service.get_events(time_min=start_time, time_max=(now + timedelta(days=2)).isoformat())
 
             # Find our test event
             test_event = None
@@ -108,7 +104,5 @@ class TestCalendarIntegration:
         finally:
             # 3. Clean up by deleting the event
             if "event_id" in locals():
-                delete_result = self.service.delete_event(
-                    event_id=event_id, send_notifications=False
-                )
+                delete_result = self.service.delete_event(event_id=event_id, send_notifications=False)
                 assert delete_result is True, "Event deletion failed"

@@ -36,9 +36,7 @@ class TestGetGmailAttachmentTool:
         }
         result = await get_gmail_attachment(**args)
 
-        mock_gmail_service.get_attachment.assert_called_once_with(
-            message_id="msg123", attachment_id="att456"
-        )
+        mock_gmail_service.get_attachment.assert_called_once_with(message_id="msg123", attachment_id="att456")
         assert result == mock_attachment_data
 
     async def test_get_attachment_service_error(self, mock_gmail_service):

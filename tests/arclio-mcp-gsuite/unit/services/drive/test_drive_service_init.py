@@ -60,9 +60,7 @@ class TestDriveServiceInit:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "API Quota Exceeded"
-        mock_build.side_effect = HttpError(
-            mock_resp, b'{"error": {"message": "API Quota Exceeded"}}'
-        )
+        mock_build.side_effect = HttpError(mock_resp, b'{"error": {"message": "API Quota Exceeded"}}')
 
         # Verify the correct error is raised
         with pytest.raises(RuntimeError) as excinfo:

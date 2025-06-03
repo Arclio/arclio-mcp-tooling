@@ -58,9 +58,7 @@ class TestElementLayout:
 
         # Get the positioned elements
         positioned_title = next(e for e in slide.elements if e.element_type == ElementType.TITLE)
-        positioned_subtitle = next(
-            e for e in slide.elements if e.element_type == ElementType.SUBTITLE
-        )
+        positioned_subtitle = next(e for e in slide.elements if e.element_type == ElementType.SUBTITLE)
 
         # Both should have positions and sizes
         assert positioned_title.position is not None
@@ -77,14 +75,8 @@ class TestElementLayout:
         assert positioned_subtitle.position[1] == pytest.approx(subtitle_y)
 
         # Both should be centered horizontally
-        title_x = (
-            calculator.margins["left"]
-            + (calculator.max_content_width - positioned_title.size[0]) / 2
-        )
-        subtitle_x = (
-            calculator.margins["left"]
-            + (calculator.max_content_width - positioned_subtitle.size[0]) / 2
-        )
+        title_x = calculator.margins["left"] + (calculator.max_content_width - positioned_title.size[0]) / 2
+        subtitle_x = calculator.margins["left"] + (calculator.max_content_width - positioned_subtitle.size[0]) / 2
 
         assert positioned_title.position[0] == pytest.approx(title_x)
         assert positioned_subtitle.position[0] == pytest.approx(subtitle_x)
@@ -97,9 +89,7 @@ class TestElementLayout:
         position_header_elements(calculator, slide)
 
         # Get the positioned subtitle
-        positioned_subtitle = next(
-            e for e in slide.elements if e.element_type == ElementType.SUBTITLE
-        )
+        positioned_subtitle = next(e for e in slide.elements if e.element_type == ElementType.SUBTITLE)
 
         # Should have a position and size
         assert positioned_subtitle.position is not None
@@ -111,9 +101,7 @@ class TestElementLayout:
 
         # Subtitle should be centered horizontally
         subtitle_width = positioned_subtitle.size[0]
-        expected_x = (
-            calculator.margins["left"] + (calculator.max_content_width - subtitle_width) / 2
-        )
+        expected_x = calculator.margins["left"] + (calculator.max_content_width - subtitle_width) / 2
         assert positioned_subtitle.position[0] == pytest.approx(expected_x)
 
     def test_position_footer_element_default_alignment(self, calculator: PositionCalculator):
@@ -131,9 +119,7 @@ class TestElementLayout:
         assert positioned_footer.size is not None
 
         # Footer should be at the bottom of the slide
-        expected_y = (
-            calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
-        )
+        expected_y = calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
         assert positioned_footer.position[1] == pytest.approx(expected_y)
 
         # Default alignment is center, so x position should be at left margin
@@ -149,9 +135,7 @@ class TestElementLayout:
         )
         slide_left = Slide(elements=[deepcopy(footer_left)])
         position_footer_element(calculator, slide_left)
-        positioned_left = next(
-            e for e in slide_left.elements if e.element_type == ElementType.FOOTER
-        )
+        positioned_left = next(e for e in slide_left.elements if e.element_type == ElementType.FOOTER)
         assert positioned_left.position[0] == calculator.margins["left"]
 
         # Test right alignment
@@ -162,17 +146,11 @@ class TestElementLayout:
         )
         slide_right = Slide(elements=[deepcopy(footer_right)])
         position_footer_element(calculator, slide_right)
-        positioned_right = next(
-            e for e in slide_right.elements if e.element_type == ElementType.FOOTER
-        )
-        expected_right_x = (
-            calculator.slide_width - calculator.margins["right"] - positioned_right.size[0]
-        )
+        positioned_right = next(e for e in slide_right.elements if e.element_type == ElementType.FOOTER)
+        expected_right_x = calculator.slide_width - calculator.margins["right"] - positioned_right.size[0]
         assert positioned_right.position[0] == pytest.approx(expected_right_x)
 
         # All footers should be at same y position
-        expected_y = (
-            calculator.slide_height - calculator.margins["bottom"] - positioned_left.size[1]
-        )
+        expected_y = calculator.slide_height - calculator.margins["bottom"] - positioned_left.size[1]
         assert positioned_left.position[1] == pytest.approx(expected_y)
         assert positioned_right.position[1] == pytest.approx(expected_y)

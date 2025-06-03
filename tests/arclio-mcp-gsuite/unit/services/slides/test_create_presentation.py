@@ -28,17 +28,13 @@ class TestSlidesCreatePresentation:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_presentation)
-        mock_slides_service.service.presentations.return_value.create.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.create.return_value.execute = mock_execute
 
         # Call the method
         result = mock_slides_service.create_presentation(title)
 
         # Verify API call with correct title
-        mock_slides_service.service.presentations.return_value.create.assert_called_once_with(
-            body={"title": title}
-        )
+        mock_slides_service.service.presentations.return_value.create.assert_called_once_with(body={"title": title})
 
         # Verify result
         assert result == mock_presentation
@@ -72,7 +68,5 @@ class TestSlidesCreatePresentation:
         result = mock_slides_service.create_presentation(title)
 
         # Verify error handling
-        mock_slides_service.handle_api_error.assert_called_once_with(
-            "create_presentation", http_error
-        )
+        mock_slides_service.handle_api_error.assert_called_once_with("create_presentation", http_error)
         assert result == expected_error

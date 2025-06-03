@@ -94,9 +94,7 @@ class TestDriveIntegration:
             assert "mimeType" in result
             assert result["mimeType"] == "text/plain"
             assert "content" in result
-            assert self.test_id in result["content"], (
-                "Retrieved content doesn't match what was uploaded"
-            )
+            assert self.test_id in result["content"], "Retrieved content doesn't match what was uploaded"
 
             # 3. Search for the file by name
             search_query = f"name contains '{self.test_id}'"

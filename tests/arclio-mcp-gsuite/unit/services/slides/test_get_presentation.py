@@ -30,17 +30,13 @@ class TestSlidesGetPresentation:
 
         # Setup execute mock
         mock_execute = MagicMock(return_value=mock_presentation)
-        mock_slides_service.service.presentations.return_value.get.return_value.execute = (
-            mock_execute
-        )
+        mock_slides_service.service.presentations.return_value.get.return_value.execute = mock_execute
 
         # Call the method
         result = mock_slides_service.get_presentation(presentation_id)
 
         # Verify API call
-        mock_slides_service.service.presentations.return_value.get.assert_called_once_with(
-            presentationId=presentation_id
-        )
+        mock_slides_service.service.presentations.return_value.get.assert_called_once_with(presentationId=presentation_id)
 
         # Verify result
         assert result == mock_presentation

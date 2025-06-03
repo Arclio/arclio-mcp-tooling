@@ -72,23 +72,15 @@ class DriveService(BaseGoogleService):
                 if has_operators_or_quotes:
                     # Assume query is pre-formatted or complex.
                     # Append 'trashed = false' only if 'trashed' isn't already mentioned.
-                    formatted_query = (
-                        f"({query}) and trashed = false"
-                        if "trashed" not in query.lower()
-                        else query
-                    )
+                    formatted_query = f"({query}) and trashed = false" if "trashed" not in query.lower() else query
                 else:
                     # Treat as a simple phrase, use fullText contains
                     # Escape single quotes for the query string
                     # Google Drive API requires escaping ' as \\' within a string literal
                     escaped_query = query.replace("'", "\\\\'")
-                    formatted_query = (
-                        f"fullText contains '{escaped_query}' and trashed = false"
-                    )
+                    formatted_query = f"fullText contains '{escaped_query}' and trashed = false"
 
-            logger.info(
-                f"Searching Drive with formatted query: '{formatted_query}' and page size: {page_size}"
-            )
+            logger.info(f"Searching Drive with formatted query: '{formatted_query}' and page size: {page_size}")
 
             # Execute search
             results = (
@@ -125,18 +117,12 @@ class DriveService(BaseGoogleService):
         """
         try:
             # Get file metadata
-            file_metadata = (
-                self.service.files()
-                .get(fileId=file_id, fields="mimeType, name")
-                .execute()
-            )
+            file_metadata = self.service.files().get(fileId=file_id, fields="mimeType, name").execute()
 
             original_mime_type = file_metadata.get("mimeType")
             file_name = file_metadata.get("name", "Unknown")
 
-            logger.info(
-                f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}"
-            )
+            logger.info(f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}")
 
             # Handle Google Workspace files by exporting
             if original_mime_type.startswith("application/vnd.google-apps."):
@@ -146,9 +132,7 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("read_file", e)
 
-    def _export_google_file(
-        self, file_id: str, file_name: str, mime_type: str
-    ) -> dict[str, Any]:
+    def _export_google_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
         """Export a Google Workspace file in an appropriate format."""
         # Determine export format
         export_mime_type = None
@@ -173,9 +157,7 @@ class DriveService(BaseGoogleService):
 
         # Export the file
         try:
-            request = self.service.files().export_media(
-                fileId=file_id, mimeType=export_mime_type
-            )
+            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime_type)
 
             content_bytes = self._download_content(request)
             if isinstance(content_bytes, dict) and content_bytes.get("error"):
@@ -207,9 +189,7 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("_export_google_file", e)
 
-    def _download_regular_file(
-        self, file_id: str, file_name: str, mime_type: str
-    ) -> dict[str, Any]:
+    def _download_regular_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
         """Download a regular (non-Google Workspace) file."""
         request = self.service.files().get_media(fileId=file_id)
 
@@ -223,9 +203,7 @@ class DriveService(BaseGoogleService):
                 content = content_bytes.decode("utf-8")
                 return {"mimeType": mime_type, "content": content, "encoding": "utf-8"}
             except UnicodeDecodeError:
-                logger.warning(
-                    f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64."
-                )
+                logger.warning(f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64.")
                 content = base64.b64encode(content_bytes).decode("utf-8")
                 return {
                     "mimeType": mime_type,

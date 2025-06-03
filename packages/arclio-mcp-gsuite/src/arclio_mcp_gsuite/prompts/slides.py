@@ -11,13 +11,9 @@ logger = logging.getLogger(__name__)
 
 
 @mcp.prompt()
-async def suggest_slide_content(
-    presentation_topic: str, slide_objective: str, user_id: str
-) -> list[UserMessage]:
+async def suggest_slide_content(presentation_topic: str, slide_objective: str, user_id: str) -> list[UserMessage]:
     """Suggests content for a presentation slide."""
-    logger.info(
-        f"Executing suggest_slide_content prompt for topic '{presentation_topic}' and objective '{slide_objective}'"
-    )
+    logger.info(f"Executing suggest_slide_content prompt for topic '{presentation_topic}' and objective '{slide_objective}'")
     # user_id is available if needed
     return [
         UserMessage(

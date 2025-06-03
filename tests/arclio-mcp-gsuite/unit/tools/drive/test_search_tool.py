@@ -50,9 +50,7 @@ class TestGdriveSearchTool:
         }
         result = await gdrive_search(**args)
 
-        mock_drive_service.search_files.assert_called_once_with(
-            query="name contains 'Report Q1'", page_size=1
-        )
+        mock_drive_service.search_files.assert_called_once_with(query="name contains 'Report Q1'", page_size=1)
         assert result == {"count": 1, "files": mock_service_response}
 
     async def test_search_no_results(self, mock_drive_service):

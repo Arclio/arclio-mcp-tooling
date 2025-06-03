@@ -32,15 +32,11 @@ class TestCodeMetrics:
         element_long_width = CodeElement(code=long_line, element_type=ElementType.CODE)
         height_long_width = calculate_code_element_height(element_long_width, 500)  # Wide width
 
-        assert (
-            height_short_width > height_long_width
-        )  # This relationship still holds true - narrower width means more height
+        assert height_short_width > height_long_width  # This relationship still holds true - narrower width means more height
 
     def test_calculate_code_height_with_and_without_lang_label(self):
         code = "test"
-        el_no_lang = CodeElement(
-            code=code, language="text", element_type=ElementType.CODE
-        )  # "text" lang means no label
+        el_no_lang = CodeElement(code=code, language="text", element_type=ElementType.CODE)  # "text" lang means no label
         height_no_lang = calculate_code_element_height(el_no_lang, 500)
 
         el_with_lang = CodeElement(code=code, language="python", element_type=ElementType.CODE)
