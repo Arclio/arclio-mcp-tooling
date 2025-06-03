@@ -311,13 +311,12 @@ uvx --from google-workspace-mcp google-workspace-worker
 
 ### Tool Call Format
 
-Each tool call must include a `__user_id__` parameter representing the Google account email:
+Tools can be called directly without needing to specify user identification:
 
 ```json
 {
   "name": "gdrive_search",
   "arguments": {
-    "__user_id__": "user@example.com",
     "query": "name contains 'Project Proposal'",
     "page_size": 5
   }
@@ -343,7 +342,6 @@ Searches for files in Google Drive.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `query` (string, required): Drive query syntax (e.g., `"mimeType='image/jpeg'"`)
 - `page_size` (integer, optional): Maximum number of files to return (default: 10)
 
@@ -357,7 +355,6 @@ Reads file content from Google Drive.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `file_id` (string, required): Drive file ID
 
 **Returns:**
@@ -375,7 +372,6 @@ Searches for emails using Gmail query syntax.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `query` (string, optional): Gmail search query (e.g., `"is:unread from:example.com"`)
 - `max_results` (integer, optional): Maximum emails to return (default: 100)
 
@@ -389,7 +385,6 @@ Retrieves a complete email message by ID.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `email_id` (string, required): Gmail message ID
 
 **Returns:**
@@ -402,10 +397,6 @@ Retrieves a complete email message by ID.
 
 Lists all accessible calendars.
 
-**Arguments:**
-
-- `__user_id__` (string, required): Google account email
-
 **Returns:**
 
 - List of calendar objects with id, summary, timeZone, and access information
@@ -416,7 +407,6 @@ Creates a new calendar event.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `__calendar_id__` (string, optional): Calendar ID (default: primary)
 - `summary` (string, required): Event title
 - `start_time` (string, required): RFC3339 format (e.g., "2024-05-01T14:00:00Z")
@@ -439,7 +429,6 @@ Creates a Google Slides presentation from Markdown content.
 
 **Arguments:**
 
-- `__user_id__` (string, required): Google account email
 - `title` (string, required): Presentation title
 - `markdown_content` (string, required): Markdown formatted as:
 
@@ -570,16 +559,12 @@ class NewOperationToolHandler(BaseToolHandler):
     input_schema = {
         "type": "object",
         "properties": {
-            "__user_id__": {
-                "type": "string",
-                "description": "The email address of the Google account"
-            },
             "arg1": {
                 "type": "string",
                 "description": "Description of arg1"
             }
         },
-        "required": ["__user_id__", "arg1"]
+        "required": ["arg1"]
     }
 
     def execute_tool(self, args):

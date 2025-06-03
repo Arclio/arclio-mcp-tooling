@@ -10,67 +10,68 @@ from google_workspace_mcp.tools.gmail import query_gmail_emails
 pytestmark = pytest.mark.anyio
 
 
-class TestQueryGmailEmailsTool:
+class TestQueryGmailEmails:
     """Tests for the query_gmail_emails tool function."""
 
     @pytest.fixture
     def mock_gmail_service(self):
         """Patch GmailService for tool tests."""
-        with patch("google_workspace_mcp.tools.gmail.GmailService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.gmail.GmailService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
 
-    async def test_query_success(self, mock_gmail_service):
+    async def test_query_emails_success(self, mock_gmail_service):
         """Test query_gmail_emails successful case."""
         mock_service_response = [
-            {"id": "msg1", "subject": "Hello"},
-            {"id": "msg2", "subject": "Meeting"},
+            {"id": "msg1", "snippet": "First email snippet"},
+            {"id": "msg2", "snippet": "Second email snippet"},
         ]
         mock_gmail_service.query_emails.return_value = mock_service_response
 
-        args = {"query": "is:unread", "user_id": "test@example.com"}
+        args = {"query": "is:unread"}
         result = await query_gmail_emails(**args)
 
         mock_gmail_service.query_emails.assert_called_once_with(
-            query="is:unread",
-            max_results=100,  # Check internal default
+            query="is:unread", max_results=100
         )
         assert result == {"count": 2, "emails": mock_service_response}
 
-    async def test_query_empty_query_success(self, mock_gmail_service):
-        """Test query_gmail_emails with an empty query (should return all/recent)."""
-        mock_service_response = [
-            {"id": "msg1", "subject": "Recent Email 1"},
-            {"id": "msg2", "subject": "Recent Email 2"},
-        ]
+    async def test_query_emails_with_max_results(self, mock_gmail_service):
+        """Test query_gmail_emails with custom max_results."""
+        mock_service_response = [{"id": "msg1", "snippet": "Email snippet"}]
         mock_gmail_service.query_emails.return_value = mock_service_response
 
-        args = {"query": "", "user_id": "test@example.com"}
+        args = {"query": "from:test@example.com", "max_results": 5}
         result = await query_gmail_emails(**args)
 
-        # Service handles empty query, tool passes it through
-        mock_gmail_service.query_emails.assert_called_once_with(query="", max_results=100)
-        assert result == {"count": 2, "emails": mock_service_response}
+        mock_gmail_service.query_emails.assert_called_once_with(
+            query="from:test@example.com", max_results=5
+        )
+        assert result == {"count": 1, "emails": mock_service_response}
 
-    async def test_query_no_results(self, mock_gmail_service):
-        """Test query_gmail_emails when no emails match."""
+    async def test_query_emails_no_results(self, mock_gmail_service):
+        """Test query_gmail_emails when no emails are found."""
         mock_gmail_service.query_emails.return_value = []
 
-        args = {"query": "from:noone@example.com", "user_id": "test@example.com"}
+        args = {"query": "nonexistent"}
         result = await query_gmail_emails(**args)
 
-        mock_gmail_service.query_emails.assert_called_once_with(query="from:noone@example.com", max_results=100)
-        assert result == {"message": "No emails found matching your query."}
+        mock_gmail_service.query_emails.assert_called_once_with(
+            query="nonexistent", max_results=100
+        )
+        assert result == {"message": "No emails found for the query."}
 
-    async def test_query_service_error(self, mock_gmail_service):
-        """Test query_gmail_emails when the service call fails."""
+    async def test_query_emails_service_error(self, mock_gmail_service):
+        """Test query_gmail_emails when the service returns an error."""
         mock_gmail_service.query_emails.return_value = {
             "error": True,
             "message": "API Error: Invalid query",
         }
 
-        args = {"query": "bad:query:", "user_id": "test@example.com"}
+        args = {"query": "invalid:syntax"}
         with pytest.raises(ValueError, match="API Error: Invalid query"):
             await query_gmail_emails(**args)
 

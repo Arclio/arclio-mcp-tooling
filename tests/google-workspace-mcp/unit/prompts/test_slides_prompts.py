@@ -17,7 +17,6 @@ class TestSuggestSlideContentPrompt:
         args = {
             "presentation_topic": topic,
             "slide_objective": objective,
-            "user_id": "slides_user@example.com",
         }
 
         messages = await suggest_slide_content(**args)
@@ -40,7 +39,6 @@ class TestSuggestSlideContentPrompt:
         args = {
             "presentation_topic": topic,
             "slide_objective": objective,
-            "user_id": "slides_user@example.com",
         }
 
         messages = await suggest_slide_content(**args)

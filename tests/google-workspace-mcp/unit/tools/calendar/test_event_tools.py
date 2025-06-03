@@ -19,7 +19,9 @@ pytestmark = pytest.mark.anyio
 @pytest.fixture
 def mock_calendar_service():
     """Patch CalendarService for tool tests."""
-    with patch("google_workspace_mcp.tools.calendar.CalendarService") as mock_service_class:
+    with patch(
+        "google_workspace_mcp.tools.calendar.CalendarService"
+    ) as mock_service_class:
         mock_service = MagicMock()
         mock_service_class.return_value = mock_service
         # Hypothetical error tracking for boolean returns
@@ -48,7 +50,6 @@ class TestCreateCalendarEvent:
             "summary": "Meeting with Team",
             "start_time": "2024-06-01T10:00:00Z",
             "end_time": "2024-06-01T11:00:00Z",
-            "user_id": "create_user@example.com",
             "calendar_id": "team_cal@example.com",
             "attendees": ["member1@example.com"],
             "location": "Board Room",
@@ -82,7 +83,6 @@ class TestCreateCalendarEvent:
             "summary": "Bad Meeting",
             "start_time": "2024-06-01T11:00:00Z",  # End before start
             "end_time": "2024-06-01T10:00:00Z",
-            "user_id": "create_user@example.com",
         }
         with pytest.raises(ValueError, match="API Error: Invalid time range"):
             await create_calendar_event(**args)
@@ -93,19 +93,15 @@ class TestCreateCalendarEvent:
             "summary": "Meeting",
             "start_time": "2024-06-01T10:00:00Z",
             "end_time": "2024-06-01T11:00:00Z",
-            "user_id": "create_user@example.com",
         }
 
         for key in ["summary", "start_time", "end_time"]:
             args = base_args.copy()
             args[key] = ""
-            with pytest.raises(ValueError, match="Summary, start_time, and end_time are required"):
+            with pytest.raises(
+                ValueError, match="Summary, start_time, and end_time are required"
+            ):
                 await create_calendar_event(**args)
-
-        args_no_user = base_args.copy()
-        args_no_user["user_id"] = ""
-        with pytest.raises(ValueError, match="user_id is required"):
-            await create_calendar_event(**args_no_user)
 
 
 # --- Tests for delete_calendar_event --- #
@@ -120,7 +116,6 @@ class TestDeleteCalendarEvent:
 
         args = {
             "event_id": "event_to_delete_123",
-            "user_id": "delete_user@example.com",
             "calendar_id": "cal_abc",
             "send_notifications": False,
         }
@@ -136,16 +131,20 @@ class TestDeleteCalendarEvent:
             "success": True,
         }
 
-    async def test_delete_event_service_failure_no_error_info(self, mock_calendar_service):
+    async def test_delete_event_service_failure_no_error_info(
+        self, mock_calendar_service
+    ):
         """Test delete_calendar_event when service returns False without error info."""
         mock_calendar_service.delete_event.return_value = False
         mock_calendar_service.last_error = None  # Ensure no specific error info
 
-        args = {"event_id": "event_fail", "user_id": "delete_user@example.com"}
+        args = {"event_id": "event_fail"}
         with pytest.raises(ValueError, match="Failed to delete calendar event"):
             await delete_calendar_event(**args)
 
-    async def test_delete_event_service_failure_with_error_info(self, mock_calendar_service):
+    async def test_delete_event_service_failure_with_error_info(
+        self, mock_calendar_service
+    ):
         """Test delete_calendar_event when service returns False with specific error."""
         mock_calendar_service.delete_event.return_value = False
         mock_calendar_service.last_error = {
@@ -153,16 +152,12 @@ class TestDeleteCalendarEvent:
             "message": "API: Event not found",
         }
 
-        args = {"event_id": "event_fail_api", "user_id": "delete_user@example.com"}
+        args = {"event_id": "event_fail_api"}
         with pytest.raises(ValueError, match="API: Event not found"):
             await delete_calendar_event(**args)
 
     async def test_delete_event_missing_args(self):
         """Test delete_calendar_event with missing required arguments."""
-        args_no_event = {"event_id": "", "user_id": "delete_user@example.com"}
+        args_no_event = {"event_id": ""}
         with pytest.raises(ValueError, match="Event ID is required"):
             await delete_calendar_event(**args_no_event)
-
-        args_no_user = {"event_id": "event123", "user_id": ""}
-        with pytest.raises(ValueError, match="user_id is required"):
-            await delete_calendar_event(**args_no_user)

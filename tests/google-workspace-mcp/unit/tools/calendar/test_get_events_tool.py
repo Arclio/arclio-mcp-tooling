@@ -16,7 +16,9 @@ class TestGetCalendarEventsTool:
     @pytest.fixture
     def mock_calendar_service(self):
         """Patch CalendarService for tool tests."""
-        with patch("google_workspace_mcp.tools.calendar.CalendarService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.calendar.CalendarService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -33,7 +35,6 @@ class TestGetCalendarEventsTool:
             "calendar_id": "primary",
             "time_min": "2024-01-01T00:00:00Z",
             "time_max": "2024-01-01T23:59:59Z",
-            "user_id": "user@example.com",
         }
         result = await get_calendar_events(**args)
 
@@ -55,7 +56,6 @@ class TestGetCalendarEventsTool:
             "calendar_id": "team_cal",
             "time_min": "2024-01-01T00:00:00Z",
             "time_max": "2024-01-01T23:59:59Z",
-            "user_id": "user@example.com",
             "max_results": 10,
             "show_deleted": True,
         }
@@ -78,7 +78,6 @@ class TestGetCalendarEventsTool:
             "calendar_id": "team_cal",
             "time_min": "2024-02-01T00:00:00Z",
             "time_max": "2024-02-01T23:59:59Z",
-            "user_id": "user@example.com",
         }
         result = await get_calendar_events(**args)
 
@@ -102,7 +101,6 @@ class TestGetCalendarEventsTool:
             "calendar_id": "invalid_cal",
             "time_min": "2024-01-01T00:00:00Z",
             "time_max": "2024-01-01T23:59:59Z",
-            "user_id": "user@example.com",
         }
         with pytest.raises(ValueError, match="API Error: Calendar not found"):
             await get_calendar_events(**args)
@@ -113,7 +111,6 @@ class TestGetCalendarEventsTool:
             "calendar_id": "primary",
             "time_min": "2024-01-01T00:00:00Z",
             "time_max": "2024-01-01T23:59:59Z",
-            "user_id": "user@example.com",
         }
 
         for key, msg in [

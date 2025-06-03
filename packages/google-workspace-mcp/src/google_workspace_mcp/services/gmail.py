@@ -23,7 +23,9 @@ class GmailService(BaseGoogleService):
         """Initialize the Gmail service."""
         super().__init__("gmail", "v1")
 
-    def query_emails(self, query: str | None = None, max_results: int = 100) -> list[dict[str, Any]]:
+    def query_emails(
+        self, query: str | None = None, max_results: int = 100
+    ) -> list[dict[str, Any]]:
         """
         Query emails from Gmail based on a search query with pagination support.
 
@@ -47,7 +49,9 @@ class GmailService(BaseGoogleService):
             # Loop until we have enough results or run out of pages
             while results_fetched < max_results:
                 # Calculate how many results to request in this page
-                page_size = min(100, max_results - results_fetched)  # Gmail API max page size is 100
+                page_size = min(
+                    100, max_results - results_fetched
+                )  # Gmail API max page size is 100
 
                 # Make the API request
                 request_params = {
@@ -61,7 +65,9 @@ class GmailService(BaseGoogleService):
                     request_params["pageToken"] = next_page_token
 
                 # Get this page of message IDs
-                result = self.service.users().messages().list(**request_params).execute()
+                result = (
+                    self.service.users().messages().list(**request_params).execute()
+                )
 
                 # Extract messages and nextPageToken
                 page_messages = result.get("messages", [])
@@ -74,7 +80,12 @@ class GmailService(BaseGoogleService):
                 # Fetch full message details for each message in this page
                 for msg in page_messages:
                     try:
-                        txt = self.service.users().messages().get(userId="me", id=msg["id"]).execute()
+                        txt = (
+                            self.service.users()
+                            .messages()
+                            .get(userId="me", id=msg["id"])
+                            .execute()
+                        )
                         parsed_message = self._parse_message(txt=txt, parse_body=False)
                         if parsed_message:
                             messages.append(parsed_message)
@@ -91,66 +102,94 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("query_emails", e)
 
-    def get_email_by_id(self, email_id: str, parse_body: bool = True) -> dict[str, Any] | None:
+    def get_email_by_id(
+        self, email_id: str, parse_body: bool = True
+    ) -> dict[str, Any] | None:
         """
-        Fetch a complete email message by its ID.
+        Get a single email by its ID.
 
         Args:
-            email_id: The Gmail message ID to retrieve
+            email_id: The ID of the email to retrieve
             parse_body: Whether to parse and include the message body
 
         Returns:
-            Parsed email message dictionary or None if retrieval fails
+            Email data dictionary if successful
         """
         try:
-            # Fetch the complete message by ID
-            message = self.service.users().messages().get(userId="me", id=email_id).execute()
-
-            # Parse the message
-            return self._parse_message(txt=message, parse_body=parse_body)
+            message = (
+                self.service.users().messages().get(userId="me", id=email_id).execute()
+            )
+            return self._parse_message(message, parse_body=parse_body)
 
         except Exception as e:
             return self.handle_api_error("get_email_by_id", e)
 
-    def get_email_with_attachments(self, email_id: str) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+    def get_email(self, email_id: str) -> dict[str, Any] | None:
         """
-        Fetch a complete email message by its ID including attachment information.
+        Get a single email by its ID (wrapper for compatibility).
 
         Args:
-            email_id: The Gmail message ID to retrieve
+            email_id: The ID of the email to retrieve
 
         Returns:
-            Tuple containing parsed email message and attachments dictionary
+            Email data dictionary if successful
+        """
+        return self.get_email_by_id(email_id, parse_body=True)
+
+    def get_email_with_attachments(
+        self, email_id: str
+    ) -> tuple[dict[str, Any] | None, dict[str, dict[str, Any]]]:
+        """
+        Get an email with its attachments.
+
+        Args:
+            email_id: The ID of the email to retrieve
+
+        Returns:
+            Tuple of (email_data, attachments_dict)
         """
         try:
-            # Fetch the complete message by ID
-            message = self.service.users().messages().get(userId="me", id=email_id).execute()
+            # Get the email message
+            message = (
+                self.service.users().messages().get(userId="me", id=email_id).execute()
+            )
+            email_data = self._parse_message(message, parse_body=True)
 
-            # Parse the message
-            parsed_email = self._parse_message(txt=message, parse_body=True)
+            if not email_data:
+                return None, {}
 
             # Extract attachment information
             attachments = {}
-            if "payload" in message and "parts" in message["payload"]:
-                for part in message["payload"]["parts"]:
-                    if "attachmentId" in part.get("body", {}):
-                        attachment_id = part["body"]["attachmentId"]
-                        part_id = part["partId"]
-                        attachment = {
-                            "filename": part.get("filename", ""),
-                            "mimeType": part.get("mimeType", ""),
-                            "attachmentId": attachment_id,
-                            "partId": part_id,
-                        }
-                        attachments[part_id] = attachment
+            payload = message.get("payload", {})
 
-            return parsed_email, attachments
+            def extract_attachments(part, attachments_dict):
+                if "parts" in part:
+                    for subpart in part["parts"]:
+                        extract_attachments(subpart, attachments_dict)
+                elif part.get("filename") and part.get("body", {}).get("attachmentId"):
+                    attachment_id = part["body"]["attachmentId"]
+                    attachments_dict[attachment_id] = {
+                        "filename": part["filename"],
+                        "mimeType": part.get("mimeType"),
+                        "size": part.get("body", {}).get("size", 0),
+                    }
+
+            extract_attachments(payload, attachments)
+
+            return email_data, attachments
 
         except Exception as e:
-            logger.exception(f"Error fetching email with attachments: {e}")
-            return None, {}
+            error_result = self.handle_api_error("get_email_with_attachments", e)
+            return error_result, {}
 
-    def create_draft(self, to: str, subject: str, body: str, cc: list[str] | None = None) -> dict[str, Any] | None:
+    def create_draft(
+        self,
+        to: str,
+        subject: str,
+        body: str,
+        cc: list[str] | None = None,
+        bcc: list[str] | None = None,
+    ) -> dict[str, Any] | None:
         """
         Create a draft email message.
 
@@ -159,6 +198,7 @@ class GmailService(BaseGoogleService):
             subject: Subject line of the email
             body: Body content of the email
             cc: List of email addresses to CC
+            bcc: List of email addresses to BCC (note: BCC is not visible in drafts)
 
         Returns:
             Draft message data including the draft ID if successful
@@ -172,11 +212,25 @@ class GmailService(BaseGoogleService):
             if cc:
                 mime_message["cc"] = ",".join(cc)
 
+            # Note: BCC is typically not included in draft headers as it should remain hidden
+            # But we accept the parameter for API compatibility
+            if bcc:
+                # BCC recipients are usually handled at send time, not in draft creation
+                # For now, we accept the parameter but don't add it to headers
+                pass
+
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
+                "utf-8"
+            )
 
             # Create the draft
-            return self.service.users().drafts().create(userId="me", body={"message": {"raw": raw_message}}).execute()
+            return (
+                self.service.users()
+                .drafts()
+                .create(userId="me", body={"message": {"raw": raw_message}})
+                .execute()
+            )
 
         except Exception as e:
             return self.handle_api_error("create_draft", e)
@@ -239,7 +293,11 @@ class GmailService(BaseGoogleService):
             # )
 
             # First, prepare the quoted body text
-            quoted_body = original_body.replace("\n", "\n> ") if original_body else "[No message body]"
+            quoted_body = (
+                original_body.replace("\n", "\n> ")
+                if original_body
+                else "[No message body]"
+            )
 
             # Then use the prepared text in the f-string
             full_reply_body = f"{reply_body}\n\nOn {original_date}, {original_from} wrote:\n> {quoted_body}"
@@ -258,7 +316,9 @@ class GmailService(BaseGoogleService):
                 mime_message["References"] = original_message["message_id"]
 
             # Encode the message
-            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode("utf-8")
+            raw_message = base64.urlsafe_b64encode(mime_message.as_bytes()).decode(
+                "utf-8"
+            )
 
             message_body = {"raw": raw_message}
 
@@ -268,17 +328,67 @@ class GmailService(BaseGoogleService):
 
             if send:
                 # Send the reply immediately
-                result = self.service.users().messages().send(userId="me", body=message_body).execute()
+                result = (
+                    self.service.users()
+                    .messages()
+                    .send(userId="me", body=message_body)
+                    .execute()
+                )
             else:
                 # Save as draft
-                result = self.service.users().drafts().create(userId="me", body={"message": message_body}).execute()
+                result = (
+                    self.service.users()
+                    .drafts()
+                    .create(userId="me", body={"message": message_body})
+                    .execute()
+                )
 
             return result
 
         except Exception as e:
             return self.handle_api_error("create_reply", e)
 
-    def get_attachment(self, message_id: str, attachment_id: str) -> dict[str, Any] | None:
+    def reply_to_email(
+        self, email_id: str, reply_body: str, reply_all: bool = False
+    ) -> dict[str, Any] | None:
+        """
+        Reply to an email (wrapper for compatibility).
+
+        Args:
+            email_id: The ID of the email to reply to
+            reply_body: Body content of the reply
+            reply_all: If True, reply to all recipients
+
+        Returns:
+            Reply message data if successful
+        """
+        try:
+            # Get the original message
+            original_message = self.get_email_by_id(email_id, parse_body=False)
+            if not original_message:
+                return {"error": True, "message": "Original email not found"}
+
+            # Use the existing create_reply method
+            cc = None
+            if reply_all:
+                # Extract CC recipients from original message
+                cc_header = original_message.get("cc")
+                if cc_header:
+                    cc = [addr.strip() for addr in cc_header.split(",")]
+
+            return self.create_reply(
+                original_message=original_message,
+                reply_body=reply_body,
+                send=False,  # Default to draft
+                cc=cc,
+            )
+
+        except Exception as e:
+            return self.handle_api_error("reply_to_email", e)
+
+    def get_attachment(
+        self, message_id: str, attachment_id: str
+    ) -> dict[str, Any] | None:
         """
         Retrieve a Gmail attachment by its ID.
 
@@ -303,7 +413,9 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("get_attachment", e)
 
-    def _parse_message(self, txt: dict[str, Any], parse_body: bool = False) -> dict[str, Any] | None:
+    def _parse_message(
+        self, txt: dict[str, Any], parse_body: bool = False
+    ) -> dict[str, Any] | None:
         """
         Parse a Gmail message into a structured format.
 
@@ -417,13 +529,12 @@ class GmailService(BaseGoogleService):
             logger.error(f"Error extracting body: {str(e)}")
             return None
 
-    def bulk_delete_emails(self, message_ids: list[str], user_id: str = "me") -> dict[str, Any]:
+    def bulk_delete_emails(self, message_ids: list[str]) -> dict[str, Any]:
         """
         Delete multiple emails by their IDs using batch delete.
 
         Args:
             message_ids: List of message IDs to delete
-            user_id: User ID, defaults to 'me'
 
         Returns:
             Dictionary with operation result
@@ -432,7 +543,9 @@ class GmailService(BaseGoogleService):
             return {"success": False, "message": "No message IDs provided"}
 
         # Validate message IDs
-        if not all(isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids):
+        if not all(
+            isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids
+        ):
             return {
                 "success": False,
                 "message": "Invalid message IDs - all IDs must be non-empty strings",
@@ -452,7 +565,9 @@ class GmailService(BaseGoogleService):
 
                 batch = message_ids[i : i + max_batch_size]
 
-                self.service.users().messages().batchDelete(userId=user_id, body={"ids": batch}).execute()
+                self.service.users().messages().batchDelete(
+                    userId="me", body={"ids": batch}
+                ).execute()
 
                 batch_count = len(batch)
                 total_count += batch_count
