@@ -280,8 +280,8 @@ class ContentParser:
         """
         Dispatch token processing to the appropriate formatter.
 
-        ARCHITECTURAL IMPROVEMENT: Enhanced dispatcher with better error handling
-        and consistent directive passing.
+        CRITICAL FIX: Enhanced dispatcher that tries multiple formatters until one
+        successfully creates an element, ensuring robust token processing.
         """
         if current_index >= len(tokens):
             return None, current_index
@@ -307,7 +307,16 @@ class ContentParser:
                         tokens, current_index, directives, None, **kwargs
                     )
 
-                    return element, end_index
+                    # CRITICAL FIX: Only return if the formatter actually created an element
+                    # If element is None, continue trying other formatters
+                    if element is not None:
+                        logger.debug(
+                            f"{formatter.__class__.__name__} successfully handled {token.type}"
+                        )
+                        return element, end_index
+                    logger.debug(
+                        f"{formatter.__class__.__name__} could not handle {token.type}, trying next formatter"
+                    )
 
                 except Exception as e:
                     logger.error(
@@ -315,12 +324,12 @@ class ContentParser:
                         f"{token.type} at index {current_index}: {e}",
                         exc_info=True,
                     )
-                    return None, current_index
+                    # Continue to next formatter instead of returning immediately
 
-        # No formatter handled the token
+        # No formatter successfully handled the token
         if token.type not in ["softbreak", "hardbreak"]:
             logger.debug(
-                f"No formatter handled token: {token.type} at index {current_index}"
+                f"No formatter successfully handled token: {token.type} at index {current_index}"
             )
 
         return None, current_index

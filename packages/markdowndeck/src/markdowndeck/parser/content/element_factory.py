@@ -253,64 +253,47 @@ class ElementFactory:
         """
         Extract text formatting from inline token with enhanced processing.
 
-        IMPROVEMENT: Better handling of mixed content and directive cleanup.
+        CRITICAL FIX: Code spans should preserve their content exactly as-is.
         """
         if token.type != "inline" or not hasattr(token, "children"):
             return []
 
         # Build plain text and track formatting
         plain_text = ""
-        char_map = []
         formatting_data = []
         active_formats = []
 
-        # Process children to build clean text
+        # Process children to build clean text and formatting
         for child in token.children:
             child_type = getattr(child, "type", "")
 
             if child_type == "text":
-                start_pos = len(plain_text)
                 plain_text += child.content
-                for i in range(len(child.content)):
-                    char_map.append(start_pos + i)
 
             elif child_type == "code_inline":
-                cleaned_content = self._strip_directives_from_code_content(
-                    child.content
-                )
+                # CRITICAL FIX: Preserve code content exactly as-is (no directive stripping)
                 start_pos = len(plain_text)
-                plain_text += cleaned_content
+                plain_text += child.content
 
-                # Create code formatting
-                if cleaned_content.strip():
+                # Create code formatting for the exact content
+                if child.content.strip():
                     formatting_data.append(
                         TextFormat(
                             start=start_pos,
-                            end=start_pos + len(cleaned_content),
+                            end=start_pos + len(child.content),
                             format_type=TextFormatType.CODE,
                             value=True,
                         )
                     )
 
-                for i in range(len(cleaned_content)):
-                    char_map.append(start_pos + i)
-
-            elif child_type == "softbreak":
-                plain_text += " "
-                char_map.append(len(plain_text) - 1)
-
-            elif child_type == "hardbreak":
+            elif child_type == "softbreak" or child_type == "hardbreak":
                 plain_text += "\n"
-                char_map.append(len(plain_text) - 1)
 
             elif child_type == "image":
                 alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
-                start_pos = len(plain_text)
                 plain_text += alt_text
-                for i in range(len(alt_text)):
-                    char_map.append(start_pos + i)
 
-        # Process formatting markers
+        # Process formatting markers for non-code formatting (bold, italic, etc.)
         current_pos = 0
         for child in token.children:
             child_type = getattr(child, "type", "")
@@ -318,10 +301,8 @@ class ElementFactory:
             if child_type == "text":
                 current_pos += len(child.content)
             elif child_type == "code_inline":
-                cleaned_content = self._strip_directives_from_code_content(
-                    child.content
-                )
-                current_pos += len(cleaned_content)
+                # Skip code content - already processed above
+                current_pos += len(child.content)
             elif child_type in ["softbreak", "hardbreak"]:
                 current_pos += 1
             elif child_type == "image":

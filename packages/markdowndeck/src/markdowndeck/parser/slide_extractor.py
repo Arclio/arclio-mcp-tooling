@@ -128,6 +128,7 @@ class SlideExtractor:
         CRITICAL FIXES:
         - P3: Proper indented title removal
         - Enhanced title directive extraction
+        - FIXED: Remove special background extraction to allow normal directive processing
         """
         original_content = content
 
@@ -157,16 +158,17 @@ class SlideExtractor:
                     r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
                 ).strip()
 
-        # Extract background
-        background = self._extract_background(content_after_title)
-        if background:
-            content_after_title = re.sub(
-                r"^\s*\[background=([^\]]+)\]\s*\n?",
-                "",
-                content_after_title,
-                count=1,
-                flags=re.MULTILINE,
-            )
+        # CRITICAL FIX: Remove special background extraction - let it be processed as normal directive
+        # This allows background directives to work alongside other directives like [background=black][color=lime]
+        # background = self._extract_background(content_after_title)
+        # if background:
+        #     content_after_title = re.sub(
+        #         r"^\s*\[background=([^\]]+)\]\s*\n?",
+        #         "",
+        #         content_after_title,
+        #         count=1,
+        #         flags=re.MULTILINE,
+        #     )
 
         # Remove all notes from content
         content_after_title = re.sub(
@@ -180,7 +182,7 @@ class SlideExtractor:
             "content": final_slide_content,
             "footer": footer,
             "notes": final_notes,
-            "background": background,
+            "background": None,  # Let background be handled as regular directive
             "index": index,
             "object_id": slide_object_id,
             "speaker_notes_object_id": (
@@ -201,8 +203,9 @@ class SlideExtractor:
         """
         Extract title and directives with improved indentation support.
 
-        CRITICAL FIX P3: Support for indented titles
-        Enhanced title directive extraction
+        CRITICAL FIXES:
+        - P3: Support for indented titles
+        - Enhanced title directive extraction with proper color directive structure
         """
         # CRITICAL FIX P3: Pattern now supports leading whitespace
         title_match = re.search(r"^\s*#\s+(.+)$", content.lstrip(), re.MULTILINE)
@@ -213,7 +216,7 @@ class SlideExtractor:
         full_title_text = title_match.group(1).strip()
         title_directives = {}
 
-        # Extract directives from title
+        # Extract directives from title using regex (original logic but improved)
         directive_pattern = r"^\s*(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
         title_directive_match = re.match(directive_pattern, full_title_text)
 
@@ -222,11 +225,7 @@ class SlideExtractor:
             directive_text = title_directive_match.group(0)
             clean_title = full_title_text[len(directive_text) :].strip()
 
-            # Parse directives
-            from markdowndeck.parser.directive import DirectiveParser
-
-            DirectiveParser()
-
+            # Parse directives with proper structure
             directive_matches = re.findall(
                 r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
             )
@@ -234,7 +233,7 @@ class SlideExtractor:
                 key = key.strip().lower()
                 value = value.strip()
 
-                # Process common directive types
+                # Process common directive types with proper structure
                 if key == "align":
                     title_directives[key] = value.lower()
                 elif key == "fontsize":
@@ -243,7 +242,8 @@ class SlideExtractor:
                     except ValueError:
                         logger.warning(f"Invalid fontsize in title: {value}")
                 elif key == "color":
-                    title_directives[key] = value
+                    # CRITICAL FIX: Use proper color directive structure
+                    title_directives[key] = {"type": "named", "value": value}
                 else:
                     title_directives[key] = value
 

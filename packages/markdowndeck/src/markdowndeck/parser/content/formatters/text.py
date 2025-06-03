@@ -398,13 +398,27 @@ class TextFormatter(BaseFormatter):
         """
         Extract text and formatting from cleaned content.
 
-        CRITICAL FIX P0: Process cleaned content instead of original token
-        when directives have been removed.
+        CRITICAL FIX P0: Process cleaned content to extract clean text without markdown syntax
+        and proper formatting information.
         """
         if not cleaned_content.strip():
             return "", []
 
-        # Parse the cleaned content to get proper formatting
+        # Parse the cleaned content to get tokens for proper text extraction
+        tokens = self.md.parse(cleaned_content.strip())
+
+        # Find the inline token from the parsed content
+        for token in tokens:
+            if token.type == "inline":
+                # Extract clean text (without markdown syntax) and formatting
+                clean_text = self._get_plain_text_from_inline_token(token)
+                formatting = self.element_factory._extract_formatting_from_inline_token(
+                    token
+                )
+                return clean_text, formatting
+
+        # Fallback: if no inline token found, return the content as-is
+        # This shouldn't happen for normal paragraph content, but provides safety
         formatting = self.element_factory.extract_formatting_from_text(
             cleaned_content, self.md
         )
