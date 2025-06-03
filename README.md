@@ -26,7 +26,7 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 
 This monorepo contains the following packages:
 
-### 📚 arclio-mcp-gsuite
+### 📚 google-workspace-mcp
 
 Google Workspace integration for AI assistants, providing tools for:
 
@@ -42,7 +42,7 @@ The monorepo follows a standardized structure:
 ```
 arclio-mcp-tooling/
 ├── packages/                    # Package implementations
-│   └── arclio-mcp-gsuite/       # Google Workspace integration
+│   └── google-workspace-mcp/    # Google Workspace integration
 ├── tests/                       # Testing infrastructure
 ├── Makefile                     # Build and development tasks
 └── README.md                    # Documentation
@@ -82,14 +82,14 @@ make test-unit
 make test-integration
 
 # Run tests for a specific package
-make test-gsuite
+make test google-workspace-mcp
 ```
 
 ### Running Servers
 
 ```bash
 # Run the Google Workspace MCP server
-make run-gsuite
+make run-google-workspace
 ```
 
 ## 🧩 Development
@@ -98,7 +98,7 @@ make run-gsuite
 
 ```bash
 # Add a dependency to the Google Workspace package
-make add gsuite google-api-python-client
+make add google-workspace-mcp google-api-python-client
 ```
 
 ### Code Quality
