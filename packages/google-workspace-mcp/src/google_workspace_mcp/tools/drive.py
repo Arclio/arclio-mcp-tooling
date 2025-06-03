@@ -88,22 +88,32 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 )
 async def drive_upload_file(
     file_path: str,
+    parent_folder_id: str | None = None,
+    shared_drive_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Upload a local file to Google Drive.
 
     Args:
         file_path: Path to the local file to upload.
+        parent_folder_id: Optional parent folder ID to upload the file to.
+        shared_drive_id: Optional shared drive ID to upload the file to a shared drive.
 
     Returns:
         A dictionary containing the uploaded file metadata or an error.
     """
-    logger.info(f"Executing drive_upload_file with path: '{file_path}'")
+    logger.info(
+        f"Executing drive_upload_file with path: '{file_path}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+    )
     if not file_path or not file_path.strip():
         raise ValueError("File path cannot be empty")
 
     drive_service = DriveService()
-    result = drive_service.upload_file(file_path=file_path)
+    result = drive_service.upload_file(
+        file_path=file_path,
+        parent_folder_id=parent_folder_id,
+        shared_drive_id=shared_drive_id,
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error uploading file"))

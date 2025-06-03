@@ -45,7 +45,9 @@ class TestDriveUploadFile:
 
         # Verify the service call
         mock_drive_service.upload_file.assert_called_once_with(
-            file_path="/fake/path/to/file.txt"
+            file_path="/fake/path/to/file.txt",
+            parent_folder_id=None,
+            shared_drive_id=None,
         )
         assert result == mock_service_response
 
