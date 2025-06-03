@@ -50,7 +50,8 @@ class BaseFormatter(ABC):
         self,
         tokens: list[Token],
         start_index: int,
-        directives: dict[str, Any],
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
         **kwargs,
     ) -> tuple[Element | None, int]:
         """
@@ -59,7 +60,8 @@ class BaseFormatter(ABC):
         Args:
             tokens: The full list of tokens for the current parsing scope.
             start_index: The index of the token that this formatter should start processing.
-            directives: Directives from the current section to apply to the element.
+            section_directives: Directives from the current section to apply to the element.
+            element_specific_directives: Directives specific to this element that override section directives.
             **kwargs: Additional keyword arguments for specific formatters.
 
         Returns:
@@ -68,6 +70,31 @@ class BaseFormatter(ABC):
                 - The index of the last token consumed by this formatter.
         """
         raise NotImplementedError("Subclasses must implement process()")
+
+    def merge_directives(
+        self,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Merge section-level and element-specific directives.
+
+        Element-specific directives take precedence over section-level directives.
+
+        Args:
+            section_directives: Directives from the section
+            element_specific_directives: Element-specific directives (optional)
+
+        Returns:
+            Merged directives dictionary
+        """
+        merged = section_directives.copy()
+        if element_specific_directives:
+            merged.update(element_specific_directives)
+            logger.debug(
+                f"Merged directives: section={section_directives}, element={element_specific_directives}, result={merged}"
+            )
+        return merged
 
     def find_closing_token(
         self,

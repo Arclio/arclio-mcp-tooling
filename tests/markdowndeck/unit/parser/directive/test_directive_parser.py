@@ -34,7 +34,7 @@ class TestDirectiveParser:
         assert section.directives == {
             "width": 2 / 3,
             "align": "center",
-            "background": ("color", "#123456"),
+            "background": {"type": "hex", "value": "#123456"},
         }
         assert section.content == "Content"
 

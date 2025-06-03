@@ -22,39 +22,32 @@ class SlideExtractor:
         normalized_content = markdown.replace("\r\n", "\n").replace("\r", "\n")
 
         # Split content into slides using code-block-aware splitter
-        slide_parts = self._split_content_with_code_block_awareness(
-            normalized_content, r"^\s*===\s*$"
-        )
+        slide_parts = self._split_content_with_code_block_awareness(normalized_content, r"^\s*===\s*$")
 
         logger.debug(f"Initial slide part count: {len(slide_parts)}")
 
         slides = []
         for i, slide_content_part in enumerate(slide_parts):
             # Process the raw part first, then strip for content checks
-            processed_slide = self._process_slide_content(
-                slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}"
-            )
+            processed_slide = self._process_slide_content(slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}")
             # Only add if processed slide has meaningful content or title
             if (
                 processed_slide["title"]
                 or processed_slide["content"].strip()
                 or processed_slide["footer"]
                 or processed_slide["notes"]
+                or processed_slide["background"]  # Include slides with background directives
             ):
                 slides.append(processed_slide)
             else:
-                logger.debug(
-                    f"Skipping effectively empty slide part at index {i} after processing."
-                )
+                logger.debug(f"Skipping effectively empty slide part at index {i} after processing.")
 
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
 
-    def _split_content_with_code_block_awareness(
-        self, content: str, pattern: str
-    ) -> list[str]:
+    def _split_content_with_code_block_awareness(self, content: str, pattern: str) -> list[str]:
         """
-        Split content by a pattern, but ignore the pattern if it appears inside a code block.
+        Split content by the given pattern (slide separator) while respecting code block boundaries.
         Slide separators (pattern) are given precedence to break out of misidentified code blocks.
 
         Args:
@@ -82,55 +75,46 @@ class SlideExtractor:
             return []
 
         for line_idx, line in enumerate(lines):
-            stripped_line = (
-                line.lstrip()
-            )  # Use lstrip for checking prefixes, original line for content
+            stripped_line = line.strip()
 
-            # Priority 1: Check for slide separator
-            if separator_re.match(line):  # Match on the original line to respect ^\s*
-                if in_code_block:
-                    logger.warning(
-                        f"Slide separator '===' found at line {line_idx + 1} and overriding active code block state. Current fence: {current_fence}"
-                    )
+            # Priority 1: Handle code block boundaries first
+            # Simplified fence detection: check if line starts with ``` or ~~~
+            is_code_fence_line = False
+            potential_fence = None
+
+            if stripped_line.startswith("```"):
+                potential_fence = "```"
+                is_code_fence_line = True
+            elif stripped_line.startswith("~~~"):
+                potential_fence = "~~~"
+                is_code_fence_line = True
+
+            if is_code_fence_line:
+                if not in_code_block:
+                    # Opening fence
+                    in_code_block = True
+                    current_fence = potential_fence
+                    logger.debug(f"Opening code block with fence {potential_fence} at line {line_idx + 1}")
+                elif potential_fence == current_fence:
+                    # Matching closing fence
                     in_code_block = False
                     current_fence = None
+                    logger.debug(f"Closing code block with fence {potential_fence} at line {line_idx + 1}")
+                # If it's a different fence type inside an existing code block, treat as content
 
+            # Priority 2: Check for slide separator only if NOT in a code block
+            if separator_re.match(line) and not in_code_block:  # Only split if not in code block
                 if current_part_lines:
                     parts.append("\n".join(current_part_lines))
                 current_part_lines = []
                 # Separator line itself is not added to any part
                 continue
+            if separator_re.match(line) and in_code_block:
+                # Slide separator found inside code block - treat as normal content
+                logger.debug(f"Slide separator '===' found inside code block at line {line_idx + 1}, treating as code content")
 
-            # Priority 2: Handle code block boundaries if not a slide separator
-            is_code_fence_line = False
-            potential_fence = None
-            if stripped_line.startswith("```") or stripped_line.startswith("~~~"):
-                potential_fence = stripped_line[0:3]
-                # A line is a fence if it's just the fence or fence + language identifier
-                if stripped_line == potential_fence or (
-                    len(stripped_line) > 3 and stripped_line[3:].isalnum()
-                ):
-                    is_code_fence_line = True
-                elif (
-                    len(stripped_line) > 3 and not stripped_line[3].isspace()
-                ):  # e.g. ```python
-                    is_code_fence_line = True
-
-            if is_code_fence_line:
-                if not in_code_block:
-                    in_code_block = True
-                    current_fence = potential_fence
-                    current_part_lines.append(line)
-                elif potential_fence == current_fence:  # Matching closing fence
-                    in_code_block = False
-                    current_fence = None
-                    current_part_lines.append(line)
-                else:  # Different fence type inside an existing code block (treat as content)
-                    current_part_lines.append(line)
-            elif in_code_block:
-                current_part_lines.append(line)
-            else:  # Normal content line
-                current_part_lines.append(line)
+            # Add the line to current part
+            current_part_lines.append(line)
 
         # Add the last part if it has content
         if current_part_lines:
@@ -138,18 +122,14 @@ class SlideExtractor:
             # No need to strip here, _process_slide_content will handle it.
             # This ensures that a slide consisting of, e.g. just newlines before a title, is preserved.
             parts.append(final_segment)
-            logger.debug(
-                f"Added final slide content segment: {len(current_part_lines)} lines"
-            )
+            logger.debug(f"Added final slide content segment: {len(current_part_lines)} lines")
 
         # Filter out parts that become empty *after* stripping, unless they are the only part
         # This filtering is now effectively done in the calling `extract_slides` method
         # by checking if `_process_slide_content` results in an empty slide.
         return parts
 
-    def _process_slide_content(
-        self, content: str, index: int, slide_object_id: str
-    ) -> dict:
+    def _process_slide_content(self, content: str, index: int, slide_object_id: str) -> dict:
         """
         Process slide content to extract title, footer, notes, etc.
 
@@ -221,46 +201,36 @@ class SlideExtractor:
                 logger.debug(f"Extracted directives from title: {title_directives}")
 
             # Continue with existing code...
-            title_line_pattern = (
-                r"^#\s+" + re.escape(title_match.group(1).strip()) + r"\s*(\n|$)"
-            )
-            content_after_title = re.sub(
-                title_line_pattern, "", content_after_title, count=1, flags=re.MULTILINE
-            )
+            title_line_pattern = r"^#\s+" + re.escape(title_match.group(1).strip()) + r"\s*(\n|$)"
+            content_after_title = re.sub(title_line_pattern, "", content_after_title, count=1, flags=re.MULTILINE)
 
         # Extract speaker notes from content_after_title
         notes_from_content = self._extract_notes(content_after_title)
-        if notes_from_content:
-            notes_pattern_to_remove = r""  # Non-greedy match for notes
-            content_after_title = re.sub(
-                notes_pattern_to_remove, "", content_after_title, flags=re.DOTALL
-            )
 
         final_notes = notes_from_content
-        speaker_notes_placeholder_id = (
-            f"{slide_object_id}_notesShape" if final_notes else None
-        )
+        speaker_notes_placeholder_id = f"{slide_object_id}_notesShape" if final_notes else None
 
         # Also check for notes in the footer (these override content notes if present)
         if footer:
             notes_from_footer = self._extract_notes(footer)
             if notes_from_footer:
                 final_notes = notes_from_footer  # Footer notes take precedence
-                speaker_notes_placeholder_id = (
-                    f"{slide_object_id}_notesShape"  # Ensure ID is set
-                )
-                notes_pattern_to_remove = r""
-                footer = re.sub(
-                    notes_pattern_to_remove, "", footer, flags=re.DOTALL
-                ).strip()
+                speaker_notes_placeholder_id = f"{slide_object_id}_notesShape"  # Ensure ID is set
+                # Remove notes from footer using the same pattern as _extract_notes
+                notes_pattern_to_remove = r"<!--\s*notes:\s*.*?\s*-->"
+                footer = re.sub(notes_pattern_to_remove, "", footer, flags=re.DOTALL).strip()
 
         # Extract background directives from content_after_title
         background = self._extract_background(content_after_title)
         if background:
             background_pattern = r"^\s*\[background=([^\]]+)\]\s*\n?"
-            content_after_title = re.sub(
-                background_pattern, "", content_after_title, count=1, flags=re.MULTILINE
-            )
+            content_after_title = re.sub(background_pattern, "", content_after_title, count=1, flags=re.MULTILINE)
+
+        # Remove ALL notes comments from content_after_title before it becomes final_slide_content
+        # This ensures that SectionParser doesn't receive content with embedded, already-processed notes
+        notes_pattern_to_remove_all = r"<!--\s*notes:\s*.*?\s*-->"  # Non-greedy match for all notes
+        content_after_title = re.sub(notes_pattern_to_remove_all, "", content_after_title, flags=re.DOTALL)
+        logger.debug("Removed all speaker notes comments from slide content")
 
         # The final slide content is what remains of content_after_title after stripping
         final_slide_content = content_after_title.strip()
@@ -293,9 +263,7 @@ class SlideExtractor:
         """Extract background directive from content."""
         # Match background directive only if it's at the very beginning of the content string (after optional whitespace)
         background_pattern = r"^\s*\[background=([^\]]+)\]"
-        match = re.match(
-            background_pattern, content
-        )  # content is already stripped or lstripped by caller usually
+        match = re.match(background_pattern, content)  # content is already stripped or lstripped by caller usually
         if match:
             bg_value = match.group(1).strip()
             if bg_value.startswith("url(") and bg_value.endswith(")"):

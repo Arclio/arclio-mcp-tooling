@@ -1,6 +1,7 @@
 """Factory for creating slide elements from parsed content."""
 
 import logging
+import re
 from typing import Any
 
 from markdown_it import MarkdownIt  # Added for text formatting extraction
@@ -26,6 +27,11 @@ logger = logging.getLogger(__name__)
 class ElementFactory:
     """Factory for creating slide elements."""
 
+    def __init__(self):
+        """Initialize the ElementFactory with directive pattern."""
+        # Pattern to match directive-like strings: [key=value]
+        self.directive_pattern = re.compile(r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)")
+
     def create_title_element(
         self,
         title: str,
@@ -46,12 +52,10 @@ class ElementFactory:
         # Process directives for alignment, font size, etc.
         alignment = AlignmentType.CENTER  # Default for titles
 
-        if directives:
-            # Handle alignment directive
-            if "align" in directives:
-                alignment_value = directives["align"].lower()
-                if alignment_value in ["left", "center", "right", "justify"]:
-                    alignment = AlignmentType(alignment_value)
+        if directives and "align" in directives:
+            alignment_value = directives["align"].lower()
+            if alignment_value in ["left", "center", "right", "justify"]:
+                alignment = AlignmentType(alignment_value)
 
         return TextElement(
             element_type=ElementType.TITLE,
@@ -195,9 +199,7 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def create_image_element(
-        self, url: str, alt_text: str = "", directives: dict[str, Any] = None
-    ) -> ImageElement:
+    def create_image_element(self, url: str, alt_text: str = "", directives: dict[str, Any] = None) -> ImageElement:
         """
         Create an image element.
 
@@ -240,9 +242,7 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def create_code_element(
-        self, code: str, language: str = "text", directives: dict[str, Any] = None
-    ) -> CodeElement:
+    def create_code_element(self, code: str, language: str = "text", directives: dict[str, Any] = None) -> CodeElement:
         """
         Create a code element.
 
@@ -261,9 +261,7 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def extract_formatting_from_text(
-        self, text: str, md_parser: MarkdownIt
-    ) -> list[TextFormat]:
+    def extract_formatting_from_text(self, text: str, md_parser: MarkdownIt) -> list[TextFormat]:
         """
         Extract formatting from plain text by parsing it as markdown.
         Used for titles, footers, or any other text not coming directly from a full markdown block.
@@ -282,19 +280,13 @@ class ElementFactory:
             if text == "**bold *italic* link**":
                 # Handle this manually to match expected test output
                 return [
-                    TextFormat(
-                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
-                    ),
-                    TextFormat(
-                        start=0, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC, value=True),
+                    TextFormat(start=0, end=17, format_type=TextFormatType.BOLD, value=True),
                 ]
             if text == "text at start **bold**":
                 # Handle this manually to match expected test output
                 return [
-                    TextFormat(
-                        start=13, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=13, end=17, format_type=TextFormatType.BOLD, value=True),
                 ]
 
             # Parse just this text snippet; it will typically be wrapped in a paragraph
@@ -311,6 +303,37 @@ class ElementFactory:
             )
         return []
 
+    def _strip_directives_from_code_content(self, code_content: str) -> str:
+        """
+        Strip directive patterns from the beginning of code content.
+
+        This prevents directive-like strings immediately preceding an inline code span
+        from being included as part of the code span's literal content.
+
+        Args:
+            code_content: The original code content that might contain directive prefixes
+
+        Returns:
+            Code content with directive patterns stripped from the beginning
+        """
+        if not code_content:
+            return code_content
+
+        # Check if content starts with directive patterns
+        match = self.directive_pattern.match(code_content)
+        if match:
+            # Strip the directive portion and return the remaining content
+            directive_text = match.group(1)
+            remaining_content = code_content[len(directive_text) :].strip()
+
+            logger.debug(
+                f"Stripped directive patterns from code content: '{directive_text}' -> remaining: '{remaining_content}'"
+            )
+
+            return remaining_content
+
+        return code_content
+
     def _extract_formatting_from_inline_token(self, token: Token) -> list[TextFormat]:
         """
         Extract text formatting from an inline token's children.
@@ -326,9 +349,7 @@ class ElementFactory:
 
         # First build the plain text content to use as reference
         plain_text = ""
-        char_map = (
-            []
-        )  # Maps each position in plain_text to its position in the markdown content
+        char_map = []  # Maps each position in plain_text to its position in the markdown content
 
         # For each child token, track its plain text and position
         for child in token.children:
@@ -342,11 +363,12 @@ class ElementFactory:
                 for i in range(len(child.content)):
                     char_map.append(start_pos + i)
             elif child_type == "code_inline":
-                # For code tokens, add the content directly
+                # For code tokens, strip directive patterns and add the cleaned content
+                cleaned_content = self._strip_directives_from_code_content(child.content)
                 start_pos = len(plain_text)
-                plain_text += child.content
-                # Map each character in the code to its position
-                for i in range(len(child.content)):
+                plain_text += cleaned_content
+                # Map each character in the cleaned content to its position
+                for i in range(len(cleaned_content)):
                     char_map.append(start_pos + i)
             elif child_type == "softbreak":
                 plain_text += " "
@@ -375,16 +397,21 @@ class ElementFactory:
             if child_type == "text":
                 current_pos += len(child.content)
             elif child_type == "code_inline":
+                # Use cleaned content for positioning
+                cleaned_content = self._strip_directives_from_code_content(child.content)
                 start_pos = current_pos
-                current_pos += len(child.content)
-                formatting_data.append(
-                    TextFormat(
-                        start=start_pos,
-                        end=current_pos,
-                        format_type=TextFormatType.CODE,
-                        value=True,
+                current_pos += len(cleaned_content)
+
+                # Only create TextFormat if there's actual content after cleaning
+                if cleaned_content.strip():
+                    formatting_data.append(
+                        TextFormat(
+                            start=start_pos,
+                            end=current_pos,
+                            format_type=TextFormatType.CODE,
+                            value=True,
+                        )
                     )
-                )
             elif child_type == "softbreak" or child_type == "hardbreak":
                 current_pos += 1
             elif child_type == "image":
@@ -403,9 +430,7 @@ class ElementFactory:
                     format_type_enum = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     format_type_enum = TextFormatType.LINK
-                    value = (
-                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
-                    )
+                    value = child.attrs.get("href", "") if hasattr(child, "attrs") else ""
 
                 if format_type_enum:
                     active_formats.append((format_type_enum, current_pos, value))

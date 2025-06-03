@@ -28,20 +28,12 @@ class TestListRequestBuilderStyling:
         assert len(requests) >= 4
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
-        assert style_req["updateTextStyle"]["style"]["foregroundColor"][
-            "rgbColor"
-        ] == builder._hex_to_rgb("#123456")
-        assert (
-            style_req["updateTextStyle"]["fields"] == "foregroundColor.rgbColor"
-        )  # Updated to be more specific
+        assert style_req["updateTextStyle"]["style"]["foregroundColor"]["rgbColor"] == builder._hex_to_rgb("#123456")
+        assert style_req["updateTextStyle"]["fields"] == "foregroundColor.rgbColor"  # Updated to be more specific
         assert style_req["updateTextStyle"]["textRange"]["type"] == "ALL"
 
     def test_generate_list_with_color_directive_theme(self, builder: ListRequestBuilder):
@@ -54,11 +46,7 @@ class TestListRequestBuilderStyling:
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
@@ -73,16 +61,10 @@ class TestListRequestBuilderStyling:
             object_id="list_fontsize",
             directives={"fontsize": 18},
         )
-        requests = builder.generate_list_element_requests(
-            element, "slide1", "NUMBERED_DIGIT_ALPHA_ROMAN"
-        )
+        requests = builder.generate_list_element_requests(element, "slide1", "NUMBERED_DIGIT_ALPHA_ROMAN")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r and "fontSize" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "fontSize" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
@@ -101,11 +83,7 @@ class TestListRequestBuilderStyling:
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r and "fontFamily" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "fontFamily" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
@@ -129,11 +107,7 @@ class TestListRequestBuilderStyling:
         assert len(requests) >= 4
 
         bold_style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r and r["updateTextStyle"]["style"].get("bold") is True
-            ),
+            (r for r in requests if "updateTextStyle" in r and r["updateTextStyle"]["style"].get("bold") is True),
             None,
         )
 

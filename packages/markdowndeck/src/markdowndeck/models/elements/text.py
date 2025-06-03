@@ -34,9 +34,7 @@ class TextElement(Element):
         """Check if this element has any formatting applied."""
         return bool(self.formatting)
 
-    def add_formatting(
-        self, format_type: TextFormatType, start: int, end: int, value: Any = None
-    ) -> None:
+    def add_formatting(self, format_type: TextFormatType, start: int, end: int, value: Any = None) -> None:
         """
         Add formatting to a portion of the text.
 
@@ -52,9 +50,7 @@ class TextElement(Element):
         if value is None:
             value = True
 
-        self.formatting.append(
-            TextFormat(start=start, end=end, format_type=format_type, value=value)
-        )
+        self.formatting.append(TextFormat(start=start, end=end, format_type=format_type, value=value))
 
     def count_newlines(self) -> int:
         """Count the number of explicit newlines in the text."""

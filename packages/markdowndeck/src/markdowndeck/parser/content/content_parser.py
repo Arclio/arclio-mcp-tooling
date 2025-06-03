@@ -14,11 +14,11 @@ from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
     BaseFormatter,
     CodeFormatter,
-    ImageFormatter,
     ListFormatter,
     TableFormatter,
     TextFormatter,
 )
+from markdowndeck.parser.directive import DirectiveParser
 
 logger = logging.getLogger(__name__)
 
@@ -41,12 +41,13 @@ class ContentParser:
         self.md.enable("strikethrough")
 
         self.element_factory = ElementFactory()
+        self.directive_parser = DirectiveParser()
 
         # Initialize formatters, injecting the element factory
         # Order matters: ImageFormatter should attempt to handle image-only paragraphs
         # before TextFormatter handles general paragraphs.
         self.formatters: list[BaseFormatter] = [
-            ImageFormatter(self.element_factory),
+            # ImageFormatter(self.element_factory),  # TODO: Fix infinite loop in ImageFormatter
             ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
@@ -73,21 +74,15 @@ class ContentParser:
         Returns:
             List of all elements for the slide (for the slide.elements list)
         """
-        logger.debug(
-            "Parsing content into slide elements and populating section.elements"
-        )
+        logger.debug("Parsing content into slide elements and populating section.elements")
         all_elements: list[Element] = []
 
         # Process the title (H1)
         if slide_title_text:
-            formatting = self.element_factory.extract_formatting_from_text(
-                slide_title_text, self.md
-            )
+            formatting = self.element_factory.extract_formatting_from_text(slide_title_text, self.md)
 
             # Apply title directives if present
-            title_element = self.element_factory.create_title_element(
-                slide_title_text, formatting, title_directives
-            )
+            title_element = self.element_factory.create_title_element(slide_title_text, formatting, title_directives)
 
             all_elements.append(title_element)
             logger.debug(f"Added title element: {slide_title_text[:30]}")
@@ -99,18 +94,12 @@ class ContentParser:
                     _process_section_recursively(subsection)
             elif current_section.type == "section" and current_section.content:
                 tokens = self.md.parse(current_section.content)
-                logger.debug(
-                    f"Tokens for section {current_section.id}: {[t.type for t in tokens if t.type != 'softbreak']}"
-                )
+                logger.debug(f"Tokens for section {current_section.id}: {[t.type for t in tokens if t.type != 'softbreak']}")
                 # Process tokens and populate section.elements
-                parsed_elements = self._process_tokens(
-                    tokens, current_section.directives
-                )
+                parsed_elements = self._process_tokens(tokens, current_section.directives)
                 current_section.elements.extend(parsed_elements)
                 all_elements.extend(parsed_elements)
-                logger.debug(
-                    f"Added {len(parsed_elements)} elements to section {current_section.id}"
-                )
+                logger.debug(f"Added {len(parsed_elements)} elements to section {current_section.id}")
 
         # Process all sections and populate their elements
         for section in sections:
@@ -118,23 +107,54 @@ class ContentParser:
 
         # Process the footer
         if slide_footer_text:
-            formatting = self.element_factory.extract_formatting_from_text(
-                slide_footer_text, self.md
-            )
-            footer_element = self.element_factory.create_footer_element(
-                slide_footer_text, formatting
-            )
+            formatting = self.element_factory.extract_formatting_from_text(slide_footer_text, self.md)
+            footer_element = self.element_factory.create_footer_element(slide_footer_text, formatting)
             all_elements.append(footer_element)
             logger.debug(f"Added footer element: {slide_footer_text[:30]}")
 
-        logger.info(
-            f"Created {len(all_elements)} total elements from content using formatters."
-        )
+        logger.info(f"Created {len(all_elements)} total elements from content using formatters.")
         return all_elements
 
-    def _process_tokens(
-        self, tokens: list[Token], directives: dict[str, Any]
-    ) -> list[Element]:
+    def _find_element_specific_directives(self, tokens: list[Token], element_start_index: int) -> dict[str, Any] | None:
+        """
+        Look for element-specific directives immediately before a block element.
+
+        Args:
+            tokens: List of all tokens
+            element_start_index: Index where the block element starts
+
+        Returns:
+            Dictionary of element-specific directives if found, None otherwise
+        """
+        # For now, let TextFormatter handle directive extraction entirely
+        # This avoids the infinite loop issue and centralizes directive parsing
+        return None
+
+    def _get_plain_text_from_inline_token(self, inline_token: Token) -> str:
+        """
+        Extract plain text content from an inline token.
+
+        Args:
+            inline_token: A markdown-it inline token with children
+
+        Returns:
+            Plain text content
+        """
+        if not hasattr(inline_token, "children"):
+            return getattr(inline_token, "content", "")
+
+        plain_text = ""
+        for child in inline_token.children:
+            if child.type == "text":
+                plain_text += child.content
+            elif child.type == "softbreak":
+                plain_text += " "
+            elif child.type == "hardbreak":
+                plain_text += "\n"
+
+        return plain_text
+
+    def _process_tokens(self, tokens: list[Token], directives: dict[str, Any]) -> list[Element]:
         elements: list[Element] = []
         current_index = 0
 
@@ -153,35 +173,32 @@ class ContentParser:
                 if level == 1 and first_h1_index == -1:
                     first_h1_index = i
                 # The first H2 that immediately follows the first H1 is a subtitle
-                elif (
-                    level == 2 and first_h1_index != -1 and i == first_h1_index + 3
-                ):  # H1_open, inline, H1_close, H2_open
+                elif level == 2 and first_h1_index != -1 and i == first_h1_index + 3:  # H1_open, inline, H1_close, H2_open
                     subtitle_indices.add(i)
                 # All other headings are section headings (H2-H6)
                 else:
                     # CRITICAL FIX: Make sure ALL section headers are captured
                     section_heading_indices.add(i)
-                    logger.debug(
-                        f"Marked heading at index {i} as section heading (level {level})"
-                    )
+                    logger.debug(f"Marked heading at index {i} as section heading (level {level})")
 
         # Second pass: process all tokens
         while current_index < len(tokens):
             token = tokens[current_index]
             dispatched = False
 
+            # Removed problematic _should_skip_directive_paragraph check
+            # Let formatters handle directive extraction directly
+
             for formatter in self.formatters:
                 if formatter.can_handle(token, tokens[current_index:]):
                     try:
-                        # Pass section_heading_indices to formatters that need it
-                        if (
-                            isinstance(formatter, TextFormatter)
-                            and token.type == "heading_open"
-                        ):
+                        # Look for element-specific directives before this element
+                        element_specific_directives = self._find_element_specific_directives(tokens, current_index)
+
+                        # Pass both section and element-specific directives to formatters
+                        if type(formatter).__name__ == "TextFormatter" and token.type == "heading_open":
                             # FIXED: Always pass correct is_section_heading flag
-                            is_section_heading = (
-                                current_index in section_heading_indices
-                            )
+                            is_section_heading = current_index in section_heading_indices
                             is_subtitle = current_index in subtitle_indices
 
                             # Log what we're processing for debugging
@@ -195,12 +212,16 @@ class ContentParser:
                                 tokens,
                                 current_index,
                                 directives,
+                                element_specific_directives,
                                 is_section_heading=is_section_heading,
                                 is_subtitle=is_subtitle,
                             )
                         else:
                             element, new_index_offset = formatter.process(
-                                tokens, current_index, directives
+                                tokens,
+                                current_index,
+                                directives,
+                                element_specific_directives,
                             )
 
                         if element:
@@ -219,7 +240,8 @@ class ContentParser:
                             exc_info=True,
                         )
                         # Skip error handling logic (unchanged)
-                        ...
+                        current_index += 1
+                        break
 
             if not dispatched:
                 if token.type not in ["softbreak", "hardbreak"] and token.type:

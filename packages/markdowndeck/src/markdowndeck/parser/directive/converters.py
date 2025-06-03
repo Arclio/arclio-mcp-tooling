@@ -6,6 +6,44 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Google Slides theme colors
+KNOWN_THEME_COLORS = {
+    "TEXT1",
+    "TEXT2",
+    "BACKGROUND1",
+    "BACKGROUND2",
+    "ACCENT1",
+    "ACCENT2",
+    "ACCENT3",
+    "ACCENT4",
+    "ACCENT5",
+    "ACCENT6",
+    "HYPERLINK",
+    "FOLLOWED_HYPERLINK",
+    "DARK1",
+    "LIGHT1",
+}
+
+
+def _create_color_value(color_type: str, color_value: str) -> dict[str, Any]:
+    """
+    Create a standardized color value dictionary.
+
+    Args:
+        color_type: Type of color ('hex', 'named', 'theme')
+        color_value: The color value
+
+    Returns:
+        Standardized color dictionary
+    """
+    if color_type == "theme":
+        return {"type": "theme", "themeColor": color_value}
+    if color_type == "hex":
+        return {"type": "hex", "value": color_value}
+    if color_type == "named":
+        return {"type": "named", "value": color_value}
+    return {"type": "unknown", "value": color_value}
+
 
 def convert_dimension(value: str) -> float:
     """
@@ -110,41 +148,114 @@ def convert_alignment(value: str) -> str:
     return value
 
 
-def convert_style(value: str) -> tuple[str, Any]:
+def get_theme_colors() -> set[str]:
     """
-    Convert style value with improved handling.
-
-    Args:
-        value: Style as string (e.g., "#f5f5f5", "url(image.jpg)")
+    Get a set of valid Google Slides theme color names.
 
     Returns:
-        Tuple of (type, value)
+        Set of valid theme color names in uppercase
     """
-    value = value.strip()  # Ensure stripped
+    return {
+        "TEXT1",
+        "TEXT2",
+        "BACKGROUND1",
+        "BACKGROUND2",
+        "ACCENT1",
+        "ACCENT2",
+        "ACCENT3",
+        "ACCENT4",
+        "ACCENT5",
+        "ACCENT6",
+        "HYPERLINK",
+        "FOLLOWED_HYPERLINK",
+        "DARK1",
+        "LIGHT1",
+        "DARK2",
+        "LIGHT2",
+    }
 
-    # Handle colors with improved validation
-    color_names = get_color_names()
-    if value.startswith("#") or value.lower() in color_names:
-        # If it's a hex color, validate the format
-        if value.startswith("#") and not re.fullmatch(
-            r"#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{1,5})?", value
-        ):
-            logger.warning(f"Invalid hex color format: '{value}', using as is.")
-        # Return for all colors
-        return ("color", value)
 
-    # Handle URLs with improved pattern matching
-    url_match = re.fullmatch(r"url\(\s*['\"]?(.+?)['\"]?\s*\)", value, re.IGNORECASE)
+def convert_style(value: str) -> tuple[str, Any]:
+    """
+    Convert style value (color, URL, border style, or generic value) with enhanced support.
+
+    Args:
+        value: Style value as string
+
+    Returns:
+        Tuple of (type, converted_value) where type indicates the style type
+        and converted_value is the processed value in a structured format.
+    """
+    value = value.strip()
+    logger.debug(f"Converting style value: '{value}'")
+
+    # Handle hex colors
+    if value.startswith("#"):
+        if re.match(r"^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$", value):
+            logger.debug(f"Valid hex color: {value}")
+            return ("color", _create_color_value("hex", value))
+        logger.warning(f"Invalid hex color format: {value}")
+        return (
+            "color",
+            _create_color_value("hex", value),
+        )  # Return as-is but mark as color
+
+    # Handle URLs
+    url_match = re.match(r"url\(\s*['\"]?([^'\"]*)['\"]?\s*\)", value)
     if url_match:
-        url = url_match.group(1)
-        return ("url", url)
+        url = url_match.group(1).strip()
+        logger.debug(f"Extracted URL: {url}")
+        return ("url", {"type": "url", "value": url})
 
-    # Handle other style values
-    if value in ["solid", "dashed", "dotted", "none", "hidden"]:
-        return ("border-style", value)
+    # Handle theme colors (case-insensitive)
+    if value.upper() in KNOWN_THEME_COLORS:
+        return ("color", _create_color_value("theme", value.upper()))
 
-    # Return as-is for other values
-    logger.debug(f"Directive style value '{value}' treated as generic value.")
+    # Handle compound border values (e.g., "1pt solid #FF0000", "2px dashed ACCENT1")
+    border_match = re.match(
+        r"^(\d+(?:\.\d+)?(?:pt|px|em|rem|%))\s+(solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+)$",
+        value,
+        re.IGNORECASE,
+    )
+    if border_match:
+        width_str, style_str, color_str = border_match.groups()
+
+        # Parse the color component recursively
+        color_type, color_value = convert_style(color_str.strip())
+
+        # Ensure color_value is in the right format
+        color_data = color_value if color_type == "color" else {"type": "unknown", "value": color_value}
+
+        border_info = {
+            "width": width_str,
+            "style": style_str.lower(),
+            "color": color_data,
+        }
+        logger.debug(f"Parsed compound border: {border_info}")
+        return ("border", border_info)
+
+    # Handle simple border styles (for backward compatibility)
+    simple_border_styles = {
+        "solid",
+        "dashed",
+        "dotted",
+        "double",
+        "groove",
+        "ridge",
+        "inset",
+        "outset",
+    }
+    if value.lower() in simple_border_styles:
+        return ("border_style", value.lower())
+
+    # Handle named colors
+    color_names = get_color_names()
+    if value.lower() in color_names:
+        logger.debug(f"Named color: {value}")
+        return ("color", _create_color_value("named", value.lower()))
+
+    # Handle other style values - return as generic value
+    logger.debug(f"Generic style value: {value}")
     return ("value", value)
 
 

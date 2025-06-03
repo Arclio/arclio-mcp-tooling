@@ -68,18 +68,14 @@ class TestSectionLayout:
         assert sections[0].position[0] == pytest.approx(calculator.body_left)
 
         # Second section should be positioned after first section + spacing
-        expected_s2_x = (
-            sections[0].position[0] + sections[0].size[0] + calculator.horizontal_spacing
-        )
+        expected_s2_x = sections[0].position[0] + sections[0].size[0] + calculator.horizontal_spacing
         assert sections[1].position[0] == pytest.approx(expected_s2_x)
 
         # Both sections should have full body height
         assert sections[0].size[1] == pytest.approx(calculator.body_height)
         assert sections[1].size[1] == pytest.approx(calculator.body_height)
 
-    def test_distribute_space_mixed_explicit_implicit_horizontal(
-        self, calculator: PositionCalculator
-    ):
+    def test_distribute_space_mixed_explicit_implicit_horizontal(self, calculator: PositionCalculator):
         """Test that horizontal space is correctly distributed with mixed explicit and implicit sections."""
         sections = [
             Section(id="s1", directives={"width": 0.3}),  # 30%
@@ -103,16 +99,12 @@ class TestSectionLayout:
 
         # Check implicit section size (remaining space)
         total_spacing = calculator.horizontal_spacing * 2  # 2 spaces between 3 sections
-        expected_s2_width = (
-            calculator.body_width - (calculator.body_width * 0.3) - 100 - total_spacing
-        )
+        expected_s2_width = calculator.body_width - (calculator.body_width * 0.3) - 100 - total_spacing
         assert sections[1].size[0] == pytest.approx(expected_s2_width)
 
         # Check section positions
         assert sections[0].position[0] == pytest.approx(calculator.body_left)
-        expected_s2_x = (
-            calculator.body_left + (calculator.body_width * 0.3) + calculator.horizontal_spacing
-        )
+        expected_s2_x = calculator.body_left + (calculator.body_width * 0.3) + calculator.horizontal_spacing
         assert sections[1].position[0] == pytest.approx(expected_s2_x)
         expected_s3_x = expected_s2_x + expected_s2_width + calculator.horizontal_spacing
         assert sections[2].position[0] == pytest.approx(expected_s3_x)
@@ -261,9 +253,7 @@ class TestSectionLayout:
         )
 
         # Position the sections (horizontal split)
-        _distribute_space_and_position_sections(
-            calculator, slide.sections, area, is_vertical_split=False
-        )
+        _distribute_space_and_position_sections(calculator, slide.sections, area, is_vertical_split=False)
 
         # Position elements within sections
         # (using the slide wrapper method that properly handles passing elements to sections)

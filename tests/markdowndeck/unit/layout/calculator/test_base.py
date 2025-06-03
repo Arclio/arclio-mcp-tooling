@@ -37,9 +37,7 @@ class TestBaseCalculator:
 
         # Check body zone calculation
         assert calculator.body_left == 50  # left margin
-        assert (
-            calculator.body_top > 50
-        )  # Should be greater than top margin to account for title area
+        assert calculator.body_top > 50  # Should be greater than top margin to account for title area
         assert calculator.body_width == calculator.max_content_width
         # Body height should be less than max_content_height to account for header/footer
         assert calculator.body_height < calculator.max_content_height
@@ -61,12 +59,8 @@ class TestBaseCalculator:
             assert element.size is not None
 
         # Title should be in the header zone
-        title_element = next(
-            e for e in result_slide.elements if e.element_type == ElementType.TITLE
-        )
-        assert (
-            title_element.position[1] < calculator.body_top
-        )  # Title Y position should be above body_top
+        title_element = next(e for e in result_slide.elements if e.element_type == ElementType.TITLE)
+        assert title_element.position[1] < calculator.body_top  # Title Y position should be above body_top
 
         # Text should be in the body zone, accounting for BODY_TOP_ADJUSTMENT
         text_element = next(e for e in result_slide.elements if e.element_type == ElementType.TEXT)
@@ -113,19 +107,13 @@ class TestBaseCalculator:
         text2_elem = section2.elements[0]
 
         assert text1_elem.position[0] >= section1.position[0]
-        assert (
-            text1_elem.position[0] + text1_elem.size[0] <= section1.position[0] + section1.size[0]
-        )
+        assert text1_elem.position[0] + text1_elem.size[0] <= section1.position[0] + section1.size[0]
 
         assert text2_elem.position[0] >= section2.position[0]
-        assert (
-            text2_elem.position[0] + text2_elem.size[0] <= section2.position[0] + section2.size[0]
-        )
+        assert text2_elem.position[0] + text2_elem.size[0] <= section2.position[0] + section2.size[0]
 
         # Title should still be in header zone
-        title_element = next(
-            e for e in result_slide.elements if e.element_type == ElementType.TITLE
-        )
+        title_element = next(e for e in result_slide.elements if e.element_type == ElementType.TITLE)
         assert title_element.position[1] < calculator.body_top
 
     def test_calculate_positions_auto_layout_detection(self, calculator: PositionCalculator):
@@ -186,7 +174,5 @@ class TestBaseCalculator:
         assert positioned_footer.position is not None
         assert positioned_footer.size is not None
         # Check it's at the bottom
-        expected_y = (
-            calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
-        )
+        expected_y = calculator.slide_height - calculator.margins["bottom"] - positioned_footer.size[1]
         assert positioned_footer.position[1] == pytest.approx(expected_y)

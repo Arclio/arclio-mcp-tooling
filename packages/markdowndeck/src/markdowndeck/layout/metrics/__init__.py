@@ -68,9 +68,7 @@ def calculate_element_height(element: Element, available_width: float) -> float:
         elif hasattr(element, "_parent_height"):
             available_height = element._parent_height
 
-        return calculate_image_element_height(
-            element, available_width, available_height
-        )
+        return calculate_image_element_height(element, available_width, available_height)
 
     # Default minimum height for unknown element types - reduced
     return 60  # Reduced from 80
@@ -81,9 +79,7 @@ def calculate_element_height(element: Element, available_width: float) -> float:
 # All the optimizations from each specialized file should also be reflected here.
 
 
-def calculate_text_element_height(
-    element: TextElement | Element, available_width: float
-) -> float:
+def calculate_text_element_height(element: TextElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a text element.
 
@@ -159,9 +155,7 @@ def calculate_text_element_height(
             chars_per_line = max(1, int(effective_width / avg_char_width_pt))
             # Simple line wrapping calculation
             text_length = len(line)
-            lines_needed = (
-                text_length + chars_per_line - 1
-            ) // chars_per_line  # Ceiling division
+            lines_needed = (text_length + chars_per_line - 1) // chars_per_line  # Ceiling division
             line_count += lines_needed
 
     # OPTIMIZED: Minimal adjustments for formatting
@@ -175,9 +169,7 @@ def calculate_text_element_height(
     return max(min_height, min(calculated_height, max_height))
 
 
-def calculate_list_element_height(
-    element: ListElement | Element, available_width: float
-) -> float:
+def calculate_list_element_height(element: ListElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a list element.
 
@@ -217,9 +209,7 @@ def calculate_list_element_height(
 
         # Add height for text based on potential wrapping
         text_length = len(item.text)
-        chars_per_line = max(
-            1, int(available_width / 5.0)
-        )  # Assuming 5pt per character
+        chars_per_line = max(1, int(available_width / 5.0))  # Assuming 5pt per character
         lines_needed = (text_length + chars_per_line - 1) // chars_per_line
         item_height += (lines_needed - 1) * 14  # Add height for wrapped lines
 
@@ -230,16 +220,10 @@ def calculate_list_element_height(
                 child_text_length = len(child.text)
                 child_width = available_width - child_indent
                 child_chars_per_line = max(1, int(child_width / 5.0))
-                child_lines = (
-                    child_text_length + child_chars_per_line - 1
-                ) // child_chars_per_line
-                child_height = 22 + (
-                    (child_lines - 1) * 14
-                )  # Base height + wrapped lines
+                child_lines = (child_text_length + child_chars_per_line - 1) // child_chars_per_line
+                child_height = 22 + ((child_lines - 1) * 14)  # Base height + wrapped lines
 
-                item_height += child_height + (
-                    item_spacing / 2
-                )  # Reduced spacing between parent and child
+                item_height += child_height + (item_spacing / 2)  # Reduced spacing between parent and child
 
         total_height += item_height + item_spacing
 
@@ -254,9 +238,7 @@ def calculate_list_element_height(
     return max(total_height, 30.0)
 
 
-def calculate_table_element_height(
-    element: TableElement | Element, available_width: float
-) -> float:
+def calculate_table_element_height(element: TableElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a table element.
 
@@ -286,9 +268,7 @@ def calculate_table_element_height(
 
     # Calculate table dimensions
     row_count = len(rows)
-    col_count = max(
-        len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0
-    )
+    col_count = max(len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0)
 
     if col_count == 0:
         return 35  # Minimum height (reduced from 40)
@@ -299,17 +279,13 @@ def calculate_table_element_height(
     # Base height calculation with reduced padding
     header_height = headers and 22 or 0  # Reduced from 25pt
     row_height = 20  # Reduced from 25pt
-    total_height = (
-        header_height + (row_count * row_height) + 8
-    )  # Reduced padding from 10 to 8
+    total_height = header_height + (row_count * row_height) + 8  # Reduced padding from 10 to 8
 
     # Ensure minimum height
     return max(total_height, 35.0)  # Reduced from 40.0
 
 
-def calculate_code_element_height(
-    element: CodeElement | Element, available_width: float
-) -> float:
+def calculate_code_element_height(element: CodeElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a code element.
 

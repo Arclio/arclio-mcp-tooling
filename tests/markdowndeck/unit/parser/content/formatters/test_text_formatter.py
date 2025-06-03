@@ -28,9 +28,7 @@ class TestTextFormatter:
         return md
 
     @pytest.mark.parametrize("token_type", ["heading_open", "paragraph_open", "blockquote_open"])
-    def test_can_handle_valid_tokens(
-        self, formatter: TextFormatter, token_type: str, md_parser: MarkdownIt
-    ):
+    def test_can_handle_valid_tokens(self, formatter: TextFormatter, token_type: str, md_parser: MarkdownIt):
         # For paragraph_open, can_handle might be true even for image-only, process should sort it out
         # or ContentParser's dispatch order should prioritize ImageFormatter.
         # Here we simulate tokens that TextFormatter *should* definitively handle.
@@ -97,9 +95,7 @@ class TestTextFormatter:
         assert element.horizontal_alignment == AlignmentType.LEFT
         assert end_index == 2
 
-    def test_process_paragraph_with_inline_formatting(
-        self, formatter: TextFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_paragraph_with_inline_formatting(self, formatter: TextFormatter, md_parser: MarkdownIt):
         markdown = "Text with `code` and a [link](http://ex.com)."
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -107,9 +103,7 @@ class TestTextFormatter:
         assert element.text == "Text with code and a link."
         assert len(element.formatting) == 2
 
-    def test_process_paragraph_with_directives(
-        self, formatter: TextFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_paragraph_with_directives(self, formatter: TextFormatter, md_parser: MarkdownIt):
         markdown = "Aligned paragraph."
         tokens = md_parser.parse(markdown)
         directives = {"align": "center", "custom": "val"}
@@ -127,9 +121,7 @@ class TestTextFormatter:
     # --- Test _process_quote ---
     def test_process_simple_blockquote(self, formatter: TextFormatter, md_parser: MarkdownIt):
         markdown = "> This is a quote."
-        tokens = md_parser.parse(
-            markdown
-        )  # [blockquote_open, paragraph_open, inline, paragraph_close, blockquote_close]
+        tokens = md_parser.parse(markdown)  # [blockquote_open, paragraph_open, inline, paragraph_close, blockquote_close]
         element, end_index = formatter.process(tokens, 0, {})
 
         assert isinstance(element, TextElement)
@@ -145,9 +137,7 @@ class TestTextFormatter:
         # The formatter either joins with newlines (original behavior) or with spaces (current behavior)
         assert element.text in ["First line.\nSecond line.", "First line. Second line."]
 
-    def test_process_blockquote_with_formatting(
-        self, formatter: TextFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_blockquote_with_formatting(self, formatter: TextFormatter, md_parser: MarkdownIt):
         markdown = "> Quote with **bold** text."
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -156,9 +146,7 @@ class TestTextFormatter:
         assert len(element.formatting) == 1
         assert element.formatting[0].format_type == TextFormatType.BOLD
 
-    def test_process_paragraph_that_is_image_only_should_return_none(
-        self, formatter: TextFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_paragraph_that_is_image_only_should_return_none(self, formatter: TextFormatter, md_parser: MarkdownIt):
         """TextFormatter should yield to ImageFormatter for image-only paragraphs."""
         markdown = "![alt text](image.png)"
         tokens = md_parser.parse(markdown)

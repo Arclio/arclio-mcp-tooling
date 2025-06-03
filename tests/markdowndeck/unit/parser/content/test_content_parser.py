@@ -29,16 +29,17 @@ class TestContentParser:
         mock = Mock(spec=ElementFactory)
         # Setup mock return values for formatting extraction
         mock.extract_formatting_from_text.return_value = []
-        mock.create_title_element.side_effect = lambda text, formatting: TextElement(
-            element_type=ElementType.TITLE, text=text, formatting=formatting
+        mock.create_title_element.side_effect = lambda text, formatting, directives=None: TextElement(
+            element_type=ElementType.TITLE,
+            text=text,
+            formatting=formatting,
+            directives=directives or {},
         )
-        mock.create_footer_element.side_effect = (
-            lambda text, formatting, alignment=None: TextElement(
-                element_type=ElementType.FOOTER,
-                text=text,
-                formatting=formatting or [],
-                horizontal_alignment=alignment,
-            )
+        mock.create_footer_element.side_effect = lambda text, formatting, alignment=None: TextElement(
+            element_type=ElementType.FOOTER,
+            text=text,
+            formatting=formatting or [],
+            horizontal_alignment=alignment,
         )
         return mock
 
@@ -114,9 +115,7 @@ class TestContentParser:
         assert isinstance(parser.element_factory, ElementFactory)
         assert len(parser.formatters) > 0  # Should have registered formatters
 
-    def test_parse_content_with_title_and_footer(
-        self, content_parser: ContentParser, mock_element_factory: Mock
-    ):
+    def test_parse_content_with_title_and_footer(self, content_parser: ContentParser, mock_element_factory: Mock):
         """Simplified test to avoid hanging."""
         slide_title = "Test Slide Title"
         slide_footer = "Test Slide Footer"
@@ -132,7 +131,7 @@ class TestContentParser:
         assert len(elements) == 2  # Title and Footer only
 
         # Check only the factory calls, which is the core of what we want to test
-        mock_element_factory.create_title_element.assert_called_once_with(slide_title, [])
+        mock_element_factory.create_title_element.assert_called_once_with(slide_title, [], None)
         # Don't check optional alignment parameter as it appears the implementation doesn't pass it
         mock_element_factory.create_footer_element.assert_called_once_with(slide_footer, [])
 
@@ -142,9 +141,7 @@ class TestContentParser:
         assert elements[0].element_type == ElementType.TITLE
         assert elements[1].element_type == ElementType.FOOTER
 
-    def test_process_tokens_dispatch_to_text_formatter(
-        self, content_parser: ContentParser, mock_text_formatter: Mock
-    ):
+    def test_process_tokens_dispatch_to_text_formatter(self, content_parser: ContentParser, mock_text_formatter: Mock):
         """Simplified test for token dispatch to reduce complexity."""
         markdown = "Just a paragraph."
         tokens = content_parser.md.parse(markdown)
@@ -174,18 +171,12 @@ class TestContentParser:
         assert elements[0].text == "Processed paragraph"
         mock_text_formatter.process.assert_called_once()
 
-    def test_process_tokens_dispatch_to_list_formatter(
-        self, content_parser: ContentParser, mock_list_formatter: Mock
-    ):
+    def test_process_tokens_dispatch_to_list_formatter(self, content_parser: ContentParser, mock_list_formatter: Mock):
         markdown = "* Item 1\n* Item 2"
-        tokens = content_parser.md.parse(
-            markdown
-        )  # [bullet_list_open, list_item_open, ..., bullet_list_close]
+        tokens = content_parser.md.parse(markdown)  # [bullet_list_open, list_item_open, ..., bullet_list_close]
         directives = {}
 
-        mock_list_formatter.can_handle.side_effect = (
-            lambda token, _: token.type == "bullet_list_open"
-        )
+        mock_list_formatter.can_handle.side_effect = lambda token, _: token.type == "bullet_list_open"
         mock_list_formatter.process.return_value = (
             ListElement(items=[ListItem(text="Item 1")], element_type=ElementType.BULLET_LIST),
             len(tokens) - 1,
@@ -198,7 +189,7 @@ class TestContentParser:
         elements = content_parser._process_tokens(tokens, directives)
         assert len(elements) == 1
         assert isinstance(elements[0], ListElement)
-        mock_list_formatter.process.assert_called_once_with(tokens, 0, directives)
+        mock_list_formatter.process.assert_called_once_with(tokens, 0, directives, None)
 
     def test_process_tokens_correct_index_advancement(
         self,
@@ -231,13 +222,11 @@ class TestContentParser:
 
         elements = content_parser._process_tokens(tokens, directives)
         assert len(elements) == 2
-        mock_text_formatter.process.assert_called_once_with(tokens, 0, directives)
+        mock_text_formatter.process.assert_called_once_with(tokens, 0, directives, None)
         # After text_formatter, current_index should be 2 + 1 = 3
-        mock_code_formatter.process.assert_called_once_with(tokens, 3, directives)
+        mock_code_formatter.process.assert_called_once_with(tokens, 3, directives, None)
 
-    @pytest.mark.skip(
-        reason="Implementation is correctly tested by other tests. This test hangs frequently."
-    )
+    @pytest.mark.skip(reason="Implementation is correctly tested by other tests. This test hangs frequently.")
     def test_process_tokens_formatter_returns_none(
         self,
         content_parser: ContentParser,
@@ -303,9 +292,7 @@ class TestContentParser:
         assert "Error processing token" in caplog.text
         assert "Formatter error" in caplog.text
 
-    def test_parse_content_with_row_and_subsections(
-        self, content_parser: ContentParser, mock_text_formatter: Mock
-    ):
+    def test_parse_content_with_row_and_subsections(self, content_parser: ContentParser, mock_text_formatter: Mock):
         """Test parsing content within subsections of a row."""
         slide_title = "Row Test"
         sections = [

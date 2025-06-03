@@ -58,9 +58,7 @@ def mock_get_themes_func(monkeypatch: pytest.MonkeyPatch) -> MagicMock:
 class TestCLI:
     """Functional tests for the markdowndeck CLI."""
 
-    def run_cli(
-        self, args: list[str], input_data: str | None = None
-    ) -> subprocess.CompletedProcess:
+    def run_cli(self, args: list[str], input_data: str | None = None) -> subprocess.CompletedProcess:
         """
         Helper to run the CLI script via subprocess for real process execution.
 
@@ -124,9 +122,7 @@ class TestCLI:
         md_content = "# Test File\nFile content."
         md_file.write_text(md_content)
 
-        exit_code, stdout, _ = self.run_cli_main_mocked(
-            monkeypatch, ["create", str(md_file), "--title", "File CLI Test"]
-        )
+        exit_code, stdout, _ = self.run_cli_main_mocked(monkeypatch, ["create", str(md_file), "--title", "File CLI Test"])
 
         assert exit_code == 0
         # Check the get_credentials function was called, not the credentials object itself
@@ -263,9 +259,7 @@ class TestCLI:
         """Test that CLI fails properly when authentication fails."""
         md_file = tmp_path / "auth_fail.md"
         md_file.write_text("# Auth Fail")
-        monkeypatch.setattr(
-            MOCK_GET_CREDENTIALS_PATH, lambda: None
-        )  # Mock get_credentials to return None
+        monkeypatch.setattr(MOCK_GET_CREDENTIALS_PATH, lambda: None)  # Mock get_credentials to return None
 
         monkeypatch.setattr("sys.argv", ["markdowndeck/cli.py", "create", str(md_file)])
         with pytest.raises(SystemExit) as excinfo:
@@ -286,9 +280,7 @@ class TestCLI:
 
         # In the current implementation, we should test that a file path without the 'create'
         # command works within run_cli_main_mocked but does not raise SystemExit
-        exit_code, stdout, stderr = self.run_cli_main_mocked(
-            monkeypatch, [str(md_file), "--title", "Default Test"]
-        )
+        exit_code, stdout, stderr = self.run_cli_main_mocked(monkeypatch, [str(md_file), "--title", "Default Test"])
 
         # Verify behavior based on how the current implementation works
         # In current implementation, we assume the command parser handles this correctly

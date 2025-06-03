@@ -21,9 +21,7 @@ class TestListFormatter:
         return MarkdownIt()
 
     @pytest.mark.parametrize("token_type", ["bullet_list_open", "ordered_list_open"])
-    def test_can_handle_list_open_tokens(
-        self, formatter: ListFormatter, token_type: str, md_parser: MarkdownIt
-    ):
+    def test_can_handle_list_open_tokens(self, formatter: ListFormatter, token_type: str, md_parser: MarkdownIt):
         markdown = "* Item" if token_type == "bullet_list_open" else "1. Item"
         tokens = md_parser.parse(markdown)
         assert formatter.can_handle(tokens[0], tokens)  # tokens[0] is *_list_open
@@ -56,9 +54,7 @@ class TestListFormatter:
         assert element.items[0].text == "First"
         assert element.items[1].text == "Second"
 
-    def test_process_list_with_formatted_items(
-        self, formatter: ListFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_list_with_formatted_items(self, formatter: ListFormatter, md_parser: MarkdownIt):
         markdown = "* **Bold Item**\n* *Italic Item*"
         tokens = md_parser.parse(markdown)
         element, _ = formatter.process(tokens, 0, {})
@@ -108,9 +104,7 @@ class TestListFormatter:
         assert l3_item.level == 2  # Level relative to its parent list type
 
     def test_process_empty_list(self, formatter: ListFormatter, md_parser: MarkdownIt):
-        markdown = (
-            ""  # An empty list is hard to represent, usually markdown-it won't make list tokens
-        )
+        markdown = ""  # An empty list is hard to represent, usually markdown-it won't make list tokens
         tokens = md_parser.parse(markdown)  # Will be empty or just paragraph
         if tokens and tokens[0].type.endswith("_list_open"):  # Should not happen for empty string
             element, _ = formatter.process(tokens, 0, {})

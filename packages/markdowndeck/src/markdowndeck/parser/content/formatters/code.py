@@ -21,21 +21,27 @@ class CodeFormatter(BaseFormatter):
         return token.type == "fence"
 
     def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
+        self,
+        tokens: list[Token],
+        start_index: int,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+        **kwargs,
     ) -> tuple[Element | None, int]:
         """Create a code element from a fence token."""
+        # Merge section and element-specific directives
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
+
         token = tokens[start_index]
         if token.type != "fence":
-            logger.warning(
-                f"CodeFormatter received non-fence token: {token.type} at index {start_index}"
-            )
+            logger.warning(f"CodeFormatter received non-fence token: {token.type} at index {start_index}")
             return None, start_index  # Should not happen if can_handle is correct
 
         code_content = token.content
         language = token.info.strip() if token.info else "text"
 
         element = self.element_factory.create_code_element(
-            code=code_content, language=language, directives=directives.copy()
+            code=code_content, language=language, directives=merged_directives.copy()
         )
         logger.debug(f"Created code element (lang: {language}) from token index {start_index}")
 

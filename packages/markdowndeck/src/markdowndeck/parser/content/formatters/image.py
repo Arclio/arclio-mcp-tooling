@@ -47,61 +47,69 @@ class ImageFormatter(BaseFormatter):
         return token.type == "image"
 
     def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
+        self,
+        tokens: list[Token],
+        start_index: int,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+        **kwargs,
     ) -> tuple[Element | None, int]:
         """
         Create an image element if the current token sequence represents an image.
         This primarily targets paragraphs that solely contain an image.
         """
+        # Merge section and element-specific directives
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
+
         current_token = tokens[start_index]
         image_element: Element | None = None
-        consumed_until_index = start_index  # Default, means no element created from this token
 
         if current_token.type == "paragraph_open":
             inline_token_index = start_index + 1
-            paragraph_close_index = self.find_closing_token(tokens, start_index, "paragraph_close")
 
-            if (
-                inline_token_index < paragraph_close_index
-                and tokens[inline_token_index].type == "inline"
-            ):
+            # Simple scan for paragraph_close
+            paragraph_close_index = start_index + 2  # Default: next token after inline
+            for i in range(start_index + 1, len(tokens)):
+                if tokens[i].type == "paragraph_close":
+                    paragraph_close_index = i
+                    break
+
+            if inline_token_index < len(tokens) and tokens[inline_token_index].type == "inline":
                 inline_token = tokens[inline_token_index]
                 if hasattr(inline_token, "children") and inline_token.children:
-                    # Check if it's an image-only paragraph
-                    image_children = [
-                        child for child in inline_token.children if child.type == "image"
-                    ]
-                    other_content = [
+                    # Check if this paragraph only contains images and whitespace
+                    image_children = [child for child in inline_token.children if child.type == "image"]
+                    non_image_content = [
                         child
                         for child in inline_token.children
-                        if child.type != "image" and (child.type != "text" or child.content.strip())
+                        if child.type not in ["image", "softbreak"]
+                        and not (child.type == "text" and not child.content.strip())
                     ]
 
-                    if (
-                        len(image_children) == 1 and not other_content
-                    ):  # Only one image and no other significant content
-                        image_token = image_children[0]
-                        src = image_token.attrs.get("src", "")
-                        alt_text = (
-                            image_token.content
-                        )  # Alt text is in image token's content/children
-                        if not alt_text and image_token.children:
-                            alt_text = "".join(
-                                c.content for c in image_token.children if c.type == "text"
-                            )
+                    if len(image_children) == 1 and len(non_image_content) == 0:
+                        # This is an image-only paragraph
+                        image_child = image_children[0]
+                        src = image_child.attrs.get("src", "") if hasattr(image_child, "attrs") else ""
+                        alt_text = image_child.content or ""
 
                         if src:
                             image_element = self.element_factory.create_image_element(
-                                url=src, alt_text=alt_text, directives=directives.copy()
+                                url=src,
+                                alt_text=alt_text,
+                                directives=merged_directives.copy(),
                             )
-                            consumed_until_index = paragraph_close_index
-                            logger.debug(f"Created image element from image-only paragraph: {src}")
-                    # Handle multiple images in a single paragraph as separate elements if needed, or a composite
-                    # For now, focusing on single image-only paragraphs.
+                            logger.debug(f"Created image element from paragraph at index {start_index}: {src}")
+                            return image_element, paragraph_close_index
 
-        elif (
-            current_token.type == "image"
-        ):  # Handles cases where 'image' token might be directly processable
+                # If we reach here, it's not an image-only paragraph
+                # Return None and indicate we didn't consume any tokens so other formatters can try
+                logger.debug(f"Paragraph at index {start_index} is not image-only, deferring to other formatters")
+                return None, start_index - 1  # Don't consume any tokens
+
+            # If no inline token found, it's an empty paragraph - don't handle it
+            return None, start_index - 1
+
+        if current_token.type == "image":  # Handles cases where 'image' token might be directly processable
             src = current_token.attrs.get("src", "")
             alt_text = current_token.content
             if not alt_text and current_token.children:
@@ -109,9 +117,10 @@ class ImageFormatter(BaseFormatter):
 
             if src:
                 image_element = self.element_factory.create_image_element(
-                    url=src, alt_text=alt_text, directives=directives.copy()
+                    url=src, alt_text=alt_text, directives=merged_directives.copy()
                 )
-                consumed_until_index = start_index  # Image token is self-contained
                 logger.debug(f"Created image element from direct image token: {src}")
+                return image_element, start_index
 
-        return image_element, consumed_until_index
+        # If we reach here, we couldn't create an image element
+        return None, start_index - 1

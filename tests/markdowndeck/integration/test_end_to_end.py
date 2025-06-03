@@ -48,9 +48,7 @@ This is a paragraph.
 
         create_slide_req = next((r for r in requests if "createSlide" in r), None)
         assert create_slide_req is not None
-        assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] is not None
-        )
+        assert create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] is not None
 
         title_shape_req = next(
             (r for r in requests if "createShape" in r),
@@ -62,8 +60,7 @@ This is a paragraph.
         assert len(insert_text_reqs) > 0, "No insert text requests found"
 
         bullet_text_found = any(
-            "Item 1" in req["insertText"]["text"] and "Item 2" in req["insertText"]["text"]
-            for req in insert_text_reqs
+            "Item 1" in req["insertText"]["text"] and "Item 2" in req["insertText"]["text"] for req in insert_text_reqs
         )
         assert bullet_text_found, "Bullet list items not found in inserted text"
 
@@ -102,34 +99,25 @@ My Complex Footer
             None,
         )
         assert bg_req is not None
-        assert (
-            "pageBackgroundFill.solidFill.color.rgbColor"
-            in bg_req["updatePageProperties"]["fields"]
-        )
-        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"]["solidFill"][
-            "color"
-        ]["rgbColor"] == BaseRequestBuilder()._hex_to_rgb("#112233")
+        assert "pageBackgroundFill.solidFill.color.rgbColor" in bg_req["updatePageProperties"]["fields"]
+        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"]["solidFill"]["color"][
+            "rgbColor"
+        ] == BaseRequestBuilder()._hex_to_rgb("#112233")
 
         all_texts = [r["insertText"]["text"] for r in requests if "insertText" in r]
         assert "My Complex Footer" in " ".join(all_texts)
 
         code_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and 'print("Hello Left")' in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and 'print("Hello Left")' in r["insertText"]["text"]
         ]
         assert len(code_texts) > 0
 
         left_col_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and "Left Column" in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and "Left Column" in r["insertText"]["text"]
         ]
         assert len(left_col_texts) > 0
         right_col_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and "Right Column" in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and "Right Column" in r["insertText"]["text"]
         ]
         assert len(right_col_texts) > 0
 
@@ -158,19 +146,11 @@ My Complex Footer
         expected_notes_id = "fixed_notes_id_for_test"
 
         delete_notes_req = next(
-            (
-                r
-                for r in all_requests
-                if "deleteText" in r and r["deleteText"]["objectId"] == expected_notes_id
-            ),
+            (r for r in all_requests if "deleteText" in r and r["deleteText"]["objectId"] == expected_notes_id),
             None,
         )
         insert_notes_req = next(
-            (
-                r
-                for r in all_requests
-                if "insertText" in r and r["insertText"]["objectId"] == expected_notes_id
-            ),
+            (r for r in all_requests if "insertText" in r and r["insertText"]["objectId"] == expected_notes_id),
             None,
         )
         assert delete_notes_req is not None
@@ -216,9 +196,7 @@ My Complex Footer
         )
 
         mock_parser.assert_called_once_with()
-        mock_parser_instance.parse.assert_called_once_with(
-            markdown_input, title_input, theme_id_input
-        )
+        mock_parser_instance.parse.assert_called_once_with(markdown_input, title_input, theme_id_input)
 
         mock_layout_manager.assert_called_once_with()
         # Check if calculate_positions was called for each slide in the parsed deck
@@ -226,9 +204,7 @@ My Complex Footer
         if mock_deck.slides:
             mock_layout_instance.calculate_positions.assert_any_call(mock_deck.slides[0])
 
-        mock_api_client.assert_called_once_with(
-            mock_credentials, None
-        )  # service is None by default
+        mock_api_client.assert_called_once_with(mock_credentials, None)  # service is None by default
         # The deck passed to create_presentation_from_deck might have been modified by layout_manager
         # So we check the mock_deck that was returned by parser, assuming layout_manager works in place or returns modified
         # For simplicity, assume mock_deck (as returned by parser) is what's passed if calculate_positions returns identity
@@ -249,8 +225,6 @@ My Complex Footer
 
         themes = get_themes(credentials=mock_credentials)
 
-        mock_api_client.assert_called_once_with(
-            mock_credentials, None
-        )  # service is None by default
+        mock_api_client.assert_called_once_with(mock_credentials, None)  # service is None by default
         mock_api_client_instance.get_available_themes.assert_called_once_with()
         assert themes == expected_themes

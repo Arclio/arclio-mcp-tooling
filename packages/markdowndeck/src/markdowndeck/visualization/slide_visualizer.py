@@ -1,11 +1,12 @@
 import logging
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
+import math
 from io import BytesIO
+
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
+import numpy as np
 import requests
 from PIL import Image as PILImage
-import numpy as np
-import math
 
 # Import the enhanced renderers
 from markdowndeck.visualization.element_renderer import render_elements
@@ -75,9 +76,7 @@ class SlideVisualizer:
 
         # Apply max_slides limit if specified
         if max_slides is not None and max_slides > 0 and num_slides > max_slides:
-            logger.info(
-                f"Limiting visualization to {max_slides} of {num_slides} slides"
-            )
+            logger.info(f"Limiting visualization to {max_slides} of {num_slides} slides")
             slides = slides[:max_slides]
             num_slides = len(slides)
 
@@ -97,15 +96,9 @@ class SlideVisualizer:
 
                 # Calculate total figure size with minimal padding
                 # Only add spacing between slides, not at edges
-                spacing_factor = (
-                    vertical_spacing * (num_slides - 1) / num_slides
-                    if num_slides > 1
-                    else 0
-                )
+                spacing_factor = vertical_spacing * (num_slides - 1) / num_slides if num_slides > 1 else 0
                 fig_width = base_width
-                fig_height = min(
-                    base_height_per_slide * rows * (1 + spacing_factor), max_height
-                )
+                fig_height = min(base_height_per_slide * rows * (1 + spacing_factor), max_height)
 
             elif layout_mode == "grid":
                 # Grid layout aims for a more square overall figure
@@ -116,18 +109,12 @@ class SlideVisualizer:
                 rows = math.ceil(num_slides / cols)
 
                 # Calculate total figure size with minimal padding
-                horiz_spacing_factor = (
-                    horizontal_spacing * (cols - 1) / cols if cols > 1 else 0
-                )
-                vert_spacing_factor = (
-                    vertical_spacing * (rows - 1) / rows if rows > 1 else 0
-                )
+                horiz_spacing_factor = horizontal_spacing * (cols - 1) / cols if cols > 1 else 0
+                vert_spacing_factor = vertical_spacing * (rows - 1) / rows if rows > 1 else 0
 
                 fig_width = base_width * cols * (1 + horiz_spacing_factor)
                 fig_height = min(
-                    (base_width / slide_aspect_ratio)
-                    * rows
-                    * (1 + vert_spacing_factor),
+                    (base_width / slide_aspect_ratio) * rows * (1 + vert_spacing_factor),
                     max_height,
                 )
 
@@ -141,17 +128,11 @@ class SlideVisualizer:
                 rows = math.ceil(num_slides / cols)
 
                 # Calculate total figure size with minimal padding
-                horiz_spacing_factor = (
-                    horizontal_spacing * (cols - 1) / cols if cols > 1 else 0
-                )
-                vert_spacing_factor = (
-                    vertical_spacing * (rows - 1) / rows if rows > 1 else 0
-                )
+                horiz_spacing_factor = horizontal_spacing * (cols - 1) / cols if cols > 1 else 0
+                vert_spacing_factor = vertical_spacing * (rows - 1) / rows if rows > 1 else 0
 
                 fig_width = base_width * cols * (1 + horiz_spacing_factor)
-                fig_height = min(
-                    base_height_per_slide * rows * (1 + vert_spacing_factor), max_height
-                )
+                fig_height = min(base_height_per_slide * rows * (1 + vert_spacing_factor), max_height)
         else:
             # Use provided figsize with adjustment for scale_factor
             if len(figsize) == 2:
@@ -171,17 +152,11 @@ class SlideVisualizer:
                         rows = num_slides
 
                     # Base height per slide, scaled
-                    base_height_per_slide = (
-                        fig_width / slide_aspect_ratio / cols
-                    ) * 1.05
+                    base_height_per_slide = (fig_width / slide_aspect_ratio / cols) * 1.05
 
                     # Add minimal spacing between slides
-                    spacing_height = (
-                        base_height_per_slide * vertical_spacing * (rows - 1)
-                    )
-                    fig_height = min(
-                        base_height_per_slide * rows + spacing_height, max_height
-                    )
+                    spacing_height = base_height_per_slide * vertical_spacing * (rows - 1)
+                    fig_height = min(base_height_per_slide * rows + spacing_height, max_height)
                 else:
                     fig_height *= scale_factor
                     fig_height = min(fig_height, max_height)
@@ -204,9 +179,7 @@ class SlideVisualizer:
             fig = plt.figure(figsize=(fig_width, fig_height), dpi=dpi)
         else:
             # Use constrained_layout (default)
-            fig = plt.figure(
-                figsize=(fig_width, fig_height), dpi=dpi, constrained_layout=True
-            )
+            fig = plt.figure(figsize=(fig_width, fig_height), dpi=dpi, constrained_layout=True)
 
         # Setup grid layout based on mode with minimal spacing
         if layout_mode == "grid" or (layout_mode == "compact" and num_slides > 3):
@@ -249,18 +222,14 @@ class SlideVisualizer:
                 render_sections(ax, slide.sections)
 
             # Call the enhanced element renderer
-            render_elements(
-                ax, slide.elements, self.slide_width, self.slide_height, show_metadata
-            )
+            render_elements(ax, slide.elements, self.slide_width, self.slide_height, show_metadata)
 
             if show_metadata:  # This is for slide-level metadata text box
                 render_metadata(ax, slide, self.slide_width)
 
         # Add a title if showing a subset of slides
         if max_slides is not None and max_slides < len(
-            slides_or_deck.slides
-            if hasattr(slides_or_deck, "slides")
-            else slides_or_deck
+            slides_or_deck.slides if hasattr(slides_or_deck, "slides") else slides_or_deck
         ):
             fig.suptitle(
                 f"Showing {len(slides)} of {len(slides_or_deck.slides if hasattr(slides_or_deck, 'slides') else slides_or_deck)} slides",
@@ -270,9 +239,7 @@ class SlideVisualizer:
         # Apply tight_layout if selected and not using constrained_layout
         if tight_layout:
             try:
-                plt.tight_layout(
-                    pad=0.5, h_pad=vertical_spacing * 20, w_pad=horizontal_spacing * 20
-                )
+                plt.tight_layout(pad=0.5, h_pad=vertical_spacing * 20, w_pad=horizontal_spacing * 20)
             except Exception as e:
                 logger.warning(f"Could not apply tight_layout perfectly: {e}")
 
@@ -288,9 +255,7 @@ class SlideVisualizer:
 
         title_text = f"Slide {slide_idx + 1} (ID: {slide.object_id or 'N/A'})"
         if hasattr(slide, "title") and slide.title:
-            slide_title_preview = (
-                slide.title[:40] + "..." if len(slide.title) > 40 else slide.title
-            )
+            slide_title_preview = slide.title[:40] + "..." if len(slide.title) > 40 else slide.title
             title_text += f'\nTitle: "{slide_title_preview}"'
 
         # Reduce title padding to minimize gaps
@@ -362,9 +327,7 @@ class SlideVisualizer:
                             )  # Semi-transparent
 
                         # Still add the boundary rectangle on top for clarity
-                        face_color = (
-                            "none"  # Make rectangle transparent since we have an image
-                        )
+                        face_color = "none"  # Make rectangle transparent since we have an image
 
                     except Exception as e:
                         logger.warning(f"Failed to load background image: {e}")
@@ -376,9 +339,7 @@ class SlideVisualizer:
                     # It's a URL, likely for an image background
                     try:
                         # Try to load the image
-                        response = requests.get(
-                            slide.background, stream=True, timeout=5
-                        )
+                        response = requests.get(slide.background, stream=True, timeout=5)
                         response.raise_for_status()
 
                         img = PILImage.open(BytesIO(response.content))
@@ -422,9 +383,7 @@ class SlideVisualizer:
                             )  # Semi-transparent
 
                         # Still add the boundary rectangle on top for clarity
-                        face_color = (
-                            "none"  # Make rectangle transparent since we have an image
-                        )
+                        face_color = "none"  # Make rectangle transparent since we have an image
                     except Exception as e:
                         logger.warning(f"Failed to load background image URL: {e}")
                         # Fall back to default background color with error indication
@@ -434,14 +393,10 @@ class SlideVisualizer:
                     face_color = slide.background
 
         # Make sure face_color is not a URL before using it for Rectangle
-        if isinstance(face_color, str) and face_color.startswith(
-            ("http://", "https://", "www.")
-        ):
+        if isinstance(face_color, str) and face_color.startswith(("http://", "https://", "www.")):
             # If face_color is still a URL string (which shouldn't happen with our previous fix),
             # force it to a safe default color
-            logger.warning(
-                f"Found URL as face_color, replacing with safe default: {face_color}"
-            )
+            logger.warning(f"Found URL as face_color, replacing with safe default: {face_color}")
             face_color = "#FFEEEE"  # Light red as an error indicator
 
         # Add slide boundary rectangle with error handling
@@ -478,9 +433,7 @@ class SlideVisualizer:
         ax.set_xmargin(0.01)
         ax.set_ymargin(0.01)
 
-    def save_visualization(
-        self, slides_or_deck, filename="slide_visualization.png", **kwargs
-    ):
+    def save_visualization(self, slides_or_deck, filename="slide_visualization.png", **kwargs):
         """
         Save the visualization to a file instead of displaying it.
 
@@ -504,6 +457,5 @@ class SlideVisualizer:
             plt.close(fig)  # Clean up
             logger.info(f"Visualization saved to {filename}")
             return filename
-        else:
-            logger.error("Failed to create visualization to save")
-            return None
+        logger.error("Failed to create visualization to save")
+        return None

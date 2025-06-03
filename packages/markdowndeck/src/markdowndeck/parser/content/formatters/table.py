@@ -21,14 +21,20 @@ class TableFormatter(BaseFormatter):
         return token.type == "table_open"
 
     def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
+        self,
+        tokens: list[Token],
+        start_index: int,
+        section_directives: dict[str, Any],
+        element_specific_directives: dict[str, Any] | None = None,
+        **kwargs,
     ) -> tuple[Element | None, int]:
         """Create a table element from tokens."""
+        # Merge section and element-specific directives
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
+
         table_open_token = tokens[start_index]
         if table_open_token.type != "table_open":
-            logger.warning(
-                f"TableFormatter received non-table_open token: {table_open_token.type} at index {start_index}"
-            )
+            logger.warning(f"TableFormatter received non-table_open token: {table_open_token.type} at index {start_index}")
             return None, start_index
 
         end_index = self.find_closing_token(tokens, start_index, "table_close")
@@ -60,9 +66,7 @@ class TableFormatter(BaseFormatter):
                 cell_text = ""
                 if cell_content_idx < end_index and tokens[cell_content_idx].type == "inline":
                     # Extract plain text from the inline token using the helper method
-                    cell_text = self._get_plain_text_from_inline_token(
-                        tokens[cell_content_idx]
-                    ).strip()
+                    cell_text = self._get_plain_text_from_inline_token(tokens[cell_content_idx]).strip()
                     i = cell_content_idx  # Advance past the inline token
                 current_row_cells.append(cell_text)
                 # Need to advance i past td_close/th_close as well
@@ -72,14 +76,10 @@ class TableFormatter(BaseFormatter):
             i += 1
 
         if not headers and not rows:
-            logger.debug(
-                f"No headers or rows found for table at index {start_index}, skipping element."
-            )
+            logger.debug(f"No headers or rows found for table at index {start_index}, skipping element.")
             return None, end_index
 
-        element = self.element_factory.create_table_element(
-            headers=headers, rows=rows, directives=directives.copy()
-        )
+        element = self.element_factory.create_table_element(headers=headers, rows=rows, directives=merged_directives.copy())
         logger.debug(
             f"Created table element with {len(headers)} headers and {len(rows)} rows from token index {start_index} to {end_index}"
         )

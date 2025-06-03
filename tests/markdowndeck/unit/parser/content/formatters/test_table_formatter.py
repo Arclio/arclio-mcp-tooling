@@ -32,9 +32,7 @@ class TestTableFormatter:
         assert not formatter.can_handle(tokens[0], tokens)  # paragraph_open
 
     def test_process_simple_table(self, formatter: TableFormatter, md_parser: MarkdownIt):
-        markdown = (
-            "| Header 1 | Header 2 |\n|---|---|\n| Cell A1 | Cell A2 |\n| Cell B1 | Cell B2 |"
-        )
+        markdown = "| Header 1 | Header 2 |\n|---|---|\n| Cell A1 | Cell A2 |\n| Cell B1 | Cell B2 |"
         tokens = md_parser.parse(markdown)
         element, end_index = formatter.process(tokens, 0, {"border": "solid"})
 
@@ -67,9 +65,7 @@ class TestTableFormatter:
         ]  # Markdown-it often produces empty string for empty cell
         assert element.rows == [["R1C1", "", "R1C3"]]
 
-    def test_process_table_cell_with_inline_formatting(
-        self, formatter: TableFormatter, md_parser: MarkdownIt
-    ):
+    def test_process_table_cell_with_inline_formatting(self, formatter: TableFormatter, md_parser: MarkdownIt):
         # Markdown-it usually renders inline formatting inside table cells to plain text in the token content.
         # The TextFormat objects are not typically preserved per cell by default in markdown-it's table tokens.
         markdown = "| **Bold H** | *Italic H* |\n|---|---|\n| `code cell` | [link](url) |"
@@ -80,9 +76,7 @@ class TestTableFormatter:
         assert element.headers == ["Bold H", "Italic H"]
         assert element.rows == [["code cell", "link"]]  # The text content of the link
 
-    def test_malformed_table_should_not_break(
-        self, formatter: TableFormatter, md_parser: MarkdownIt
-    ):
+    def test_malformed_table_should_not_break(self, formatter: TableFormatter, md_parser: MarkdownIt):
         # This is more about markdown-it's leniency, but formatter should not crash.
         markdown = "| H1 | H2 \n|---|\n| C1 |"  # Fewer separator lines
         tokens = md_parser.parse(markdown)  # markdown-it might not form a table
