@@ -15,7 +15,7 @@ async def get_markdown_deck_formatting_guide() -> dict[str, Any]:
     """
     Get comprehensive documentation on how to format Markdown for slide creation using markdowndeck.
 
-    Maps to URI: markdowndeck://formatting_guide
+    Maps to URI: slides://markdown_formatting_guide
 
     Returns:
         A dictionary containing the formatting guide.

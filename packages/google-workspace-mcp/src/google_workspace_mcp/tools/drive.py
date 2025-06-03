@@ -42,7 +42,9 @@ async def drive_search_files(
         raise ValueError("Query cannot be empty")
 
     drive_service = DriveService()
-    files = drive_service.search_files(query=query, page_size=page_size, shared_drive_id=shared_drive_id)
+    files = drive_service.search_files(
+        query=query, page_size=page_size, shared_drive_id=shared_drive_id
+    )
 
     if isinstance(files, dict) and files.get("error"):
         raise ValueError(f"Search failed: {files.get('message', 'Unknown error')}")
@@ -81,10 +83,10 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 
 
 @mcp.tool(
-    name="gdrive_upload_file",
+    name="drive_upload_file",
     description="Upload a local file to Google Drive. Requires a local file path.",
 )
-async def gdrive_upload_file(
+async def drive_upload_file(
     file_path: str,
 ) -> dict[str, Any]:
     """
@@ -96,7 +98,7 @@ async def gdrive_upload_file(
     Returns:
         A dictionary containing the uploaded file metadata or an error.
     """
-    logger.info(f"Executing gdrive_upload_file with path: '{file_path}'")
+    logger.info(f"Executing drive_upload_file with path: '{file_path}'")
     if not file_path or not file_path.strip():
         raise ValueError("File path cannot be empty")
 
@@ -144,16 +146,18 @@ async def drive_create_folder(
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(f"Folder creation failed: {result.get('message', 'Unknown error')}")
+        raise ValueError(
+            f"Folder creation failed: {result.get('message', 'Unknown error')}"
+        )
 
     return result
 
 
 @mcp.tool(
-    name="gdrive_delete_file",
+    name="drive_delete_file",
     description="Delete a file from Google Drive using its file ID.",
 )
-async def gdrive_delete_file(
+async def drive_delete_file(
     file_id: str,
 ) -> dict[str, Any]:
     """
@@ -165,7 +169,7 @@ async def gdrive_delete_file(
     Returns:
         A dictionary confirming the deletion or an error.
     """
-    logger.info(f"Executing gdrive_delete_file with file_id: '{file_id}'")
+    logger.info(f"Executing drive_delete_file with file_id: '{file_id}'")
     if not file_id or not file_id.strip():
         raise ValueError("File ID cannot be empty")
 
