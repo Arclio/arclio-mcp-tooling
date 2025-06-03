@@ -220,8 +220,8 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 
 ### 📅 Google Calendar
 
-- **list_calendars**: View all accessible calendars
-- **get_calendar_events**: Retrieve calendar events
+- **calendar_get_events**: Retrieve calendar events within a time range
+- **calendar_get_event_details**: Retrieve detailed information for a specific calendar event by its ID
 - **create_calendar_event**: Create new calendar events
 - **delete_calendar_event**: Remove calendar events
 
@@ -427,13 +427,18 @@ Retrieves a complete email message by ID.
 
 ### Calendar Tools
 
-#### list_calendars
+#### calendar_get_event_details
 
-Lists all accessible calendars.
+Retrieves detailed information for a specific calendar event by its ID.
+
+**Arguments:**
+
+- `event_id` (string, required): The ID of the event to retrieve
+- `calendar_id` (string, optional): The ID of the calendar containing the event (defaults to "primary")
 
 **Returns:**
 
-- List of calendar objects with id, summary, timeZone, and access information
+- Event details object with summary, start, end, description, attendees, location, and other event metadata
 
 #### create_calendar_event
 

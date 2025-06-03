@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 # --- Calendar Resource Functions --- #
 
 
-@mcp.resource("calendar://list")
+@mcp.resource("calendar://calendars/list")
 async def list_calendars() -> dict[str, Any]:
     """
     Lists all calendars accessible by the user.
 
-    Maps to URI: calendar://list
+    Maps to URI: calendar://calendars/list
 
     Returns:
         A dictionary containing the list of calendars or an error message.
@@ -42,12 +42,12 @@ async def list_calendars() -> dict[str, Any]:
 # Keep the existing list_calendars resource
 
 
-@mcp.resource("calendar://today")
+@mcp.resource("calendar://events/today")
 async def get_today_events() -> dict[str, Any]:
     """
     Get all events for today.
 
-    Maps to URI: calendar://today
+    Maps to URI: calendar://events/today
 
     Returns:
         A dictionary containing the list of today's events.
@@ -68,7 +68,9 @@ async def get_today_events() -> dict[str, Any]:
     time_min = start_of_day.isoformat()
     time_max = end_of_day.isoformat()
 
-    events = calendar_service.get_events(calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50)
+    events = calendar_service.get_events(
+        calendar_id="primary", time_min=time_min, time_max=time_max, max_results=50
+    )
 
     if isinstance(events, dict) and events.get("error"):
         raise ValueError(events.get("message", "Error getting today's events"))

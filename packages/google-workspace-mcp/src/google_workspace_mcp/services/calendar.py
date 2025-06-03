@@ -222,3 +222,32 @@ class CalendarService(BaseGoogleService):
         except Exception as e:
             self.handle_api_error("delete_event", e)
             return False
+
+    def get_event_details(
+        self, event_id: str, calendar_id: str = "primary"
+    ) -> dict[str, Any] | None:
+        """
+        Retrieves details for a specific event.
+
+        Args:
+            event_id: The ID of the event.
+            calendar_id: The ID of the calendar the event belongs to. Defaults to "primary".
+
+        Returns:
+            A dictionary containing the event details or an error dictionary.
+        """
+        try:
+            logger.info(
+                f"Fetching details for event ID: {event_id} from calendar: {calendar_id}"
+            )
+            event = (
+                self.service.events()
+                .get(calendarId=calendar_id, eventId=event_id)
+                .execute()
+            )
+            logger.info(
+                f"Successfully fetched details for event: {event.get('summary')}"
+            )
+            return event  # Return the full event resource as per API
+        except Exception as e:
+            return self.handle_api_error("get_event_details", e)
