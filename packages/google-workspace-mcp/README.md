@@ -173,6 +173,7 @@ export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
 - `"gmail"` - Gmail email management
 - `"calendar"` - Google Calendar events
 - `"slides"` - Google Slides presentations
+- `"sheets"` - Google Sheets spreadsheet operations
 
 **⚠️ Important Notes:**
 
@@ -194,13 +195,13 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 - **AI-Ready Integration**: Purpose-built for AI assistants to interact with Google Workspace
 - **Standardized Protocol**: Clean integration with MCP-compatible AI systems
 - **Enterprise Security**: Credentials remain isolated from AI models
-- **Comprehensive APIs**: Support for Drive, Gmail, Calendar, Slides, and Docs
+- **Comprehensive APIs**: Support for Drive, Gmail, Calendar, Slides, and Sheets
 - **Robust Error Handling**: Consistent error patterns and graceful failure modes
 - **Extensive Testing**: 536+ tests ensuring reliability and correctness
 
 ## 🛠️ Capabilities
 
-`google-workspace-mcp` provides tools across five major Google Workspace services:
+`google-workspace-mcp` provides tools across six major Google Workspace services:
 
 ### 📁 Google Drive
 
@@ -235,6 +236,11 @@ The Model Context Protocol (MCP) provides a standardized interface for AI models
 - **calendar_get_event_details**: Retrieve detailed information for a specific calendar event by its ID
 - **create_calendar_event**: Create new calendar events
 - **delete_calendar_event**: Remove calendar events
+
+### 📊 Google Sheets
+
+- **sheets_create_spreadsheet**: Create new Google Spreadsheets with specified titles
+- **sheets_read_range**: Read data from specified ranges using A1 notation (e.g., "Sheet1!A1:C5")
 
 ### 🖼️ Google Slides
 
@@ -274,6 +280,7 @@ google-workspace-mcp/
 │   ├── docs_service.py   # Google Docs implementation
 │   ├── gmail.py          # Gmail implementation
 │   ├── calendar.py       # Calendar implementation
+│   ├── sheets_service.py # Google Sheets implementation
 │   └── slides.py         # Slides implementation
 └── tools/                # MCP tool handlers
     ├── __init__.py
@@ -282,6 +289,7 @@ google-workspace-mcp/
     ├── docs_tools.py     # Docs tools
     ├── gmail.py          # Gmail tools
     ├── calendar.py       # Calendar tools
+    ├── sheets_tools.py   # Sheets tools
     └── slides.py         # Slides tools
 ```
 
@@ -306,7 +314,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides", "sheets"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 
@@ -315,7 +323,7 @@ npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail"]' \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "sheets"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```
@@ -334,7 +342,7 @@ Add to your Claude Desktop configuration:
         "GOOGLE_WORKSPACE_CLIENT_ID": "your-client-id",
         "GOOGLE_WORKSPACE_CLIENT_SECRET": "your-secret",
         "GOOGLE_WORKSPACE_REFRESH_TOKEN": "your-token",
-        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"docs\", \"gmail\", \"calendar\", \"slides\"]"
+        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"docs\", \"gmail\", \"calendar\", \"slides\", \"sheets\"]"
       }
     }
   }
@@ -350,7 +358,7 @@ The server can be started directly and connected to via stdio:
 GOOGLE_WORKSPACE_CLIENT_ID="your-id" \
 GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
 GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
+GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides", "sheets"]' \
 google-workspace-worker
 
 # Or using uvx
@@ -539,6 +547,38 @@ Creates a new calendar event.
 
 - Created event object with ID, details, and web link
 
+### Google Sheets Tools
+
+#### sheets_create_spreadsheet
+
+Creates a new Google Spreadsheet with a specified title.
+
+**Arguments:**
+
+- `title` (string, required): The title for the new Google Spreadsheet
+
+**Returns:**
+
+- Dictionary containing `spreadsheet_id`, `title`, and `spreadsheet_url` of the created spreadsheet
+
+#### sheets_read_range
+
+Reads data from a specified range in a Google Spreadsheet using A1 notation.
+
+**Arguments:**
+
+- `spreadsheet_id` (string, required): The ID of the Google Spreadsheet
+- `range_a1` (string, required): The A1 notation of the range to read (e.g., "Sheet1!A1:C5", or "A1:C5")
+
+**Returns:**
+
+- Dictionary containing:
+  - `spreadsheet_id`: The ID of the spreadsheet
+  - `range_requested`: The requested range
+  - `range_returned`: The actual range returned by the API
+  - `major_dimension`: How the data is organized (typically "ROWS")
+  - `values`: List of lists representing the cell values
+
 ### Slides Tools
 
 #### create_presentation_from_markdown
@@ -617,7 +657,7 @@ make run
 
 ### Testing Structure
 
-The project features a comprehensive testing suite with 536+ tests organized by service and functionality:
+The project features a comprehensive testing suite with 580+ tests organized by service and functionality:
 
 ```
 tests/
@@ -627,18 +667,21 @@ tests/
 │   │   ├── docs/             # Docs service tests
 │   │   ├── gmail/            # Gmail service tests
 │   │   ├── calendar/         # Calendar service tests
+│   │   ├── sheets/           # Sheets service tests
 │   │   └── slides/           # Slides service tests
 │   └── tools/                # Tool handler tests
 │       ├── drive/            # Drive tool tests
 │       ├── docs/             # Docs tool tests
 │       ├── gmail/            # Gmail tool tests
 │       ├── calendar/         # Calendar tool tests
+│       ├── sheets/           # Sheets tool tests
 │       └── slides/           # Slides tool tests
 └── integration/              # Integration tests (requires API credentials)
     ├── test_drive_api.py
     ├── test_docs_api.py
     ├── test_gmail_api.py
     ├── test_calendar_api.py
+    ├── test_sheets_api.py
     └── test_slides_api.py
 ```
 

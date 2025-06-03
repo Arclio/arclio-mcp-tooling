@@ -17,14 +17,18 @@ from google_workspace_mcp.prompts import slides as slides_prompts  # noqa: F401
 from google_workspace_mcp.resources import calendar as calendar_resources  # noqa: F401
 from google_workspace_mcp.resources import drive as drive_resources  # noqa: F401
 from google_workspace_mcp.resources import gmail as gmail_resources  # noqa: F401
+from google_workspace_mcp.resources import sheets_resources  # noqa: F401
 from google_workspace_mcp.resources import slides as slides_resources  # noqa: F401
 
 # Register tools
-from google_workspace_mcp.tools import calendar as calendar_tools  # noqa: F401
-from google_workspace_mcp.tools import docs_tools  # noqa: F401
-from google_workspace_mcp.tools import drive as drive_tools  # noqa: F401
-from google_workspace_mcp.tools import gmail as gmail_tools  # noqa: F401
-from google_workspace_mcp.tools import slides as slides_tools  # noqa: F401
+from google_workspace_mcp.tools import (  # noqa: F401
+    calendar_tools,
+    docs_tools,
+    drive_tools,
+    gmail_tools,
+    sheets_tools,
+    slides_tools,
+)
 
 
 def main():
