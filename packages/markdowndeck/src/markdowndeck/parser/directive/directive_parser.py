@@ -58,10 +58,10 @@ class DirectiveParser:
             "list-style": "string",
             "text-decoration": "string",
             "font-weight": "string",
-            # Additional CSS-like properties
-            "box-shadow": "string",
-            "transform": "string",
-            "transition": "string",
+            # ENHANCEMENT P8: CSS properties using style converter
+            "box-shadow": "style",
+            "transform": "style",
+            "transition": "style",
         }
 
         # Enhanced value converters
@@ -189,42 +189,7 @@ class DirectiveParser:
         """
         value = value.strip()
 
-        # Handle rgba() colors
-        rgba_match = re.match(r"rgba?\(\s*([^)]+)\s*\)", value)
-        if rgba_match:
-            rgba_content = rgba_match.group(1)
-            try:
-                # Parse rgba values
-                parts = [part.strip() for part in rgba_content.split(",")]
-                if len(parts) in [3, 4]:  # rgb or rgba
-                    r, g, b = map(int, parts[:3])
-                    a = float(parts[3]) if len(parts) == 4 else 1.0
-
-                    return ("color", {"type": "rgba", "r": r, "g": g, "b": b, "a": a})
-            except (ValueError, IndexError):
-                logger.warning(f"Invalid rgba format: {value}")
-
-        # Handle hsla() colors
-        hsla_match = re.match(r"hsla?\(\s*([^)]+)\s*\)", value)
-        if hsla_match:
-            hsla_content = hsla_match.group(1)
-            try:
-                parts = [part.strip() for part in hsla_content.split(",")]
-                if len(parts) in [3, 4]:
-                    h = int(parts[0])
-                    s = int(parts[1].rstrip("%"))
-                    l = int(parts[2].rstrip("%"))
-                    a = float(parts[3]) if len(parts) == 4 else 1.0
-
-                    return ("color", {"type": "hsla", "h": h, "s": s, "l": l, "a": a})
-            except (ValueError, IndexError):
-                logger.warning(f"Invalid hsla format: {value}")
-
-        # Handle CSS shadow values
-        if "shadow" in value.lower():
-            return ("shadow", {"type": "css", "value": value})
-
-        # Fall back to original convert_style
+        # Delegate to the main convert_style function which has comprehensive handling
         return convert_style(value)
 
     def _safe_float_convert(self, value: str) -> float:
@@ -254,9 +219,15 @@ class DirectiveParser:
             result[key] = style_value
         elif style_type == "border_style":
             result[key] = {"style": style_value}
-        elif style_type == "shadow":
+        elif (
+            style_type == "shadow"
+            or style_type == "transform"
+            or style_type == "animation"
+            or style_type == "gradient"
+        ):
             result[key] = style_value
         else:
+            # For any other style types, just store the value
             result[key] = style_value
 
         return result

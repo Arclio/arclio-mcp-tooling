@@ -224,25 +224,24 @@ def convert_style(value: str) -> tuple[str, Any]:
             if len(parts) in [3, 4]:
                 h = int(parts[0])
                 s = int(parts[1].rstrip("%"))
-                l = int(parts[2].rstrip("%"))
+                lightness = int(parts[2].rstrip("%"))
                 a = float(parts[3]) if len(parts) == 4 else 1.0
 
-                color_data = {"h": h, "s": s, "l": l, "a": a}
+                color_data = {"h": h, "s": s, "l": lightness, "a": a}
                 return ("color", _create_color_value("hsla", color_data))
         except (ValueError, IndexError):
             logger.warning(f"Invalid hsla format: {value}")
 
-    # ENHANCEMENT P8: CSS gradient parsing
+    # ENHANCEMENT P8: CSS gradient parsing with improved definition capture
     gradient_patterns = [
-        r"linear-gradient\(\s*([^)]+)\s*\)",
-        r"radial-gradient\(\s*([^)]+)\s*\)",
-        r"conic-gradient\(\s*([^)]+)\s*\)",
+        (r"linear-gradient\(\s*(.*)\s*\)$", "linear"),
+        (r"radial-gradient\(\s*(.*)\s*\)$", "radial"),
+        (r"conic-gradient\(\s*(.*)\s*\)$", "conic"),
     ]
 
-    for pattern in gradient_patterns:
+    for pattern, gradient_type in gradient_patterns:
         gradient_match = re.match(pattern, value)
         if gradient_match:
-            gradient_type = pattern.split("-")[0].replace(r"\(", "")
             return (
                 "gradient",
                 {
@@ -286,9 +285,29 @@ def convert_style(value: str) -> tuple[str, Any]:
         }
         return ("border", border_info)
 
-    # ENHANCEMENT P8: Box shadow parsing
-    if "shadow" in value.lower() or re.match(r"^\d+.*\d+", value):
+    # ENHANCEMENT P8: CSS transform parsing
+    if value.startswith(("translate", "rotate", "scale", "skew", "matrix")):
+        return ("transform", {"type": "css", "value": value})
+
+    # ENHANCEMENT P8: Box shadow parsing - improved to handle inset shadows
+    # Pattern matches: [inset] <offset-x> <offset-y> [blur-radius] [spread-radius] <color>
+    shadow_pattern = r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
+    if (
+        re.match(shadow_pattern, value, re.IGNORECASE)
+        or "shadow" in value.lower()
+        or re.match(r"^\d+.*\d+", value)
+    ):
         return ("shadow", {"type": "css", "value": value})
+
+    # ENHANCEMENT P8: CSS transition/animation parsing
+    # Recognize typical transition/animation patterns (more specific)
+    transition_pattern = r"^(all|\w+)\s+[\d.]+s\s+[\w-]+(?:\s+[\d.]+s)?$"
+    if (
+        "transition" in value.lower()
+        or "animation" in value.lower()
+        or re.match(transition_pattern, value.lower())
+    ):
+        return ("animation", {"type": "css", "value": value})
 
     # Simple border styles
     border_styles = {
@@ -309,14 +328,6 @@ def convert_style(value: str) -> tuple[str, Any]:
     # Extended color names
     if value.lower() in EXTENDED_COLOR_NAMES:
         return ("color", _create_color_value("named", value.lower()))
-
-    # ENHANCEMENT P8: CSS transform parsing
-    if value.startswith(("translate", "rotate", "scale", "skew", "matrix")):
-        return ("transform", {"type": "css", "value": value})
-
-    # ENHANCEMENT P8: CSS transition/animation parsing
-    if "transition" in value.lower() or "animation" in value.lower():
-        return ("animation", {"type": "css", "value": value})
 
     # Generic value fallback
     return ("value", value)
