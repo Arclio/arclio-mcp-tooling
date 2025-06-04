@@ -337,6 +337,11 @@ This is blue text.
             ),
         ]
 
+        # CRITICAL FIX: Manually parse directives on the directive-only section
+        # to simulate the normal flow where DirectiveParser runs before ContentParser
+        directive_parser = DirectiveParser()
+        directive_parser.parse_directives(sections[1])
+
         elements = parser.parse_content("Title", sections, None)
 
         # Should only have title element

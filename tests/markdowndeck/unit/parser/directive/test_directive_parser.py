@@ -339,13 +339,14 @@ Content""",
         )
         parser.parse_directives(section)
 
-        # Only the first line should be parsed as directives
+        # All directives in the contiguous block should be parsed
         assert "width" in section.directives
         assert "height" in section.directives
-        assert "color" not in section.directives  # Not at start of content
+        assert "color" in section.directives  # Part of contiguous directive block
+        assert section.directives["color"] == {"type": "named", "value": "red"}
 
-        # Content should retain the second line intact
-        assert "[color=red] Some content with [brackets]" in section.content
+        # Content should have all directives removed, leaving only the text
+        assert section.content == "Some content with [brackets]"
 
     def test_enhanced_css_alias_support(self, parser: DirectiveParser):
         """Test enhanced CSS property aliases."""

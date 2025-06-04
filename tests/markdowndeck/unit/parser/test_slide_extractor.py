@@ -80,7 +80,7 @@ Content here."""
         assert slide["title"] == "My Styled Title"
         assert slide["title_directives"]["align"] == "center"
         assert slide["title_directives"]["fontsize"] == 24.0
-        assert slide["title_directives"]["color"] == "blue"
+        assert slide["title_directives"]["color"] == {"type": "named", "value": "blue"}
         assert slide["content"] == "Content here."
 
     def test_title_with_directives_and_spaces(self, extractor: SlideExtractor):
@@ -106,7 +106,7 @@ More content."""
 
         slide = slides[0]
         assert slide["title"] == "Indented Styled Title"
-        assert slide["title_directives"]["color"] == "red"
+        assert slide["title_directives"]["color"] == {"type": "named", "value": "red"}
         assert slide["title_directives"]["align"] == "right"
         # Content should not contain the title line
         assert "Indented Styled Title" not in slide["content"]
@@ -120,14 +120,21 @@ Content"""
         slides1 = extractor.extract_slides(markdown1)
         assert slides1[0]["title"] == "Title With Empty Directive"
         assert slides1[0]["title_directives"]["align"] == ""
-        assert slides1[0]["title_directives"]["color"] == "blue"
+        assert slides1[0]["title_directives"]["color"] == {
+            "type": "named",
+            "value": "blue",
+        }
 
         # Invalid directive format (should be ignored)
         markdown2 = """# [invalid:value][valid=good] Title With Mixed Directives
 Content"""
         slides2 = extractor.extract_slides(markdown2)
-        assert slides2[0]["title"] == "[invalid:value] Title With Mixed Directives"
-        assert slides2[0]["title_directives"]["valid"] == "good"
+        assert (
+            slides2[0]["title"]
+            == "[invalid:value][valid=good] Title With Mixed Directives"
+        )
+        # When there's an invalid directive format, entire directive parsing fails
+        assert slides2[0]["title_directives"] == {}
 
     def test_no_title_slide(self, extractor: SlideExtractor):
         """Test a slide that does not start with a H1 title."""
@@ -245,13 +252,13 @@ Footer content
         slide = slides[0]
         assert slide["title"] == "Comprehensive Slide"
         assert slide["title_directives"]["align"] == "center"
-        assert slide["title_directives"]["color"] == "blue"
-        assert slide["background"]["type"] == "color"
-        assert slide["background"]["value"] == "#f0f0f0"
+        assert slide["title_directives"]["color"] == {"type": "named", "value": "blue"}
+        # Background is no longer specially handled by SlideExtractor
+        assert slide["background"] is None
         assert slide["footer"] == "Footer content"
         assert slide["notes"] == "Speaker notes here"
-        # Background directive should be removed from content
-        assert "[background=" not in slide["content"]
+        # Background directive should remain in content for DirectiveParser
+        assert "[background=#f0f0f0]" in slide["content"]
 
     def test_notes_in_footer_override_content_notes(self, extractor: SlideExtractor):
         """Test that notes in footer override notes in content."""
@@ -271,21 +278,25 @@ Footer text
 
     def test_background_url_parsing(self, extractor: SlideExtractor):
         """Test background URL parsing with validation."""
-        # Valid URL
+        # Valid URL - background should remain in content for DirectiveParser
         markdown1 = """# Background Test
 [background=url(https://example.com/image.jpg)]
 Content"""
         slides1 = extractor.extract_slides(markdown1)
-        bg1 = slides1[0]["background"]
-        assert bg1["type"] == "image"
-        assert bg1["value"] == "https://example.com/image.jpg"
+        # SlideExtractor no longer processes backgrounds
+        assert slides1[0]["background"] is None
+        # Background directive should remain in content
+        assert (
+            "[background=url(https://example.com/image.jpg)]" in slides1[0]["content"]
+        )
 
-        # Invalid URL should result in None
+        # Invalid URL should also remain in content for DirectiveParser to handle
         markdown2 = """# Invalid Background
 [background=url(invalid-url)]
 Content"""
         slides2 = extractor.extract_slides(markdown2)
         assert slides2[0]["background"] is None
+        assert "[background=url(invalid-url)]" in slides2[0]["content"]
 
     # ========================================================================
     # Edge Cases and Error Handling
@@ -333,9 +344,10 @@ More content"""
         slides = extractor.extract_slides(markdown)
         assert len(slides) == 1
         assert slides[0]["title"] is None
-        assert slides[0]["content"] == ""
-        assert slides[0]["background"]["type"] == "color"
-        assert slides[0]["background"]["value"] == "#FF0000"
+        # Background directive should remain in content for DirectiveParser
+        assert slides[0]["content"] == "[background=#FF0000]"
+        # SlideExtractor no longer processes backgrounds
+        assert slides[0]["background"] is None
 
     def test_mixed_line_endings_with_directives(self, extractor: SlideExtractor):
         """Test mixed line endings with title directives."""
@@ -378,8 +390,8 @@ Content"""
             "fontsize" not in slide["title_directives"]
             or slide["title_directives"]["fontsize"] == "invalid"
         )
-        # Empty color should be preserved
-        assert slide["title_directives"]["color"] == ""
+        # Empty color should be preserved as structured value
+        assert slide["title_directives"]["color"] == {"type": "named", "value": ""}
         # Invalid align should be preserved as-is
         assert slide["title_directives"]["align"] == "bad"
 

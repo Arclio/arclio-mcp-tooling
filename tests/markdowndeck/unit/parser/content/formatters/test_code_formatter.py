@@ -265,7 +265,9 @@ class TestListFormatter:
 
     @pytest.fixture
     def md_parser(self) -> MarkdownIt:
-        return MarkdownIt()
+        md = MarkdownIt()
+        md.enable("strikethrough")
+        return md
 
     def test_process_bullet_list_with_directives(
         self, formatter: ListFormatter, md_parser: MarkdownIt

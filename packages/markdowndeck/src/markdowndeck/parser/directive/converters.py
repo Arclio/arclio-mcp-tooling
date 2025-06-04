@@ -201,6 +201,11 @@ def convert_style(value: str) -> tuple[str, Any]:
     if re.match(hex_pattern, value):
         return ("color", _create_color_value("hex", value))
 
+    # ENHANCEMENT P8: Invalid hex color detection for better error reporting
+    # If it starts with # but doesn't match valid hex pattern, treat as invalid hex color
+    if value.startswith("#"):
+        return ("color", {"type": "hex", "value": value, "error": "Invalid hex format"})
+
     # ENHANCEMENT P8: rgba/hsla color parsing
     rgba_match = re.match(r"rgba?\(\s*([^)]+)\s*\)", value)
     if rgba_match:

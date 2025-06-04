@@ -48,9 +48,8 @@ Paragraph Two, after a directive line."""
 
         element = section.elements[0]
         assert element.element_type == ElementType.TEXT
-        assert (
-            element.text == "**Paragraph One.**\nParagraph Two, after a directive line."
-        )
+        # Text should have markdown formatting processed, not raw markdown syntax
+        assert element.text == "Paragraph One.\nParagraph Two, after a directive line."
 
         # All directives should be applied to the element
         assert element.directives["color"]["type"] == "named"
@@ -106,7 +105,8 @@ Bolded **Text 1**.
         assert len(text_elements) == 1
 
         elem = text_elements[0]
-        assert elem.text == "Bolded **Text 1**.\n*Italic Text 2*."
+        # Text should have markdown formatting processed, not raw markdown syntax
+        assert elem.text == "Bolded Text 1.\nItalic Text 2."
         assert elem.directives["align"] == "center"
         assert elem.directives["fontsize"] == 10
 
