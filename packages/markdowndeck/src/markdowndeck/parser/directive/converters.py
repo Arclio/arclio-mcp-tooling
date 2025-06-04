@@ -1,4 +1,4 @@
-"""Value converters for directive parsing."""
+"""Enhanced value converters for directive parsing."""
 
 import logging
 import re
@@ -22,103 +22,138 @@ KNOWN_THEME_COLORS = {
     "FOLLOWED_HYPERLINK",
     "DARK1",
     "LIGHT1",
+    "DARK2",
+    "LIGHT2",
+}
+
+# Extended CSS color names for P8 enhancement
+EXTENDED_COLOR_NAMES = {
+    "black",
+    "white",
+    "red",
+    "green",
+    "blue",
+    "yellow",
+    "orange",
+    "purple",
+    "pink",
+    "brown",
+    "gray",
+    "grey",
+    "silver",
+    "gold",
+    "transparent",
+    "aqua",
+    "teal",
+    "navy",
+    "olive",
+    "maroon",
+    "lime",
+    "fuchsia",
+    # Additional web colors
+    "darkred",
+    "darkgreen",
+    "darkblue",
+    "lightred",
+    "lightgreen",
+    "lightblue",
+    "crimson",
+    "coral",
+    "salmon",
+    "khaki",
+    "violet",
+    "indigo",
+    "cyan",
+    "magenta",
+    "turquoise",
+    "plum",
+    "orchid",
+    "tan",
+    "beige",
+    "ivory",
 }
 
 
-def _create_color_value(color_type: str, color_value: str) -> dict[str, Any]:
-    """
-    Create a standardized color value dictionary.
-
-    Args:
-        color_type: Type of color ('hex', 'named', 'theme')
-        color_value: The color value
-
-    Returns:
-        Standardized color dictionary
-    """
+def _create_color_value(color_type: str, color_value: str | dict) -> dict[str, Any]:
+    """Create a standardized color value dictionary."""
     if color_type == "theme":
         return {"type": "theme", "themeColor": color_value}
     if color_type == "hex":
         return {"type": "hex", "value": color_value}
     if color_type == "named":
         return {"type": "named", "value": color_value}
+    if color_type == "rgba":
+        return {"type": "rgba", **color_value}
+    if color_type == "hsla":
+        return {"type": "hsla", **color_value}
     return {"type": "unknown", "value": color_value}
 
 
 def convert_dimension(value: str) -> float:
     """
-    Convert dimension value (fraction, percentage, or value) with improved handling.
+    Convert dimension value with enhanced CSS unit support.
 
-    Args:
-        value: Dimension as string (e.g., "2/3", "50%", "300")
-
-    Returns:
-        Normalized float value between 0 and 1 for fractions/percentages,
-        or absolute value for pixel-like values.
+    ENHANCEMENT P8: Better CSS dimension parsing.
     """
-    value = value.strip()  # Ensure no leading/trailing spaces
+    value = value.strip()
     logger.debug(f"Converting dimension value: '{value}'")
 
-    # Handle fraction values (e.g., 2/3)
+    # Handle CSS units (strip and process separately if needed)
+    css_unit_pattern = r"^([\d.]+)(px|pt|em|rem|%|in|cm|mm|vh|vw)?$"
+    css_match = re.match(css_unit_pattern, value)
+
+    if css_match:
+        numeric_part = css_match.group(1)
+        unit = css_match.group(2) or ""
+
+        try:
+            numeric_value = float(numeric_part)
+
+            # Convert percentage to decimal
+            if unit == "%":
+                return numeric_value / 100.0
+            # For other units, return as-is (layout engine will handle)
+            return numeric_value
+
+        except ValueError as e:
+            raise ValueError(f"Invalid numeric value in dimension: '{value}'") from e
+
+    # Handle fractions
     if "/" in value:
         parts = value.split("/")
         if len(parts) == 2:
             try:
                 num = float(parts[0].strip())
                 denom = float(parts[1].strip())
-            # Catch original error and chain it
-            except ValueError as e:  # Catch only conversion errors
+            except ValueError as e:
                 raise ValueError(f"Invalid fraction format: '{value}'") from e
 
-            # Check for division by zero
             if denom == 0:
-                logger.warning(f"Division by zero in dimension value: '{value}'")
-                # Raise the specific error the test expects
                 raise ValueError("division by zero")
 
-            # Perform division *after* checks
             return num / denom
-        # Handle cases like "1/2/3"
         raise ValueError(f"Invalid fraction format: '{value}'")
 
-    # Handle percentage values (e.g., 50%)
+    # Handle percentage (legacy)
     if value.endswith("%"):
         percentage_str = value.rstrip("%").strip()
-        logger.debug(f"Parsed percentage string: '{percentage_str}'")
         try:
             percentage = float(percentage_str)
-            logger.debug(f"Converted percentage: {percentage}%")
             return percentage / 100.0
-        # Catch original error and chain it
         except ValueError as e:
-            logger.warning(f"Invalid percentage format: '{value}'")
             raise ValueError(f"Invalid dimension format: '{value}'") from e
 
-    # Handle numeric values (pixels)
+    # Handle numeric values
     try:
-        numeric_value = value.strip()
-        logger.debug(f"Parsing as numeric value: '{numeric_value}'")
-        # First try as int, then as float
-        if numeric_value.isdigit():
-            return int(numeric_value)
-        return float(numeric_value)
-    # Catch original error and chain it
+        return float(value) if "." in value else int(value)
     except ValueError as e:
-        logger.warning(f"Invalid numeric format: '{value}'")
         raise ValueError(f"Invalid dimension format: '{value}'") from e
 
 
 def convert_alignment(value: str) -> str:
-    """
-    Convert alignment value.
+    """Convert alignment value with extended alias support."""
+    value = value.strip().lower()
 
-    Args:
-        value: Alignment as string (e.g., "center", "right")
-
-    Returns:
-        Normalized alignment value
-    """
-    value = value.strip().lower()  # Ensure stripped and lower case
     valid_alignments = [
         "left",
         "center",
@@ -127,115 +162,160 @@ def convert_alignment(value: str) -> str:
         "top",
         "middle",
         "bottom",
+        "baseline",
     ]
 
     if value in valid_alignments:
         return value
 
-    # Handle aliases
+    # Enhanced aliases for P8
     aliases = {
         "start": "left",
         "end": "right",
         "centered": "center",
         "justified": "justify",
+        "flex-start": "left",
+        "flex-end": "right",
+        "center": "center",
+        "space-between": "justify",
     }
 
-    if value in aliases:
-        return aliases[value]
-
-    # Return as-is if not recognized, but log warning
-    logger.warning(f"Unrecognized alignment value: '{value}', using as is.")
-    return value
-
-
-def get_theme_colors() -> set[str]:
-    """
-    Get a set of valid Google Slides theme color names.
-
-    Returns:
-        Set of valid theme color names in uppercase
-    """
-    return {
-        "TEXT1",
-        "TEXT2",
-        "BACKGROUND1",
-        "BACKGROUND2",
-        "ACCENT1",
-        "ACCENT2",
-        "ACCENT3",
-        "ACCENT4",
-        "ACCENT5",
-        "ACCENT6",
-        "HYPERLINK",
-        "FOLLOWED_HYPERLINK",
-        "DARK1",
-        "LIGHT1",
-        "DARK2",
-        "LIGHT2",
-    }
+    return aliases.get(value, value)
 
 
 def convert_style(value: str) -> tuple[str, Any]:
     """
-    Convert style value (color, URL, border style, or generic value) with enhanced support.
+    Enhanced style value conversion with comprehensive CSS support.
 
-    Args:
-        value: Style value as string
-
-    Returns:
-        Tuple of (type, converted_value) where type indicates the style type
-        and converted_value is the processed value in a structured format.
+    ENHANCEMENT P8: Comprehensive CSS value parsing including:
+    - rgba/hsla colors
+    - CSS gradients
+    - Multiple shadow values
+    - Complex border specifications
     """
     value = value.strip()
     logger.debug(f"Converting style value: '{value}'")
 
-    # Handle hex colors
-    if value.startswith("#"):
-        if re.match(r"^#[0-9A-Fa-f]{3}$|^#[0-9A-Fa-f]{6}$", value):
-            logger.debug(f"Valid hex color: {value}")
-            return ("color", _create_color_value("hex", value))
-        logger.warning(f"Invalid hex color format: {value}")
-        return (
-            "color",
-            _create_color_value("hex", value),
-        )  # Return as-is but mark as color
+    # Enhanced hex color detection
+    hex_pattern = r"^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$"
+    if re.match(hex_pattern, value):
+        return ("color", _create_color_value("hex", value))
 
-    # Handle URLs
+    # ENHANCEMENT P8: Invalid hex color detection for better error reporting
+    # If it starts with # but doesn't match valid hex pattern, treat as invalid hex color
+    if value.startswith("#"):
+        return ("color", {"type": "hex", "value": value, "error": "Invalid hex format"})
+
+    # ENHANCEMENT P8: rgba/hsla color parsing
+    rgba_match = re.match(r"rgba?\(\s*([^)]+)\s*\)", value)
+    if rgba_match:
+        rgba_content = rgba_match.group(1)
+        try:
+            parts = [part.strip() for part in rgba_content.split(",")]
+            if len(parts) in [3, 4]:
+                r, g, b = map(int, parts[:3])
+                a = float(parts[3]) if len(parts) == 4 else 1.0
+
+                color_data = {"r": r, "g": g, "b": b, "a": a}
+                return ("color", _create_color_value("rgba", color_data))
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid rgba format: {value}")
+
+    hsla_match = re.match(r"hsla?\(\s*([^)]+)\s*\)", value)
+    if hsla_match:
+        hsla_content = hsla_match.group(1)
+        try:
+            parts = [part.strip() for part in hsla_content.split(",")]
+            if len(parts) in [3, 4]:
+                h = int(parts[0])
+                s = int(parts[1].rstrip("%"))
+                lightness = int(parts[2].rstrip("%"))
+                a = float(parts[3]) if len(parts) == 4 else 1.0
+
+                color_data = {"h": h, "s": s, "l": lightness, "a": a}
+                return ("color", _create_color_value("hsla", color_data))
+        except (ValueError, IndexError):
+            logger.warning(f"Invalid hsla format: {value}")
+
+    # ENHANCEMENT P8: CSS gradient parsing with improved definition capture
+    gradient_patterns = [
+        (r"linear-gradient\(\s*(.*)\s*\)$", "linear"),
+        (r"radial-gradient\(\s*(.*)\s*\)$", "radial"),
+        (r"conic-gradient\(\s*(.*)\s*\)$", "conic"),
+    ]
+
+    for pattern, gradient_type in gradient_patterns:
+        gradient_match = re.match(pattern, value)
+        if gradient_match:
+            return (
+                "gradient",
+                {
+                    "type": gradient_type,
+                    "value": value,
+                    "definition": gradient_match.group(1),
+                },
+            )
+
+    # Enhanced URL detection
     url_match = re.match(r"url\(\s*['\"]?([^'\"]*)['\"]?\s*\)", value)
     if url_match:
         url = url_match.group(1).strip()
-        logger.debug(f"Extracted URL: {url}")
         return ("url", {"type": "url", "value": url})
 
-    # Handle theme colors (case-insensitive)
+    # Theme colors (case-insensitive)
     if value.upper() in KNOWN_THEME_COLORS:
         return ("color", _create_color_value("theme", value.upper()))
 
-    # Handle compound border values (e.g., "1pt solid #FF0000", "2px dashed ACCENT1")
-    border_match = re.match(
-        r"^(\d+(?:\.\d+)?(?:pt|px|em|rem|%))\s+(solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+)$",
+    # ENHANCEMENT P8: Complex border parsing with multiple properties
+    complex_border_match = re.match(
+        r"^(\d+(?:\.\d+)?(?:px|pt|em|rem)?)\s+(solid|dashed|dotted|double|groove|ridge|inset|outset)\s+(.+)$",
         value,
         re.IGNORECASE,
     )
-    if border_match:
-        width_str, style_str, color_str = border_match.groups()
+    if complex_border_match:
+        width_str, style_str, color_str = complex_border_match.groups()
 
-        # Parse the color component recursively
+        # Recursively parse the color component
         color_type, color_value = convert_style(color_str.strip())
-
-        # Ensure color_value is in the right format
-        color_data = color_value if color_type == "color" else {"type": "unknown", "value": color_value}
+        color_data = (
+            color_value
+            if color_type == "color"
+            else {"type": "unknown", "value": color_value}
+        )
 
         border_info = {
             "width": width_str,
             "style": style_str.lower(),
             "color": color_data,
         }
-        logger.debug(f"Parsed compound border: {border_info}")
         return ("border", border_info)
 
-    # Handle simple border styles (for backward compatibility)
-    simple_border_styles = {
+    # ENHANCEMENT P8: CSS transform parsing
+    if value.startswith(("translate", "rotate", "scale", "skew", "matrix")):
+        return ("transform", {"type": "css", "value": value})
+
+    # ENHANCEMENT P8: Box shadow parsing - improved to handle inset shadows
+    # Pattern matches: [inset] <offset-x> <offset-y> [blur-radius] [spread-radius] <color>
+    shadow_pattern = r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
+    if (
+        re.match(shadow_pattern, value, re.IGNORECASE)
+        or "shadow" in value.lower()
+        or re.match(r"^\d+.*\d+", value)
+    ):
+        return ("shadow", {"type": "css", "value": value})
+
+    # ENHANCEMENT P8: CSS transition/animation parsing
+    # Recognize typical transition/animation patterns (more specific)
+    transition_pattern = r"^(all|\w+)\s+[\d.]+s\s+[\w-]+(?:\s+[\d.]+s)?$"
+    if (
+        "transition" in value.lower()
+        or "animation" in value.lower()
+        or re.match(transition_pattern, value.lower())
+    ):
+        return ("animation", {"type": "css", "value": value})
+
+    # Simple border styles
+    border_styles = {
         "solid",
         "dashed",
         "dotted",
@@ -244,50 +324,25 @@ def convert_style(value: str) -> tuple[str, Any]:
         "ridge",
         "inset",
         "outset",
+        "none",
+        "hidden",
     }
-    if value.lower() in simple_border_styles:
+    if value.lower() in border_styles:
         return ("border_style", value.lower())
 
-    # Handle named colors
-    color_names = get_color_names()
-    if value.lower() in color_names:
-        logger.debug(f"Named color: {value}")
+    # Extended color names
+    if value.lower() in EXTENDED_COLOR_NAMES:
         return ("color", _create_color_value("named", value.lower()))
 
-    # Handle other style values - return as generic value
-    logger.debug(f"Generic style value: {value}")
+    # Generic value fallback
     return ("value", value)
 
 
-def get_color_names() -> set[str]:
-    """
-    Get a set of valid CSS color names.
+def get_theme_colors() -> set[str]:
+    """Get valid Google Slides theme color names."""
+    return KNOWN_THEME_COLORS.copy()
 
-    Returns:
-        Set of valid color names
-    """
-    # Common color names (non-exhaustive list)
-    return {
-        "black",
-        "white",
-        "red",
-        "green",
-        "blue",
-        "yellow",
-        "orange",
-        "purple",
-        "pink",
-        "brown",
-        "gray",
-        "grey",
-        "silver",
-        "gold",
-        "transparent",
-        "aqua",
-        "teal",
-        "navy",
-        "olive",
-        "maroon",
-        "lime",
-        "fuchsia",
-    }
+
+def get_color_names() -> set[str]:
+    """Get extended CSS color names."""
+    return EXTENDED_COLOR_NAMES.copy()

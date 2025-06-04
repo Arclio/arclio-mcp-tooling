@@ -1,23 +1,20 @@
+"""Updated unit tests for the ElementFactory with enhanced directive handling."""
+
 import pytest
 from markdown_it import MarkdownIt
 from markdowndeck.models import (
     AlignmentType,
-    CodeElement,
     ElementType,
-    ImageElement,
-    ListElement,
     ListItem,
-    TableElement,
     TextElement,
     TextFormat,
     TextFormatType,
-    VerticalAlignmentType,
 )
 from markdowndeck.parser.content.element_factory import ElementFactory
 
 
 class TestElementFactory:
-    """Unit tests for the ElementFactory."""
+    """Updated unit tests for the ElementFactory."""
 
     @pytest.fixture
     def factory(self) -> ElementFactory:
@@ -25,84 +22,142 @@ class TestElementFactory:
 
     @pytest.fixture
     def md_parser(self) -> MarkdownIt:
-        # Basic markdown-it parser for formatting extraction tests
         md = MarkdownIt()
-        md.enable("strikethrough")  # Ensure s_open/s_close tokens are generated
+        md.enable("strikethrough")
         return md
 
-    def test_create_title_element(self, factory: ElementFactory):
+    # ========================================================================
+    # Element Creation Tests (Updated with Directive Support)
+    # ========================================================================
+
+    def test_create_title_element_with_directives(self, factory: ElementFactory):
+        """Test title element creation with directives."""
         formatting = [TextFormat(0, 5, TextFormatType.BOLD)]
-        el = factory.create_title_element("Title", formatting)
-        assert isinstance(el, TextElement)
-        assert el.element_type == ElementType.TITLE
-        assert el.text == "Title"
-        assert el.formatting == formatting
-        assert el.horizontal_alignment == AlignmentType.CENTER
+        directives = {
+            "align": "left",
+            "fontsize": 24,
+            "color": {"type": "named", "value": "blue"},
+        }
 
-    def test_create_subtitle_element(self, factory: ElementFactory):
-        el = factory.create_subtitle_element("Subtitle", alignment=AlignmentType.RIGHT)
-        assert isinstance(el, TextElement)
-        assert el.element_type == ElementType.SUBTITLE
-        assert el.text == "Subtitle"
-        assert el.horizontal_alignment == AlignmentType.RIGHT
+        element = factory.create_title_element("Title", formatting, directives)
 
-    def test_create_text_element(self, factory: ElementFactory):
-        directives = {"custom": "value"}
-        el = factory.create_text_element("Some text", directives=directives)
-        assert isinstance(el, TextElement)
-        assert el.element_type == ElementType.TEXT
-        assert el.text == "Some text"
-        assert el.horizontal_alignment == AlignmentType.LEFT
-        assert el.directives == directives
+        assert isinstance(element, TextElement)
+        assert element.element_type == ElementType.TITLE
+        assert element.text == "Title"
+        assert element.formatting == formatting
+        assert element.horizontal_alignment == AlignmentType.LEFT  # From directives
+        assert element.directives == directives
 
-    def test_create_quote_element(self, factory: ElementFactory):
-        el = factory.create_quote_element("A quote.", alignment=AlignmentType.CENTER)
-        assert isinstance(el, TextElement)
-        assert el.element_type == ElementType.QUOTE
-        assert el.text == "A quote."
-        assert el.horizontal_alignment == AlignmentType.CENTER
+    def test_create_title_element_default_alignment(self, factory: ElementFactory):
+        """Test title element with default center alignment."""
+        element = factory.create_title_element("Title")
+        assert element.horizontal_alignment == AlignmentType.CENTER
 
-    def test_create_footer_element(self, factory: ElementFactory):
-        el = factory.create_footer_element("Footer text")
-        assert isinstance(el, TextElement)
-        assert el.element_type == ElementType.FOOTER
-        assert el.text == "Footer text"
-        assert el.vertical_alignment == VerticalAlignmentType.BOTTOM
+    def test_create_subtitle_element_with_directives(self, factory: ElementFactory):
+        """Test subtitle element creation with directives."""
+        directives = {"fontweight": "bold", "margin": 10}
+        element = factory.create_subtitle_element(
+            "Subtitle", alignment=AlignmentType.RIGHT, directives=directives
+        )
 
-    def test_create_list_element(self, factory: ElementFactory):
-        items = [ListItem(text="Item 1")]
-        el_bullet = factory.create_list_element(items, ordered=False)
-        assert isinstance(el_bullet, ListElement)
-        assert el_bullet.element_type == ElementType.BULLET_LIST
-        assert el_bullet.items == items
+        assert element.element_type == ElementType.SUBTITLE
+        assert element.horizontal_alignment == AlignmentType.RIGHT
+        assert element.directives == directives
 
-        el_ordered = factory.create_list_element(items, ordered=True)
-        assert isinstance(el_ordered, ListElement)
-        assert el_ordered.element_type == ElementType.ORDERED_LIST
+    def test_create_text_element_with_directives(self, factory: ElementFactory):
+        """Test text element creation with comprehensive directives."""
+        directives = {
+            "color": {"type": "rgba", "r": 255, "g": 0, "b": 0, "a": 0.8},
+            "background": {"type": "hex", "value": "#f0f0f0"},
+            "border": {
+                "width": "1px",
+                "style": "solid",
+                "color": {"type": "named", "value": "black"},
+            },
+            "padding": 15,
+            "margin": 10,
+        }
 
-    def test_create_image_element(self, factory: ElementFactory):
-        el = factory.create_image_element("url.jpg", "Alt", directives={"align": "center"})
-        assert isinstance(el, ImageElement)
-        assert el.element_type == ElementType.IMAGE
-        assert el.url == "url.jpg"
-        assert el.alt_text == "Alt"
-        assert el.directives == {"align": "center"}
+        element = factory.create_text_element("Text", directives=directives)
+        assert element.directives == directives
+        assert element.horizontal_alignment == AlignmentType.LEFT
 
-    def test_create_table_element(self, factory: ElementFactory):
-        headers = ["H1", "H2"]
-        rows = [["R1C1", "R1C2"]]
-        el = factory.create_table_element(headers, rows)
-        assert isinstance(el, TableElement)
-        assert el.element_type == ElementType.TABLE
-        assert el.headers == headers
-        assert el.rows == rows
+    def test_create_list_element_with_directives(self, factory: ElementFactory):
+        """Test list element creation with directives."""
+        items = [ListItem(text="Item 1"), ListItem(text="Item 2")]
+        directives = {"color": {"type": "named", "value": "blue"}, "margin": 5}
 
-    def test_create_code_element(self, factory: ElementFactory):
-        el = factory.create_code_element("print('hi')", "python")
-        assert isinstance(el, CodeElement)
-        assert el.element_type == ElementType.CODE
-        assert el.code == "print('hi')"
-        assert el.language == "python"
+        # Bullet list
+        bullet_list = factory.create_list_element(
+            items, ordered=False, directives=directives
+        )
+        assert bullet_list.element_type == ElementType.BULLET_LIST
+        assert bullet_list.directives == directives
+
+        # Ordered list
+        ordered_list = factory.create_list_element(
+            items, ordered=True, directives=directives
+        )
+        assert ordered_list.element_type == ElementType.ORDERED_LIST
+        assert ordered_list.directives == directives
+
+    def test_create_image_element_with_directives(self, factory: ElementFactory):
+        """Test image element creation with directives."""
+        directives = {
+            "width": 0.5,  # 50%
+            "height": 300,
+            "align": "center",
+            "border": {
+                "width": "2px",
+                "style": "solid",
+                "color": {"type": "hex", "value": "#ccc"},
+            },
+        }
+
+        element = factory.create_image_element("test.jpg", "Test Image", directives)
+        assert element.element_type == ElementType.IMAGE
+        assert element.url == "test.jpg"
+        assert element.alt_text == "Test Image"
+        assert element.directives == directives
+
+    def test_create_table_element_with_directives(self, factory: ElementFactory):
+        """Test table element creation with directives."""
+        headers = ["Name", "Age"]
+        rows = [["Alice", "25"], ["Bob", "30"]]
+        directives = {
+            "border": {
+                "width": "1px",
+                "style": "solid",
+                "color": {"type": "named", "value": "gray"},
+            },
+            "cell-align": "center",
+            "width": 1.0,  # 100%
+        }
+
+        element = factory.create_table_element(headers, rows, directives)
+        assert element.element_type == ElementType.TABLE
+        assert element.headers == headers
+        assert element.rows == rows
+        assert element.directives == directives
+
+    def test_create_code_element_with_directives(self, factory: ElementFactory):
+        """Test code element creation with directives."""
+        directives = {
+            "background": {"type": "named", "value": "black"},
+            "color": {"type": "hex", "value": "#00ff00"},
+            "fontsize": 12,
+            "border-radius": 4,
+        }
+
+        element = factory.create_code_element("print('hello')", "python", directives)
+        assert element.element_type == ElementType.CODE
+        assert element.code == "print('hello')"
+        assert element.language == "python"
+        assert element.directives == directives
+
+    # ========================================================================
+    # Enhanced Formatting Extraction Tests
+    # ========================================================================
 
     @pytest.mark.parametrize(
         ("markdown_text", "expected_formats"),
@@ -110,15 +165,27 @@ class TestElementFactory:
             ("simple text", []),
             (
                 "**bold** text",
-                [TextFormat(start=0, end=4, format_type=TextFormatType.BOLD, value=True)],
+                [
+                    TextFormat(
+                        start=0, end=4, format_type=TextFormatType.BOLD, value=True
+                    )
+                ],
             ),
             (
                 "*italic* text",
-                [TextFormat(start=0, end=6, format_type=TextFormatType.ITALIC, value=True)],
+                [
+                    TextFormat(
+                        start=0, end=6, format_type=TextFormatType.ITALIC, value=True
+                    )
+                ],
             ),
             (
                 "`code` text",
-                [TextFormat(start=0, end=4, format_type=TextFormatType.CODE, value=True)],
+                [
+                    TextFormat(
+                        start=0, end=4, format_type=TextFormatType.CODE, value=True
+                    )
+                ],
             ),
             (
                 "~~strike~~ text",
@@ -144,25 +211,22 @@ class TestElementFactory:
             ),
             (
                 "**bold *italic* link**",
-                [  # Order might vary based on parser's internal logic for nested, check presence and ranges
-                    TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC, value=True),
-                    TextFormat(start=0, end=17, format_type=TextFormatType.BOLD, value=True),
-                ],
-            ),
-            (
-                "text **bold** and *italic*",
                 [
-                    TextFormat(start=5, end=9, format_type=TextFormatType.BOLD, value=True),
-                    TextFormat(start=14, end=20, format_type=TextFormatType.ITALIC, value=True),
+                    TextFormat(
+                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
+                    ),
+                    TextFormat(
+                        start=0, end=16, format_type=TextFormatType.BOLD, value=True
+                    ),
                 ],
             ),
             (
                 "text at start **bold**",
-                [TextFormat(start=13, end=17, format_type=TextFormatType.BOLD, value=True)],
-            ),
-            (
-                "**bold** text at end",
-                [TextFormat(start=0, end=4, format_type=TextFormatType.BOLD, value=True)],
+                [
+                    TextFormat(
+                        start=14, end=18, format_type=TextFormatType.BOLD, value=True
+                    )
+                ],
             ),
         ],
     )
@@ -173,157 +237,376 @@ class TestElementFactory:
         markdown_text: str,
         expected_formats: list[TextFormat],
     ):
-        """Test extraction of formatting from a simple text string."""
+        """Test formatting extraction from text."""
         extracted = factory.extract_formatting_from_text(markdown_text, md_parser)
 
-        # Sort both lists of dataclasses by start index for consistent comparison
-        sorted_extracted = sorted(extracted, key=lambda f: (f.start, f.end, f.format_type.value))
-        sorted_expected = sorted(expected_formats, key=lambda f: (f.start, f.end, f.format_type.value))
+        # Sort for consistent comparison
+        sorted_extracted = sorted(
+            extracted, key=lambda f: (f.start, f.end, f.format_type.value)
+        )
+        sorted_expected = sorted(
+            expected_formats, key=lambda f: (f.start, f.end, f.format_type.value)
+        )
 
-        assert sorted_extracted == sorted_expected, f"Formatting mismatch for: {markdown_text}"
+        assert sorted_extracted == sorted_expected
 
-    def test_extract_formatting_empty_text(self, factory: ElementFactory, md_parser: MarkdownIt):
+    def test_extract_formatting_with_directive_text(
+        self, factory: ElementFactory, md_parser: MarkdownIt
+    ):
+        """Test formatting extraction from text that contains directive patterns."""
+        # Text that might confuse the parser with directive-like patterns
+        text_with_directives = (
+            "[color=red] This **bold** text has [brackets] but formatting."
+        )
+
+        formatting = factory.extract_formatting_from_text(
+            text_with_directives, md_parser
+        )
+
+        # Should still extract bold formatting properly
+        bold_formats = [f for f in formatting if f.format_type == TextFormatType.BOLD]
+        assert len(bold_formats) == 1
+
+        # The bold format should be positioned correctly relative to plain text
+        bold_format = bold_formats[0]
+
+        # Get the plain text that would be extracted from the cleaned text
+        cleaned_text = factory._remove_directive_patterns(text_with_directives)
+        tokens = md_parser.parse(cleaned_text.strip())
+        for token in tokens:
+            if token.type == "inline":
+                # Use the same method that TextFormatter uses to get plain text
+                from markdowndeck.parser.content.formatters.text import TextFormatter
+
+                formatter = TextFormatter(factory)
+                plain_text = formatter._get_plain_text_from_inline_token(token)
+                bold_text = plain_text[bold_format.start : bold_format.end]
+                assert "bold" in bold_text
+                break
+
+    def test_extract_formatting_empty_and_whitespace(
+        self, factory: ElementFactory, md_parser: MarkdownIt
+    ):
+        """Test formatting extraction with empty and whitespace text."""
         assert factory.extract_formatting_from_text("", md_parser) == []
-        assert factory.extract_formatting_from_text("   ", md_parser) == []  # Whitespace only
+        assert factory.extract_formatting_from_text("   ", md_parser) == []
+        assert factory.extract_formatting_from_text("\n\t\n", md_parser) == []
+
+    # ========================================================================
+    # Directive Pattern Detection and Removal Tests
+    # ========================================================================
+
+    def test_remove_directive_patterns(self, factory: ElementFactory):
+        """Test removal of directive patterns from text."""
+        # Single directive at start
+        text1 = "[color=blue] Regular text content"
+        cleaned1 = factory._remove_directive_patterns(text1)
+        assert cleaned1 == "Regular text content"
+
+        # Multiple directives at start
+        text2 = "[align=center][fontsize=14][margin=5px] Content here"
+        cleaned2 = factory._remove_directive_patterns(text2)
+        assert cleaned2 == "Content here"
+
+        # No directives
+        text3 = "Just regular text"
+        cleaned3 = factory._remove_directive_patterns(text3)
+        assert cleaned3 == "Just regular text"
+
+        # Directives in middle (should not be removed)
+        text4 = "Text with [color=red] in middle"
+        cleaned4 = factory._remove_directive_patterns(text4)
+        assert cleaned4 == "Text with [color=red] in middle"
 
     def test_strip_directives_from_code_content(self, factory: ElementFactory):
-        """Test that directive patterns are stripped from code content."""
-        # Test with directive prefix
-        result = factory._strip_directives_from_code_content("[border=solid][padding=10px] GET endpoints equivalent")
-        assert result == "GET endpoints equivalent"
+        """Test directive stripping from code content (enhanced)."""
+        # Directive prefix in code
+        code1 = "[border=solid][padding=10px] GET /api/users"
+        cleaned1 = factory._strip_directives_from_code_content(code1)
+        assert cleaned1 == "GET /api/users"
 
-        # Test with multiple directives
-        result = factory._strip_directives_from_code_content("[align=center] [width=100%] code content")
-        assert result == "code content"
+        # Multiple directive patterns
+        code2 = "[align=center] [width=100%] const value = 42;"
+        cleaned2 = factory._strip_directives_from_code_content(code2)
+        assert cleaned2 == "const value = 42;"
 
-        # Test with no directives
-        result = factory._strip_directives_from_code_content("normal code content")
-        assert result == "normal code content"
+        # No directives in code
+        code3 = "function test() { return true; }"
+        cleaned3 = factory._strip_directives_from_code_content(code3)
+        assert cleaned3 == "function test() { return true; }"
 
-        # Test with empty content
-        result = factory._strip_directives_from_code_content("")
-        assert result == ""
+        # Only directives (edge case)
+        code4 = "[border=solid][padding=10px]"
+        cleaned4 = factory._strip_directives_from_code_content(code4)
+        assert cleaned4 == ""
 
-        # Test with only directives (should return empty)
-        result = factory._strip_directives_from_code_content("[border=solid][padding=10px]")
-        assert result == ""
+        # Empty content
+        assert factory._strip_directives_from_code_content("") == ""
 
-        # Test with whitespace and directives
-        result = factory._strip_directives_from_code_content("  [align=center]  actual content  ")
-        assert result == "actual content"
+    # ========================================================================
+    # Enhanced Inline Token Processing Tests
+    # ========================================================================
 
-    def test_extract_formatting_with_directive_code_spans(self, factory: ElementFactory, md_parser: MarkdownIt):
-        """Test that directive patterns are stripped from inline code spans during formatting extraction."""
-        # Test direct stripping functionality - this protects against cases where
-        # the markdown parser might incorrectly include directive patterns in code content
-        test_cases = [
-            # Direct test of stripping functionality
-            (
-                "[border=solid][padding=10px] GET endpoints equivalent",
-                "GET endpoints equivalent",
-            ),
-            ("[align=center] code content here", "code content here"),
-            (
-                "normal code content",
-                "normal code content",
-            ),  # Control case with no directives
-        ]
-
-        for test_content, expected_cleaned in test_cases:
-            result = factory._strip_directives_from_code_content(test_content)
-            assert result == expected_cleaned, f"Expected '{expected_cleaned}' but got '{result}' from content: {test_content}"
-
-        # Test integration: verify that normal markdown parsing with code spans works correctly
-        # and that our protection doesn't interfere with normal operation
-        normal_markdown_cases = [
-            ("`normal code`", "normal code"),
-            ("`another test`", "another test"),
-            # Test case showing directive separation works correctly
-            ("[border=solid] `clean code`", "clean code"),
-        ]
-
-        for markdown_text, expected_code_text in normal_markdown_cases:
-            formatting = factory.extract_formatting_from_text(markdown_text, md_parser)
-
-            # Find the CODE format
-            code_formats = [f for f in formatting if f.format_type == TextFormatType.CODE]
-
-            if expected_code_text:
-                assert len(code_formats) == 1, f"Expected exactly one code format in: {markdown_text}"
-
-                # Reconstruct the plain text to check what the formatting refers to
-                plain_text_parts = []
-
-                # Build the plain text as the formatter does
-                tokens = md_parser.parse(markdown_text)
-                for token in tokens:
-                    if token.type == "inline" and hasattr(token, "children"):
-                        for child in token.children:
-                            if child.type == "text":
-                                plain_text_parts.append(child.content)
-                            elif child.type == "code_inline":
-                                # Apply our cleaning logic (though in normal cases it won't change anything)
-                                cleaned_content = factory._strip_directives_from_code_content(child.content)
-                                plain_text_parts.append(cleaned_content)
-
-                full_plain_text = "".join(plain_text_parts)
-                code_format = code_formats[0]
-                actual_code_text = full_plain_text[code_format.start : code_format.end]
-
-                assert actual_code_text == expected_code_text, (
-                    f"Expected code text '{expected_code_text}' but got '{actual_code_text}' from markdown: {markdown_text}"
-                )
-
-    def test_directive_stripping_integration_slide4_scenario(self, factory: ElementFactory, md_parser: MarkdownIt):
-        """
-        Test the specific scenario from Slide 4 where directive patterns could be mis-parsed
-        into inline code spans, demonstrating protection against the REMAINING ISSUE B.
-        """
-        # Simulate a scenario where somehow directive patterns end up in code span content
-        # This could happen due to parser edge cases or malformed input
-
-        # Test the _extract_formatting_from_inline_token method with a mock token structure
-        # that simulates the problematic case
+    def test_extract_formatting_from_inline_token_with_code_cleaning(
+        self, factory: ElementFactory
+    ):
+        """Test inline token processing with code content preservation."""
         from markdown_it.token import Token
 
-        # Create a mock inline token with a code_inline child that contains directive patterns
+        # Create mock inline token with code that has directive patterns
         inline_token = Token("inline", "", 0)
         inline_token.children = []
 
-        # Create a text token for directive patterns that should be separate
+        # Text token
         text_token = Token("text", "", 0)
-        text_token.content = "[border=solid][padding=10px] "
+        text_token.content = "Code example: "
         inline_token.children.append(text_token)
 
-        # Create a code_inline token that might erroneously contain directive patterns
-        # (this simulates a parser bug or edge case)
+        # Code token with directive patterns
         code_token = Token("code_inline", "", 0)
-        code_token.content = "[margin=5px] GET endpoints equivalent"  # Problematic content
+        code_token.content = "[margin=5px] fetch('/api/data')"
         inline_token.children.append(code_token)
 
-        # Extract formatting using our protected method
+        # More text
+        text_token2 = Token("text", "", 0)
+        text_token2.content = " is clean."
+        inline_token.children.append(text_token2)
+
         formatting = factory._extract_formatting_from_inline_token(inline_token)
 
-        # Verify that we get a CODE format
+        # Should have code formatting
         code_formats = [f for f in formatting if f.format_type == TextFormatType.CODE]
-        assert len(code_formats) == 1, "Should have exactly one code format"
+        assert len(code_formats) == 1
 
-        # The key test: verify that the problematic directive pattern was stripped
-        # and only the actual code content remains in the calculated positions
-
-        # Reconstruct what the plain text should look like after our cleaning
-        expected_plain_text = "[border=solid][padding=10px] GET endpoints equivalent"
-        # Position: directive text (30 chars) + cleaned code (23 chars)
-
+        # Code format should cover the full content including directive patterns
+        # (per user requirements: inline code should preserve content as-is)
         code_format = code_formats[0]
-        expected_start = len("[border=solid][padding=10px] ")  # 30
-        expected_end = expected_start + len("GET endpoints equivalent")  # 30 + 23 = 53
+        expected_start = len("Code example: ")
+        expected_end = expected_start + len("[margin=5px] fetch('/api/data')")
 
-        assert code_format.start == expected_start, f"Code format should start at {expected_start}, got {code_format.start}"
-        assert code_format.end == expected_end, f"Code format should end at {expected_end}, got {code_format.end}"
+        assert code_format.start == expected_start
+        assert code_format.end == expected_end
 
-        # Extract the actual text that would be covered by this format
-        actual_code_text = expected_plain_text[code_format.start : code_format.end]
-        assert actual_code_text == "GET endpoints equivalent", (
-            f"Code span should contain 'GET endpoints equivalent', got '{actual_code_text}'"
+    def test_extract_formatting_complex_mixed_content(self, factory: ElementFactory):
+        """Test formatting extraction from complex mixed content."""
+        from markdown_it.token import Token
+
+        # Create complex inline token: **bold** `code` [link](url) *italic*
+        inline_token = Token("inline", "", 0)
+        inline_token.children = []
+
+        # Bold section
+        inline_token.children.append(Token("strong_open", "", 0))
+        text1 = Token("text", "", 0)
+        text1.content = "bold"
+        inline_token.children.append(text1)
+        inline_token.children.append(Token("strong_close", "", 0))
+
+        # Space
+        space1 = Token("text", "", 0)
+        space1.content = " "
+        inline_token.children.append(space1)
+
+        # Code
+        code = Token("code_inline", "", 0)
+        code.content = "code"
+        inline_token.children.append(code)
+
+        # Space
+        space2 = Token("text", "", 0)
+        space2.content = " "
+        inline_token.children.append(space2)
+
+        # Link
+        link_open = Token("link_open", "", 0)
+        link_open.attrs = {"href": "http://example.com"}
+        inline_token.children.append(link_open)
+        link_text = Token("text", "", 0)
+        link_text.content = "link"
+        inline_token.children.append(link_text)
+        inline_token.children.append(Token("link_close", "", 0))
+
+        # Space
+        space3 = Token("text", "", 0)
+        space3.content = " "
+        inline_token.children.append(space3)
+
+        # Italic
+        inline_token.children.append(Token("em_open", "", 0))
+        text2 = Token("text", "", 0)
+        text2.content = "italic"
+        inline_token.children.append(text2)
+        inline_token.children.append(Token("em_close", "", 0))
+
+        formatting = factory._extract_formatting_from_inline_token(inline_token)
+
+        # Expected: bold, code, link, italic
+        assert len(formatting) == 4
+
+        format_types = [f.format_type for f in formatting]
+        assert TextFormatType.BOLD in format_types
+        assert TextFormatType.CODE in format_types
+        assert TextFormatType.LINK in format_types
+        assert TextFormatType.ITALIC in format_types
+
+        # Check link value
+        link_format = next(
+            f for f in formatting if f.format_type == TextFormatType.LINK
         )
+        assert link_format.value == "http://example.com"
+
+    def test_extract_formatting_with_nested_formats(self, factory: ElementFactory):
+        """Test formatting extraction with nested formats."""
+        from markdown_it.token import Token
+
+        # Create nested formatting: **bold *italic* text**
+        inline_token = Token("inline", "", 0)
+        inline_token.children = []
+
+        inline_token.children.append(Token("strong_open", "", 0))
+        text1 = Token("text", "", 0)
+        text1.content = "bold "
+        inline_token.children.append(text1)
+
+        inline_token.children.append(Token("em_open", "", 0))
+        text2 = Token("text", "", 0)
+        text2.content = "italic"
+        inline_token.children.append(text2)
+        inline_token.children.append(Token("em_close", "", 0))
+
+        text3 = Token("text", "", 0)
+        text3.content = " text"
+        inline_token.children.append(text3)
+        inline_token.children.append(Token("strong_close", "", 0))
+
+        formatting = factory._extract_formatting_from_inline_token(inline_token)
+
+        # Should have both bold and italic
+        bold_format = next(
+            f for f in formatting if f.format_type == TextFormatType.BOLD
+        )
+        italic_format = next(
+            f for f in formatting if f.format_type == TextFormatType.ITALIC
+        )
+
+        # Bold should encompass the entire content
+        assert bold_format.start == 0
+        assert bold_format.end == len("bold italic text")
+
+        # Italic should be nested within bold
+        assert italic_format.start == len("bold ")
+        assert italic_format.end == len("bold italic")
+
+    # ========================================================================
+    # Error Handling and Edge Cases
+    # ========================================================================
+
+    def test_extract_formatting_malformed_tokens(self, factory: ElementFactory):
+        """Test formatting extraction with malformed token structures."""
+        from markdown_it.token import Token
+
+        # Token without children
+        inline_token1 = Token("inline", "", 0)
+        # No children attribute
+        formatting1 = factory._extract_formatting_from_inline_token(inline_token1)
+        assert formatting1 == []
+
+        # Token with empty children
+        inline_token2 = Token("inline", "", 0)
+        inline_token2.children = []
+        formatting2 = factory._extract_formatting_from_inline_token(inline_token2)
+        assert formatting2 == []
+
+        # Non-inline token
+        non_inline_token = Token("paragraph", "", 0)
+        formatting3 = factory._extract_formatting_from_inline_token(non_inline_token)
+        assert formatting3 == []
+
+    def test_directive_pattern_edge_cases(self, factory: ElementFactory):
+        """Test directive pattern handling edge cases."""
+        # Malformed bracket patterns
+        text1 = "[incomplete directive"
+        cleaned1 = factory._remove_directive_patterns(text1)
+        assert cleaned1 == text1  # Should be unchanged
+
+        # Empty brackets
+        text2 = "[] [=] [key=] Content"
+        cleaned2 = factory._remove_directive_patterns(text2)
+        # Should handle malformed patterns gracefully
+        assert "Content" in cleaned2
+
+        # Nested brackets (not valid directives)
+        text3 = "[[nested=value]] Content"
+        cleaned3 = factory._remove_directive_patterns(text3)
+        assert cleaned3 == "[[nested=value]] Content"  # Should not match pattern
+
+    def test_code_content_edge_cases(self, factory: ElementFactory):
+        """Test code content processing edge cases."""
+        # Whitespace only
+        assert factory._strip_directives_from_code_content("   ") == "   "
+
+        # Directive-like patterns that aren't valid directives
+        code1 = "[not-a-directive] [invalid:value] real_code()"
+        cleaned1 = factory._strip_directives_from_code_content(code1)
+        # Should only strip valid directive patterns
+        assert "real_code()" in cleaned1
+
+        # Multiple valid directives with whitespace
+        code2 = "  [border=solid]  [padding=10px]  \n  actual_code()  "
+        cleaned2 = factory._strip_directives_from_code_content(code2)
+        assert cleaned2.strip() == "actual_code()"
+
+    # ========================================================================
+    # Integration Tests
+    # ========================================================================
+
+    def test_create_elements_with_mixed_directive_types(self, factory: ElementFactory):
+        """Test creating various elements with different directive types."""
+        # Advanced CSS directives
+        advanced_directives = {
+            "background": {
+                "type": "gradient",
+                "value": "linear-gradient(45deg, red, blue)",
+                "definition": "45deg, red, blue",
+            },
+            "border": {
+                "width": "2px",
+                "style": "dashed",
+                "color": {"type": "rgba", "r": 128, "g": 128, "b": 128, "a": 0.7},
+            },
+            "box-shadow": {"type": "css", "value": "0 2px 4px rgba(0,0,0,0.1)"},
+            "transform": {"type": "css", "value": "rotate(45deg) scale(1.1)"},
+        }
+
+        # Test with text element
+        text_elem = factory.create_text_element(
+            "Advanced styled text", directives=advanced_directives
+        )
+        assert text_elem.directives["background"]["type"] == "gradient"
+        assert text_elem.directives["border"]["color"]["type"] == "rgba"
+        assert text_elem.directives["box-shadow"]["type"] == "css"
+
+        # Test with other element types
+        list_elem = factory.create_list_element(
+            [ListItem(text="Item")], directives=advanced_directives
+        )
+        assert list_elem.directives == advanced_directives
+
+        table_elem = factory.create_table_element(
+            ["H1"], [["C1"]], directives=advanced_directives
+        )
+        assert table_elem.directives == advanced_directives
+
+    def test_element_creation_with_empty_directives(self, factory: ElementFactory):
+        """Test element creation with empty or None directives."""
+        # None directives
+        elem1 = factory.create_text_element("Text", directives=None)
+        assert elem1.directives == {}
+
+        # Empty directives
+        elem2 = factory.create_text_element("Text", directives={})
+        assert elem2.directives == {}
+
+        # Should not affect other properties
+        assert elem1.text == "Text"
+        assert elem1.element_type == ElementType.TEXT

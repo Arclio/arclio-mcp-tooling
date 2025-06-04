@@ -1,4 +1,4 @@
-# google-workspace-mcp
+# Google Workspace MCP
 
 <div align="center">
 
@@ -6,7 +6,6 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests: 125 passing](https://img.shields.io/badge/tests-125%20passing-brightgreen.svg)](https://github.com/arclio/google-workspace-mcp)
 
 _Developed and maintained by [Arclio](https://arclio.com)_ - _Secure MCP service management for AI applications_
 
@@ -16,795 +15,513 @@ _Developed and maintained by [Arclio](https://arclio.com)_ - _Secure MCP service
 
 ## 🚀 Quick Start
 
-### Prerequisites
+Test the server immediately using the Model Context Protocol (MCP) Inspector, or install and run it directly.
 
-1. **Google OAuth Credentials**: Get these from [Google Cloud Console](https://console.cloud.google.com/)
-2. **Python 3.10+**: Required for the MCP server
-
-### Instant Setup with MCP Inspector
-
-Test the server immediately using MCP Inspector:
+### Option 1: Instant Setup with MCP Inspector (Recommended for Testing)
 
 ```bash
 npx @modelcontextprotocol/inspector \
   -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
   -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret" \
   -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["slides", "calendar", "drive", "gmail"]' \
+  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "sheets", "slides"]' \
   -- \
   uvx --from google-workspace-mcp google-workspace-worker
 ```
 
-### Direct Installation & Usage
+Replace placeholder credentials with your actual values.
+
+### Option 2: Direct Installation & Usage
+
+1.  **Install the package:**
+
+    ```bash
+    pip install google-workspace-mcp
+    ```
+
+2.  **Set Environment Variables:**
+
+    ```bash
+    export GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+    export GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret"
+    export GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token"
+    export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "sheets", "slides"]'
+    # Optional: For development/integration testing
+    # export RUN_INTEGRATION_TESTS="1"
+    ```
+
+3.  **Run the MCP Server:**
+
+    ```bash
+    google-workspace-worker
+    ```
+
+### Option 3: Using `uvx` (Run without full installation)
 
 ```bash
-# Install the package
-pip install google-workspace-mcp
-
-# Set environment variables
-export GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
-export GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret"
-export GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token"
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
-
-# Run the MCP server
-google-workspace-worker
-```
-
-### Using with uvx (Recommended)
-
-```bash
-# Run without installation
+# Ensure GOOGLE_WORKSPACE_* environment variables are set as shown above
 uvx --from google-workspace-mcp google-workspace-worker
-
-# Or with environment variables inline
-GOOGLE_WORKSPACE_CLIENT_ID="your-id" GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]' \
-uvx --from google-workspace-mcp google-workspace-worker
 ```
-
-## 🔑 Authentication Setup
-
-### Step 1: Google Cloud Console Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing one
-3. Enable the required APIs:
-   - Google Drive API
-   - Gmail API
-   - Google Calendar API
-   - Google Slides API
-4. Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client IDs"
-5. Choose "Web application" as application type
-6. Add authorized redirect URIs (for OAuth flow)
-
-### Step 2: Get Refresh Token
-
-**Option A: Using OAuth 2.0 Playground (Easiest)**
-
-1. Go to [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/)
-2. Click the gear icon (⚙️) and check "Use your own OAuth credentials"
-3. Enter your Client ID and Client Secret
-4. In Step 1, select the required scopes:
-   ```
-   https://www.googleapis.com/auth/drive
-   https://www.googleapis.com/auth/gmail.modify
-   https://www.googleapis.com/auth/calendar
-   https://www.googleapis.com/auth/presentations
-   ```
-5. Click "Authorize APIs" and complete the OAuth flow
-6. In Step 2, click "Exchange authorization code for tokens"
-7. Copy the `refresh_token` value
-
-**Option B: Using Python Script**
-
-```python
-from google_auth_oauthlib.flow import Flow
-
-# Configure the OAuth flow
-flow = Flow.from_client_config(
-    {
-        "web": {
-            "client_id": "your-client-id",
-            "client_secret": "your-client-secret",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": ["http://localhost:8080/callback"]
-        }
-    },
-    scopes=[
-        "https://www.googleapis.com/auth/drive",
-        "https://www.googleapis.com/auth/gmail.modify",
-        "https://www.googleapis.com/auth/calendar",
-        "https://www.googleapis.com/auth/presentations"
-    ]
-)
-
-flow.redirect_uri = "http://localhost:8080/callback"
-auth_url, _ = flow.authorization_url(prompt='consent')
-print(f"Visit this URL: {auth_url}")
-
-# After visiting URL and getting the code:
-# flow.fetch_token(code="authorization-code-from-callback")
-# print(f"Refresh token: {flow.credentials.refresh_token}")
-```
-
-### Step 3: Environment Variables
-
-Set these environment variables before running the server:
-
-```bash
-# Required
-export GOOGLE_WORKSPACE_CLIENT_ID="144233821775-example.apps.googleusercontent.com"
-export GOOGLE_WORKSPACE_CLIENT_SECRET="GOCSPX-example_secret"
-export GOOGLE_WORKSPACE_REFRESH_TOKEN="1//05example_refresh_token"
-
-# Optional - specify which services to enable (default: all)
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
-
-# Optional - for development/testing
-export RUN_INTEGRATION_TESTS="0"
-```
-
-### Capabilities Configuration
-
-The `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` environment variable specifies which Google Workspace services should be enabled. This must be formatted as a **JSON array of strings**.
-
-**Valid format examples:**
-
-```bash
-# Enable all services
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides"]'
-
-# Enable only specific services
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail"]'
-
-# Enable single service
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["docs"]'
-
-# Empty array (disables all services)
-export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
-```
-
-**Available capability values:**
-
-- `"drive"` - Google Drive file operations
-- `"docs"` - Google Docs document creation and metadata retrieval
-- `"gmail"` - Gmail email management
-- `"calendar"` - Google Calendar events
-- `"slides"` - Google Slides presentations
-- `"sheets"` - Google Sheets spreadsheet operations
-
-**⚠️ Important Notes:**
-
-- The value **must** be valid JSON (use single quotes around the JSON string in bash)
-- Service names are case-insensitive but should be lowercase
-- Invalid JSON or non-array values will result in all services being disabled
-- If the environment variable is not set, defaults to empty array (all services disabled)
 
 ## 📋 Overview
 
-`google-workspace-mcp` is a robust Python package that enables AI models to interact with Google Workspace services via the Model Context Protocol (MCP). It serves as an intelligent middleware between AI assistants and Google APIs, allowing models to execute complex operations without direct API access.
+`google-workspace-mcp` is a Python package that enables AI models to interact with Google Workspace services (Drive, Docs, Gmail, Calendar, Sheets, and Slides) through the Model Context Protocol (MCP). It acts as a secure and standardized bridge, allowing AI assistants to leverage Google Workspace functionalities without direct API credential exposure.
 
 ### What is MCP?
 
-The Model Context Protocol (MCP) provides a standardized interface for AI models to access external tools and services. `google-workspace-mcp` implements an MCP server that exposes Google Workspace capabilities as tools that can be discovered and called by AI models.
+The Model Context Protocol (MCP) provides a standardized interface for AI models to discover and utilize external tools and services. This package implements an MCP server that exposes Google Workspace capabilities as discrete, callable "tools."
 
 ### Key Benefits
 
-- **AI-Ready Integration**: Purpose-built for AI assistants to interact with Google Workspace
-- **Standardized Protocol**: Clean integration with MCP-compatible AI systems
-- **Enterprise Security**: Credentials remain isolated from AI models
-- **Comprehensive APIs**: Support for Drive, Gmail, Calendar, Slides, and Sheets
-- **Robust Error Handling**: Consistent error patterns and graceful failure modes
-- **Extensive Testing**: 536+ tests ensuring reliability and correctness
+- **AI-Ready Integration**: Purpose-built for AI assistants to naturally interact with Google Workspace.
+- **Standardized Protocol**: Ensures seamless integration with MCP-compatible AI systems and hubs.
+- **Enhanced Security**: Google API credentials remain on the server, isolated from the AI models.
+- **Comprehensive Capabilities**: Offers a wide range of tools across core Google Workspace services.
+- **Robust Error Handling**: Provides consistent error patterns for reliable operation.
+- **Extensive Testing**: Underpinned by a comprehensive test suite for correctness and stability.
 
-## 🛠️ Capabilities
+## 🔑 Authentication Setup
 
-`google-workspace-mcp` provides tools across six major Google Workspace services:
+Accessing Google Workspace APIs requires OAuth 2.0 credentials.
 
-### 📁 Google Drive
+### Step 1: Google Cloud Console Setup
 
-- **drive_search_files**: Find files in Google Drive using query syntax
-- **drive_read_file_content**: Read file content with automatic format handling
-- **drive_upload_file**: Upload local files to Google Drive
-- **drive_delete_file**: Remove files from Google Drive
+1.  Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
+2.  Create a new project or select an existing one.
+3.  Enable the following APIs for your project:
+    - Google Drive API
+    - Gmail API
+    - Google Calendar API
+    - Google Docs API
+    - Google Sheets API
+    - Google Slides API
+4.  Go to "APIs & Services" -\> "Credentials".
+5.  Click "Create Credentials" -\> "OAuth 2.0 Client ID".
+6.  Select "Web application" as the application type.
+7.  Under "Authorized redirect URIs", add `https://developers.google.com/oauthplayground` (for easy refresh token generation) and any other URIs required for your specific setup (e.g., `http://localhost:8080/callback` if using the Python script method locally).
+8.  Note your `Client ID` and `Client Secret`.
 
-### 📄 Google Docs
+### Step 2: Obtain a Refresh Token
 
-- **docs_create_document**: Create new Google Documents with specified titles
-- **docs_get_document_metadata**: Retrieve metadata (title, ID, link) for existing documents
-- **docs_get_content_as_markdown**: Retrieve the content of a Google Document as Markdown
-- **docs_append_text**: Append text to the end of a specified Google Document
-- **docs_prepend_text**: Prepend text to the beginning of a specified Google Document
-- **docs_insert_text**: Insert text at a specific location within a Google Document
-- **docs_batch_update**: Apply multiple raw Google Docs API requests in a single operation (advanced)
+**Option A: Using OAuth 2.0 Playground (Recommended)**
 
-### 📧 Gmail
+1.  Go to the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/).
+2.  Click the gear icon (⚙️) in the top right corner.
+3.  Check the box "Use your own OAuth credentials."
+4.  Enter the `Client ID` and `Client Secret` obtained from the Google Cloud Console.
+5.  In "Step 1: Select & authorize APIs", input the following scopes (or select them from the list):
+    - `https://www.googleapis.com/auth/drive`
+    - `https://www.googleapis.com/auth/gmail.modify` (includes send, read, delete)
+    - `https://www.googleapis.com/auth/calendar`
+    - `https://www.googleapis.com/auth/docs`
+    - `https://www.googleapis.com/auth/spreadsheets`
+    - `https://www.googleapis.com/auth/presentations`
+6.  Click "Authorize APIs." You will be prompted to sign in with the Google account you want the MCP server to act on behalf of and grant permissions.
+7.  After authorization, you'll be redirected back. In "Step 2: Exchange authorization code for tokens," click "Exchange authorization code for tokens."
+8.  Copy the `Refresh token` displayed.
 
-- **query_gmail_emails**: Search emails with Gmail query syntax
-- **get_gmail_email**: Retrieve complete message content and metadata
-- **create_gmail_draft**: Create draft emails
-- **get_gmail_attachment**: Download email attachments
-- **reply_gmail_email**: Reply to existing email threads
-- **delete_gmail_draft**: Remove draft emails
-- **bulk_delete_gmail_emails**: Delete multiple emails in one operation
+**Option B: Using a Python Script (Advanced)**
+You can adapt a Python script using the `google-auth-oauthlib` library to perform the OAuth flow and retrieve a refresh token. Ensure your script uses the correct client ID, client secret, redirect URI, and scopes as listed above.
 
-### 📅 Google Calendar
+### Step 3: Configure Environment Variables
 
-- **calendar_get_events**: Retrieve calendar events within a time range
-- **calendar_get_event_details**: Retrieve detailed information for a specific calendar event by its ID
-- **create_calendar_event**: Create new calendar events
-- **delete_calendar_event**: Remove calendar events
-
-### 📊 Google Sheets
-
-- **sheets_create_spreadsheet**: Create new Google Spreadsheets with specified titles
-- **sheets_read_range**: Read data from specified ranges using A1 notation (e.g., "Sheet1!A1:C5")
-
-### 🖼️ Google Slides
-
-- **get_presentation**: Retrieve presentation details
-- **create_presentation**: Create new presentations
-- **get_slides**: List all slides in a presentation
-- **create_slide**: Add new slides to a presentation
-- **add_text_to_slide**: Insert text content into slides
-- **delete_slide**: Remove slides from a presentation
-- **create_presentation_from_markdown**: Generate entire presentations from Markdown
-
-## 🔄 AI-Powered Workflows
-
-The tools above enable AI assistants to handle complex workflows such as:
-
-- **Email Analysis → Presentation Creation**: Parse emails and convert insights into slides
-- **Drive Document Processing**: Read, analyze, and create summaries of documents
-- **Document Creation & Management**: Create new Google Docs and retrieve metadata for existing documents
-- **Calendar Management**: Schedule meetings based on email communications
-- **Document Generation**: Create structured documents from AI-generated content
-- **Multi-stage Operations**: Combine tools for complex operations like creating a presentation based on data from a spreadsheet
-
-## 🏗️ Architecture
-
-The project is designed with a clean, layered architecture:
-
-```
-google-workspace-mcp/
-├── server.py             # MCP server implementation
-├── auth/                 # Authentication components
-│   ├── __init__.py
-│   └── gauth.py          # Google OAuth handling
-├── services/             # API service implementations
-│   ├── __init__.py
-│   ├── base.py           # Base service class
-│   ├── drive.py          # Google Drive implementation
-│   ├── docs_service.py   # Google Docs implementation
-│   ├── gmail.py          # Gmail implementation
-│   ├── calendar.py       # Calendar implementation
-│   ├── sheets_service.py # Google Sheets implementation
-│   └── slides.py         # Slides implementation
-└── tools/                # MCP tool handlers
-    ├── __init__.py
-    ├── base.py           # Base tool handler
-    ├── drive.py          # Drive tools
-    ├── docs_tools.py     # Docs tools
-    ├── gmail.py          # Gmail tools
-    ├── calendar.py       # Calendar tools
-    ├── sheets_tools.py   # Sheets tools
-    └── slides.py         # Slides tools
-```
-
-### How It Works
-
-1. MCP Hub initiates the server process
-2. The server dynamically discovers all available tool handlers
-3. When queried by an AI model, the server returns accessible tools based on enabled capabilities
-4. When a tool is called, the server:
-   - Validates arguments
-   - Routes the request to the appropriate tool handler
-   - The tool handler uses a service implementation to interact with Google APIs
-   - Results are formatted and returned to the model through the MCP Hub
-
-## 🔧 Integration Examples
-
-### With MCP Inspector
+The MCP server requires the following environment variables to be set:
 
 ```bash
-# Test all capabilities
-npx @modelcontextprotocol/inspector \
-  -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
-  -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-  -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides", "sheets"]' \
-  -- \
-  uvx --from google-workspace-mcp google-workspace-worker
+# Essential for authentication
+export GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+export GOOGLE_WORKSPACE_CLIENT_SECRET="your-client-secret"
+export GOOGLE_WORKSPACE_REFRESH_TOKEN="your-refresh-token"
 
-# Test only specific services
-npx @modelcontextprotocol/inspector \
-  -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
-  -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-  -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "sheets"]' \
-  -- \
-  uvx --from google-workspace-mcp google-workspace-worker
+# Controls which services are active (see "Capabilities Configuration" below)
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "sheets", "slides"]'
 ```
 
-### With Claude Desktop
+## ⚙️ Capabilities Configuration
 
-Add to your Claude Desktop configuration:
+The `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` environment variable dictates which Google Workspace services are active and discoverable by AI models. It **must** be a JSON-formatted array of strings.
 
-```json
-{
-  "mcpServers": {
-    "google-workspace": {
-      "command": "uvx",
-      "args": ["--from", "google-workspace-mcp", "google-workspace-worker"],
-      "env": {
-        "GOOGLE_WORKSPACE_CLIENT_ID": "your-client-id",
-        "GOOGLE_WORKSPACE_CLIENT_SECRET": "your-secret",
-        "GOOGLE_WORKSPACE_REFRESH_TOKEN": "your-token",
-        "GOOGLE_WORKSPACE_ENABLED_CAPABILITIES": "[\"drive\", \"docs\", \"gmail\", \"calendar\", \"slides\", \"sheets\"]"
-      }
-    }
-  }
-}
-```
-
-### With Other MCP Clients
-
-The server can be started directly and connected to via stdio:
+**Format Examples:**
 
 ```bash
-# Start the server
-GOOGLE_WORKSPACE_CLIENT_ID="your-id" \
-GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "slides", "sheets"]' \
-google-workspace-worker
+# Enable all currently supported services
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "docs", "gmail", "calendar", "sheets", "slides"]'
 
-# Or using uvx
-uvx --from google-workspace-mcp google-workspace-worker
+# Enable a subset of services
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive", "gmail", "calendar"]'
+
+# Enable a single service
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["docs"]'
+
+# Disable all services (server will run but offer no tools)
+export GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='[]'
 ```
 
-### Tool Call Format
+**Available Capability Values:**
 
-Tools can be called directly without needing to specify user identification:
+- `"drive"`: Google Drive (file search, read, creation, etc.)
+- `"docs"`: Google Docs (document creation, metadata, content operations)
+- `"gmail"`: Gmail (email query, read, send, draft management, etc.)
+- `"calendar"`: Google Calendar (event retrieval, creation, deletion)
+- `"sheets"`: Google Sheets (spreadsheet creation, data read/write operations)
+- `"slides"`: Google Slides (presentation creation from Markdown, slide listing)
 
-```json
-{
-  "name": "gdrive_search",
-  "arguments": {
-    "query": "name contains 'Project Proposal'",
-    "page_size": 5
-  }
-}
-```
+**Important Notes:**
 
-## 📋 API Reference
+- The value **must** be a valid JSON array string. In bash, it's best to enclose the JSON string in single quotes.
+- Service names within the array are case-insensitive but lowercase is conventional.
+- An invalid JSON string or a JSON type other than an array will result in a warning, and the server may effectively disable all tools.
+- If the `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` variable is not set, it defaults to an empty list (`"[]"`), meaning no services will be enabled by default.
 
-### Response Formats
+## 🛠️ Exposed Capabilities (Tools & Resources)
 
-Tools return different formats based on their function:
-
-- **Gmail tools**: Structured JSON with email metadata and content
-- **Drive tools**: File metadata and content (text or base64-encoded for binary files)
-- **Calendar tools**: Event details and metadata
-- **Slides tools**: Presentation and slide objects
+This package exposes a variety of tools and resources for AI interaction.
 
 ### Google Drive Tools
 
-#### gdrive_search
+- **`drive_search_files`**: Searches files in Google Drive.
+  - `query` (string): Drive query string.
+  - `page_size` (integer, optional): Max files to return.
+  - `shared_drive_id` (string, optional): ID of a shared drive to search within.
+- **`drive_read_file_content`**: Reads content of a file.
+  - `file_id` (string): The ID of the file.
+- **`drive_create_folder`**: Creates a new folder.
+  - `folder_name` (string): Name of the new folder.
+  - `parent_folder_id` (string, optional): ID of the parent folder.
+  - `shared_drive_id` (string, optional): ID of a shared drive.
+- **`drive_list_shared_drives`**: Lists shared drives accessible by the user.
+  - `page_size` (integer, optional): Max shared drives to return.
+- **`drive_upload_file`**: Uploads a local file to Google Drive. (Requires server access to the file path)
+  - `file_path` (string): Local path to the file.
+- **`drive_delete_file`**: Deletes a file from Google Drive.
+  - `file_id` (string): The ID of the file to delete.
 
-Searches for files in Google Drive.
+### Google Drive Resources
 
-**Arguments:**
-
-- `query` (string, required): Drive query syntax (e.g., `"mimeType='image/jpeg'"`)
-- `page_size` (integer, optional): Maximum number of files to return (default: 10)
-
-**Returns:**
-
-- List of file metadata objects with ID, name, MIME type, and webViewLink
-
-#### gdrive_read_file
-
-Reads file content from Google Drive.
-
-**Arguments:**
-
-- `file_id` (string, required): Drive file ID
-
-**Returns:**
-
-- For text files: mimeType, content as text, encoding
-- For binary files: mimeType, base64-encoded content, encoding
-- For Google Docs: Converts to Markdown
-- For Google Sheets: Converts to CSV
+- `drive://files/{file_id}/metadata`: Get metadata for a specific file.
+- `drive://files/recent` or `drive://recent`: Get recently modified files. _(Note: `drive://recent` is the primary)_
+- `drive://files/shared_with_me` or `drive://shared`: Get files shared with the user. _(Note: `drive://shared` is the primary)_
 
 ### Google Docs Tools
 
-#### docs_create_document
-
-Creates a new Google Document with a specified title.
-
-**Arguments:**
-
-- `title` (string, required): The title for the new Google Document
-
-**Returns:**
-
-- Dictionary containing `document_id`, `title`, and `document_link` of the created document
-
-#### docs_get_document_metadata
-
-Retrieves metadata for a specific Google Document.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-
-**Returns:**
-
-- Dictionary containing the document's `document_id`, `title`, and `document_link`
-
-#### docs_get_content_as_markdown
-
-Retrieves the content of a Google Document as Markdown.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-
-**Returns:**
-
-- Markdown formatted content of the document
-
-#### docs_append_text
-
-Appends text to the end of a specified Google Document.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-- `text` (string, required): The text to append to the document
-
-**Returns:**
-
-- Updated document object with appended text
-
-#### docs_prepend_text
-
-Prepends text to the beginning of a specified Google Document.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-- `text` (string, required): The text to prepend to the document
-
-**Returns:**
-
-- Updated document object with prepended text
-
-#### docs_insert_text
-
-Inserts text at a specific location within a specified Google Document.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-- `text` (string, required): The text to insert into the document
-- `index` (integer, optional): The 0-based index where text should be inserted (defaults to 1 for beginning of body)
-- `segment_id` (string, optional): The ID of a specific document segment (e.g., header, footer)
-
-**Returns:**
-
-- Dictionary indicating success or failure of the operation
-
-#### docs_batch_update
-
-Applies multiple raw Google Docs API requests in a single operation.
-
-**Arguments:**
-
-- `document_id` (string, required): The ID of the Google Document
-- `requests` (array, required): An array of raw Google Docs API request objects
-
-**Returns:**
-
-- API response containing replies for each request and write control information
+- **`docs_create_document`**: Creates a new document.
+  - `title` (string): Title for the new document.
+- **`docs_get_document_metadata`**: Retrieves metadata for a document.
+  - `document_id` (string): The ID of the document.
+- **`docs_get_content_as_markdown`**: Retrieves document content as Markdown.
+  - `document_id` (string): The ID of the document.
+- **`docs_append_text`**: Appends text to a document.
+  - `document_id` (string): The ID of the document.
+  - `text` (string): Text to append.
+  - `ensure_newline` (boolean, optional): Prepend a newline if document is not empty (default: True).
+- **`docs_prepend_text`**: Prepends text to a document.
+  - `document_id` (string): The ID of the document.
+  - `text` (string): Text to prepend.
+  - `ensure_newline` (boolean, optional): Append a newline if document was not empty (default: True).
+- **`docs_insert_text`**: Inserts text at a specific location.
+  - `document_id` (string): The ID of the document.
+  - `text` (string): Text to insert.
+  - `index` (integer, optional): 0-based index for insertion.
+  - `segment_id` (string, optional): Segment ID (e.g., header).
+- **`docs_batch_update`**: Applies a list of raw Google Docs API update requests (advanced).
+  - `document_id` (string): The ID of the document.
+  - `requests` (list[dict]): List of Docs API request objects.
 
 ### Gmail Tools
 
-#### query_gmail_emails
+- **`query_gmail_emails`**: Searches emails using Gmail query syntax.
+  - `query` (string): Gmail search query.
+  - `max_results` (integer, optional): Maximum emails to return.
+- **`gmail_get_message_details`**: Retrieves a complete email message.
+  - `email_id` (string): The ID of the Gmail message.
+- **`gmail_get_attachment_content`**: Retrieves a specific email attachment.
+  - `message_id` (string): The ID of the email message.
+  - `attachment_id` (string): The ID of the attachment.
+- **`create_gmail_draft`**: Creates a draft email.
+  - `to` (string): Recipient's email address.
+  - `subject` (string): Email subject.
+  - `body` (string): Email body content.
+  - `cc` (list[string], optional): CC recipients.
+  - `bcc` (list[string], optional): BCC recipients.
+- **`delete_gmail_draft`**: Deletes a draft email.
+  - `draft_id` (string): The ID of the draft.
+- **`gmail_send_draft`**: Sends an existing draft.
+  - `draft_id` (string): The ID of the draft.
+- **`gmail_send_email`**: Composes and sends an email directly.
+  - `to` (list[string]): Primary recipients.
+  - `subject` (string): Email subject.
+  - `body` (string): Email body content.
+  - `cc` (list[string], optional): CC recipients.
+  - `bcc` (list[string], optional): BCC recipients.
+- **`gmail_reply_to_email`**: Creates a reply to an email (saves as draft by default).
+  - `email_id` (string): ID of the message to reply to.
+  - `reply_body` (string): Content of the reply.
+  - `send` (boolean, optional): Send immediately if true (default: False, creates draft).
+  - `reply_all` (boolean, optional): Reply to all recipients if true (default: False).
+- **`gmail_bulk_delete_messages`**: Deletes multiple emails.
+  - `message_ids` (list[string]): List of email message IDs.
 
-Retrieves detailed information for a specific calendar event by its ID.
+### Gmail Resources
 
-**Arguments:**
+- `gmail://labels`: List all Gmail labels.
+- `gmail://unread_count`: Get count of unread emails in the inbox.
+- _(Search functionality is primarily handled by the `query_gmail_emails` tool)_
 
-- `event_id` (string, required): The ID of the event to retrieve
-- `calendar_id` (string, optional): The ID of the calendar containing the event (defaults to "primary")
+### Google Calendar Tools
 
-**Returns:**
+- **`calendar_get_events`**: Retrieves events within a time range.
+  - `time_min` (string): Start time (RFC3339).
+  - `time_max` (string): End time (RFC3339).
+  - `calendar_id` (string, optional): Calendar ID (default: "primary").
+  - `max_results` (integer, optional): Max events.
+  - `show_deleted` (boolean, optional): Include deleted events.
+- **`calendar_get_event_details`**: Retrieves details for a specific event.
+  - `event_id` (string): The ID of the event.
+  - `calendar_id` (string, optional): Calendar ID (default: "primary").
+- **`Calendar`**: Creates a new event.
+  - `summary` (string): Event title.
+  - `start_time` (string): Start time (RFC3339).
+  - `end_time` (string): End time (RFC3339).
+  - `calendar_id` (string, optional): Calendar ID (default: "primary").
+  - `attendees` (list[string], optional): Attendee emails.
+  - _(Other optional parameters: `location`, `description`, `send_notifications`, `timezone`)_
+- **`delete_calendar_event`**: Deletes an event.
+  - `event_id` (string): The ID of the event.
+  - `calendar_id` (string, optional): Calendar ID (default: "primary").
+  - `send_notifications` (boolean, optional): Notify attendees.
 
-- Event details object with summary, start, end, description, attendees, location, and other event metadata
+### Google Calendar Resources
 
-#### create_calendar_event
-
-Creates a new calendar event.
-
-**Arguments:**
-
-- `__calendar_id__` (string, optional): Calendar ID (default: primary)
-- `summary` (string, required): Event title
-- `start_time` (string, required): RFC3339 format (e.g., "2024-05-01T14:00:00Z")
-- `end_time` (string, required): RFC3339 format
-- `location` (string, optional): Event location
-- `description` (string, optional): Event description
-- `attendees` (array, optional): List of attendee email addresses
-- `send_notifications` (boolean, optional): Whether to notify attendees
-- `timezone` (string, optional): Timezone (e.g., "America/New_York")
-
-**Returns:**
-
-- Created event object with ID, details, and web link
+- `calendar://calendars/list`: Lists all accessible calendars.
+- `calendar://events/today`: Get all events for today from the primary calendar.
 
 ### Google Sheets Tools
 
-#### sheets_create_spreadsheet
+- **`sheets_create_spreadsheet`**: Creates a new spreadsheet.
+  - `title` (string): Title for the new spreadsheet.
+- **`sheets_read_range`**: Reads data from a range.
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `range_a1` (string): Range in A1 notation (e.g., "Sheet1\!A1:C5").
+- **`sheets_write_range`**: Writes data to a range.
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `range_a1` (string): Range in A1 notation.
+  - `values` (list[list]): Data to write (list of rows, where each row is a list of cell values).
+  - `value_input_option` (string, optional): "USER_ENTERED" or "RAW" (default: "USER_ENTERED").
+- **`sheets_append_rows`**: Appends rows to a sheet/table.
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `range_a1` (string): Sheet or table range (e.g., "Sheet1").
+  - `values` (list[list]): Data rows to append.
+  - `value_input_option` (string, optional): "USER_ENTERED" or "RAW" (default: "USER_ENTERED").
+  - `insert_data_option` (string, optional): "INSERT_ROWS" or "OVERWRITE" (default: "INSERT_ROWS").
+- **`sheets_clear_range`**: Clears values from a range.
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `range_a1` (string): Range to clear.
+- **`sheets_add_sheet`**: Adds a new sheet (tab).
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `title` (string): Title for the new sheet.
+- **`sheets_delete_sheet`**: Deletes a sheet.
+  - `spreadsheet_id` (string): The ID of the spreadsheet.
+  - `sheet_id` (integer): Numeric ID of the sheet to delete.
 
-Creates a new Google Spreadsheet with a specified title.
+### Google Sheets Resources
 
-**Arguments:**
+- `sheets://spreadsheets/{spreadsheet_id}/metadata`: Retrieves metadata for a specific Google Spreadsheet.
+- `sheets://spreadsheets/{spreadsheet_id}/sheets/{sheet_identifier}/metadata`: Retrieves metadata for a specific sheet within a spreadsheet (identified by name or numeric ID).
 
-- `title` (string, required): The title for the new Google Spreadsheet
+### Google Slides Tools
 
-**Returns:**
+- **`create_presentation_from_markdown`**: Creates a presentation from Markdown content using the `markdowndeck` library. This is the primary tool for complex slide creation.
+  - `title` (string): Title for the new presentation.
+  - `markdown_content` (string): Markdown content. Refer to the `slides://markdown_formatting_guide` resource for syntax.
+- **`get_presentation`**: Retrieves presentation details.
+  - `presentation_id` (string): The ID of the presentation.
+- **`get_slides`**: Lists all slides in a presentation with their elements.
+  - `presentation_id` (string): The ID of the presentation.
+- _(Other granular slide manipulation tools like `create_slide`, `add_text_to_slide`, `delete_slide` are available but are expected to be superseded by enhanced `markdowndeck` functionality in future updates.)_
 
-- Dictionary containing `spreadsheet_id`, `title`, and `spreadsheet_url` of the created spreadsheet
+### Google Slides Resources
 
-#### sheets_read_range
+- `slides://markdown_formatting_guide`: Comprehensive guide on formatting Markdown for slide creation using the `markdowndeck` library.
 
-Reads data from a specified range in a Google Spreadsheet using A1 notation.
+## 🏗️ Architecture
 
-**Arguments:**
+The `google-workspace-mcp` package is structured as follows:
 
-- `spreadsheet_id` (string, required): The ID of the Google Spreadsheet
-- `range_a1` (string, required): The A1 notation of the range to read (e.g., "Sheet1!A1:C5", or "A1:C5")
+```
+google-workspace-mcp/
+└── src/
+    └── google_workspace_mcp/
+        ├── __init__.py         # Package initializer
+        ├── __main__.py         # Main entry point for the worker, registers components
+        ├── app.py              # Central FastMCP application instance
+        ├── config.py           # Configuration (e.g., GOOGLE_WORKSPACE_ENABLED_CAPABILITIES)
+        ├── auth/               # Authentication logic
+        │   └── gauth.py
+        ├── services/           # Modules interacting directly with Google APIs
+        │   ├── base.py         # BaseGoogleService class
+        │   ├── drive.py
+        │   ├── docs_service.py
+        │   ├── gmail.py
+        │   ├── calendar.py
+        │   ├── sheets_service.py
+        │   └── slides.py
+        ├── tools/              # MCP Tool definitions
+        │   ├── drive_tools.py
+        │   ├── docs_tools.py
+        │   ├── gmail_tools.py
+        │   ├── calendar_tools.py
+        │   ├── sheets_tools.py
+        │   └── slides_tools.py
+        ├── resources/          # MCP Resource definitions
+        │   ├── drive.py
+        │   ├── gmail.py
+        │   ├── calendar.py
+        │   ├── sheets_resources.py
+        │   └── slides.py
+        └── prompts/            # MCP Prompt definitions (for LLM interaction patterns)
+            ├── drive.py
+            ├── gmail.py
+            ├── calendar.py
+            └── slides.py
+```
 
-**Returns:**
+**Execution Flow:**
 
-- Dictionary containing:
-  - `spreadsheet_id`: The ID of the spreadsheet
-  - `range_requested`: The requested range
-  - `range_returned`: The actual range returned by the API
-  - `major_dimension`: How the data is organized (typically "ROWS")
-  - `values`: List of lists representing the cell values
-
-### Slides Tools
-
-#### create_presentation_from_markdown
-
-Creates a Google Slides presentation from Markdown content.
-
-**Arguments:**
-
-- `title` (string, required): Presentation title
-- `markdown_content` (string, required): Markdown formatted as:
-
-  ```markdown
-  # Slide Title
-
-  Content for first slide
-
-  - Bullet point 1
-  - Bullet point 2
-
-  ---
-
-  # Second Slide Title
-
-  ## Subtitle
-
-  More content here
-  ```
-
-**Returns:**
-
-- Created presentation object with ID, title, and slide count
+1.  An MCP Hub (or a tool like MCP Inspector) starts the `google-workspace-worker` process.
+2.  `google_workspace_mcp.__main__.py` is executed. Importing modules from `tools/`, `resources/`, and `prompts/` causes the components (decorated with `@mcp.tool`, `@mcp.resource`, `@mcp.prompt`) to register themselves with the central `FastMCP` instance defined in `app.py`.
+3.  The MCP server listens for requests (typically over stdio).
+4.  Upon a discovery request, the server lists available tools/resources based on `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES`.
+5.  Upon a tool/resource call:
+    - The `FastMCP` server routes the request to the appropriate handler function in the `tools/` or `resources/` modules.
+    - The handler function validates arguments and calls methods on the relevant service class in `services/`.
+    - The service class interacts with the Google API, handling authentication (via `auth/gauth.py`) and error translation.
+    - Results are returned to the AI model via the MCP Hub.
 
 ## 🧩 Development
 
 ### Setup Development Environment
 
+Ensure you are in the root of the `arclio-mcp-tooling` monorepo.
+
 ```bash
-# Clone the repository
-git clone https://github.com/arclio/google-workspace-mcp.git
-cd google-workspace-mcp
+# From the monorepo root
+make setup-dev # Installs uv and sets up the virtual environment
 
-# Create virtual environment and install dependencies
-make install-dev
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env with your credentials
-source .env
+# Install this package and its dependencies in editable mode
+make install google-workspace-mcp
 ```
 
-### Development Commands
+### Environment Variables for Development
+
+Copy `.env.example` (if available in the package or monorepo root) to `.env` and populate it with your Google Cloud credentials and desired enabled capabilities.
 
 ```bash
-# Lint code
+# Example:
+# GOOGLE_WORKSPACE_CLIENT_ID="your-client-id.apps.googleusercontent.com"
+# ... other variables ...
+```
+
+Source the `.env` file before running the server locally: `source .env`
+
+### Adding New Tools or Resources (FastMCP Pattern)
+
+1.  **Define the function** in the appropriate module within `tools/` or `resources/`.
+2.  **Decorate it**: Use `@mcp.tool(...)` or `@mcp.resource(...)`.
+    - Provide `name` and `description`.
+    - Type hints in the function signature are used by `FastMCP` to generate the input schema.
+3.  **Implement Logic**: The function should call the relevant service method.
+4.  **Register**: Ensure the module containing the new tool/resource is imported in `google_workspace_mcp/__main__.py` (this is how `FastMCP` discovers it).
+
+**Example Tool Definition:**
+
+```python
+# In google_workspace_mcp/tools/your_new_tools.py
+from google_workspace_mcp.app import mcp
+from ..services.your_service import YourService # Assuming YourService exists
+
+@mcp.tool(
+    name="your_service_action_name",
+    description="A brief description of what this tool does."
+)
+async def your_tool_function(parameter1: str, count: int = 5) -> dict:
+    """
+    More detailed docstring for your tool.
+    Args:
+        parameter1: Description of the first parameter.
+        count: Description of the optional count parameter.
+    Returns:
+        A dictionary containing the result of the operation.
+    """
+    # ... (input validation if needed beyond type hints)
+    service = YourService()
+    result = service.perform_action(param1=parameter1, num_items=count)
+    # ... (handle service result, raise ValueError on error, or return data)
+    return {"status": "success", "data": result}
+```
+
+Remember to add a corresponding import in `google_workspace_mcp/__main__.py` for `your_new_tools`.
+
+### Running Tests
+
+From the `arclio-mcp-tooling` monorepo root:
+
+```bash
+# Run all tests for this package
+make test google-workspace-mcp
+
+# Run only unit tests for this package
+make test-unit google-workspace-mcp
+
+# Run integration tests for this package (ensure RUN_INTEGRATION_TESTS=1 is set in your environment)
+export RUN_INTEGRATION_TESTS=1
+make test-integration google-workspace-mcp
+```
+
+### Code Quality
+
+From the `arclio-mcp-tooling` monorepo root:
+
+```bash
+# Run linting (Ruff)
 make lint
 
-# Format code
+# Attempt to auto-fix linting issues
+make fix
+
+# Format code (Ruff Formatter)
 make format
-
-# Run all tests
-make test
-
-# Run unit tests only
-make test-unit
-
-# Run integration tests
-export RUN_INTEGRATION_TESTS=1
-make test-integration
-
-# Build package
-make build
-
-# Run server
-make run
 ```
-
-### Testing Structure
-
-The project features a comprehensive testing suite with 580+ tests organized by service and functionality:
-
-```
-tests/
-├── unit/                     # Unit tests
-│   ├── services/             # Service tests
-│   │   ├── drive/            # Drive service tests
-│   │   ├── docs/             # Docs service tests
-│   │   ├── gmail/            # Gmail service tests
-│   │   ├── calendar/         # Calendar service tests
-│   │   ├── sheets/           # Sheets service tests
-│   │   └── slides/           # Slides service tests
-│   └── tools/                # Tool handler tests
-│       ├── drive/            # Drive tool tests
-│       ├── docs/             # Docs tool tests
-│       ├── gmail/            # Gmail tool tests
-│       ├── calendar/         # Calendar tool tests
-│       ├── sheets/           # Sheets tool tests
-│       └── slides/           # Slides tool tests
-└── integration/              # Integration tests (requires API credentials)
-    ├── test_drive_api.py
-    ├── test_docs_api.py
-    ├── test_gmail_api.py
-    ├── test_calendar_api.py
-    ├── test_sheets_api.py
-    └── test_slides_api.py
-```
-
-Unit tests mock the Google API calls, while integration tests make actual API calls (only when explicitly enabled).
-
-## 🧠 Adding New Tools
-
-Adding support for a new Google service or tool is straightforward:
-
-1. **Create a Service Class**:
-
-```python
-# services/new_service.py
-from .base import BaseGoogleService
-
-class NewService(BaseGoogleService):
-    def __init__(self):
-        super().__init__("service_name", "version")
-
-    def some_operation(self, arg1, arg2):
-        try:
-            # Implement the operation using self.service
-            return result
-        except Exception as e:
-            return self.handle_api_error("some_operation", e)
-```
-
-2. **Create Tool Handlers**:
-
-```python
-# tools/new_service.py
-from ..services.new_service import NewService
-from .base import BaseToolHandler
-
-class NewOperationToolHandler(BaseToolHandler):
-    name = "new_operation"
-    capability = "new_service"
-    description = "Description of what this tool does"
-    input_schema = {
-        "type": "object",
-        "properties": {
-            "arg1": {
-                "type": "string",
-                "description": "Description of arg1"
-            }
-        },
-        "required": ["arg1"]
-    }
-
-    def execute_tool(self, args):
-        service = NewService()
-        return service.some_operation(args["arg1"], args.get("arg2"))
-```
-
-3. **Update Imports**:
-
-   - Add the new service to `services/__init__.py`
-   - Import handlers in `tools/__init__.py`
-
-4. **Update Scopes**:
-   - Add any necessary OAuth scopes to `auth/gauth.py`
-
-The server's dynamic discovery mechanism will automatically find and register new tool handlers.
 
 ## 🔍 Troubleshooting
 
-### Common Issues
+- **Authentication Errors**:
+  - Double-check `GOOGLE_WORKSPACE_CLIENT_ID`, `GOOGLE_WORKSPACE_CLIENT_SECRET`, and `GOOGLE_WORKSPACE_REFRESH_TOKEN`.
+  - Ensure the refresh token is valid and has not been revoked.
+  - Verify all required API scopes were granted during the OAuth flow.
+- **Tool Not Found / Capability Disabled**:
+  - Confirm the desired service (e.g., `"drive"`) is included in the `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES` JSON array in your environment.
+  - Check server logs for warnings about invalid capability configurations.
+- **API Errors (403 Permission Denied, 404 Not Found, etc.)**:
+  - Ensure the authenticated Google account has the necessary permissions for the attempted operation on the specific resource (e.g., file access, calendar edit rights).
+  - Verify that the correct Google APIs are enabled in your Google Cloud Project.
+- **Rate Limits**: Be mindful of Google API rate limits. If you encounter frequent 403 or 429 errors related to quotas, you may need to implement retry logic with backoff or request a quota increase from Google.
 
-- **Authentication Errors**: Verify OAuth credentials and scopes
-- **Tool Not Found**: Ensure the capability is enabled in `GOOGLE_WORKSPACE_ENABLED_CAPABILITIES`
-- **API Limits**: Be aware of Google API quotas and rate limits
-- **Permission Issues**: Check that the authenticated user has appropriate permissions
-
-### Debug Mode
-
-Enable debug logging by setting:
-
-```bash
-export PYTHONPATH=.
-export DEBUG=1
-uvx --from google-workspace-mcp google-workspace-worker
-```
-
-### Testing Your Setup
-
-Use MCP Inspector to verify your configuration:
-
-```bash
-npx @modelcontextprotocol/inspector \
-  -e GOOGLE_WORKSPACE_CLIENT_ID="your-client-id" \
-  -e GOOGLE_WORKSPACE_CLIENT_SECRET="your-secret" \
-  -e GOOGLE_WORKSPACE_REFRESH_TOKEN="your-token" \
-  -e GOOGLE_WORKSPACE_ENABLED_CAPABILITIES='["drive"]' \
-  -- \
-  uvx --from google-workspace-mcp google-workspace-worker
-```
+For detailed debugging, inspect the server's stdout/stderr logs.
 
 ## 📝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-Please ensure your code passes tests and follows the project's style guidelines.
+Contributions are welcome\! Please refer to the main `README.md` in the `arclio-mcp-tooling` monorepo for guidelines on contributing, setting up the development environment, and project-wide commands.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This package is licensed under the MIT License. See the `LICENSE` file in the monorepo root for full details.
 
 ## 🏢 About Arclio
 
-[Arclio](https://arclio.com) is a leading provider of secure MCP service management for AI applications. We specialize in creating robust, enterprise-grade tools that enable AI models to interact with external services safely and effectively.
+[Arclio](https://arclio.com) provides secure and robust Model Context Protocol (MCP) solutions, enabling AI applications to safely and effectively interact with enterprise systems and external services.
 
 ---
 
 <div align="center">
 <p>Built with ❤️ by the Arclio team</p>
 </div>
-
-```
-
-```

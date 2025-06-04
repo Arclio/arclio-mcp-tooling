@@ -129,7 +129,9 @@ class BaseFormatter(ABC):
                     if depth == 0:
                         return i
             # Also consider tokens that might affect depth at higher levels
-            elif current_token.level < nesting_level:  # Exited the current nesting context
+            elif (
+                current_token.level < nesting_level
+            ):  # Exited the current nesting context
                 logger.warning(
                     f"Exited nesting level {nesting_level} looking for {close_tag_type} after {open_tag_type} at index {open_token_index}. Found {current_token.type} at level {current_token.level}."
                 )
@@ -158,12 +160,12 @@ class BaseFormatter(ABC):
         for child in inline_token.children:
             if child.type == "text" or child.type == "code_inline":
                 plain_text += child.content
-            elif child.type == "softbreak":
-                plain_text += " "
-            elif child.type == "hardbreak":
+            elif child.type == "softbreak" or child.type == "hardbreak":
                 plain_text += "\n"
             elif child.type == "image":
-                plain_text += child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                plain_text += (
+                    child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                )
             elif child.type.endswith("_open") or child.type.endswith("_close"):
                 # Skip formatting markers
                 pass

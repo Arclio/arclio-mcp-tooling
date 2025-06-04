@@ -17,7 +17,9 @@ class TestGmailBulkOperations:
 
         # Setup execute mock
         mock_execute = MagicMock()
-        mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.return_value.execute = mock_execute
+        mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.return_value.execute = (
+            mock_execute
+        )
 
         # Call the method
         result = mock_gmail_service.bulk_delete_messages(message_ids)
@@ -63,13 +65,18 @@ class TestGmailBulkOperations:
 
         # Setup execute mock
         mock_execute = MagicMock()
-        mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.return_value.execute = mock_execute
+        mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.return_value.execute = (
+            mock_execute
+        )
 
         # Call the method
         result = mock_gmail_service.bulk_delete_messages(message_ids)
 
         # Verify multiple API calls were made (should be 2 batches: 1000 + 500)
-        assert mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.call_count == 2
+        assert (
+            mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.call_count
+            == 2
+        )
 
         # Verify result
         assert result["success"] is True
@@ -84,7 +91,9 @@ class TestGmailBulkOperations:
         mock_resp = MagicMock()
         mock_resp.status = 400
         mock_resp.reason = "Bad Request"
-        http_error = HttpError(mock_resp, b'{"error": {"message": "Invalid message IDs"}}')
+        http_error = HttpError(
+            mock_resp, b'{"error": {"message": "Invalid message IDs"}}'
+        )
 
         # Setup the mock to raise the error
         mock_gmail_service.service.users.return_value.messages.return_value.batchDelete.return_value.execute.side_effect = (
@@ -105,8 +114,10 @@ class TestGmailBulkOperations:
         result = mock_gmail_service.bulk_delete_messages(message_ids)
 
         # Verify error handling
-        mock_gmail_service.handle_api_error.assert_called_once_with("bulk_delete_messages", http_error)
+        mock_gmail_service.handle_api_error.assert_called_once_with(
+            "bulk_delete_messages", http_error
+        )
         assert result == expected_error
 
 
-# TODO: Add tests for GmailService.bulk_delete_emails
+# TODO: Add tests for GmailService.bulk_delete_messages
