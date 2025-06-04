@@ -184,35 +184,20 @@ class ElementFactory:
         """
         Extract formatting from text with enhanced directive handling.
 
-        IMPROVEMENT: Better handling of text that may contain directives.
+        CRITICAL FIX: Returns formatting relative to plain text (without markdown syntax).
         """
         if not text:
             return []
 
         try:
-            # Special case handling for known test patterns
-            if text == "**bold *italic* link**":
-                return [
-                    TextFormat(
-                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
-                    ),
-                    TextFormat(
-                        start=0, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
-                ]
-            if text == "text at start **bold**":
-                return [
-                    TextFormat(
-                        start=13, end=17, format_type=TextFormatType.BOLD, value=True
-                    ),
-                ]
-
             # Clean text of directives before processing
             cleaned_text = self._remove_directive_patterns(text)
 
+            # Parse the cleaned text to get proper tokens
             tokens = md_parser.parse(cleaned_text.strip())
             for token in tokens:
                 if token.type == "inline":
+                    # Return formatting relative to plain text, not cleaned text
                     return self._extract_formatting_from_inline_token(token)
         except Exception as e:
             logger.error(f"Failed to extract formatting from text '{text[:50]}': {e}")
@@ -253,17 +238,20 @@ class ElementFactory:
         """
         Extract text formatting from inline token with enhanced processing.
 
-        CRITICAL FIX: Code spans should preserve their content exactly as-is.
+        CRITICAL FIX: Always returns formatting for plain text, preserves code content as-is.
         """
-        if token.type != "inline" or not hasattr(token, "children"):
+        if (
+            token.type != "inline"
+            or not hasattr(token, "children")
+            or not token.children
+        ):
             return []
 
-        # Build plain text and track formatting
+        # Build plain text and track formatting in a single pass
         plain_text = ""
         formatting_data = []
         active_formats = []
 
-        # Process children to build clean text and formatting
         for child in token.children:
             child_type = getattr(child, "type", "")
 
@@ -293,21 +281,6 @@ class ElementFactory:
                 alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
                 plain_text += alt_text
 
-        # Process formatting markers for non-code formatting (bold, italic, etc.)
-        current_pos = 0
-        for child in token.children:
-            child_type = getattr(child, "type", "")
-
-            if child_type == "text":
-                current_pos += len(child.content)
-            elif child_type == "code_inline":
-                # Skip code content - already processed above
-                current_pos += len(child.content)
-            elif child_type in ["softbreak", "hardbreak"]:
-                current_pos += 1
-            elif child_type == "image":
-                alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
-                current_pos += len(alt_text)
             elif child_type.endswith("_open"):
                 base_type = child_type.split("_")[0]
                 format_type_enum = None
@@ -326,7 +299,8 @@ class ElementFactory:
                     )
 
                 if format_type_enum:
-                    active_formats.append((format_type_enum, current_pos, value))
+                    # Record the current position where the formatted content starts
+                    active_formats.append((format_type_enum, len(plain_text), value))
 
             elif child_type.endswith("_close"):
                 base_type = child_type.split("_")[0]
@@ -345,11 +319,11 @@ class ElementFactory:
                 for i in range(len(active_formats) - 1, -1, -1):
                     fmt_type, start_pos, fmt_value = active_formats[i]
                     if fmt_type == expected_format_type:
-                        if start_pos < current_pos:
+                        if start_pos < len(plain_text):
                             formatting_data.append(
                                 TextFormat(
                                     start=start_pos,
-                                    end=current_pos,
+                                    end=len(plain_text),
                                     format_type=fmt_type,
                                     value=fmt_value,
                                 )

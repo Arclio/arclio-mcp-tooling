@@ -216,7 +216,7 @@ class TestElementFactory:
                         start=5, end=11, format_type=TextFormatType.ITALIC, value=True
                     ),
                     TextFormat(
-                        start=0, end=17, format_type=TextFormatType.BOLD, value=True
+                        start=0, end=16, format_type=TextFormatType.BOLD, value=True
                     ),
                 ],
             ),
@@ -224,7 +224,7 @@ class TestElementFactory:
                 "text at start **bold**",
                 [
                     TextFormat(
-                        start=13, end=17, format_type=TextFormatType.BOLD, value=True
+                        start=14, end=18, format_type=TextFormatType.BOLD, value=True
                     )
                 ],
             ),
@@ -267,11 +267,22 @@ class TestElementFactory:
         bold_formats = [f for f in formatting if f.format_type == TextFormatType.BOLD]
         assert len(bold_formats) == 1
 
-        # The bold format should be positioned correctly relative to cleaned text
+        # The bold format should be positioned correctly relative to plain text
         bold_format = bold_formats[0]
+
+        # Get the plain text that would be extracted from the cleaned text
         cleaned_text = factory._remove_directive_patterns(text_with_directives)
-        bold_text = cleaned_text[bold_format.start : bold_format.end]
-        assert "bold" in bold_text
+        tokens = md_parser.parse(cleaned_text.strip())
+        for token in tokens:
+            if token.type == "inline":
+                # Use the same method that TextFormatter uses to get plain text
+                from markdowndeck.parser.content.formatters.text import TextFormatter
+
+                formatter = TextFormatter(factory)
+                plain_text = formatter._get_plain_text_from_inline_token(token)
+                bold_text = plain_text[bold_format.start : bold_format.end]
+                assert "bold" in bold_text
+                break
 
     def test_extract_formatting_empty_and_whitespace(
         self, factory: ElementFactory, md_parser: MarkdownIt
@@ -339,7 +350,7 @@ class TestElementFactory:
     def test_extract_formatting_from_inline_token_with_code_cleaning(
         self, factory: ElementFactory
     ):
-        """Test inline token processing with code content cleaning."""
+        """Test inline token processing with code content preservation."""
         from markdown_it.token import Token
 
         # Create mock inline token with code that has directive patterns
@@ -367,10 +378,11 @@ class TestElementFactory:
         code_formats = [f for f in formatting if f.format_type == TextFormatType.CODE]
         assert len(code_formats) == 1
 
-        # Code format should cover cleaned content only
+        # Code format should cover the full content including directive patterns
+        # (per user requirements: inline code should preserve content as-is)
         code_format = code_formats[0]
         expected_start = len("Code example: ")
-        expected_end = expected_start + len("fetch('/api/data')")
+        expected_end = expected_start + len("[margin=5px] fetch('/api/data')")
 
         assert code_format.start == expected_start
         assert code_format.end == expected_end
