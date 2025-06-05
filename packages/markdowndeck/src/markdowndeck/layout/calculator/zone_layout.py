@@ -1,26 +1,27 @@
-"""Zone-based layout calculations for slides."""
+"""Refactored zone-based layout calculations - Content-aware element positioning."""
 
 import logging
 
-from markdowndeck.layout.calculator.element_utils import (
-    adjust_vertical_spacing,
-    apply_horizontal_alignment,
-    mark_related_elements,
-)
+from markdowndeck.layout.calculator.element_utils import mark_related_elements
 from markdowndeck.layout.constants import (
-    BODY_TOP_ADJUSTMENT,
+    ALIGN_CENTER,
+    ALIGN_LEFT,
+    ALIGN_RIGHT,
+    VERTICAL_SPACING,
+    VERTICAL_SPACING_REDUCTION,
 )
 from markdowndeck.layout.metrics import calculate_element_height
-from markdowndeck.models import (
-    ElementType,
-)
+from markdowndeck.models import Slide
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_zone_based_positions(calculator, slide):
+def calculate_zone_based_positions(calculator, slide: Slide) -> Slide:
     """
-    Calculate positions using a zone-based layout model with fixed zones.
+    Calculate positions using zone-based layout with content-aware sizing.
+
+    In zone-based layout, elements are stacked vertically in the body zone.
+    Each element's height is determined by its intrinsic content needs.
 
     Args:
         calculator: The PositionCalculator instance
@@ -29,78 +30,145 @@ def calculate_zone_based_positions(calculator, slide):
     Returns:
         The updated slide with positioned elements
     """
-    # Step 1: Position header elements (title, subtitle) - within fixed header zone
-    calculator._position_header_elements(slide)
+    logger.debug(f"Starting zone-based layout for slide {slide.object_id}")
 
-    # Step 2: Position footer element if present - within fixed footer zone
-    calculator._position_footer_element(slide)
-
-    # Step 3: Position body elements within the fixed body zone
+    # Get body elements (header and footer already positioned)
     body_elements = calculator.get_body_elements(slide)
 
-    # Mark related elements (e.g., heading + list)
+    if not body_elements:
+        logger.debug("No body elements to position")
+        return slide
+
+    # Mark related elements for closer spacing
     mark_related_elements(body_elements)
 
-    # OPTIMIZATION: Adjust starting position to minimize excess spacing
-    # Reduced gap between header zone and first body element
-    current_y = calculator.body_top - BODY_TOP_ADJUSTMENT
+    # Calculate intrinsic sizes for all elements first
+    _calculate_element_sizes(calculator, body_elements)
 
-    for element in body_elements:
-        # Ensure element has a valid size, defaulting to more conservative sizes
-        if not hasattr(element, "size") or not element.size:
-            element.size = calculator.default_sizes.get(element.element_type, (calculator.body_width, 50))
+    # Position elements vertically in the body zone
+    _position_elements_vertically(calculator, body_elements)
 
-        # Calculate element width based on directives
-        element_width = calculator.body_width
-        if hasattr(element, "directives") and "width" in element.directives:
-            width_dir = element.directives["width"]
-            if isinstance(width_dir, float) and 0.0 < width_dir <= 1.0:
-                element_width = calculator.body_width * width_dir
-            elif isinstance(width_dir, int | float) and width_dir > 1.0:
-                element_width = min(width_dir, calculator.body_width)
+    logger.debug(f"Zone-based layout completed for slide {slide.object_id}")
+    return slide
 
-        # More accurate height calculation with reduced padding
+
+def _calculate_element_sizes(calculator, elements: list) -> None:
+    """
+    Calculate intrinsic sizes for all elements based on their content.
+
+    This implements Principle #2: Content-Based Sizing for elements.
+    Each element's width defaults to the body zone width, and height
+    is determined by content using the metrics engine.
+
+    Args:
+        calculator: The PositionCalculator instance
+        elements: List of elements to size
+    """
+    body_width = calculator.body_width
+
+    for element in elements:
+        # Calculate element width
+        element_width = calculator._calculate_element_width(element, body_width)
+
+        # Calculate element height using appropriate metrics
         element_height = calculate_element_height(element, element_width)
+
+        # Set the calculated size
         element.size = (element_width, element_height)
 
-        # OPTIMIZATION: Adjust spacing based on element type
-        # Reduce spacing between related elements
-        if hasattr(element, "related_to_prev") and element.related_to_prev:
-            # If this element is related to the previous one, reduce the spacing
-            current_y -= calculator.vertical_spacing * 0.3  # Reduce spacing by 30%
-
-        # Enforce that element does not exceed body zone height
-        if current_y + element_height > calculator.body_bottom:
-            logger.warning(
-                f"Element {getattr(element, 'object_id', 'unknown')} would overflow the body zone. "
-                f"Element height: {element_height}, Available height: {calculator.body_bottom - current_y}. "
-                f"This will be handled by overflow logic."
-            )
-
-        # Position element using horizontal alignment within the body zone
-        apply_horizontal_alignment(element, calculator.body_left, calculator.body_width, current_y)
-
-        # Add special handling for spacing after heading elements
-        if (
-            element.element_type == ElementType.TEXT
-            and hasattr(element, "directives")
-            and "margin_bottom" in element.directives
-        ):
-            margin_bottom = element.directives["margin_bottom"]
-            current_y += element_height + margin_bottom
-        else:
-            # Move to next position with standard spacing
-            vertical_spacing = calculator.vertical_spacing
-
-            # Use utility function to adjust spacing for related elements
-            vertical_spacing = adjust_vertical_spacing(element, vertical_spacing)
-
-            current_y += element_height + vertical_spacing
-
-        # Log element positioning
         logger.debug(
-            f"Positioned body element {getattr(element, 'object_id', 'unknown')} "
-            f"at y={element.position[1]:.1f}, height={element.size[1]:.1f}"
+            f"Calculated size for element {getattr(element, 'object_id', 'unknown')}: "
+            f"{element_width:.1f} x {element_height:.1f}"
         )
 
-    return slide
+
+def _position_elements_vertically(calculator, elements: list) -> None:
+    """
+    Position elements vertically in the body zone with appropriate spacing.
+
+    Elements are stacked from top to bottom, with spacing between them.
+    Related elements get reduced spacing for better visual grouping.
+
+    Args:
+        calculator: The PositionCalculator instance
+        elements: List of elements to position (must have sizes calculated)
+    """
+    current_y = calculator.body_top
+    body_left = calculator.body_left
+    body_width = calculator.body_width
+
+    for i, element in enumerate(elements):
+        if not element.size:
+            logger.warning(
+                f"Element {getattr(element, 'object_id', 'unknown')} has no size"
+            )
+            continue
+
+        element_width, element_height = element.size
+
+        # Apply horizontal alignment
+        x_position = _calculate_horizontal_position(
+            element, body_left, body_width, element_width
+        )
+
+        # Position the element
+        element.position = (x_position, current_y)
+
+        logger.debug(
+            f"Positioned element {getattr(element, 'object_id', 'unknown')} at "
+            f"({x_position:.1f}, {current_y:.1f})"
+        )
+
+        # Move to next position
+        current_y += element_height
+
+        # Add spacing to next element (if not the last one)
+        if i < len(elements) - 1:
+            spacing = VERTICAL_SPACING
+
+            # Reduce spacing for related elements
+            if hasattr(element, "related_to_next") and element.related_to_next:
+                spacing *= VERTICAL_SPACING_REDUCTION
+
+            current_y += spacing
+
+
+def _calculate_horizontal_position(
+    element, container_left: float, container_width: float, element_width: float
+) -> float:
+    """
+    Calculate the horizontal position for an element based on its alignment.
+
+    Args:
+        element: The element to position
+        container_left: Left edge of the container
+        container_width: Width of the container
+        element_width: Width of the element
+
+    Returns:
+        X-coordinate for the element
+    """
+    # Check for alignment directive
+    alignment = ALIGN_LEFT  # Default
+
+    if hasattr(element, "directives") and element.directives:
+        align_directive = element.directives.get("align")
+        if align_directive:
+            alignment = align_directive.lower()
+
+    # Check element's horizontal_alignment attribute
+    elif hasattr(element, "horizontal_alignment"):
+        alignment_attr = element.horizontal_alignment
+        alignment = (
+            alignment_attr.value.lower()
+            if hasattr(alignment_attr, "value")
+            else str(alignment_attr).lower()
+        )
+
+    # Calculate position based on alignment
+    if alignment == ALIGN_CENTER:
+        return container_left + (container_width - element_width) / 2
+    if alignment == ALIGN_RIGHT:
+        return container_left + container_width - element_width
+    # ALIGN_LEFT or any other value
+    return container_left

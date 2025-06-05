@@ -37,9 +37,7 @@ async def sheets_create_spreadsheet(title: str) -> dict[str, Any]:
         raise ValueError(result.get("message", "Error creating spreadsheet"))
 
     if not result or not result.get("spreadsheet_id"):
-        raise ValueError(
-            f"Failed to create spreadsheet '{title}' or did not receive a spreadsheet ID."
-        )
+        raise ValueError(f"Failed to create spreadsheet '{title}' or did not receive a spreadsheet ID.")
 
     return result
 
@@ -61,9 +59,7 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
         A dictionary containing the range and a list of lists representing the cell values,
         or an error message.
     """
-    logger.info(
-        f"Executing sheets_read_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'"
-    )
+    logger.info(f"Executing sheets_read_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
@@ -75,12 +71,8 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error reading range from spreadsheet"))
 
-    if (
-        not result or "values" not in result
-    ):  # Check for 'values' as it's key for successful read
-        raise ValueError(
-            f"Failed to read range '{range_a1}' from spreadsheet '{spreadsheet_id}'."
-        )
+    if not result or "values" not in result:  # Check for 'values' as it's key for successful read
+        raise ValueError(f"Failed to read range '{range_a1}' from spreadsheet '{spreadsheet_id}'.")
 
     return result
 
@@ -110,9 +102,7 @@ async def sheets_write_range(
         A dictionary detailing the update (updated range, number of cells, etc.),
         or an error message.
     """
-    logger.info(
-        f"Executing sheets_write_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'"
-    )
+    logger.info(f"Executing sheets_write_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
@@ -134,9 +124,7 @@ async def sheets_write_range(
         raise ValueError(result.get("message", "Error writing to range in spreadsheet"))
 
     if not result or not result.get("updated_range"):
-        raise ValueError(
-            f"Failed to write to range '{range_a1}' in spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Failed to write to range '{range_a1}' in spreadsheet '{spreadsheet_id}'.")
 
     return result
 
@@ -167,9 +155,7 @@ async def sheets_append_rows(
         A dictionary detailing the append operation (e.g., range of appended data),
         or an error message.
     """
-    logger.info(
-        f"Executing sheets_append_rows tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'"
-    )
+    logger.info(f"Executing sheets_append_rows tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
@@ -181,9 +167,7 @@ async def sheets_append_rows(
     if value_input_option not in ["USER_ENTERED", "RAW"]:
         raise ValueError("value_input_option must be either 'USER_ENTERED' or 'RAW'.")
     if insert_data_option not in ["INSERT_ROWS", "OVERWRITE"]:
-        raise ValueError(
-            "insert_data_option must be either 'INSERT_ROWS' or 'OVERWRITE'."
-        )
+        raise ValueError("insert_data_option must be either 'INSERT_ROWS' or 'OVERWRITE'.")
 
     sheets_service = SheetsService()
     result = sheets_service.append_rows(
@@ -198,9 +182,7 @@ async def sheets_append_rows(
         raise ValueError(result.get("message", "Error appending rows to spreadsheet"))
 
     if not result:  # Check for empty or None result as well
-        raise ValueError(
-            f"Failed to append rows to range '{range_a1}' in spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Failed to append rows to range '{range_a1}' in spreadsheet '{spreadsheet_id}'.")
 
     return result
 
@@ -221,26 +203,20 @@ async def sheets_clear_range(spreadsheet_id: str, range_a1: str) -> dict[str, An
     Returns:
         A dictionary confirming the cleared range, or an error message.
     """
-    logger.info(
-        f"Executing sheets_clear_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'"
-    )
+    logger.info(f"Executing sheets_clear_range tool for spreadsheet_id: '{spreadsheet_id}', range: '{range_a1}'")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
         raise ValueError("Range (A1 notation) cannot be empty.")
 
     sheets_service = SheetsService()
-    result = sheets_service.clear_range(
-        spreadsheet_id=spreadsheet_id, range_a1=range_a1
-    )
+    result = sheets_service.clear_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error clearing range in spreadsheet"))
 
     if not result or not result.get("cleared_range"):
-        raise ValueError(
-            f"Failed to clear range '{range_a1}' in spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Failed to clear range '{range_a1}' in spreadsheet '{spreadsheet_id}'.")
 
     return result
 
@@ -261,9 +237,7 @@ async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
         A dictionary containing properties of the newly created sheet (like sheetId, title, index),
         or an error message.
     """
-    logger.info(
-        f"Executing sheets_add_sheet tool for spreadsheet_id: '{spreadsheet_id}', title: '{title}'"
-    )
+    logger.info(f"Executing sheets_add_sheet tool for spreadsheet_id: '{spreadsheet_id}', title: '{title}'")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not title or not title.strip():
@@ -276,9 +250,7 @@ async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
         raise ValueError(result.get("message", "Error adding sheet to spreadsheet"))
 
     if not result or not result.get("sheet_properties"):
-        raise ValueError(
-            f"Failed to add sheet '{title}' to spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Failed to add sheet '{title}' to spreadsheet '{spreadsheet_id}'.")
 
     return result
 
@@ -298,25 +270,19 @@ async def sheets_delete_sheet(spreadsheet_id: str, sheet_id: int) -> dict[str, A
     Returns:
         A dictionary confirming the deletion or an error message.
     """
-    logger.info(
-        f"Executing sheets_delete_sheet tool for spreadsheet_id: '{spreadsheet_id}', sheet_id: {sheet_id}"
-    )
+    logger.info(f"Executing sheets_delete_sheet tool for spreadsheet_id: '{spreadsheet_id}', sheet_id: {sheet_id}")
     if not spreadsheet_id or not spreadsheet_id.strip():
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not isinstance(sheet_id, int):
         raise ValueError("Sheet ID must be an integer.")
 
     sheets_service = SheetsService()
-    result = sheets_service.delete_sheet(
-        spreadsheet_id=spreadsheet_id, sheet_id=sheet_id
-    )
+    result = sheets_service.delete_sheet(spreadsheet_id=spreadsheet_id, sheet_id=sheet_id)
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error deleting sheet from spreadsheet"))
 
     if not result or not result.get("success"):
-        raise ValueError(
-            f"Failed to delete sheet ID '{sheet_id}' from spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Failed to delete sheet ID '{sheet_id}' from spreadsheet '{spreadsheet_id}'.")
 
     return result

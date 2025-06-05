@@ -24,9 +24,7 @@ class TestSheetsCreateSpreadsheetTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -47,9 +45,7 @@ class TestSheetsCreateSpreadsheetTool:
 
         # Assertions
         assert result == mock_result
-        mock_sheets_service_instance.create_spreadsheet.assert_called_once_with(
-            title="Test Spreadsheet"
-        )
+        mock_sheets_service_instance.create_spreadsheet.assert_called_once_with(title="Test Spreadsheet")
 
     @pytest.mark.asyncio
     async def test_create_spreadsheet_empty_title(self):
@@ -70,9 +66,7 @@ class TestSheetsCreateSpreadsheetTool:
             await sheets_create_spreadsheet(title="Test Spreadsheet")
 
     @pytest.mark.asyncio
-    async def test_create_spreadsheet_no_id_returned(
-        self, mock_sheets_service_instance
-    ):
+    async def test_create_spreadsheet_no_id_returned(self, mock_sheets_service_instance):
         """Test sheets_create_spreadsheet with no spreadsheet_id in result."""
         # Mock service to return result without 'spreadsheet_id' key
         mock_sheets_service_instance.create_spreadsheet.return_value = {
@@ -90,9 +84,7 @@ class TestSheetsReadRangeTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -111,9 +103,7 @@ class TestSheetsReadRangeTool:
         mock_sheets_service_instance.read_range.return_value = mock_result
 
         # Execute the tool
-        result = await sheets_read_range(
-            spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:B2"
-        )
+        result = await sheets_read_range(spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:B2")
 
         # Assertions
         assert result == mock_result
@@ -143,9 +133,7 @@ class TestSheetsReadRangeTool:
         }
 
         with pytest.raises(ValueError, match="Spreadsheet not found"):
-            await sheets_read_range(
-                spreadsheet_id="nonexistent", range_a1="Sheet1!A1:B2"
-            )
+            await sheets_read_range(spreadsheet_id="nonexistent", range_a1="Sheet1!A1:B2")
 
     @pytest.mark.asyncio
     async def test_read_range_no_values_returned(self, mock_sheets_service_instance):
@@ -158,9 +146,7 @@ class TestSheetsReadRangeTool:
         }
 
         with pytest.raises(ValueError, match="Failed to read range"):
-            await sheets_read_range(
-                spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:B2"
-            )
+            await sheets_read_range(spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:B2")
 
 
 class TestSheetsWriteRangeTool:
@@ -169,9 +155,7 @@ class TestSheetsWriteRangeTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -238,17 +222,13 @@ class TestSheetsWriteRangeTool:
     async def test_write_range_empty_spreadsheet_id(self):
         """Test sheets_write_range with empty spreadsheet ID."""
         with pytest.raises(ValueError, match="Spreadsheet ID cannot be empty"):
-            await sheets_write_range(
-                spreadsheet_id="", range_a1="Sheet1!A1:B2", values=[["Name", "Score"]]
-            )
+            await sheets_write_range(spreadsheet_id="", range_a1="Sheet1!A1:B2", values=[["Name", "Score"]])
 
     @pytest.mark.asyncio
     async def test_write_range_empty_range(self):
         """Test sheets_write_range with empty range."""
         with pytest.raises(ValueError, match="Range \\(A1 notation\\) cannot be empty"):
-            await sheets_write_range(
-                spreadsheet_id="test_sheet_123", range_a1="", values=[["Name", "Score"]]
-            )
+            await sheets_write_range(spreadsheet_id="test_sheet_123", range_a1="", values=[["Name", "Score"]])
 
     @pytest.mark.asyncio
     async def test_write_range_invalid_values_format(self):
@@ -313,9 +293,7 @@ class TestSheetsAppendRowsTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -383,32 +361,24 @@ class TestSheetsAppendRowsTool:
     async def test_append_rows_empty_spreadsheet_id(self):
         """Test sheets_append_rows with empty spreadsheet ID."""
         with pytest.raises(ValueError, match="Spreadsheet ID cannot be empty"):
-            await sheets_append_rows(
-                spreadsheet_id="", range_a1="Sheet1", values=[["Name", "Score"]]
-            )
+            await sheets_append_rows(spreadsheet_id="", range_a1="Sheet1", values=[["Name", "Score"]])
 
     @pytest.mark.asyncio
     async def test_append_rows_empty_range(self):
         """Test sheets_append_rows with empty range."""
         with pytest.raises(ValueError, match="Range \\(A1 notation\\) cannot be empty"):
-            await sheets_append_rows(
-                spreadsheet_id="test_sheet_123", range_a1="", values=[["Name", "Score"]]
-            )
+            await sheets_append_rows(spreadsheet_id="test_sheet_123", range_a1="", values=[["Name", "Score"]])
 
     @pytest.mark.asyncio
     async def test_append_rows_empty_values(self):
         """Test sheets_append_rows with empty values list."""
         with pytest.raises(ValueError, match="Values list cannot be empty"):
-            await sheets_append_rows(
-                spreadsheet_id="test_sheet_123", range_a1="Sheet1", values=[]
-            )
+            await sheets_append_rows(spreadsheet_id="test_sheet_123", range_a1="Sheet1", values=[])
 
     @pytest.mark.asyncio
     async def test_append_rows_invalid_values_format(self):
         """Test sheets_append_rows with invalid values format."""
-        with pytest.raises(
-            ValueError, match="Values must be a non-empty list of lists"
-        ):
+        with pytest.raises(ValueError, match="Values must be a non-empty list of lists"):
             await sheets_append_rows(
                 spreadsheet_id="test_sheet_123",
                 range_a1="Sheet1",
@@ -479,9 +449,7 @@ class TestSheetsClearRangeTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -497,9 +465,7 @@ class TestSheetsClearRangeTool:
         mock_sheets_service_instance.clear_range.return_value = mock_result
 
         # Execute the tool
-        result = await sheets_clear_range(
-            spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:C3"
-        )
+        result = await sheets_clear_range(spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:C3")
 
         # Assertions
         assert result == mock_result
@@ -518,15 +484,11 @@ class TestSheetsClearRangeTool:
         mock_sheets_service_instance.clear_range.return_value = mock_result
 
         # Execute the tool
-        result = await sheets_clear_range(
-            spreadsheet_id="test_sheet_123", range_a1="Sheet1"
-        )
+        result = await sheets_clear_range(spreadsheet_id="test_sheet_123", range_a1="Sheet1")
 
         # Assertions
         assert result == mock_result
-        mock_sheets_service_instance.clear_range.assert_called_once_with(
-            spreadsheet_id="test_sheet_123", range_a1="Sheet1"
-        )
+        mock_sheets_service_instance.clear_range.assert_called_once_with(spreadsheet_id="test_sheet_123", range_a1="Sheet1")
 
     @pytest.mark.asyncio
     async def test_clear_range_empty_spreadsheet_id(self):
@@ -550,9 +512,7 @@ class TestSheetsClearRangeTool:
         }
 
         with pytest.raises(ValueError, match="Spreadsheet not found"):
-            await sheets_clear_range(
-                spreadsheet_id="nonexistent", range_a1="Sheet1!A1:C3"
-            )
+            await sheets_clear_range(spreadsheet_id="nonexistent", range_a1="Sheet1!A1:C3")
 
     @pytest.mark.asyncio
     async def test_clear_range_no_cleared_range(self, mock_sheets_service_instance):
@@ -564,9 +524,7 @@ class TestSheetsClearRangeTool:
         }
 
         with pytest.raises(ValueError, match="Failed to clear range"):
-            await sheets_clear_range(
-                spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:C3"
-            )
+            await sheets_clear_range(spreadsheet_id="test_sheet_123", range_a1="Sheet1!A1:C3")
 
 
 class TestSheetsAddSheetTool:
@@ -575,9 +533,7 @@ class TestSheetsAddSheetTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -598,15 +554,11 @@ class TestSheetsAddSheetTool:
         mock_sheets_service_instance.add_sheet.return_value = mock_result
 
         # Execute the tool
-        result = await sheets_add_sheet(
-            spreadsheet_id="test_sheet_123", title="New Sheet"
-        )
+        result = await sheets_add_sheet(spreadsheet_id="test_sheet_123", title="New Sheet")
 
         # Assertions
         assert result == mock_result
-        mock_sheets_service_instance.add_sheet.assert_called_once_with(
-            spreadsheet_id="test_sheet_123", title="New Sheet"
-        )
+        mock_sheets_service_instance.add_sheet.assert_called_once_with(spreadsheet_id="test_sheet_123", title="New Sheet")
 
     @pytest.mark.asyncio
     async def test_add_sheet_empty_spreadsheet_id(self):
@@ -636,9 +588,7 @@ class TestSheetsAddSheetTool:
         }
 
         with pytest.raises(ValueError, match="Duplicate sheet title"):
-            await sheets_add_sheet(
-                spreadsheet_id="test_sheet_123", title="Existing Sheet"
-            )
+            await sheets_add_sheet(spreadsheet_id="test_sheet_123", title="Existing Sheet")
 
     @pytest.mark.asyncio
     async def test_add_sheet_no_sheet_properties(self, mock_sheets_service_instance):
@@ -668,9 +618,7 @@ class TestSheetsDeleteSheetTool:
     @pytest.fixture
     def mock_sheets_service_instance(self):
         """Patch SheetsService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.sheets_tools.SheetsService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.sheets_tools.SheetsService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -687,15 +635,11 @@ class TestSheetsDeleteSheetTool:
         mock_sheets_service_instance.delete_sheet.return_value = mock_result
 
         # Execute the tool
-        result = await sheets_delete_sheet(
-            spreadsheet_id="test_sheet_123", sheet_id=123456789
-        )
+        result = await sheets_delete_sheet(spreadsheet_id="test_sheet_123", sheet_id=123456789)
 
         # Assertions
         assert result == mock_result
-        mock_sheets_service_instance.delete_sheet.assert_called_once_with(
-            spreadsheet_id="test_sheet_123", sheet_id=123456789
-        )
+        mock_sheets_service_instance.delete_sheet.assert_called_once_with(spreadsheet_id="test_sheet_123", sheet_id=123456789)
 
     @pytest.mark.asyncio
     async def test_delete_sheet_empty_spreadsheet_id(self):
@@ -707,9 +651,7 @@ class TestSheetsDeleteSheetTool:
     async def test_delete_sheet_invalid_sheet_id_type(self):
         """Test sheets_delete_sheet with non-integer sheet ID."""
         with pytest.raises(ValueError, match="Sheet ID must be an integer"):
-            await sheets_delete_sheet(
-                spreadsheet_id="test_sheet_123", sheet_id="invalid"
-            )
+            await sheets_delete_sheet(spreadsheet_id="test_sheet_123", sheet_id="invalid")
 
     @pytest.mark.asyncio
     async def test_delete_sheet_string_sheet_id(self):
@@ -727,9 +669,7 @@ class TestSheetsDeleteSheetTool:
         }
 
         with pytest.raises(ValueError, match="Sheet not found"):
-            await sheets_delete_sheet(
-                spreadsheet_id="test_sheet_123", sheet_id=999999999
-            )
+            await sheets_delete_sheet(spreadsheet_id="test_sheet_123", sheet_id=999999999)
 
     @pytest.mark.asyncio
     async def test_delete_sheet_no_success_flag(self, mock_sheets_service_instance):
@@ -742,9 +682,7 @@ class TestSheetsDeleteSheetTool:
         }
 
         with pytest.raises(ValueError, match="Failed to delete sheet"):
-            await sheets_delete_sheet(
-                spreadsheet_id="test_sheet_123", sheet_id=123456789
-            )
+            await sheets_delete_sheet(spreadsheet_id="test_sheet_123", sheet_id=123456789)
 
     @pytest.mark.asyncio
     async def test_delete_sheet_none_result(self, mock_sheets_service_instance):
@@ -753,6 +691,4 @@ class TestSheetsDeleteSheetTool:
         mock_sheets_service_instance.delete_sheet.return_value = None
 
         with pytest.raises(ValueError, match="Failed to delete sheet"):
-            await sheets_delete_sheet(
-                spreadsheet_id="test_sheet_123", sheet_id=123456789
-            )
+            await sheets_delete_sheet(spreadsheet_id="test_sheet_123", sheet_id=123456789)

@@ -20,14 +20,10 @@ class TestCalendarDeleteEvent:
 
         # Mock successful deletion (typically returns None)
         mock_execute = MagicMock(return_value=None)
-        mock_calendar_service.service.events.return_value.delete.return_value.execute = (
-            mock_execute
-        )
+        mock_calendar_service.service.events.return_value.delete.return_value.execute = mock_execute
 
         # Call the method
-        result = mock_calendar_service.delete_event(
-            event_id=event_id, calendar_id=calendar_id
-        )
+        result = mock_calendar_service.delete_event(event_id=event_id, calendar_id=calendar_id)
 
         # Verify API call
         mock_calendar_service.service.events.return_value.delete.assert_called_once_with(
@@ -44,9 +40,7 @@ class TestCalendarDeleteEvent:
         send_notifications = False
 
         # Call the method
-        mock_calendar_service.delete_event(
-            event_id=event_id, send_notifications=send_notifications
-        )
+        mock_calendar_service.delete_event(event_id=event_id, send_notifications=send_notifications)
 
         # Verify notifications parameter was passed correctly
         mock_calendar_service.service.events.return_value.delete.assert_called_once_with(
@@ -67,9 +61,7 @@ class TestCalendarDeleteEvent:
         http_error = HttpError(mock_resp, b'{"error": {"message": "Event not found"}}')
 
         # Setup the mock to raise the error
-        mock_calendar_service.service.events.return_value.delete.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_calendar_service.service.events.return_value.delete.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -85,9 +77,7 @@ class TestCalendarDeleteEvent:
         result = mock_calendar_service.delete_event(event_id)
 
         # Verify error handling
-        mock_calendar_service.handle_api_error.assert_called_once_with(
-            "delete_event", http_error
-        )
+        mock_calendar_service.handle_api_error.assert_called_once_with("delete_event", http_error)
 
         # For event deletion, the method returns False on error
         assert result is False

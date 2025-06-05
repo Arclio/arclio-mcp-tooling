@@ -1,14 +1,17 @@
-"""Section-based layout calculations for slides."""
+"""Refactored section-based layout calculations - Predictable division with content-aware elements."""
 
 import logging
-from typing import Any
 
-from markdowndeck.models import (
-    AlignmentType,
-    Element,
-    ElementType,
-    Slide,
+from markdowndeck.layout.calculator.element_utils import apply_horizontal_alignment
+from markdowndeck.layout.constants import (
+    HORIZONTAL_SPACING,
+    SECTION_PADDING,
+    VALIGN_BOTTOM,
+    VALIGN_MIDDLE,
+    VALIGN_TOP,
+    VERTICAL_SPACING,
 )
+from markdowndeck.models import Element, Slide
 from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
@@ -16,7 +19,11 @@ logger = logging.getLogger(__name__)
 
 def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
     """
-    Calculate positions for a section-based slide layout using the fixed body zone.
+    Calculate positions for a section-based slide layout using predictable division.
+
+    This implements the Layout Dichotomy principle:
+    - Containers (sections) are sized predictably based on directives or equal division
+    - Elements within containers are sized based on their content needs
 
     Args:
         calculator: The PositionCalculator instance
@@ -25,640 +32,427 @@ def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
     Returns:
         The updated slide with positioned sections and elements
     """
-    # Step 1: Position header elements (title, subtitle) within the fixed header zone
-    calculator._position_header_elements(slide)
+    logger.debug(f"Starting section-based layout for slide {slide.object_id}")
 
-    # Step 2: Position footer element if present within the fixed footer zone
-    calculator._position_footer_element(slide)
+    if not slide.sections:
+        logger.warning("No sections found for section-based layout")
+        return slide
 
-    # Step 3: Use the fixed body zone dimensions for section layout with adjustment
-    body_top_adjustment = 5.0  # Same adjustment used in zone_layout.py
-    body_area = (
-        calculator.body_left,  # x
-        calculator.body_top - body_top_adjustment,  # y - with adjustment!
-        calculator.body_width,  # width
-        calculator.body_height,  # height
+    # Get the body zone area for section distribution
+    body_area = calculator.get_body_zone_area()
+
+    # Determine layout orientation based on section directives
+    # Default to vertical layout (sections stacked top to bottom)
+    # Override to horizontal for specific cases:
+    has_width_directives = any(
+        hasattr(section, "directives")
+        and section.directives
+        and "width" in section.directives
+        for section in slide.sections
     )
 
-    # Log the body area dimensions
+    # Sections marked as type="row" force horizontal layout for their children
+    has_row_sections = any(section.type == "row" for section in slide.sections)
+
+    # Use horizontal layout when width directives exist or row sections exist
+    is_vertical_layout = not (has_width_directives or has_row_sections)
+
     logger.debug(
-        f"Body area for sections: left={body_area[0]:.1f}, top={body_area[1]:.1f}, "
-        f"width={body_area[2]:.1f}, height={body_area[3]:.1f}"
+        f"Layout orientation: {'vertical' if is_vertical_layout else 'horizontal'} "
+        f"(width_directives={has_width_directives}, row_sections={has_row_sections})"
     )
 
-    # CRITICAL FIX: Top-level sections must be laid out vertically
-    # regardless of their types or directives
-    if slide.sections:
-        _distribute_space_and_position_sections(calculator, slide.sections, body_area, is_vertical_split=True)
+    _distribute_and_position_sections(
+        calculator, slide.sections, body_area, is_vertical_layout
+    )
 
-        # Position elements within all sections recursively
-        _position_elements_in_sections(calculator, slide)
-        logger.debug(f"Positioned elements in all sections for slide {slide.object_id}")
-    else:
-        logger.debug(f"No sections to position for slide {slide.object_id}")
+    # Position elements within all sections using two-pass pattern
+    _position_elements_in_all_sections(calculator, slide)
 
     logger.debug(f"Section-based layout completed for slide {slide.object_id}")
     return slide
 
 
-def _distribute_space_and_position_sections(
+def _distribute_and_position_sections(
     calculator,
     sections: list[Section],
     area: tuple[float, float, float, float],
-    is_vertical_split: bool,
+    is_vertical_layout: bool,
 ) -> None:
     """
-    Distribute space among sections and position them within the given area.
-    All sections must fit within the specified area (usually the body zone).
+    Distribute space among sections and position them using predictable division.
+
+    This implements Principle #2: Predictable Division for containers.
 
     Args:
         calculator: The PositionCalculator instance
-        sections: List of section models
-        area: Tuple of (x, y, width, height) defining the available area
-        is_vertical_split: True for vertical distribution, False for horizontal
+        sections: List of sections to position
+        area: (left, top, width, height) of available area
+        is_vertical_layout: True for vertical stacking, False for horizontal
     """
     if not sections:
         return
 
-    # Extract area parameters
     area_left, area_top, area_width, area_height = area
 
-    # Log the area being distributed
     logger.debug(
         f"Distributing space for {len(sections)} sections in area: "
-        f"left={area_left:.1f}, top={area_top:.1f}, width={area_width:.1f}, height={area_height:.1f}, "
-        f"is_vertical={is_vertical_split}"
+        f"({area_left:.1f}, {area_top:.1f}, {area_width:.1f}, {area_height:.1f}), "
+        f"vertical={is_vertical_layout}"
     )
 
-    # CRITICAL FIX: Row sections in horizontal layouts should get full width
-    for section in sections:
-        if section.type == "row" and section.subsections:
-            # Ensure row sections have no width directive when being placed horizontally
-            if not is_vertical_split and "width" in section.directives:
-                logger.debug(f"Removing width directive from row section {section.id} in horizontal layout")
-                del section.directives["width"]
-            break
-
-    # Determine the primary dimension to distribute based on orientation
-    if is_vertical_split:
-        main_position = area_top  # y-coordinate
-        main_dimension = area_height  # height
-        cross_dimension = area_width  # width (constant)
+    # Calculate dimensions based on layout orientation
+    if is_vertical_layout:
+        main_dimension = area_height
+        cross_dimension = area_width
+        spacing = VERTICAL_SPACING
+        dimension_key = "height"
     else:
-        main_position = area_left  # x-coordinate
-        main_dimension = area_width  # width
-        cross_dimension = area_height  # height (constant)
+        main_dimension = area_width
+        cross_dimension = area_height
+        spacing = HORIZONTAL_SPACING
+        dimension_key = "width"
 
-    # Define constants for layout
-    min_section_dim = 20.0  # Minimum section dimension in points
-    spacing = calculator.vertical_spacing if is_vertical_split else calculator.horizontal_spacing
-    total_spacing = spacing * (len(sections) - 1)
+    # Apply predictable division for the main dimension
+    section_dimensions = _calculate_predictable_dimensions(
+        sections, main_dimension, spacing, dimension_key
+    )
 
-    # Initialize tracking variables
-    dim_key = "height" if is_vertical_split else "width"
-    explicit_sections = {}  # section_index: dimension
-    implicit_section_indices = []
-
-    # Track sections with min dimensions from directives
-    min_dimensions = {}  # section_index: min_dimension
-
-    # CRITICAL FIX: First pass: identify and validate explicit and implicit sections
-    for i, section in enumerate(sections):
-        # Ensure section has directives
-        if not hasattr(section, "directives") or section.directives is None:
-            section.directives = {}
-
-        # Get dimension directive, if any
-        dim_directive = section.directives.get(dim_key)
-
-        if dim_directive is not None:
-            try:
-                if isinstance(dim_directive, float) and 0.0 < dim_directive <= 1.0:
-                    # FIXED: Calculate percentage relative to available dimension minus spacing
-                    available_dim = main_dimension - total_spacing
-                    explicit_sections[i] = available_dim * dim_directive
-                    min_dimensions[i] = explicit_sections[i]
-
-                    # Store calculated dimension on section for reference
-                    if dim_key == "height":
-                        section.min_height = explicit_sections[i]
-                    else:
-                        section.min_width = explicit_sections[i]
-
-                    logger.debug(
-                        f"Set {dim_key} for section {section.id} to {explicit_sections[i]:.1f} ({dim_directive * 100}%)"
-                    )
-                elif isinstance(dim_directive, int | float) and dim_directive > 1.0:
-                    # FIXED: Cap absolute dimensions to available space
-                    explicit_sections[i] = min(float(dim_directive), main_dimension - total_spacing)
-                    min_dimensions[i] = explicit_sections[i]
-
-                    # Store calculated dimension on section for reference
-                    if dim_key == "height":
-                        section.min_height = explicit_sections[i]
-                    else:
-                        section.min_width = explicit_sections[i]
-
-                    logger.debug(f"Set absolute {dim_key} for section {section.id} to {explicit_sections[i]:.1f}pt")
-                else:
-                    logger.warning(f"Invalid {dim_key} directive value: {dim_directive} for section {section.id}")
-                    implicit_section_indices.append(i)
-            except (TypeError, ValueError) as e:
-                logger.warning(f"Error processing {dim_key} directive for section {section.id}: {e}")
-                implicit_section_indices.append(i)
-        else:
-            implicit_section_indices.append(i)
-
-    # CRITICAL FIX: For horizontal layouts with no explicit widths, force equal distribution
-    if not is_vertical_split and len(implicit_section_indices) == len(sections):
-        logger.debug("No explicit widths in horizontal layout - using equal distribution")
-        equal_width = (main_dimension - total_spacing) / len(sections)
-
-        for i in range(len(sections)):
-            explicit_sections[i] = equal_width
-            if i in implicit_section_indices:
-                implicit_section_indices.remove(i)
-
-            # Store calculated width on section
-            sections[i].min_width = equal_width
-            logger.debug(f"Set equal width for section {sections[i].id} to {equal_width:.1f}pt")
-
-    # Calculate total explicit dimension
-    total_explicit_dim = sum(explicit_sections.values())
-
-    # FIXED: Scale down explicit dimensions proportionally if they exceed available space
-    available_space = main_dimension - total_spacing
-    if total_explicit_dim > available_space:
-        scale_factor = available_space / total_explicit_dim
-        for i in explicit_sections:
-            original = explicit_sections[i]
-            explicit_sections[i] *= scale_factor
-
-            # Update min_dimensions and section attributes
-            if i in min_dimensions:
-                min_dimensions[i] = explicit_sections[i]
-
-                if dim_key == "height":
-                    sections[i].min_height = explicit_sections[i]
-                else:
-                    sections[i].min_width = explicit_sections[i]
-
-            logger.debug(f"Scaled down section {sections[i].id} {dim_key} from {original:.1f} to {explicit_sections[i]:.1f}")
-
-    # FIXED: More accurate remaining dimension calculation
-    remaining_dim = max(0, available_space - total_explicit_dim)
-
-    # FIXED: Distribute remaining dimension among implicit sections
-    dim_per_implicit = 0
-    if implicit_section_indices:
-        dim_per_implicit = remaining_dim / len(implicit_section_indices)
-        dim_per_implicit = max(min_section_dim, dim_per_implicit)
-        logger.debug(f"Allocating {dim_per_implicit:.1f}pt per implicit section")
-
-    # FIXED: Second pass: position and size each section with accurate dimensions
-    current_pos = main_position
-
-    for i, section in enumerate(sections):
-        # Determine section dimension
-        if i in explicit_sections:
-            section_dim = explicit_sections[i]
-        elif i in implicit_section_indices:
-            section_dim = dim_per_implicit
-        else:
-            section_dim = min_section_dim
-
-        # CRITICAL FIX: Ensure minimum dimension and respect min_height/min_width
-        if dim_key == "height" and hasattr(section, "min_height"):
-            section_dim = max(section_dim, section.min_height)
-        elif dim_key == "width" and hasattr(section, "min_width"):
-            section_dim = max(section_dim, section.min_width)
-
-        # CRITICAL FIX: Ensure section doesn't exceed area boundaries
-        if is_vertical_split:
-            max_allowed = (area_top + area_height) - current_pos
-            if section_dim > max_allowed:
-                logger.warning(
-                    f"Section {section.id} height ({section_dim:.1f}) exceeds remaining vertical space ({max_allowed:.1f}). "
-                    f"Adjusting height."
-                )
-                section_dim = max(min_section_dim, max_allowed)
-        else:
-            max_allowed = (area_left + area_width) - current_pos
-            if section_dim > max_allowed:
-                logger.warning(
-                    f"Section {section.id} width ({section_dim:.1f}) exceeds remaining horizontal space ({max_allowed:.1f}). "
-                    f"Adjusting width."
-                )
-                section_dim = max(min_section_dim, max_allowed)
-
-        # CRITICAL FIX: Special handling for row sections
-        if section.type == "row":
-            if is_vertical_split:
-                # When stacking rows vertically, they always get full width
-                section.position = (area_left, current_pos)
-                section.size = (area_width, section_dim)
-                logger.debug(f"Positioned row section {section.id} vertically with full width")
-            else:
-                # When positioning rows horizontally (unusual), respect calculated width
-                section.position = (current_pos, area_top)
-                section.size = (section_dim, cross_dimension)
-                logger.debug(f"Positioned row section {section.id} horizontally")
-        else:
-            # Position and size regular sections normally
-            if is_vertical_split:
-                section.position = (area_left, current_pos)
-                section.size = (cross_dimension, section_dim)
-            else:
-                section.position = (current_pos, area_top)
-                section.size = (section_dim, cross_dimension)
-
-        # CRITICAL FIX: Process subsections with correct distribution direction
-        if section.subsections:
-            # Create a subsection area based on this section's geometry
-            subsection_area = (
-                section.position[0],  # x
-                section.position[1],  # y
-                section.size[0],  # width
-                section.size[1],  # height
+    # For vertical layout, also calculate width dimensions if any sections have width directives
+    section_widths = None
+    if is_vertical_layout:
+        # Check if any sections have width directives
+        has_width_directives = any(
+            hasattr(section, "directives")
+            and section.directives
+            and "width" in section.directives
+            for section in sections
+        )
+        if has_width_directives:
+            section_widths = _calculate_predictable_dimensions(
+                sections, area_width, HORIZONTAL_SPACING, "width"
             )
 
-            # CRITICAL FIX: Row sections ALWAYS get horizontal distribution for columns
-            if section.type == "row":
-                logger.debug(f"Processing row section {section.id} subsections with FORCED HORIZONTAL layout")
-                _distribute_space_and_position_sections(
-                    calculator,
-                    section.subsections,
-                    subsection_area,
-                    is_vertical_split=False,  # Force horizontal for row's subsections
-                )
-            else:
-                # Regular sections maintain the current orientation
-                _distribute_space_and_position_sections(
-                    calculator,
-                    section.subsections,
-                    subsection_area,
-                    is_vertical_split=is_vertical_split,
-                )
+    # Position each section
+    current_position = area_top if is_vertical_layout else area_left
 
-        # Move to next position with spacing
-        current_pos += section_dim + spacing
+    for i, section in enumerate(sections):
+        section_main_dim = section_dimensions[i]
+
+        if is_vertical_layout:
+            # Vertical layout: sections stacked top to bottom
+            section_width = section_widths[i] if section_widths else cross_dimension
+            section.position = (area_left, current_position)
+            section.size = (section_width, section_main_dim)
+        else:
+            # Horizontal layout: sections side by side
+            section.position = (current_position, area_top)
+            section.size = (section_main_dim, cross_dimension)
 
         logger.debug(
             f"Positioned section {section.id}: pos=({section.position[0]:.1f}, {section.position[1]:.1f}), "
             f"size=({section.size[0]:.1f}, {section.size[1]:.1f})"
         )
 
-
-def _position_elements_in_sections(calculator, slide: Slide) -> None:
-    """
-    Position elements within their respective sections.
-
-    Args:
-        calculator: The PositionCalculator instance
-        slide: The slide with sections to position elements in
-    """
-    if not slide.sections:
-        return
-
-    # Create a flat list of leaf sections (sections with elements)
-    leaf_sections = []
-
-    def collect_leaf_sections(sections_list):
-        for section in sections_list:
-            if section.type == "row" and section.subsections:
-                collect_leaf_sections(section.subsections)
-            elif section.elements:  # Only include sections that have elements
-                leaf_sections.append(section)
-
-    collect_leaf_sections(slide.sections)
-    logger.info(f"Found {len(leaf_sections)} leaf sections with elements to position")
-
-    # Position elements within each leaf section
-    for section in leaf_sections:
-        if section.position is None or section.size is None:
-            logger.warning(
-                f"Section {section.id} has no position or size. Cannot position elements properly. Using default positioning."
-            )
-            # Provide default values if missing
-            if section.position is None:
-                section.position = (calculator.body_left, calculator.body_top)
-                logger.debug(f"Assigned default position {section.position} to section {section.id}")
-            if section.size is None:
-                # CRITICAL FIX: Use the full body width as default width, not half
-                section.size = (calculator.body_width, calculator.body_height / 2)
-                logger.debug(f"Assigned default size {section.size} to section {section.id}")
-
-        # Now that we ensured section has position and size, use them
-        section_area = (
-            section.position[0],
-            section.position[1],
-            section.size[0],
-            section.size[1],
-        )
-
-        logger.debug(
-            f"Positioning {len(section.elements)} elements in section {section.id} with area "
-            f"x={section_area[0]:.1f}, y={section_area[1]:.1f}, "
-            f"width={section_area[2]:.1f}, height={section_area[3]:.1f}"
-        )
-
-        _position_elements_within_section(calculator, section.elements, section_area, section.directives)
-        logger.debug(f"Positioned {len(section.elements)} elements in section {section.id}")
-
-
-def _mark_related_elements(elements: list[Element]) -> None:
-    """
-    Mark related elements that should be kept together during layout and overflow.
-
-    Args:
-        elements: List of elements to process
-    """
-    if not elements:
-        return
-
-    # Pattern 1: Text heading followed by a list or table
-    for i in range(len(elements) - 1):
-        current = elements[i]
-        next_elem = elements[i + 1]
-
-        # Skip None elements
-        if current is None or next_elem is None:
-            continue
-
-        # Check if current is a text element (potential heading)
-        # and check if next is a list or table
-        if current.element_type == ElementType.TEXT and next_elem.element_type in (
-            ElementType.BULLET_LIST,
-            ElementType.ORDERED_LIST,
-            ElementType.TABLE,
-        ):
-            # Mark these elements as related
-            current.related_to_next = True
-            next_elem.related_to_prev = True
-            logger.debug(
-                f"Marked elements as related: {getattr(current, 'object_id', 'unknown')} -> "
-                f"{getattr(next_elem, 'object_id', 'unknown')}"
+        # Handle subsections recursively
+        if hasattr(section, "subsections") and section.subsections:
+            subsection_area = (
+                section.position[0],
+                section.position[1],
+                section.size[0],
+                section.size[1],
             )
 
-    # Pattern 2: Heading followed by subheading
-    for i in range(len(elements) - 1):
-        current = elements[i]
-        next_elem = elements[i + 1]
-
-        if (
-            current.element_type == ElementType.TEXT
-            and next_elem.element_type == ElementType.TEXT
-            and hasattr(current, "text")
-            and hasattr(next_elem, "text")
-            and current.text
-            and next_elem.text
-        ):
-            # Check if current looks like a heading (starts with #, ##, etc)
-            current_text = current.text.strip()
-            next_text = next_elem.text.strip()
-
-            # Simple heuristic: if both start with # and current has fewer #s,
-            # consider them related (heading + subheading)
-            if current_text.startswith("#") and next_text.startswith("#") and current_text.count("#") < next_text.count("#"):
-                current.related_to_next = True
-                next_elem.related_to_prev = True
-                logger.debug(
-                    f"Marked heading and subheading as related: "
-                    f"{getattr(current, 'object_id', 'unknown')} -> "
-                    f"{getattr(next_elem, 'object_id', 'unknown')}"
+            # Row sections always get horizontal distribution for their children
+            if section.type == "row":
+                _distribute_and_position_sections(
+                    calculator, section.subsections, subsection_area, False
+                )
+            else:
+                # Regular sections maintain current orientation
+                _distribute_and_position_sections(
+                    calculator, section.subsections, subsection_area, is_vertical_layout
                 )
 
-    # Pattern 3: Consecutive paragraphs (consecutive text elements)
-    for i in range(len(elements) - 1):
-        current = elements[i]
-        next_elem = elements[i + 1]
+        # Move to next position
+        current_position += section_main_dim + spacing
 
-        if (
-            current.element_type == ElementType.TEXT
-            and next_elem.element_type == ElementType.TEXT
-            and hasattr(current, "text")
-            and hasattr(next_elem, "text")
-            and not current.text.strip().startswith("#")
-            and not next_elem.text.strip().startswith("#")
-        ):
-            # Mark consecutive paragraphs as related
-            current.related_to_next = True
-            next_elem.related_to_prev = True
-            logger.debug(
-                f"Marked consecutive paragraphs as related: "
-                f"{getattr(current, 'object_id', 'unknown')} -> "
-                f"{getattr(next_elem, 'object_id', 'unknown')}"
+
+def _calculate_predictable_dimensions(
+    sections: list[Section],
+    available_dimension: float,
+    spacing: float,
+    dimension_key: str,
+) -> list[float]:
+    num_sections = len(sections)
+    if num_sections == 0:
+        return []
+
+    total_spacing = spacing * (num_sections - 1)
+    usable_dimension = available_dimension - total_spacing
+
+    explicitly_sized_indices = {}
+    explicitly_sized_total = 0.0
+    implicit_indices = []
+
+    # First pass: identify explicit sections and sum their requests
+    for i, section in enumerate(sections):
+        directive_value = (
+            section.directives.get(dimension_key)
+            if hasattr(section, "directives") and section.directives
+            else None
+        )
+        if directive_value is not None:
+            try:
+                size = 0.0
+                if isinstance(directive_value, float) and 0.0 < directive_value <= 1.0:
+                    size = usable_dimension * directive_value
+                elif isinstance(directive_value, int | float) and directive_value > 1.0:
+                    size = float(directive_value)
+
+                if size > 0.0:
+                    explicitly_sized_indices[i] = size
+                    explicitly_sized_total += size
+                    continue
+            except (ValueError, TypeError):
+                pass
+        implicit_indices.append(i)
+
+    # Scale down explicit sizes if they collectively exceed the usable space
+    # But only scale percentage-based directives, not absolute ones
+    if explicitly_sized_total > usable_dimension:
+        # Separate absolute vs percentage directives
+        absolute_indices = {}
+        percentage_indices = {}
+        absolute_total = 0.0
+        percentage_total = 0.0
+
+        for i in explicitly_sized_indices:
+            section = sections[i]
+            directive_value = (
+                section.directives.get(dimension_key)
+                if hasattr(section, "directives") and section.directives
+                else None
             )
+            if directive_value is not None:
+                if isinstance(directive_value, float) and 0.0 < directive_value <= 1.0:
+                    # Percentage directive
+                    percentage_indices[i] = explicitly_sized_indices[i]
+                    percentage_total += explicitly_sized_indices[i]
+                elif isinstance(directive_value, int | float) and directive_value > 1.0:
+                    # Absolute directive - don't scale
+                    absolute_indices[i] = explicitly_sized_indices[i]
+                    absolute_total += explicitly_sized_indices[i]
 
-    # Pattern 4: Images followed by captions (text elements)
-    for i in range(len(elements) - 1):
-        current = elements[i]
-        next_elem = elements[i + 1]
-
-        if current.element_type == ElementType.IMAGE and next_elem.element_type == ElementType.TEXT:
-            # Mark image and caption as related
-            current.related_to_next = True
-            next_elem.related_to_prev = True
-            # Improve caption positioning
-            if hasattr(next_elem, "directives"):
-                next_elem.directives["caption"] = True
-            logger.debug(
-                f"Marked image and caption as related: "
-                f"{getattr(current, 'object_id', 'unknown')} -> "
-                f"{getattr(next_elem, 'object_id', 'unknown')}"
+        # If absolute directives alone exceed space, we have a problem
+        if absolute_total > usable_dimension:
+            logger.warning(
+                f"Absolute {dimension_key} directives ({absolute_total:.1f}) exceed available space ({usable_dimension:.1f}). "
+                f"Sections may overlap."
             )
+            # Keep absolute sizes as-is, even if they cause overflow
+        else:
+            # Scale only percentage directives to fit remaining space
+            remaining_for_percentage = usable_dimension - absolute_total
+            if percentage_total > remaining_for_percentage and percentage_total > 0:
+                scale_factor = remaining_for_percentage / percentage_total
+                for i in percentage_indices:
+                    explicitly_sized_indices[i] *= scale_factor
+
+        # Recalculate total after scaling
+        explicitly_sized_total = sum(explicitly_sized_indices.values())
+
+    # Distribute remaining space to implicit sections
+    remaining_space = usable_dimension - explicitly_sized_total
+    num_implicit = len(implicit_indices)
+    implicit_size = remaining_space / num_implicit if num_implicit > 0 else 0
+
+    # Build the final dimensions list
+    dimensions = [0.0] * num_sections
+    for i in range(num_sections):
+        dimensions[i] = explicitly_sized_indices.get(i, implicit_size)
+
+    logger.debug(
+        f"Calculated {dimension_key} dimensions: explicit={len(explicitly_sized_indices)}, "
+        f"implicit={num_implicit}, dimensions={[f'{d:.1f}' for d in dimensions]}"
+    )
+
+    return dimensions
 
 
-def _position_elements_within_section(
-    calculator,
-    elements: list[Element],
-    area: tuple[float, float, float, float],
-    directives: dict[str, Any],
-) -> None:
+def _position_elements_in_all_sections(calculator, slide: Slide) -> None:
     """
-    Position elements within a section. Elements are laid out vertically
-    within the strict boundaries of the section area.
+    Position elements within all sections using the two-pass vertical alignment pattern.
 
     Args:
         calculator: The PositionCalculator instance
-        elements: List of elements to position
-        area: Tuple of (x, y, width, height) defining the section area
-        directives: Section directives
+        slide: The slide containing sections with elements
     """
-    if not elements:
+    # Find all leaf sections (sections that contain elements, not other sections)
+    leaf_sections = []
+    _collect_leaf_sections(slide.sections, leaf_sections)
+
+    logger.debug(f"Found {len(leaf_sections)} leaf sections to position elements in")
+
+    for section in leaf_sections:
+        if section.elements:
+            _position_elements_within_section(calculator, section)
+
+
+def _collect_leaf_sections(
+    sections: list[Section], leaf_sections: list[Section]
+) -> None:
+    """Recursively collect all leaf sections (sections with elements)."""
+    for section in sections:
+        if hasattr(section, "subsections") and section.subsections:
+            _collect_leaf_sections(section.subsections, leaf_sections)
+        elif section.elements:
+            leaf_sections.append(section)
+
+
+def _position_elements_within_section(calculator, section: Section) -> None:
+    """
+    Position elements within a single section using the two-pass pattern.
+
+    Pass 1: Calculate intrinsic sizes for all elements
+    Pass 2: Position elements based on vertical alignment directive
+
+    Args:
+        calculator: The PositionCalculator instance
+        section: The section containing elements to position
+    """
+    if not section.elements or not section.position or not section.size:
         return
 
-    area_x, area_y, area_width, area_height = area
-    logger.debug(
-        f"Positioning {len(elements)} elements within section area: "
-        f"x={area_x:.1f}, y={area_y:.1f}, width={area_width:.1f}, height={area_height:.1f}"
+    section_left, section_top = section.position
+    section_width, section_height = section.size
+
+    # Apply section padding
+    padding = (
+        section.directives.get("padding", SECTION_PADDING)
+        if section.directives
+        else SECTION_PADDING
     )
 
-    # FIXED: Apply padding more efficiently
-    padding = directives.get("padding", 0.0)
-    if isinstance(padding, int | float) and padding > 0:
-        padding = min(padding, area_width * 0.1, area_height * 0.1)  # Limit excessive padding
-        area_x += padding
-        area_y += padding
-        area_width = max(10.0, area_width - (2 * padding))
-        area_height = max(10.0, area_height - (2 * padding))
-        logger.debug(
-            f"Applied padding of {padding:.1f}pt, adjusted area: "
-            f"x={area_x:.1f}, y={area_y:.1f}, width={area_width:.1f}, height={area_height:.1f}"
-        )
+    content_left = section_left + padding
+    content_top = section_top + padding
+    content_width = max(10.0, section_width - 2 * padding)
+    content_height = max(10.0, section_height - 2 * padding)
 
-    # CRITICAL FIX: Mark related elements that should stay together
-    _mark_related_elements(elements)
+    logger.debug(
+        f"Positioning {len(section.elements)} elements in section {section.id}: "
+        f"content_area=({content_left:.1f}, {content_top:.1f}, {content_width:.1f}, {content_height:.1f})"
+    )
 
-    # Calculate element heights with stricter width constraints
-    elements_heights = []
-    total_height_with_spacing = 0
+    # Pass 1: Calculate intrinsic sizes for all elements
+    _calculate_element_sizes_in_section(calculator, section.elements, content_width)
 
-    for i, element in enumerate(elements):
-        if element is None:
-            logger.warning(f"Element at index {i} is None. Skipping.")
-            continue
+    # Pass 2: Position elements based on vertical alignment
+    _apply_vertical_alignment_and_position(
+        section.elements,
+        content_left,
+        content_top,
+        content_width,
+        content_height,
+        section.directives or {},
+    )
 
-        if not hasattr(element, "size") or element.size is None:
-            logger.warning(f"Element {getattr(element, 'object_id', 'unknown')} lacks size attribute. Skipping.")
-            continue
 
-        # CRITICAL FIX: Ensure element width fits within section with margin
-        element_width = min(element.size[0], area_width - 2)  # 2pt safety margin
+def _calculate_element_sizes_in_section(
+    calculator, elements: list[Element], available_width: float
+) -> None:
+    """
+    Calculate intrinsic sizes for all elements in a section (Pass 1).
 
-        # CRITICAL FIX: Different element types need different minimum widths
-        if element.element_type in (ElementType.TEXT, ElementType.QUOTE):
-            # Text elements need at least 40% of section width to be readable
-            element_width = max(element_width, area_width * 0.4)
-        elif element.element_type in (
-            ElementType.BULLET_LIST,
-            ElementType.ORDERED_LIST,
-        ):
-            # Lists need at least 60% of area width for proper bullets and indentation
-            element_width = max(element_width, area_width * 0.6)
-        elif element.element_type == ElementType.TABLE:
-            # Tables should use nearly full width for readability
-            element_width = max(element_width, area_width * 0.85)
+    Args:
+        calculator: The PositionCalculator instance
+        elements: List of elements to size
+        available_width: Available width in the section
+    """
+    for element in elements:
+        # Calculate element width within section
+        element_width = calculator._calculate_element_width(element, available_width)
 
-        # FIXED: Store full section height in images for aspect ratio calculations
-        if element.element_type == ElementType.IMAGE:
-            element._section_height = area_height
-            element._section_width = area_width
-            # For images, limit to 80% of section width if no explicit size
-            if element.size[0] > area_width * 0.9 and "width" not in getattr(element, "directives", {}):
-                element_width = area_width * 0.8
+        # Calculate intrinsic height based on content
+        element_height = _calculate_element_intrinsic_height(element, element_width)
 
-        # CRITICAL FIX: Use refined element height calculation
-        from markdowndeck.layout.metrics import calculate_element_height
-
-        element_height = calculate_element_height(element, element_width)
-
-        # Update element size with calculated dimensions
         element.size = (element_width, element_height)
-        elements_heights.append(element_height)
 
-        # Track total height needed
-        total_height_with_spacing += element_height
-        if i < len(elements) - 1:
-            # FIXED: Variable spacing for related elements
-            next_spacing = calculator.vertical_spacing
-            if hasattr(element, "related_to_next") and element.related_to_next:
-                next_spacing *= 0.6  # Reduce spacing between related elements
-            total_height_with_spacing += next_spacing
-
-    # CRITICAL FIX: If content exceeds section height, adjust elements proportionally
-    needs_scaling = total_height_with_spacing > area_height
-    if needs_scaling:
-        logger.warning(
-            f"Content height ({total_height_with_spacing:.1f}pt) exceeds section height ({area_height:.1f}pt). "
-            f"Scaling elements to fit."
+        logger.debug(
+            f"Element {getattr(element, 'object_id', 'unknown')} sized: "
+            f"{element_width:.1f} x {element_height:.1f}"
         )
 
-        # Scale all elements proportionally, but with special handling for titles and small elements
-        scale_factor = (area_height - 5) / total_height_with_spacing  # 5pt buffer
 
-        for i, element in enumerate(elements):
-            # Never scale titles/headings below readable size
-            min_scale = 0.5 if element.element_type == ElementType.TEXT else 0.7
-            element_scale = max(min_scale, scale_factor)
+def _calculate_element_intrinsic_height(
+    element: Element, available_width: float
+) -> float:
+    """Calculate intrinsic height for an element using appropriate metrics."""
+    from markdowndeck.layout.metrics import calculate_element_height
 
-            # Update element height and size
-            elements_heights[i] *= element_scale
-            element.size = (element.size[0], element.size[1] * element_scale)
+    return calculate_element_height(element, available_width)
 
-        # Recalculate total height after scaling
-        total_height_with_spacing = sum(elements_heights) + calculator.vertical_spacing * (len(elements) - 1)
-        logger.debug(f"After scaling, content height: {total_height_with_spacing:.1f}pt")
 
-    # CRITICAL FIX: Apply vertical alignment more consistently
-    valign = directives.get("valign", "top").lower()
-    start_y = area_y  # Default top alignment
+def _apply_vertical_alignment_and_position(
+    elements: list[Element],
+    content_left: float,
+    content_top: float,
+    content_width: float,
+    content_height: float,
+    directives: dict,
+) -> None:
+    """
+    Apply vertical alignment and position elements (Pass 2).
 
-    if valign == "middle" and total_height_with_spacing < area_height:
-        # Center content vertically in the section
-        start_y = area_y + (area_height - total_height_with_spacing) / 2
+    Args:
+        elements: List of elements with calculated sizes
+        content_left: Left edge of content area
+        content_top: Top edge of content area
+        content_width: Width of content area
+        content_height: Height of content area
+        directives: Section directives including valign
+    """
+    # Calculate total height needed for all elements
+    total_content_height = 0.0
+    for i, element in enumerate(elements):
+        if element.size:
+            total_content_height += element.size[1]
+            if i < len(elements) - 1:  # Add spacing except after last element
+                total_content_height += VERTICAL_SPACING
+
+    # Determine starting Y position based on vertical alignment
+    valign = directives.get("valign", VALIGN_TOP).lower()
+
+    if valign == VALIGN_MIDDLE and total_content_height < content_height:
+        start_y = content_top + (content_height - total_content_height) / 2
         logger.debug(f"Applied middle vertical alignment, start_y={start_y:.1f}")
-    elif valign == "bottom" and total_height_with_spacing < area_height:
-        # Align content to the bottom of the section
-        start_y = area_y + area_height - total_height_with_spacing
+    elif valign == VALIGN_BOTTOM and total_content_height < content_height:
+        start_y = content_top + content_height - total_content_height
         logger.debug(f"Applied bottom vertical alignment, start_y={start_y:.1f}")
+    else:
+        start_y = content_top  # Top alignment (default)
 
-    # Position elements with precise stacking
+    # Position elements sequentially
     current_y = start_y
 
-    # CRITICAL FIX: Track groups of elements that must stay together
-    element_groups = []
-    current_group = []
-
-    # Loop through elements and position each one
     for i, element in enumerate(elements):
-        # Apply horizontal alignment from directives or element
-        element_align = directives.get("align", "left").lower()
+        if not element.size:
+            continue
 
-        # FIXED: Override section alignment with element's own alignment if specified
-        if hasattr(element, "horizontal_alignment"):
-            if "align" in getattr(element, "directives", {}):
-                element_align = element.directives["align"]
-            else:
-                element.horizontal_alignment = AlignmentType(element_align)
+        element_width, element_height = element.size
 
-        # CRITICAL FIX: Element with centered alignment gets proper x position
-        from markdowndeck.layout.calculator.element_utils import (
-            apply_horizontal_alignment,
+        # Apply horizontal alignment using the centralized utility function
+        # This modifies element.position in-place
+        apply_horizontal_alignment(
+            element, content_left, content_width, current_y, directives
         )
 
-        apply_horizontal_alignment(element, area_x, area_width, current_y)
+        logger.debug(
+            f"Positioned element {getattr(element, 'object_id', 'unknown')} at "
+            f"({element.position[0]:.1f}, {element.position[1]:.1f})"
+        )
 
-        # Add to current related group
-        current_group.append(element)
-
-        # FIXED: Check for overflow and related elements
-        current_y + element.size[1]
-        is_last_in_group = i == len(elements) - 1 or not getattr(element, "related_to_next", False)
-
-        # Finish current group if this is last in group
-        if is_last_in_group and current_group:
-            element_groups.append(current_group)
-            current_group = []
-
-        # FIXED: Calculate next position with precise spacing
-        next_spacing = calculator.vertical_spacing
-        if not is_last_in_group:
-            # Reduce spacing between related elements
-            next_spacing *= 0.6
-
-        current_y += element.size[1] + next_spacing
-
-    # Add any remaining elements to the last group
-    if current_group:
-        element_groups.append(current_group)
-
-    # FIXED: Store logical element groups with the section for overflow handling
-    if (
-        element_groups
-        and isinstance(directives, dict)
-        and "section" in directives
-        and hasattr(directives["section"], "element_groups")
-    ):
-        directives["section"].element_groups = element_groups
-        logger.debug(f"Stored {len(element_groups)} logical element groups for overflow handling")
+        # Move to next position
+        current_y += element_height
+        if i < len(elements) - 1:  # Add spacing except after last element
+            current_y += VERTICAL_SPACING

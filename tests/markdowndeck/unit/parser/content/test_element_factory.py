@@ -56,9 +56,7 @@ class TestElementFactory:
     def test_create_subtitle_element_with_directives(self, factory: ElementFactory):
         """Test subtitle element creation with directives."""
         directives = {"fontweight": "bold", "margin": 10}
-        element = factory.create_subtitle_element(
-            "Subtitle", alignment=AlignmentType.RIGHT, directives=directives
-        )
+        element = factory.create_subtitle_element("Subtitle", alignment=AlignmentType.RIGHT, directives=directives)
 
         assert element.element_type == ElementType.SUBTITLE
         assert element.horizontal_alignment == AlignmentType.RIGHT
@@ -88,16 +86,12 @@ class TestElementFactory:
         directives = {"color": {"type": "named", "value": "blue"}, "margin": 5}
 
         # Bullet list
-        bullet_list = factory.create_list_element(
-            items, ordered=False, directives=directives
-        )
+        bullet_list = factory.create_list_element(items, ordered=False, directives=directives)
         assert bullet_list.element_type == ElementType.BULLET_LIST
         assert bullet_list.directives == directives
 
         # Ordered list
-        ordered_list = factory.create_list_element(
-            items, ordered=True, directives=directives
-        )
+        ordered_list = factory.create_list_element(items, ordered=True, directives=directives)
         assert ordered_list.element_type == ElementType.ORDERED_LIST
         assert ordered_list.directives == directives
 
@@ -165,27 +159,15 @@ class TestElementFactory:
             ("simple text", []),
             (
                 "**bold** text",
-                [
-                    TextFormat(
-                        start=0, end=4, format_type=TextFormatType.BOLD, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=4, format_type=TextFormatType.BOLD, value=True)],
             ),
             (
                 "*italic* text",
-                [
-                    TextFormat(
-                        start=0, end=6, format_type=TextFormatType.ITALIC, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=6, format_type=TextFormatType.ITALIC, value=True)],
             ),
             (
                 "`code` text",
-                [
-                    TextFormat(
-                        start=0, end=4, format_type=TextFormatType.CODE, value=True
-                    )
-                ],
+                [TextFormat(start=0, end=4, format_type=TextFormatType.CODE, value=True)],
             ),
             (
                 "~~strike~~ text",
@@ -212,21 +194,13 @@ class TestElementFactory:
             (
                 "**bold *italic* link**",
                 [
-                    TextFormat(
-                        start=5, end=11, format_type=TextFormatType.ITALIC, value=True
-                    ),
-                    TextFormat(
-                        start=0, end=16, format_type=TextFormatType.BOLD, value=True
-                    ),
+                    TextFormat(start=5, end=11, format_type=TextFormatType.ITALIC, value=True),
+                    TextFormat(start=0, end=16, format_type=TextFormatType.BOLD, value=True),
                 ],
             ),
             (
                 "text at start **bold**",
-                [
-                    TextFormat(
-                        start=14, end=18, format_type=TextFormatType.BOLD, value=True
-                    )
-                ],
+                [TextFormat(start=14, end=18, format_type=TextFormatType.BOLD, value=True)],
             ),
         ],
     )
@@ -241,27 +215,17 @@ class TestElementFactory:
         extracted = factory.extract_formatting_from_text(markdown_text, md_parser)
 
         # Sort for consistent comparison
-        sorted_extracted = sorted(
-            extracted, key=lambda f: (f.start, f.end, f.format_type.value)
-        )
-        sorted_expected = sorted(
-            expected_formats, key=lambda f: (f.start, f.end, f.format_type.value)
-        )
+        sorted_extracted = sorted(extracted, key=lambda f: (f.start, f.end, f.format_type.value))
+        sorted_expected = sorted(expected_formats, key=lambda f: (f.start, f.end, f.format_type.value))
 
         assert sorted_extracted == sorted_expected
 
-    def test_extract_formatting_with_directive_text(
-        self, factory: ElementFactory, md_parser: MarkdownIt
-    ):
+    def test_extract_formatting_with_directive_text(self, factory: ElementFactory, md_parser: MarkdownIt):
         """Test formatting extraction from text that contains directive patterns."""
         # Text that might confuse the parser with directive-like patterns
-        text_with_directives = (
-            "[color=red] This **bold** text has [brackets] but formatting."
-        )
+        text_with_directives = "[color=red] This **bold** text has [brackets] but formatting."
 
-        formatting = factory.extract_formatting_from_text(
-            text_with_directives, md_parser
-        )
+        formatting = factory.extract_formatting_from_text(text_with_directives, md_parser)
 
         # Should still extract bold formatting properly
         bold_formats = [f for f in formatting if f.format_type == TextFormatType.BOLD]
@@ -284,9 +248,7 @@ class TestElementFactory:
                 assert "bold" in bold_text
                 break
 
-    def test_extract_formatting_empty_and_whitespace(
-        self, factory: ElementFactory, md_parser: MarkdownIt
-    ):
+    def test_extract_formatting_empty_and_whitespace(self, factory: ElementFactory, md_parser: MarkdownIt):
         """Test formatting extraction with empty and whitespace text."""
         assert factory.extract_formatting_from_text("", md_parser) == []
         assert factory.extract_formatting_from_text("   ", md_parser) == []
@@ -347,9 +309,7 @@ class TestElementFactory:
     # Enhanced Inline Token Processing Tests
     # ========================================================================
 
-    def test_extract_formatting_from_inline_token_with_code_cleaning(
-        self, factory: ElementFactory
-    ):
+    def test_extract_formatting_from_inline_token_with_code_cleaning(self, factory: ElementFactory):
         """Test inline token processing with code content preservation."""
         from markdown_it.token import Token
 
@@ -450,9 +410,7 @@ class TestElementFactory:
         assert TextFormatType.ITALIC in format_types
 
         # Check link value
-        link_format = next(
-            f for f in formatting if f.format_type == TextFormatType.LINK
-        )
+        link_format = next(f for f in formatting if f.format_type == TextFormatType.LINK)
         assert link_format.value == "http://example.com"
 
     def test_extract_formatting_with_nested_formats(self, factory: ElementFactory):
@@ -482,12 +440,8 @@ class TestElementFactory:
         formatting = factory._extract_formatting_from_inline_token(inline_token)
 
         # Should have both bold and italic
-        bold_format = next(
-            f for f in formatting if f.format_type == TextFormatType.BOLD
-        )
-        italic_format = next(
-            f for f in formatting if f.format_type == TextFormatType.ITALIC
-        )
+        bold_format = next(f for f in formatting if f.format_type == TextFormatType.BOLD)
+        italic_format = next(f for f in formatting if f.format_type == TextFormatType.ITALIC)
 
         # Bold should encompass the entire content
         assert bold_format.start == 0
@@ -579,22 +533,16 @@ class TestElementFactory:
         }
 
         # Test with text element
-        text_elem = factory.create_text_element(
-            "Advanced styled text", directives=advanced_directives
-        )
+        text_elem = factory.create_text_element("Advanced styled text", directives=advanced_directives)
         assert text_elem.directives["background"]["type"] == "gradient"
         assert text_elem.directives["border"]["color"]["type"] == "rgba"
         assert text_elem.directives["box-shadow"]["type"] == "css"
 
         # Test with other element types
-        list_elem = factory.create_list_element(
-            [ListItem(text="Item")], directives=advanced_directives
-        )
+        list_elem = factory.create_list_element([ListItem(text="Item")], directives=advanced_directives)
         assert list_elem.directives == advanced_directives
 
-        table_elem = factory.create_table_element(
-            ["H1"], [["C1"]], directives=advanced_directives
-        )
+        table_elem = factory.create_table_element(["H1"], [["C1"]], directives=advanced_directives)
         assert table_elem.directives == advanced_directives
 
     def test_element_creation_with_empty_directives(self, factory: ElementFactory):

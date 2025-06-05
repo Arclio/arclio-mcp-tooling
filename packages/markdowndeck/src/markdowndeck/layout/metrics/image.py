@@ -1,203 +1,146 @@
-"""Image element metrics for layout calculations."""
+"""Pure image element metrics for layout calculations - Content-aware height calculation."""
 
 import logging
-import re
 from typing import cast
-from urllib.parse import urlparse
 
-import requests
-
+from markdowndeck.layout.constants import (
+    # Image specific constants
+    DEFAULT_IMAGE_ASPECT_RATIO,
+    IMAGE_HEIGHT_FRACTION,
+    MIN_IMAGE_HEIGHT,
+)
 from markdowndeck.models import ImageElement
 
 logger = logging.getLogger(__name__)
 
-# Default aspect ratio to use when image dimensions cannot be determined
-DEFAULT_ASPECT_RATIO = 16 / 9  # Common presentation aspect ratio
-DEFAULT_IMAGE_MIN_HEIGHT = 100.0  # Minimum height for any image
-DEFAULT_IMAGE_MAX_HEIGHT_FRACTION = 1  # Max height as fraction of section height
-
-# Cache for image dimensions to avoid repeated network requests
+# Cache for image dimensions to avoid repeated lookups
 _image_dimensions_cache = {}
 
 
-def calculate_image_element_height(element: ImageElement | dict, available_width: float, available_height: float = 0) -> float:
+def calculate_image_element_height(
+    element: ImageElement | dict,
+    available_width: float,
+    available_height: float = 0,
+) -> float:
     """
-    Calculate the optimal height for an image element based on its aspect ratio and available space.
+    Calculate the pure intrinsic height needed for an image element based on its aspect ratio.
+
+    This is a pure measurement function that returns the actual height required
+    to render the image at the given width while maintaining its aspect ratio.
 
     Args:
-        element: The image element or dict
+        element: The image element to measure
         available_width: Available width for the image
-        available_height: Optional available height constraint (0 means no constraint)
+        available_height: Available height constraint (0 means no constraint)
 
     Returns:
-        Calculated height in points that maintains aspect ratio
+        The intrinsic height in points required to render the image
     """
-    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
+    image_element = (
+        cast(ImageElement, element)
+        if isinstance(element, ImageElement)
+        else ImageElement(**element)
+    )
 
-    # If no image URL, use a sensible default height
-    if not image_element.url or not image_element.url.strip():
-        logger.debug("No image URL provided, using default height")
-        return DEFAULT_IMAGE_MIN_HEIGHT
+    # Check for explicit height directive first
+    if hasattr(image_element, "directives") and image_element.directives:
+        height_directive = image_element.directives.get("height")
+        if height_directive is not None:
+            try:
+                if isinstance(height_directive, int | float) and height_directive > 0:
+                    explicit_height = float(height_directive)
+                    logger.debug(f"Using explicit height directive: {explicit_height}")
+                    return explicit_height
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid height directive: {height_directive}")
 
-    # Get aspect ratio (width/height) of the image
-    aspect_ratio = get_image_aspect_ratio(image_element.url)
-    logger.debug(f"Image {image_element.url[:50]}... has aspect ratio {aspect_ratio:.2f}")
+    # Get image URL
+    image_url = getattr(image_element, "url", "")
+    if not image_url or not image_url.strip():
+        logger.debug("No image URL provided, using minimum height")
+        return MIN_IMAGE_HEIGHT
+
+    # Get aspect ratio for the image
+    aspect_ratio = _get_image_aspect_ratio(image_url)
 
     # Calculate height based on available width and aspect ratio
     calculated_height = available_width / aspect_ratio
 
     # Apply minimum height constraint
-    calculated_height = max(calculated_height, DEFAULT_IMAGE_MIN_HEIGHT)
+    calculated_height = max(calculated_height, MIN_IMAGE_HEIGHT)
 
-    # IMPROVED: Better utilize available vertical space
+    # If available_height is specified, consider it as a constraint
     if available_height > 0:
-        # If the calculated height is significantly less than the available height
-        # and there's room to grow, scale the image up to use more space while maintaining aspect ratio
-        max_allowed_height = available_height * DEFAULT_IMAGE_MAX_HEIGHT_FRACTION
+        max_allowed_height = available_height * IMAGE_HEIGHT_FRACTION
 
-        # If image would use less than 70% of available space, scale it up to 85%
-        if calculated_height < max_allowed_height * 0.7:
-            # Scale up to better utilize available space
-            calculated_height = max_allowed_height * 0.85
-            logger.debug(f"Scaled up image height to better utilize space: {calculated_height:.1f}pt")
-        elif calculated_height > max_allowed_height:
-            # If image would be too tall, constrain it
+        # Don't exceed the available height constraint
+        if calculated_height > max_allowed_height:
             calculated_height = max_allowed_height
-            logger.debug(f"Constrained image height to max allowed: {calculated_height:.1f}pt")
+            logger.debug(
+                f"Constrained image height to available space: {calculated_height:.1f}"
+            )
 
-    # If the image has a fixed size directive, respect that but ensure aspect ratio
-    if hasattr(element, "directives") and "height" in element.directives:
-        try:
-            specified_height = float(element.directives["height"])
-            logger.debug(f"Using specified height directive: {specified_height}")
-            return specified_height
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid height directive: {element.directives['height']}, using calculated height")
+    logger.debug(
+        f"Image height calculation: url={image_url[:50]}..., "
+        f"aspect_ratio={aspect_ratio:.2f}, width={available_width:.1f}, "
+        f"final_height={calculated_height:.1f}"
+    )
 
-    logger.debug(f"Calculated image height: {calculated_height:.2f}pt from width {available_width:.2f}pt")
     return calculated_height
 
 
-def get_image_aspect_ratio(url: str) -> float:
+def _get_image_aspect_ratio(url: str) -> float:
     """
     Get the aspect ratio (width/height) of an image from its URL.
-    Uses a cache to avoid repeated network requests.
+
+    This implementation uses cached values and basic URL analysis.
+    For production use, this could be enhanced with actual image inspection.
 
     Args:
         url: Image URL
 
     Returns:
-        Aspect ratio (width/height) or DEFAULT_ASPECT_RATIO if dimensions cannot be determined
+        Aspect ratio (width/height) or default if cannot be determined
     """
-    # Check if already in cache
+    # Check cache first
     if url in _image_dimensions_cache:
         return _image_dimensions_cache[url]
 
-    # Check for data URLs with embedded dimensions (common in testing)
-    data_url_dims = _extract_dimensions_from_data_url(url)
-    if data_url_dims:
-        width, height = data_url_dims
-        aspect_ratio = width / height
-        _image_dimensions_cache[url] = aspect_ratio
-        return aspect_ratio
+    # Try to extract dimensions from URL patterns
+    aspect_ratio = _extract_aspect_ratio_from_url(url)
 
-    # For regular URLs, try to get dimensions with minimal data transfer
-    if url.startswith(("http://", "https://")):
-        try:
-            # First try with a HEAD request to get content-type
-            head_response = requests.head(url, timeout=3, allow_redirects=True)
+    if aspect_ratio is None:
+        # Use default aspect ratio
+        aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
+        logger.debug(
+            f"Using default aspect ratio {aspect_ratio:.2f} for image: {url[:50]}..."
+        )
 
-            if head_response.status_code != 200:
-                logger.warning(f"Could not access image URL: {url} (status {head_response.status_code})")
-                return DEFAULT_ASPECT_RATIO
+    # Cache the result
+    _image_dimensions_cache[url] = aspect_ratio
 
-            content_type = head_response.headers.get("content-type", "")
-            if not content_type.startswith("image/"):
-                logger.warning(f"URL does not appear to be an image (content-type: {content_type}): {url}")
-                return DEFAULT_ASPECT_RATIO
-
-            # Try getting dimensions from URL parameters (common in image services)
-            url_dimensions = _extract_dimensions_from_url(url)
-            if url_dimensions:
-                width, height = url_dimensions
-                aspect_ratio = width / height
-                _image_dimensions_cache[url] = aspect_ratio
-                return aspect_ratio
-
-            # For some common image formats, we can fetch just the header bytes
-            # This could be expanded to support more formats
-            if content_type in ("image/jpeg", "image/png", "image/gif", "image/webp"):
-                # Get just enough bytes to determine dimensions (varies by format)
-                # For most formats, 64KB should be sufficient
-                chunk_size = 65536  # 64KB
-                with requests.get(url, stream=True, timeout=5) as response:
-                    if response.status_code == 200:
-                        response.raw.read(chunk_size)
-                        # Here we could add format-specific dimension extraction
-                        # But it's complex and beyond the scope of this fix
-                        # For now, we'll use DEFAULT_ASPECT_RATIO
-
-            # If we reached here, we couldn't determine dimensions precisely
-            logger.debug(f"Could not determine image dimensions for {url}, using default aspect ratio")
-            return DEFAULT_ASPECT_RATIO
-
-        except Exception as e:
-            logger.warning(f"Error getting image dimensions for {url}: {e}")
-            return DEFAULT_ASPECT_RATIO
-
-    # If we reached here, return the default aspect ratio
-    return DEFAULT_ASPECT_RATIO
+    return aspect_ratio
 
 
-def _extract_dimensions_from_data_url(url: str) -> tuple[int, int] | None:
-    """Extract dimensions from a data URL if present."""
-    if url.startswith("data:") and "width=" in url and "height=" in url:
-        width_match = re.search(r"width=(\d+)", url)
-        height_match = re.search(r"height=(\d+)", url)
-        if width_match and height_match:
-            try:
-                width = int(width_match.group(1))
-                height = int(height_match.group(1))
-                if width > 0 and height > 0:
-                    return (width, height)
-            except ValueError:
-                pass
-    return None
-
-
-def _extract_dimensions_from_url(url: str) -> tuple[int, int] | None:
+def _extract_aspect_ratio_from_url(url: str) -> float | None:
     """
-    Extract image dimensions from URL parameters (common in image services).
+    Try to extract aspect ratio from URL patterns.
 
-    Handles patterns like:
-    - example.com/image.jpg?width=800&height=600
+    Looks for patterns like:
     - example.com/800x600/image.jpg
-    - example.com/w=800&h=600/image.jpg
+    - example.com/image.jpg?width=800&height=600
+    - data:image/jpeg;width=800;height=600;base64,...
+
+    Args:
+        url: Image URL to analyze
+
+    Returns:
+        Aspect ratio if found, None otherwise
     """
-    # Pattern 1: width and height as query parameters
-    parsed_url = urlparse(url)
-    query_params = dict(param.split("=") for param in parsed_url.query.split("&") if "=" in param)
+    import re
+    from urllib.parse import parse_qs, urlparse
 
-    # Check for width/height, w/h, or size parameters
-    if "width" in query_params and "height" in query_params:
-        try:
-            width = int(query_params["width"])
-            height = int(query_params["height"])
-            if width > 0 and height > 0:
-                return (width, height)
-        except ValueError:
-            pass
-
-    if "w" in query_params and "h" in query_params:
-        try:
-            width = int(query_params["w"])
-            height = int(query_params["h"])
-            if width > 0 and height > 0:
-                return (width, height)
-        except ValueError:
-            pass
-
-    # Pattern 2: dimensions in path like 800x600
+    # Pattern 1: Dimensions in path like 800x600
     dimension_pattern = r"/(\d+)x(\d+)/"
     match = re.search(dimension_pattern, url)
     if match:
@@ -205,11 +148,46 @@ def _extract_dimensions_from_url(url: str) -> tuple[int, int] | None:
             width = int(match.group(1))
             height = int(match.group(2))
             if width > 0 and height > 0:
-                return (width, height)
+                return width / height
         except ValueError:
             pass
 
-    # Pattern 3: width and height in filename
+    # Pattern 2: Query parameters
+    try:
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+
+        width = None
+        height = None
+
+        # Check various parameter names
+        if "width" in query_params and "height" in query_params:
+            width = int(query_params["width"][0])
+            height = int(query_params["height"][0])
+        elif "w" in query_params and "h" in query_params:
+            width = int(query_params["w"][0])
+            height = int(query_params["h"][0])
+
+        if width and height and width > 0 and height > 0:
+            return width / height
+
+    except (ValueError, IndexError):
+        pass
+
+    # Pattern 3: Data URL with dimensions
+    if url.startswith("data:"):
+        width_match = re.search(r"width=(\d+)", url)
+        height_match = re.search(r"height=(\d+)", url)
+        if width_match and height_match:
+            try:
+                width = int(width_match.group(1))
+                height = int(height_match.group(1))
+                if width > 0 and height > 0:
+                    return width / height
+            except ValueError:
+                pass
+
+    # Pattern 4: Filename with dimensions
     filename_pattern = r"_(\d+)x(\d+)\.(jpg|jpeg|png|gif|webp)$"
     match = re.search(filename_pattern, url, re.IGNORECASE)
     if match:
@@ -217,8 +195,79 @@ def _extract_dimensions_from_url(url: str) -> tuple[int, int] | None:
             width = int(match.group(1))
             height = int(match.group(2))
             if width > 0 and height > 0:
-                return (width, height)
+                return width / height
         except ValueError:
             pass
 
     return None
+
+
+def calculate_image_display_size(
+    element: ImageElement | dict,
+    available_width: float,
+    available_height: float = 0,
+) -> tuple[float, float]:
+    """
+    Calculate the display size (width, height) for an image element.
+
+    Args:
+        element: The image element
+        available_width: Available width
+        available_height: Available height constraint
+
+    Returns:
+        (display_width, display_height) tuple
+    """
+    image_element = (
+        cast(ImageElement, element)
+        if isinstance(element, ImageElement)
+        else ImageElement(**element)
+    )
+
+    # Check for explicit width directive
+    display_width = available_width
+    if hasattr(image_element, "directives") and image_element.directives:
+        width_directive = image_element.directives.get("width")
+        if width_directive is not None:
+            try:
+                if isinstance(width_directive, float) and 0 < width_directive <= 1:
+                    display_width = available_width * width_directive
+                elif isinstance(width_directive, int | float) and width_directive > 1:
+                    display_width = min(float(width_directive), available_width)
+            except (ValueError, TypeError):
+                pass
+
+    # Calculate height based on the display width
+    display_height = calculate_image_element_height(
+        image_element, display_width, available_height
+    )
+
+    return (display_width, display_height)
+
+
+def estimate_image_loading_impact(image_url: str) -> str:
+    """
+    Estimate the loading impact of an image based on its URL.
+
+    Args:
+        image_url: URL of the image
+
+    Returns:
+        Impact classification: "low", "medium", "high"
+    """
+    if not image_url:
+        return "low"
+
+    url_lower = image_url.lower()
+
+    # Data URLs are embedded, so no loading impact
+    if url_lower.startswith("data:"):
+        return "low"
+
+    # Large image file extensions might have higher impact
+    if any(ext in url_lower for ext in [".png", ".tiff", ".bmp"]):
+        return "high"
+    if any(ext in url_lower for ext in [".jpg", ".jpeg", ".webp"]):
+        return "medium"
+
+    return "medium"  # Default assumption

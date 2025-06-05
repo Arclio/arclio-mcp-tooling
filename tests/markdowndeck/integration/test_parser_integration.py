@@ -58,17 +58,13 @@ Paragraph Two, after a directive line."""
         assert element.directives["fontsize"] == 12.0
 
         # Should have bold formatting for "Paragraph One."
-        bold_formats = [
-            f for f in element.formatting if f.format_type == TextFormatType.BOLD
-        ]
+        bold_formats = [f for f in element.formatting if f.format_type == TextFormatType.BOLD]
         assert len(bold_formats) == 1
         assert bold_formats[0].start == 0
         assert bold_formats[0].end == 14  # Length of "Paragraph One."
 
         # Element should be part of slide elements
-        slide_text_elements = [
-            e for e in slide.elements if e.element_type == ElementType.TEXT
-        ]
+        slide_text_elements = [e for e in slide.elements if e.element_type == ElementType.TEXT]
         assert len(slide_text_elements) == 1
 
     def test_content_after_heading_and_directives_A2(self, parser: Parser):
@@ -88,20 +84,14 @@ Bolded **Text 1**.
 
         # Find the sub heading
         sub_heading = next(e for e in section.elements if e.text == "Sub Heading")
-        assert (
-            sub_heading.element_type == ElementType.TEXT
-        )  # Section heading becomes TEXT
+        assert sub_heading.element_type == ElementType.TEXT  # Section heading becomes TEXT
 
         # Default heading directives
         assert sub_heading.directives["fontsize"] == 18
         assert sub_heading.directives["margin_bottom"] == 10
 
         # Find the text element with combined content
-        text_elements = [
-            e
-            for e in section.elements
-            if e.element_type == ElementType.TEXT and "Text" in e.text
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT and "Text" in e.text]
         assert len(text_elements) == 1
 
         elem = text_elements[0]
@@ -111,12 +101,8 @@ Bolded **Text 1**.
         assert elem.directives["fontsize"] == 10
 
         # Should have both bold and italic formatting
-        bold_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.BOLD
-        ]
-        italic_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.ITALIC
-        ]
+        bold_formats = [f for f in elem.formatting if f.format_type == TextFormatType.BOLD]
+        italic_formats = [f for f in elem.formatting if f.format_type == TextFormatType.ITALIC]
 
         assert len(bold_formats) == 1
         assert len(italic_formats) == 1
@@ -158,9 +144,7 @@ Another line: `[directive_in_code]` and `[another=val]`."""
         section = slide.sections[0]
 
         # Should have one text element
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         assert len(text_elements) == 1
 
         elem = text_elements[0]
@@ -174,12 +158,8 @@ Another line: `[directive_in_code]` and `[another=val]`."""
         assert border_info["style"] == "solid"
 
         # Check formatting - should have code spans and bold
-        code_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.CODE
-        ]
-        bold_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.BOLD
-        ]
+        code_formats = [f for f in elem.formatting if f.format_type == TextFormatType.CODE]
+        bold_formats = [f for f in elem.formatting if f.format_type == TextFormatType.BOLD]
 
         assert len(code_formats) >= 2  # At least 2 code spans
         assert len(bold_formats) == 1  # One bold span
@@ -201,9 +181,7 @@ Another line: `[directive_in_code]` and `[another=val]`."""
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         assert len(text_elements) == 1
 
         elem = text_elements[0]
@@ -222,9 +200,7 @@ This text is justified Arial."""
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         assert len(text_elements) == 1
 
         elem = text_elements[0]
@@ -243,17 +219,11 @@ This text is justified Arial."""
         section = slide.sections[0]
 
         # Should only have a list element, no text element for the directive line
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
-        list_elements = [
-            e for e in section.elements if e.element_type == ElementType.BULLET_LIST
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
+        list_elements = [e for e in section.elements if e.element_type == ElementType.BULLET_LIST]
 
         # No spurious text elements
-        directive_text_elements = [
-            e for e in text_elements if "[align=center]" in e.text
-        ]
+        directive_text_elements = [e for e in text_elements if "[align=center]" in e.text]
         assert len(directive_text_elements) == 0
 
         # List should have the directive
@@ -278,9 +248,7 @@ This text is justified Arial."""
         section = slide.sections[0]
 
         # Should have a table element
-        table_elements = [
-            e for e in section.elements if e.element_type == ElementType.TABLE
-        ]
+        table_elements = [e for e in section.elements if e.element_type == ElementType.TABLE]
         assert len(table_elements) == 1
 
         table_elem = table_elements[0]
@@ -289,9 +257,7 @@ This text is justified Arial."""
 
         # No separate text element for the directive line
         directive_text_elements = [
-            e
-            for e in section.elements
-            if e.element_type == ElementType.TEXT and "cell-align" in e.text
+            e for e in section.elements if e.element_type == ElementType.TEXT and "cell-align" in e.text
         ]
         assert len(directive_text_elements) == 0
 
@@ -312,9 +278,7 @@ print("Hello")
         section = slide.sections[0]
 
         # Should have a code element
-        code_elements = [
-            e for e in section.elements if e.element_type == ElementType.CODE
-        ]
+        code_elements = [e for e in section.elements if e.element_type == ElementType.CODE]
         assert len(code_elements) == 1
 
         code_elem = code_elements[0]
@@ -325,9 +289,7 @@ print("Hello")
 
         # No separate text element for the directive line
         directive_text_elements = [
-            e
-            for e in section.elements
-            if e.element_type == ElementType.TEXT and "background" in e.text
+            e for e in section.elements if e.element_type == ElementType.TEXT and "background" in e.text
         ]
         assert len(directive_text_elements) == 0
 
@@ -351,9 +313,7 @@ Some content here."""
         assert slide.title == "My Centered Title"
 
         # Find title element
-        title_elements = [
-            e for e in slide.elements if e.element_type == ElementType.TITLE
-        ]
+        title_elements = [e for e in slide.elements if e.element_type == ElementType.TITLE]
         assert len(title_elements) == 1
 
         title_elem = title_elements[0]
@@ -373,9 +333,7 @@ Content here."""
 
         assert slide.title == "Spaced Title"
 
-        title_elements = [
-            e for e in slide.elements if e.element_type == ElementType.TITLE
-        ]
+        title_elements = [e for e in slide.elements if e.element_type == ElementType.TITLE]
         assert len(title_elements) == 1
 
         title_elem = title_elements[0]
@@ -397,9 +355,7 @@ Some content."""
         assert slide.title == "Indented Title"
 
         # Content should not contain the title line
-        text_elements = [
-            e for e in slide.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in slide.elements if e.element_type == ElementType.TEXT]
         content_text = " ".join(e.text for e in text_elements)
         assert "Indented Title" not in content_text
         assert "Some content." in content_text
@@ -426,18 +382,14 @@ Hello
         # First slide
         slide1 = deck.slides[0]
         assert slide1.title == "Slide 1"
-        code_elements_1 = [
-            e for e in slide1.elements if e.element_type == ElementType.CODE
-        ]
+        code_elements_1 = [e for e in slide1.elements if e.element_type == ElementType.CODE]
         assert len(code_elements_1) == 1
         assert code_elements_1[0].language == "json"
 
         # Second slide
         slide2 = deck.slides[1]
         assert slide2.title == "Slide 2"
-        code_elements_2 = [
-            e for e in slide2.elements if e.element_type == ElementType.CODE
-        ]
+        code_elements_2 = [e for e in slide2.elements if e.element_type == ElementType.CODE]
         assert len(code_elements_2) == 1
         assert code_elements_2[0].language == "text"
 
@@ -454,9 +406,7 @@ Hello
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         assert len(text_elements) == 1
 
         elem = text_elements[0]
@@ -476,9 +426,7 @@ Hello
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         color = elem.directives["color"]
         assert color["type"] == "hsla"
@@ -496,9 +444,7 @@ Hello
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         bg = elem.directives["background"]
         assert "gradient" in bg["type"] or bg["type"] == "linear"
@@ -513,9 +459,7 @@ Hello
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         assert elem.directives["padding"] == 1.5
         assert elem.directives["margin"] == 10
@@ -529,9 +473,7 @@ Hello
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         border = elem.directives["border"]
         assert border["width"] == "2pt"
@@ -552,9 +494,7 @@ This is text [not_a_directive] and more text."""
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         assert elem.text == "This is text [not_a_directive] and more text."
         assert "not_a_directive" not in elem.directives
@@ -568,16 +508,12 @@ Code: `[this_is_code=true]` and `[another_code]`"""
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         assert elem.text == "Code: [this_is_code=true] and [another_code]"
 
         # Should have code formatting
-        code_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.CODE
-        ]
+        code_formats = [f for f in elem.formatting if f.format_type == TextFormatType.CODE]
         assert len(code_formats) == 2
 
         # Should NOT parse as directives
@@ -593,15 +529,11 @@ Code: `[this_is_code=true]` and `[another_code]`"""
         slide = deck.slides[0]
         section = slide.sections[0]
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         elem = text_elements[0]
         assert "[start_code] text [end_code]" in elem.text
 
-        code_formats = [
-            f for f in elem.formatting if f.format_type == TextFormatType.CODE
-        ]
+        code_formats = [f for f in elem.formatting if f.format_type == TextFormatType.CODE]
         assert len(code_formats) == 2
 
         assert "start_code" not in elem.directives
@@ -627,9 +559,7 @@ This is blue, size 12, and Arial."""
         assert section.directives["color"]["value"] == "blue"
         assert section.directives["fontsize"] == 10
 
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         # Should have one combined text element (markdown parsing combines without blank lines)
         assert len(text_elements) == 1
 
@@ -690,8 +620,6 @@ Regular content."""
         section = slide.sections[0]
 
         # Should only have the regular content, not the spaces
-        text_elements = [
-            e for e in section.elements if e.element_type == ElementType.TEXT
-        ]
+        text_elements = [e for e in section.elements if e.element_type == ElementType.TEXT]
         assert len(text_elements) == 1
         assert text_elements[0].text == "Regular content."

@@ -30,9 +30,7 @@ class TestSheetsServiceSheetOperations:
             ]
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.add_sheet(spreadsheet_id, title)
@@ -57,9 +55,7 @@ class TestSheetsServiceSheetOperations:
         title = "New Sheet"
         mock_response = {}  # No replies
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.add_sheet(spreadsheet_id, title)
@@ -77,9 +73,7 @@ class TestSheetsServiceSheetOperations:
         title = "New Sheet"
         mock_response = {"replies": [{"someOtherReply": {}}]}
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.add_sheet(spreadsheet_id, title)
@@ -99,9 +93,7 @@ class TestSheetsServiceSheetOperations:
             content=b'{"error": {"message": "Invalid spreadsheet ID"}}',
         )
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = http_error
         mock_sheets_service.handle_api_error = Mock(
             return_value={
                 "error": True,
@@ -117,9 +109,7 @@ class TestSheetsServiceSheetOperations:
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "http_error"
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "add_sheet", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("add_sheet", http_error)
 
     def test_add_sheet_unexpected_error(self, mock_sheets_service):
         """Test add_sheet with unexpected error."""
@@ -150,9 +140,7 @@ class TestSheetsServiceSheetOperations:
             "replies": [{}],  # deleteSheet typically returns empty reply
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.delete_sheet(spreadsheet_id, sheet_id)
@@ -179,9 +167,7 @@ class TestSheetsServiceSheetOperations:
             content=b'{"error": {"message": "Sheet not found"}}',
         )
 
-        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_sheets_service.service.spreadsheets.return_value.batchUpdate.return_value.execute.side_effect = http_error
         mock_sheets_service.handle_api_error = Mock(
             return_value={
                 "error": True,
@@ -197,9 +183,7 @@ class TestSheetsServiceSheetOperations:
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "http_error"
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "delete_sheet", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("delete_sheet", http_error)
 
     def test_delete_sheet_unexpected_error(self, mock_sheets_service):
         """Test delete_sheet with unexpected error."""

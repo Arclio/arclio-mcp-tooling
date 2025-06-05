@@ -316,9 +316,7 @@ Col 2
 
         # Only separators
         sections_sep = parser.parse_sections("---\n***\n---")
-        assert (
-            len(sections_sep) == 0
-        )  # Content with only separators produces no sections
+        assert len(sections_sep) == 0  # Content with only separators produces no sections
 
     def test_content_with_only_separators(self, parser: SectionParser):
         """Test content containing only separator patterns."""

@@ -1,95 +1,238 @@
-"""Table element metrics for layout calculations."""
+"""Pure table element metrics for layout calculations - Content-aware height calculation."""
 
 import logging
 from typing import cast
 
-from markdowndeck.layout.metrics.text import (
-    calculate_text_element_height,
-)  # Use the refined text height calculator
-from markdowndeck.models import (
-    ElementType,
-    TableElement,
-    TextElement,
-)  # For cell height calculation
+from markdowndeck.layout.constants import (
+    # Minimum dimensions
+    MIN_TABLE_HEIGHT,
+    TABLE_CELL_PADDING,
+    TABLE_HEADER_HEIGHT,
+    TABLE_PADDING,
+    # Table specific constants
+    TABLE_ROW_HEIGHT,
+)
+from markdowndeck.layout.metrics.text import calculate_text_element_height
+from markdowndeck.models import ElementType, TableElement, TextElement
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_table_element_height(element: TableElement | dict, available_width: float) -> float:
+def calculate_table_element_height(
+    element: TableElement | dict, available_width: float
+) -> float:
     """
-    Calculate the height needed for a table element.
+    Calculate the pure intrinsic height needed for a table element based on its content.
+
+    This is a pure measurement function that returns the actual height required
+    to render the complete table with all rows and columns at the given width.
 
     Args:
-        element: The table element or dict.
-        available_width: Available width for the table.
+        element: The table element to measure
+        available_width: Available width for the table
 
     Returns:
-        Calculated height in points.
+        The intrinsic height in points required to render the complete table
     """
-    table_element = cast(TableElement, element) if isinstance(element, TableElement) else TableElement(**element)
+    table_element = (
+        cast(TableElement, element)
+        if isinstance(element, TableElement)
+        else TableElement(**element)
+    )
 
     if not table_element.rows and not table_element.headers:
-        return 30  # Min height for an empty table shell
+        return MIN_TABLE_HEIGHT
 
+    # Determine number of columns
     num_cols = table_element.get_column_count()
     if num_cols == 0:
-        return 30
+        return MIN_TABLE_HEIGHT
 
-    # OPTIMIZED: More efficient use of space for tables
-    # Use more of the available width and reduce spacing
-    effective_table_width = max(20.0, available_width - 8.0)  # Reduced from 10.0
-    col_width_estimate = effective_table_width / num_cols
-    # OPTIMIZED: Reduced minimum cell height
-    min_cell_height = 18.0  # Reduced from 20.0
-    # OPTIMIZED: Reduced cell padding
-    cell_vertical_padding = 3.0  # Reduced from 5.0
+    # Calculate column widths (equal distribution)
+    table_border_space = 4.0  # Space for table borders
+    effective_table_width = max(20.0, available_width - table_border_space)
+    col_width = effective_table_width / num_cols
 
     total_height = 0.0
 
-    # Calculate header height
+    # Calculate header height if headers exist
     if table_element.headers:
-        max_header_cell_content_height = 0
-        for header_text in table_element.headers:
-            # Create a temporary TextElement for height calculation
-            temp_text_el = TextElement(element_type=ElementType.TEXT, text=str(header_text))
-            cell_content_height = calculate_text_element_height(temp_text_el, col_width_estimate)
-            max_header_cell_content_height = max(max_header_cell_content_height, cell_content_height)
-        total_height += max(min_cell_height, max_header_cell_content_height + cell_vertical_padding)
+        header_height = _calculate_row_height(
+            table_element.headers, col_width, is_header=True
+        )
+        total_height += header_height
+        logger.debug(f"Header row height: {header_height:.1f}")
 
-    # Calculate height for data rows
-    for row_data in table_element.rows:
-        max_row_cell_content_height = 0
-        for cell_text in row_data:
-            temp_text_el = TextElement(element_type=ElementType.TEXT, text=str(cell_text))
-            cell_content_height = calculate_text_element_height(temp_text_el, col_width_estimate)
-            max_row_cell_content_height = max(max_row_cell_content_height, cell_content_height)
-        total_height += max(min_cell_height, max_row_cell_content_height + cell_vertical_padding)
+    # Calculate data rows height
+    for i, row_data in enumerate(table_element.rows):
+        row_height = _calculate_row_height(row_data, col_width, is_header=False)
+        total_height += row_height
+        logger.debug(f"Data row {i} height: {row_height:.1f}")
 
-    # OPTIMIZED: Reduced table padding/borders
-    total_height += 8.0  # Reduced from 10.0
+    # Add table padding
+    total_height += TABLE_PADDING * 2  # Top and bottom padding
 
-    # OPTIMIZED: Reduced minimum height for tables
-    final_height = max(total_height, 35.0)  # Reduced from 40.0
-    logger.debug(f"Table calculated height: {final_height:.2f} for width {available_width:.2f}")
+    # Apply minimum height
+    final_height = max(total_height, MIN_TABLE_HEIGHT)
+
+    logger.debug(
+        f"Table height calculation: cols={num_cols}, "
+        f"header_rows={1 if table_element.headers else 0}, "
+        f"data_rows={len(table_element.rows)}, "
+        f"width={available_width:.1f}, final_height={final_height:.1f}"
+    )
+
     return final_height
 
 
-# estimate_table_columns_width might be useful later for more sophisticated layout
-# but for height calculation, a simple average is often used as a first pass.
-def estimate_table_columns_width(col_count: int, available_width: float, has_header: bool = False) -> list[float]:
+def _calculate_row_height(
+    row_data: list, col_width: float, is_header: bool = False
+) -> float:
     """
-    Estimate the width for each column in a table. (Kept for potential future use)
+    Calculate the height required for a single table row.
+
+    Args:
+        row_data: List of cell contents for this row
+        col_width: Width available for each column
+        is_header: Whether this is a header row
+
+    Returns:
+        Height needed for this row
     """
-    if col_count <= 0:
+    if not row_data:
+        return TABLE_HEADER_HEIGHT if is_header else TABLE_ROW_HEIGHT
+
+    # Calculate cell content width (subtract cell padding)
+    cell_content_width = max(10.0, col_width - (TABLE_CELL_PADDING * 2))
+
+    # Find the tallest cell in this row
+    max_cell_height = 0.0
+
+    for cell_content in row_data:
+        cell_text = str(cell_content) if cell_content is not None else ""
+
+        if cell_text.strip():
+            # Use text metrics to calculate cell content height
+            temp_text_element = TextElement(
+                element_type=ElementType.TEXT, text=cell_text
+            )
+            cell_content_height = calculate_text_element_height(
+                temp_text_element, cell_content_width
+            )
+        else:
+            # Empty cell still needs minimum height
+            cell_content_height = 16.0
+
+        # Add cell padding to content height
+        total_cell_height = cell_content_height + (TABLE_CELL_PADDING * 2)
+        max_cell_height = max(max_cell_height, total_cell_height)
+
+    # Apply minimum row height
+    min_row_height = TABLE_HEADER_HEIGHT if is_header else TABLE_ROW_HEIGHT
+    return max(max_cell_height, min_row_height)
+
+
+def calculate_table_column_widths(
+    available_width: float, num_columns: int
+) -> list[float]:
+    """
+    Calculate equal-width columns for a table.
+
+    Args:
+        available_width: Total available width for the table
+        num_columns: Number of columns in the table
+
+    Returns:
+        List of column widths
+    """
+    if num_columns <= 0:
         return []
-    # OPTIMIZED: Reduce border allowance to gain more usable width
-    col_width = (available_width - 8) / col_count  # Reduced from 10
-    if has_header and col_count > 1:
-        widths = [col_width] * col_count
-        # OPTIMIZED: More balanced column proportions
-        widths[0] = col_width * 1.15  # Reduced from 1.2
-        reduction = (widths[0] - col_width) / max(1, (col_count - 1))  # Avoid division by zero if col_count is 1
-        for i in range(1, col_count):
-            widths[i] -= reduction
-        return [max(10.0, w) for w in widths]  # Ensure minimum width
-    return [max(10.0, col_width)] * col_count
+
+    # Reserve space for table borders and spacing
+    table_border_space = 4.0
+    effective_width = max(20.0, available_width - table_border_space)
+
+    # Equal distribution
+    col_width = effective_width / num_columns
+    min_col_width = 20.0  # Minimum readable column width
+
+    actual_col_width = max(col_width, min_col_width)
+
+    return [actual_col_width] * num_columns
+
+
+def estimate_table_content_density(table_element: TableElement | dict) -> str:
+    """
+    Estimate the content density of a table (light, medium, heavy).
+
+    Args:
+        table_element: The table element to analyze
+
+    Returns:
+        Content density classification
+    """
+    if isinstance(table_element, dict):
+        headers = table_element.get("headers", [])
+        rows = table_element.get("rows", [])
+    else:
+        headers = getattr(table_element, "headers", [])
+        rows = getattr(table_element, "rows", [])
+
+    total_cells = len(headers) + sum(len(row) for row in rows)
+    if total_cells == 0:
+        return "light"
+
+    # Calculate average cell content length
+    total_content_length = 0
+    cell_count = 0
+
+    for header in headers:
+        total_content_length += len(str(header))
+        cell_count += 1
+
+    for row in rows:
+        for cell in row:
+            total_content_length += len(str(cell) if cell is not None else "")
+            cell_count += 1
+
+    if cell_count == 0:
+        return "light"
+
+    avg_content_length = total_content_length / cell_count
+
+    if avg_content_length < 10:
+        return "light"
+    if avg_content_length < 30:
+        return "medium"
+    return "heavy"
+
+
+def get_table_dimensions(table_element: TableElement | dict) -> tuple[int, int]:
+    """
+    Get the dimensions (rows, columns) of a table.
+
+    Args:
+        table_element: The table element to analyze
+
+    Returns:
+        (number_of_rows, number_of_columns)
+    """
+    if isinstance(table_element, dict):
+        headers = table_element.get("headers", [])
+        rows = table_element.get("rows", [])
+    else:
+        headers = getattr(table_element, "headers", [])
+        rows = getattr(table_element, "rows", [])
+
+    # Count columns
+    num_cols = len(headers) if headers else 0
+    if rows:
+        max_row_cols = max(len(row) for row in rows)
+        num_cols = max(num_cols, max_row_cols)
+
+    # Count rows (headers count as one row if present)
+    num_rows = len(rows)
+    if headers:
+        num_rows += 1
+
+    return (num_rows, num_cols)

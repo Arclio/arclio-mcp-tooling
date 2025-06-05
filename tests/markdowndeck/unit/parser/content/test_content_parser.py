@@ -48,9 +48,7 @@ class TestContentParser:
             "color": {"type": "named", "value": "blue"},
         }
 
-        elements = parser.parse_content(
-            slide_title, sections, slide_footer, title_directives
-        )
+        elements = parser.parse_content(slide_title, sections, slide_footer, title_directives)
 
         assert len(elements) == 2  # Title and footer
 
@@ -127,9 +125,7 @@ class TestContentParser:
         assert subsection1.elements[0].text == "Left content"
         assert subsection2.elements[0].text == "Right content"
 
-    def test_extract_preceding_directives_with_directive_paragraph(
-        self, parser: ContentParser
-    ):
+    def test_extract_preceding_directives_with_directive_paragraph(self, parser: ContentParser):
         """Test extraction of preceding directives from directive-only paragraphs."""
         # Create tokens for: [align=center]\n- List item
         tokens = parser.md.parse("[align=center]\n- List item")
@@ -157,9 +153,7 @@ class TestContentParser:
         heading_info = parser._analyze_headings(tokens)
 
         # Find heading token indices
-        heading_indices = [
-            i for i, token in enumerate(tokens) if token.type == "heading_open"
-        ]
+        heading_indices = [i for i, token in enumerate(tokens) if token.type == "heading_open"]
         assert len(heading_indices) == 4
 
         # Check classifications
@@ -220,9 +214,7 @@ class TestContentParser:
         elements = parser._process_tokens_with_directive_detection(tokens, {})
 
         # Should have only a list element
-        list_elements = [
-            e for e in elements if e.element_type == ElementType.BULLET_LIST
-        ]
+        list_elements = [e for e in elements if e.element_type == ElementType.BULLET_LIST]
         text_elements = [e for e in elements if e.element_type == ElementType.TEXT]
 
         assert len(list_elements) == 1
@@ -299,12 +291,8 @@ This is blue text.
         assert len(section_elements) >= 4  # Text, heading, text, list
 
         # Check element types and directives
-        text_elements = [
-            e for e in section_elements if e.element_type == ElementType.TEXT
-        ]
-        list_elements = [
-            e for e in section_elements if e.element_type == ElementType.BULLET_LIST
-        ]
+        text_elements = [e for e in section_elements if e.element_type == ElementType.TEXT]
+        list_elements = [e for e in section_elements if e.element_type == ElementType.BULLET_LIST]
 
         # First text element should have section + element directives
         first_text = next(e for e in text_elements if "blue text" in e.text)

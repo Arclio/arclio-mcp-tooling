@@ -18,9 +18,7 @@ class TestDriveWriteOperations:
     @patch("builtins.open", new_callable=mock_open)
     @patch("mimetypes.guess_type")
     @patch("os.path.exists")
-    def test_upload_file_success(
-        self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service
-    ):
+    def test_upload_file_success(self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service):
         """Test successful file upload."""
         # Setup mocks
         file_path = "/fake/path/file.txt"
@@ -33,9 +31,7 @@ class TestDriveWriteOperations:
             "name": "file.txt",
             "mimeType": "text/plain",
         }
-        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = (
-            mock_file_metadata
-        )
+        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = mock_file_metadata
 
         # Call the method
         result = mock_drive_service.upload_file(file_path)
@@ -85,9 +81,7 @@ class TestDriveWriteOperations:
     @patch("builtins.open", new_callable=mock_open)
     @patch("mimetypes.guess_type")
     @patch("os.path.exists")
-    def test_upload_file_unknown_mime_type(
-        self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service
-    ):
+    def test_upload_file_unknown_mime_type(self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service):
         """Test upload_file with unknown MIME type."""
         # Setup mocks
         file_path = "/fake/path/unknown.bin"
@@ -100,9 +94,7 @@ class TestDriveWriteOperations:
             "name": "unknown.bin",
             "mimeType": "application/octet-stream",
         }
-        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = (
-            mock_file_metadata
-        )
+        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = mock_file_metadata
 
         # Call the method
         result = mock_drive_service.upload_file(file_path)
@@ -123,9 +115,7 @@ class TestDriveWriteOperations:
     @patch("builtins.open", new_callable=mock_open)
     @patch("mimetypes.guess_type")
     @patch("os.path.exists")
-    def test_upload_file_api_error(
-        self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service
-    ):
+    def test_upload_file_api_error(self, mock_exists, mock_guess_type, mock_open_func, mock_drive_service):
         """Test upload_file when API call fails."""
         # Setup mocks
         file_path = "/fake/path/file.txt"
@@ -136,14 +126,10 @@ class TestDriveWriteOperations:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Permission Denied"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Insufficient permissions"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Insufficient permissions"}}')
 
         # Setup the create().execute() mock to raise the error
-        mock_drive_service.service.files.return_value.create.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_drive_service.service.files.return_value.create.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error_return = {
@@ -153,9 +139,7 @@ class TestDriveWriteOperations:
             "message": "Insufficient permissions",
             "operation": "upload_file",
         }
-        mock_drive_service.handle_api_error = MagicMock(
-            return_value=expected_error_return
-        )
+        mock_drive_service.handle_api_error = MagicMock(return_value=expected_error_return)
 
         # Call the method
         result = mock_drive_service.upload_file(file_path)
@@ -173,9 +157,7 @@ class TestDriveWriteOperations:
         mock_drive_service.service.files.return_value.create.return_value.execute.assert_called_once()
 
         # Verify error handling was called correctly
-        mock_drive_service.handle_api_error.assert_called_once_with(
-            "upload_file", http_error
-        )
+        mock_drive_service.handle_api_error.assert_called_once_with("upload_file", http_error)
         # Verify the final result is what handle_api_error returned
         assert result == expected_error_return
 
@@ -193,9 +175,7 @@ class TestDriveWriteOperations:
         result = mock_drive_service.delete_file(file_id)
 
         # Verify API call
-        mock_drive_service.service.files.return_value.delete.assert_called_once_with(
-            fileId=file_id
-        )
+        mock_drive_service.service.files.return_value.delete.assert_called_once_with(fileId=file_id)
 
         # Verify result
         assert result["success"] is True
@@ -213,9 +193,7 @@ class TestDriveWriteOperations:
         http_error = HttpError(mock_resp, b'{"error": {"message": "File not found"}}')
 
         # Setup the mock to raise the error
-        mock_drive_service.service.files.return_value.delete.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_drive_service.service.files.return_value.delete.return_value.execute.side_effect = http_error
 
         # Mock error handling
         expected_error = {
@@ -231,9 +209,7 @@ class TestDriveWriteOperations:
         result = mock_drive_service.delete_file(file_id)
 
         # Verify error handling
-        mock_drive_service.handle_api_error.assert_called_once_with(
-            "delete_file", http_error
-        )
+        mock_drive_service.handle_api_error.assert_called_once_with("delete_file", http_error)
         assert result == expected_error
 
     def test_delete_file_empty_id(self, mock_drive_service):

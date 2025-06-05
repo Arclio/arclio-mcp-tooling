@@ -118,23 +118,17 @@ class TestSheetsWriteRange:
             "message": "Invalid range",
             "operation": "write_range",
         }
-        mock_sheets_service.handle_api_error = MagicMock(
-            return_value=expected_error_response
-        )
+        mock_sheets_service.handle_api_error = MagicMock(return_value=expected_error_response)
 
         # Execute
-        result = mock_sheets_service.write_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values
-        )
+        result = mock_sheets_service.write_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values)
 
         # Assertions
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "invalid_range"
         assert "Invalid range" in result["message"]
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "write_range", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("write_range", http_error)
 
     def test_write_range_empty_values(self, mock_sheets_service):
         """Test write range with empty values list."""
@@ -156,9 +150,7 @@ class TestSheetsWriteRange:
         )
 
         # Execute
-        result = mock_sheets_service.write_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values
-        )
+        result = mock_sheets_service.write_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values)
 
         # Should still succeed with empty values
         assert result is not None
@@ -268,9 +260,7 @@ class TestSheetsAppendRows:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Permission denied"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Permission denied"}}')
 
         # Setup the mock to raise the error
         mock_sheets_service.service.spreadsheets.return_value.values.return_value.append.return_value.execute.side_effect = (
@@ -284,22 +274,16 @@ class TestSheetsAppendRows:
             "message": "Permission denied",
             "operation": "append_rows",
         }
-        mock_sheets_service.handle_api_error = MagicMock(
-            return_value=expected_error_response
-        )
+        mock_sheets_service.handle_api_error = MagicMock(return_value=expected_error_response)
 
         # Execute
-        result = mock_sheets_service.append_rows(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values
-        )
+        result = mock_sheets_service.append_rows(spreadsheet_id=spreadsheet_id, range_a1=range_a1, values=values)
 
         # Assertions
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "permission_denied"
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "append_rows", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("append_rows", http_error)
 
 
 class TestSheetsClearRange:
@@ -321,9 +305,7 @@ class TestSheetsClearRange:
         )
 
         # Execute
-        result = mock_sheets_service.clear_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1
-        )
+        result = mock_sheets_service.clear_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
         # Assertions
         assert result is not None
@@ -351,9 +333,7 @@ class TestSheetsClearRange:
         )
 
         # Execute
-        result = mock_sheets_service.clear_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1
-        )
+        result = mock_sheets_service.clear_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
         # Assertions
         assert result is not None
@@ -369,9 +349,7 @@ class TestSheetsClearRange:
         mock_resp = MagicMock()
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Spreadsheet not found"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Spreadsheet not found"}}')
 
         # Setup the mock to raise the error
         mock_sheets_service.service.spreadsheets.return_value.values.return_value.clear.return_value.execute.side_effect = (
@@ -385,22 +363,16 @@ class TestSheetsClearRange:
             "message": "Spreadsheet not found",
             "operation": "clear_range",
         }
-        mock_sheets_service.handle_api_error = MagicMock(
-            return_value=expected_error_response
-        )
+        mock_sheets_service.handle_api_error = MagicMock(return_value=expected_error_response)
 
         # Execute
-        result = mock_sheets_service.clear_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1
-        )
+        result = mock_sheets_service.clear_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
         # Assertions
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "not_found"
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "clear_range", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("clear_range", http_error)
 
     def test_clear_range_unexpected_exception(self, mock_sheets_service):
         """Test clear range with unexpected exception."""
@@ -409,14 +381,12 @@ class TestSheetsClearRange:
         range_a1 = "Sheet1!A1:B2"
 
         # Setup the mock to raise an unexpected exception
-        mock_sheets_service.service.spreadsheets.return_value.values.return_value.clear.return_value.execute.side_effect = ValueError(
-            "Unexpected error"
+        mock_sheets_service.service.spreadsheets.return_value.values.return_value.clear.return_value.execute.side_effect = (
+            ValueError("Unexpected error")
         )
 
         # Execute
-        result = mock_sheets_service.clear_range(
-            spreadsheet_id=spreadsheet_id, range_a1=range_a1
-        )
+        result = mock_sheets_service.clear_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
         # Assertions
         assert result is not None

@@ -1,126 +1,274 @@
-"""Base position calculator class and core functionality."""
+"""Refactored base position calculator - Content-aware layout engine."""
 
 import logging
 from copy import deepcopy
 
-from markdowndeck.layout.calculator.element_layout import (
-    position_footer_element,
-    position_header_elements,
-)
-from markdowndeck.layout.calculator.section_layout import (
-    calculate_section_based_positions,
-)
-from markdowndeck.layout.calculator.zone_layout import (
-    calculate_zone_based_positions,
-)
 from markdowndeck.layout.constants import (
+    BODY_TO_FOOTER_SPACING,
+    CODE_WIDTH_FRACTION,
+    DEFAULT_MARGIN_BOTTOM,
+    DEFAULT_MARGIN_LEFT,
+    DEFAULT_MARGIN_RIGHT,
+    DEFAULT_MARGIN_TOP,
+    DEFAULT_SLIDE_HEIGHT,
+    # Default dimensions
+    DEFAULT_SLIDE_WIDTH,
     FOOTER_HEIGHT,
+    # Zone dimensions
     HEADER_HEIGHT,
-    HORIZONTAL_SPACING,
+    # Inter-zone spacing
+    HEADER_TO_BODY_SPACING,
     IMAGE_WIDTH_FRACTION,
+    LIST_WIDTH_FRACTION,
     QUOTE_WIDTH_FRACTION,
     SUBTITLE_WIDTH_FRACTION,
+    TABLE_WIDTH_FRACTION,
+    # Element proportions
     TITLE_WIDTH_FRACTION,
-    VERTICAL_SPACING,
 )
-from markdowndeck.models import (
-    ElementType,
-    Slide,
-)
+from markdowndeck.models import ElementType, Slide
 
 logger = logging.getLogger(__name__)
 
 
 class PositionCalculator:
-    """Calculates positions for slide elements using a zone-based layout model with a fixed body zone."""
+    """
+    Content-aware layout calculator that follows the Layout Calculation Contract.
 
-    def __init__(self, slide_width: float, slide_height: float, margins: dict[str, float]):
+    This calculator operates on the principle of separating spatial planning from
+    problem-solving. It calculates ideal positions and sizes for all elements
+    and sections based on content, but does not handle overflow or fitting constraints.
+    """
+
+    def __init__(
+        self,
+        slide_width: float = None,
+        slide_height: float = None,
+        margins: dict = None,
+    ):
         """
         Initialize the position calculator with slide dimensions and margins.
 
         Args:
-            slide_width: Width of the slide in points
-            slide_height: Height of the slide in points
+            slide_width: Width of the slide in points (defaults to Google Slides standard)
+            slide_height: Height of the slide in points (defaults to Google Slides standard)
             margins: Dictionary with margin values for top, right, bottom, left
         """
-        # Slide dimensions
-        self.slide_width = slide_width
-        self.slide_height = slide_height
-        self.margins = margins
+        # Use defaults if not provided
+        self.slide_width = slide_width or DEFAULT_SLIDE_WIDTH
+        self.slide_height = slide_height or DEFAULT_SLIDE_HEIGHT
 
-        # Spacing constants
-        self.vertical_spacing = VERTICAL_SPACING
-        self.horizontal_spacing = HORIZONTAL_SPACING
-
-        # Content area dimensions
-        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
-        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
-
-        # Fixed zone dimensions
-        self.HEADER_HEIGHT = HEADER_HEIGHT
-        self.FOOTER_HEIGHT = FOOTER_HEIGHT
-
-        # Calculate fixed body zone dimensions
-        self.body_top = self.margins["top"] + self.HEADER_HEIGHT
-        self.body_left = self.margins["left"]
-        self.body_width = self.max_content_width
-        self.body_height = self.slide_height - self.body_top - self.FOOTER_HEIGHT - self.margins["bottom"]
-        self.body_bottom = self.body_top + self.body_height
-
-        # Log the fixed body zone dimensions for debugging
-        logger.debug(
-            f"Fixed body zone: top={self.body_top}, left={self.body_left}, "
-            f"width={self.body_width}, height={self.body_height}, bottom={self.body_bottom}"
-        )
-
-        # Default element sizes (width, height) in points
-        self.default_sizes = {
-            ElementType.TITLE: (self.max_content_width * TITLE_WIDTH_FRACTION, 40),
-            ElementType.SUBTITLE: (
-                self.max_content_width * SUBTITLE_WIDTH_FRACTION,
-                35,
-            ),
-            ElementType.TEXT: (self.max_content_width, 60),
-            ElementType.BULLET_LIST: (self.max_content_width, 130),
-            ElementType.ORDERED_LIST: (self.max_content_width, 130),
-            ElementType.IMAGE: (
-                self.max_content_width * IMAGE_WIDTH_FRACTION,
-                self.max_content_height * 0.4,
-            ),
-            ElementType.TABLE: (self.max_content_width, 130),
-            ElementType.CODE: (self.max_content_width, 100),
-            ElementType.QUOTE: (self.max_content_width * QUOTE_WIDTH_FRACTION, 70),
-            ElementType.FOOTER: (self.max_content_width, self.FOOTER_HEIGHT),
+        self.margins = margins or {
+            "top": DEFAULT_MARGIN_TOP,
+            "right": DEFAULT_MARGIN_RIGHT,
+            "bottom": DEFAULT_MARGIN_BOTTOM,
+            "left": DEFAULT_MARGIN_LEFT,
         }
 
-    # Add methods as instance methods that delegate to the imported functions
-    def _position_header_elements(self, slide):
-        """Position header elements on the slide."""
-        return position_header_elements(self, slide)
+        # Calculate content area dimensions
+        self.max_content_width = (
+            self.slide_width - self.margins["left"] - self.margins["right"]
+        )
+        self.max_content_height = (
+            self.slide_height - self.margins["top"] - self.margins["bottom"]
+        )
 
-    def _position_footer_element(self, slide):
-        """Position footer element on the slide."""
-        return position_footer_element(self, slide)
+        # Define fixed slide zones with clear spacing
+        self._define_slide_zones()
+
+        logger.debug(
+            f"PositionCalculator initialized: slide={self.slide_width}x{self.slide_height}, "
+            f"content_area={self.max_content_width}x{self.max_content_height}, "
+            f"body_zone=({self.body_left}, {self.body_top}, {self.body_width}, {self.body_height})"
+        )
+
+    def _define_slide_zones(self):
+        """Define the fixed zones of the slide with clear spacing."""
+        # Header zone
+        self.header_top = self.margins["top"]
+        self.header_left = self.margins["left"]
+        self.header_width = self.max_content_width
+        self.header_height = HEADER_HEIGHT
+        self.header_bottom = self.header_top + self.header_height
+
+        # Body zone (with clear spacing from header and footer)
+        self.body_top = self.header_bottom + HEADER_TO_BODY_SPACING
+        self.body_left = self.margins["left"]
+        self.body_width = self.max_content_width
+
+        # Footer zone
+        self.footer_height = FOOTER_HEIGHT
+        self.footer_bottom = self.slide_height - self.margins["bottom"]
+        self.footer_top = self.footer_bottom - self.footer_height
+        self.footer_left = self.margins["left"]
+        self.footer_width = self.max_content_width
+
+        # Body height is what's left between body_top and footer space
+        body_bottom_limit = self.footer_top - BODY_TO_FOOTER_SPACING
+        self.body_height = body_bottom_limit - self.body_top
+
+        logger.debug(
+            f"Slide zones defined: "
+            f"header=({self.header_left}, {self.header_top}, {self.header_width}, {self.header_height}), "
+            f"body=({self.body_left}, {self.body_top}, {self.body_width}, {self.body_height}), "
+            f"footer=({self.footer_left}, {self.footer_top}, {self.footer_width}, {self.footer_height})"
+        )
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions for all elements in a slide.
+        Calculate positions for all elements in a slide according to the Layout Contract.
+
+        This is the main entry point that dispatches to either zone-based or
+        section-based layout depending on the slide structure.
 
         Args:
             slide: The slide to calculate positions for
 
         Returns:
-            The updated slide with positioned elements
+            The slide with all elements and sections positioned
         """
+        # Create a deep copy to avoid modifying the original
         updated_slide = deepcopy(slide)
 
-        # Determine if this slide uses section-based layout
-        if updated_slide.sections:
-            logger.debug(f"Using section-based layout for slide {updated_slide.object_id}")
-            return calculate_section_based_positions(self, updated_slide)
+        logger.debug(f"Calculating positions for slide: {updated_slide.object_id}")
 
+        # Always position header and footer elements first (they use fixed zones)
+        self._position_header_elements(updated_slide)
+        self._position_footer_elements(updated_slide)
+
+        # Determine layout strategy based on slide structure
+        if updated_slide.sections:
+            logger.debug(
+                f"Using section-based layout for slide {updated_slide.object_id}"
+            )
+            from markdowndeck.layout.calculator.section_layout import (
+                calculate_section_based_positions,
+            )
+
+            return calculate_section_based_positions(self, updated_slide)
         logger.debug(f"Using zone-based layout for slide {updated_slide.object_id}")
+        from markdowndeck.layout.calculator.zone_layout import (
+            calculate_zone_based_positions,
+        )
+
         return calculate_zone_based_positions(self, updated_slide)
+
+    def _position_header_elements(self, slide: Slide):
+        """Position title and subtitle elements within the fixed header zone."""
+        title_elements = [
+            e for e in slide.elements if e.element_type == ElementType.TITLE
+        ]
+        subtitle_elements = [
+            e for e in slide.elements if e.element_type == ElementType.SUBTITLE
+        ]
+
+        current_y = self.header_top
+
+        # Position title
+        if title_elements:
+            title = title_elements[0]
+            title_width = self._calculate_element_width(title, self.header_width)
+
+            # Use content-aware metrics to calculate proper height
+            from markdowndeck.layout.metrics import calculate_element_height
+
+            title_height = calculate_element_height(title, title_width)
+
+            title.size = (title_width, title_height)
+
+            # Center horizontally in header zone
+            title_x = self.header_left + (self.header_width - title_width) / 2
+            title.position = (title_x, current_y)
+
+            current_y += title_height + 8  # Small spacing between title and subtitle
+
+            logger.debug(
+                f"Positioned title at ({title_x:.1f}, {title.position[1]:.1f}) with size {title.size}"
+            )
+
+        # Position subtitle
+        if subtitle_elements:
+            subtitle = subtitle_elements[0]
+            subtitle_width = self._calculate_element_width(subtitle, self.header_width)
+
+            # Use content-aware metrics to calculate proper height
+            from markdowndeck.layout.metrics import calculate_element_height
+
+            subtitle_height = calculate_element_height(subtitle, subtitle_width)
+
+            subtitle.size = (subtitle_width, subtitle_height)
+
+            # Center horizontally in header zone
+            subtitle_x = self.header_left + (self.header_width - subtitle_width) / 2
+            subtitle.position = (subtitle_x, current_y)
+
+            logger.debug(
+                f"Positioned subtitle at ({subtitle_x:.1f}, {subtitle.position[1]:.1f}) with size {subtitle.size}"
+            )
+
+    def _position_footer_elements(self, slide: Slide):
+        """Position footer elements within the fixed footer zone."""
+        footer_elements = [
+            e for e in slide.elements if e.element_type == ElementType.FOOTER
+        ]
+
+        if footer_elements:
+            footer = footer_elements[0]
+            footer_width = self.footer_width
+
+            # Use content-aware metrics to calculate footer height based on content
+            from markdowndeck.layout.metrics import calculate_element_height
+
+            footer_height = calculate_element_height(footer, footer_width)
+
+            footer.size = (footer_width, footer_height)
+
+            # Position at bottom of footer zone
+            footer.position = (self.footer_left, self.footer_top)
+
+            logger.debug(
+                f"Positioned footer at {footer.position} with size {footer.size}"
+            )
+
+    def _calculate_element_width(self, element, container_width: float) -> float:
+        """
+        Calculate the width for an element based on its type and directives.
+
+        Args:
+            element: The element to calculate width for
+            container_width: Width of the container
+
+        Returns:
+            Calculated width for the element
+        """
+        # Check for explicit width directive
+        if hasattr(element, "directives") and element.directives:
+            width_directive = element.directives.get("width")
+            if width_directive is not None:
+                try:
+                    if isinstance(width_directive, float) and 0 < width_directive <= 1:
+                        return container_width * width_directive
+                    if isinstance(width_directive, int | float) and width_directive > 1:
+                        return min(float(width_directive), container_width)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid width directive: {width_directive}")
+
+        # Use default width fractions based on element type
+        width_fractions = {
+            ElementType.TITLE: TITLE_WIDTH_FRACTION,
+            ElementType.SUBTITLE: SUBTITLE_WIDTH_FRACTION,
+            ElementType.QUOTE: QUOTE_WIDTH_FRACTION,
+            ElementType.IMAGE: IMAGE_WIDTH_FRACTION,
+            ElementType.TABLE: TABLE_WIDTH_FRACTION,
+            ElementType.CODE: CODE_WIDTH_FRACTION,
+            ElementType.BULLET_LIST: LIST_WIDTH_FRACTION,
+            ElementType.ORDERED_LIST: LIST_WIDTH_FRACTION,
+        }
+
+        fraction = width_fractions.get(
+            element.element_type, 1.0
+        )  # Default to full width
+        return container_width * fraction
 
     def get_body_elements(self, slide: Slide) -> list:
         """
@@ -135,5 +283,15 @@ class PositionCalculator:
         return [
             element
             for element in slide.elements
-            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type
+            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
+
+    def get_body_zone_area(self) -> tuple[float, float, float, float]:
+        """
+        Get the body zone area coordinates.
+
+        Returns:
+            Tuple of (left, top, width, height) for the body zone
+        """
+        return (self.body_left, self.body_top, self.body_width, self.body_height)

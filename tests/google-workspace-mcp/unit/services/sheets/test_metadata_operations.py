@@ -35,9 +35,7 @@ class TestSheetsServiceMetadataOperations:
             ],
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.get_spreadsheet_metadata(spreadsheet_id)
@@ -61,14 +59,10 @@ class TestSheetsServiceMetadataOperations:
             "sheets": [{"properties": {"title": "Sheet1"}}],
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = mock_response
 
         # Act
-        result = mock_sheets_service.get_spreadsheet_metadata(
-            spreadsheet_id, fields=custom_fields
-        )
+        result = mock_sheets_service.get_spreadsheet_metadata(spreadsheet_id, fields=custom_fields)
 
         # Assert
         assert result == mock_response
@@ -87,9 +81,7 @@ class TestSheetsServiceMetadataOperations:
             content=b'{"error": {"message": "Spreadsheet not found"}}',
         )
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.side_effect = http_error
         mock_sheets_service.handle_api_error = Mock(
             return_value={
                 "error": True,
@@ -105,18 +97,14 @@ class TestSheetsServiceMetadataOperations:
         assert result is not None
         assert result["error"] is True
         assert result["error_type"] == "http_error"
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "get_spreadsheet_metadata", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("get_spreadsheet_metadata", http_error)
 
     def test_get_spreadsheet_metadata_unexpected_error(self, mock_sheets_service):
         """Test get_spreadsheet_metadata with unexpected error."""
         # Arrange
         spreadsheet_id = "test_spreadsheet_id"
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.side_effect = Exception(
-            "Network error"
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.side_effect = Exception("Network error")
 
         # Act
         result = mock_sheets_service.get_spreadsheet_metadata(spreadsheet_id)
@@ -136,9 +124,7 @@ class TestSheetsServiceMetadataOperations:
             "properties": {"title": "Test Spreadsheet"},
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.get_spreadsheet_metadata(spreadsheet_id, fields="")
@@ -160,9 +146,7 @@ class TestSheetsServiceMetadataOperations:
             # Minimal response with just the ID
         }
 
-        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.get.return_value.execute.return_value = mock_response
 
         # Act
         result = mock_sheets_service.get_spreadsheet_metadata(spreadsheet_id)

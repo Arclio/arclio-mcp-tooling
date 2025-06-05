@@ -69,9 +69,7 @@ class TestDirectiveParser:
 
     def test_rgba_color_parsing(self, parser: DirectiveParser):
         """Test rgba color parsing."""
-        section = Section(
-            content="[background=rgba(255, 128, 0, 0.75)]\nContent", id="rgba_test"
-        )
+        section = Section(content="[background=rgba(255, 128, 0, 0.75)]\nContent", id="rgba_test")
         parser.parse_directives(section)
 
         bg = section.directives["background"]
@@ -84,9 +82,7 @@ class TestDirectiveParser:
 
     def test_hsla_color_parsing(self, parser: DirectiveParser):
         """Test hsla color parsing."""
-        section = Section(
-            content="[color=hsla(240, 100%, 50%, 0.8)]\nContent", id="hsla_test"
-        )
+        section = Section(content="[color=hsla(240, 100%, 50%, 0.8)]\nContent", id="hsla_test")
         parser.parse_directives(section)
 
         color = section.directives["color"]
@@ -180,9 +176,7 @@ Content""",
 
     def test_parse_inline_directives_directive_only(self, parser: DirectiveParser):
         """Test parsing inline directives from directive-only lines."""
-        directives, remaining = parser.parse_inline_directives(
-            "[align=center][color=red]"
-        )
+        directives, remaining = parser.parse_inline_directives("[align=center][color=red]")
 
         expected = {"align": "center", "color": {"type": "named", "value": "red"}}
         assert directives == expected
@@ -204,9 +198,7 @@ Content""",
 
     def test_parse_inline_directives_with_enhanced_css(self, parser: DirectiveParser):
         """Test inline directive parsing with enhanced CSS values."""
-        directives, remaining = parser.parse_inline_directives(
-            "[background=rgba(255,0,0,0.5)][border=2px solid blue]"
-        )
+        directives, remaining = parser.parse_inline_directives("[background=rgba(255,0,0,0.5)][border=2px solid blue]")
 
         assert remaining == ""
 
@@ -226,9 +218,7 @@ Content""",
 
     def test_malformed_directives_handled(self, parser: DirectiveParser):
         """Test handling of malformed directives."""
-        section = Section(
-            content="[width:50%] Content", id="malformed"
-        )  # Invalid separator
+        section = Section(content="[width:50%] Content", id="malformed")  # Invalid separator
         parser.parse_directives(section)
 
         # Should clean up malformed directive and process content
@@ -241,13 +231,8 @@ Content""",
         parser.parse_directives(section)
 
         # Should handle errors gracefully
-        assert (
-            "width" not in section.directives
-            or section.directives["width"] == "invalid"
-        )
-        assert (
-            "height" not in section.directives or section.directives["height"] == "1/0"
-        )
+        assert "width" not in section.directives or section.directives["width"] == "invalid"
+        assert "height" not in section.directives or section.directives["height"] == "1/0"
         assert section.content == "Content"
 
         # Check that errors were logged
@@ -290,9 +275,7 @@ Content""",
 
     def test_directive_only_content(self, parser: DirectiveParser):
         """Test content that contains only directives."""
-        section = Section(
-            content="[width=100%][height=50%][align=center]", id="directives_only"
-        )
+        section = Section(content="[width=100%][height=50%][align=center]", id="directives_only")
         parser.parse_directives(section)
 
         assert section.directives["width"] == 1.0

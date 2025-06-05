@@ -42,9 +42,7 @@ async def drive_search_files(
         raise ValueError("Query cannot be empty")
 
     drive_service = DriveService()
-    files = drive_service.search_files(
-        query=query, page_size=page_size, shared_drive_id=shared_drive_id
-    )
+    files = drive_service.search_files(query=query, page_size=page_size, shared_drive_id=shared_drive_id)
 
     if isinstance(files, dict) and files.get("error"):
         raise ValueError(f"Search failed: {files.get('message', 'Unknown error')}")
@@ -156,9 +154,7 @@ async def drive_create_folder(
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(
-            f"Folder creation failed: {result.get('message', 'Unknown error')}"
-        )
+        raise ValueError(f"Folder creation failed: {result.get('message', 'Unknown error')}")
 
     return result
 

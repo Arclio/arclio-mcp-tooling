@@ -153,12 +153,8 @@ class DirectiveParser:
                         converted_value = converter(value)
 
                         # Handle style directives with special processing
-                        if directive_type == "style" and isinstance(
-                            converted_value, tuple
-                        ):
-                            processed_directives = self._process_style_directive_value(
-                                key, converted_value
-                            )
+                        if directive_type == "style" and isinstance(converted_value, tuple):
+                            processed_directives = self._process_style_directive_value(key, converted_value)
                             directives.update(processed_directives)
                         else:
                             directives[key] = converted_value
@@ -169,9 +165,7 @@ class DirectiveParser:
                         # Store as string fallback
                         directives[key] = value
                     except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing directive {key}={value}: {e}"
-                        )
+                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
                         directives[key] = value
                 else:
                     directives[key] = value
@@ -200,9 +194,7 @@ class DirectiveParser:
             logger.warning(f"Invalid float value: {value}, defaulting to 0.0")
             return 0.0
 
-    def _process_style_directive_value(
-        self, key: str, style_tuple: tuple[str, Any]
-    ) -> dict[str, Any]:
+    def _process_style_directive_value(self, key: str, style_tuple: tuple[str, Any]) -> dict[str, Any]:
         """Process style directive tuples into clean format."""
         style_type, style_value = style_tuple
         result = {}
@@ -219,12 +211,7 @@ class DirectiveParser:
             result[key] = style_value
         elif style_type == "border_style":
             result[key] = {"style": style_value}
-        elif (
-            style_type == "shadow"
-            or style_type == "transform"
-            or style_type == "animation"
-            or style_type == "gradient"
-        ):
+        elif style_type == "shadow" or style_type == "transform" or style_type == "animation" or style_type == "gradient":
             result[key] = style_value
         else:
             # For any other style types, just store the value
@@ -251,10 +238,6 @@ class DirectiveParser:
     def _verify_directive_removal(self, section: Section) -> None:
         """Verify that all directives have been properly removed from content."""
         if re.match(r"^\s*\[[\w\-]+=", section.content):
-            logger.warning(
-                f"Potential directives remain in content: {section.content[:50]}"
-            )
+            logger.warning(f"Potential directives remain in content: {section.content[:50]}")
             # Aggressive cleanup
-            section.content = re.sub(
-                r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content
-            ).lstrip()
+            section.content = re.sub(r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content).lstrip()

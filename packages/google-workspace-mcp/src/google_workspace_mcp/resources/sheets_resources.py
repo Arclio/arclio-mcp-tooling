@@ -13,9 +13,7 @@ async def get_spreadsheet_metadata_resource(spreadsheet_id: str) -> dict[str, An
     Retrieves metadata for a specific Google Spreadsheet.
     Maps to URI: sheets://spreadsheets/{spreadsheet_id}/metadata
     """
-    logger.info(
-        f"Executing get_spreadsheet_metadata_resource for spreadsheet_id: {spreadsheet_id}"
-    )
+    logger.info(f"Executing get_spreadsheet_metadata_resource for spreadsheet_id: {spreadsheet_id}")
     if not spreadsheet_id:
         raise ValueError("Spreadsheet ID is required in the URI path.")
 
@@ -23,24 +21,16 @@ async def get_spreadsheet_metadata_resource(spreadsheet_id: str) -> dict[str, An
     metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id=spreadsheet_id)
 
     if isinstance(metadata, dict) and metadata.get("error"):
-        raise ValueError(
-            metadata.get("message", "Error retrieving spreadsheet metadata")
-        )
+        raise ValueError(metadata.get("message", "Error retrieving spreadsheet metadata"))
 
     if not metadata:
-        raise ValueError(
-            f"Could not retrieve metadata for spreadsheet ID: {spreadsheet_id}"
-        )
+        raise ValueError(f"Could not retrieve metadata for spreadsheet ID: {spreadsheet_id}")
 
     return metadata
 
 
-@mcp.resource(
-    "sheets://spreadsheets/{spreadsheet_id}/sheets/{sheet_identifier}/metadata"
-)
-async def get_specific_sheet_metadata_resource(
-    spreadsheet_id: str, sheet_identifier: str
-) -> dict[str, Any]:
+@mcp.resource("sheets://spreadsheets/{spreadsheet_id}/sheets/{sheet_identifier}/metadata")
+async def get_specific_sheet_metadata_resource(spreadsheet_id: str, sheet_identifier: str) -> dict[str, Any]:
     """
     Retrieves metadata for a specific sheet within a Google Spreadsheet,
     identified by its title (name) or numeric sheetId.
@@ -50,9 +40,7 @@ async def get_specific_sheet_metadata_resource(
         f"Executing get_specific_sheet_metadata_resource for spreadsheet: {spreadsheet_id}, sheet_identifier: {sheet_identifier}"
     )
     if not spreadsheet_id or not sheet_identifier:
-        raise ValueError(
-            "Spreadsheet ID and sheet identifier (name or ID) are required."
-        )
+        raise ValueError("Spreadsheet ID and sheet identifier (name or ID) are required.")
 
     sheets_service = SheetsService()
     # Fetch metadata for all sheets first
@@ -62,16 +50,10 @@ async def get_specific_sheet_metadata_resource(
     )
 
     if isinstance(full_metadata, dict) and full_metadata.get("error"):
-        raise ValueError(
-            full_metadata.get(
-                "message", "Error retrieving spreadsheet to find sheet metadata"
-            )
-        )
+        raise ValueError(full_metadata.get("message", "Error retrieving spreadsheet to find sheet metadata"))
 
     if not full_metadata or not full_metadata.get("sheets"):
-        raise ValueError(
-            f"No sheets found in spreadsheet {spreadsheet_id} or metadata incomplete."
-        )
+        raise ValueError(f"No sheets found in spreadsheet {spreadsheet_id} or metadata incomplete.")
 
     found_sheet = None
     for sheet in full_metadata.get("sheets", []):
@@ -85,8 +67,6 @@ async def get_specific_sheet_metadata_resource(
             break
 
     if not found_sheet:
-        raise ValueError(
-            f"Sheet '{sheet_identifier}' not found in spreadsheet '{spreadsheet_id}'."
-        )
+        raise ValueError(f"Sheet '{sheet_identifier}' not found in spreadsheet '{spreadsheet_id}'.")
 
     return found_sheet

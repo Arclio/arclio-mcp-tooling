@@ -21,18 +21,14 @@ class TestSheetsCreateSpreadsheet:
         }
 
         # Setup mocks
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = mock_response
 
         # Call the method
         result = mock_sheets_service.create_spreadsheet(title)
 
         # Verify API call
         expected_body = {"properties": {"title": title}}
-        mock_sheets_service.service.spreadsheets.return_value.create.assert_called_once_with(
-            body=expected_body
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.assert_called_once_with(body=expected_body)
 
         # Verify result
         expected_result = {
@@ -53,18 +49,14 @@ class TestSheetsCreateSpreadsheet:
         }
 
         # Setup mocks
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = mock_response
 
         # Call the method
         result = mock_sheets_service.create_spreadsheet(title)
 
         # Verify API call
         expected_body = {"properties": {"title": title}}
-        mock_sheets_service.service.spreadsheets.return_value.create.assert_called_once_with(
-            body=expected_body
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.assert_called_once_with(body=expected_body)
 
         # Verify result
         expected_result = {
@@ -83,14 +75,10 @@ class TestSheetsCreateSpreadsheet:
         mock_resp = MagicMock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Permission denied"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Permission denied"}}')
 
         # Setup the mock to raise the error
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.side_effect = http_error
 
         # Mock the handle_api_error method
         expected_error = {
@@ -106,9 +94,7 @@ class TestSheetsCreateSpreadsheet:
         result = mock_sheets_service.create_spreadsheet(title)
 
         # Verify error handling
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "create_spreadsheet", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("create_spreadsheet", http_error)
         assert result == expected_error
 
     def test_create_spreadsheet_unexpected_error(self, mock_sheets_service):
@@ -118,9 +104,7 @@ class TestSheetsCreateSpreadsheet:
 
         # Setup the mock to raise an unexpected error
         unexpected_error = Exception("Network timeout")
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.side_effect = (
-            unexpected_error
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.side_effect = unexpected_error
 
         # Call the method
         result = mock_sheets_service.create_spreadsheet(title)
@@ -139,9 +123,7 @@ class TestSheetsCreateSpreadsheet:
         mock_response = {}  # Empty response
 
         # Setup mocks
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = mock_response
 
         # Call the method
         result = mock_sheets_service.create_spreadsheet(title)
@@ -164,9 +146,7 @@ class TestSheetsCreateSpreadsheet:
         }
 
         # Setup mocks
-        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = (
-            mock_response
-        )
+        mock_sheets_service.service.spreadsheets.return_value.create.return_value.execute.return_value = mock_response
 
         # Call the method
         result = mock_sheets_service.create_spreadsheet(title)

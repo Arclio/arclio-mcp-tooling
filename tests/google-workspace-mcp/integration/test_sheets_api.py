@@ -80,9 +80,7 @@ class TestSheetsIntegration:
         spreadsheet_id = create_result["spreadsheet_id"]
 
         # Try to read from an empty range
-        read_result = self.service.read_range(
-            spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C3"
-        )
+        read_result = self.service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C3")
 
         # Verify response structure
         assert isinstance(read_result, dict)
@@ -104,9 +102,7 @@ class TestSheetsIntegration:
         fake_spreadsheet_id = "nonexistent_sheet_12345"
 
         # Attempt to read from it
-        result = self.service.read_range(
-            spreadsheet_id=fake_spreadsheet_id, range_a1="Sheet1!A1:B2"
-        )
+        result = self.service.read_range(spreadsheet_id=fake_spreadsheet_id, range_a1="Sheet1!A1:B2")
 
         # Should return an error dictionary
         assert isinstance(result, dict)
@@ -132,9 +128,7 @@ class TestSheetsIntegration:
         ]
 
         for range_a1 in ranges_to_test:
-            read_result = self.service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1=range_a1
-            )
+            read_result = self.service.read_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
             # Each read should succeed (even if empty)
             assert isinstance(read_result, dict)
@@ -143,9 +137,7 @@ class TestSheetsIntegration:
             assert read_result["spreadsheet_id"] == spreadsheet_id
             assert read_result["range_requested"] == range_a1
 
-        print(
-            f"Workflow completed successfully. Spreadsheet link: {create_result['spreadsheet_url']}"
-        )
+        print(f"Workflow completed successfully. Spreadsheet link: {create_result['spreadsheet_url']}")
 
     def test_read_range_invalid_range_integration(self):
         """Test reading with an invalid range notation."""
@@ -156,9 +148,7 @@ class TestSheetsIntegration:
 
         # Try to read with an invalid range
         invalid_range = "InvalidSheet!A1:B2"
-        result = self.service.read_range(
-            spreadsheet_id=spreadsheet_id, range_a1=invalid_range
-        )
+        result = self.service.read_range(spreadsheet_id=spreadsheet_id, range_a1=invalid_range)
 
         # Should return an error dictionary
         assert isinstance(result, dict)
@@ -197,9 +187,7 @@ class TestSheetsIntegration:
         ]
 
         for range_a1 in valid_ranges:
-            result = self.service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1=range_a1
-            )
+            result = self.service.read_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
 
             # Each should succeed
             assert isinstance(result, dict)
@@ -208,17 +196,11 @@ class TestSheetsIntegration:
             assert result["spreadsheet_id"] == spreadsheet_id
             assert result["range_requested"] == range_a1
 
-            print(
-                f"Successfully read range '{range_a1}', returned range: '{result.get('range_returned')}'"
-            )
+            print(f"Successfully read range '{range_a1}', returned range: '{result.get('range_returned')}'")
 
-        print(
-            f"All range notations tested successfully for: {create_result['spreadsheet_url']}"
-        )
+        print(f"All range notations tested successfully for: {create_result['spreadsheet_url']}")
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_read_range_integration(self, sheets_service):
         """Integration test for read_range method."""
         # First create a spreadsheet for testing
@@ -246,9 +228,7 @@ class TestSheetsIntegration:
             ).execute()
 
             # Now test reading the data
-            result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C3"
-            )
+            result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C3")
 
             assert result is not None
             assert result["spreadsheet_id"] == spreadsheet_id
@@ -263,9 +243,7 @@ class TestSheetsIntegration:
                     body={"requests": [{"deleteSheet": {"sheetId": 0}}]},
                 ).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_write_range_integration(self, sheets_service):
         """Integration test for write_range method."""
         # Create a spreadsheet for testing
@@ -301,9 +279,7 @@ class TestSheetsIntegration:
             assert result["updated_columns"] == 3
 
             # Verify the data was written correctly by reading it back
-            read_result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4"
-            )
+            read_result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4")
 
             # Convert numbers back for comparison since they come back as strings
             expected_values = [
@@ -318,14 +294,10 @@ class TestSheetsIntegration:
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_append_rows_integration(self, sheets_service):
         """Integration test for append_rows method."""
         # Create a spreadsheet for testing
@@ -364,9 +336,7 @@ class TestSheetsIntegration:
             assert result["updates"] is not None
 
             # Verify the data was appended correctly by reading the entire range
-            read_result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:B5"
-            )
+            read_result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:B5")
 
             expected_values = [
                 ["Name", "Score"],
@@ -381,14 +351,10 @@ class TestSheetsIntegration:
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_clear_range_integration(self, sheets_service):
         """Integration test for clear_range method."""
         # Create a spreadsheet for testing
@@ -416,9 +382,7 @@ class TestSheetsIntegration:
             assert write_result is not None
 
             # Verify data was written
-            read_result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4"
-            )
+            read_result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4")
             assert len(read_result["values"]) == 4
 
             # Now clear a portion of the data
@@ -432,9 +396,7 @@ class TestSheetsIntegration:
             assert result["cleared_range"] == "Sheet1!B2:C4"
 
             # Verify the data was cleared correctly by reading it back
-            read_result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4"
-            )
+            read_result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:C4")
 
             # Should have headers and first column intact, but B2:C4 cleared
             expected_values = [
@@ -449,14 +411,10 @@ class TestSheetsIntegration:
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_write_range_raw_vs_user_entered_integration(self, sheets_service):
         """Integration test comparing RAW vs USER_ENTERED value input options."""
         # Create a spreadsheet for testing
@@ -485,9 +443,7 @@ class TestSheetsIntegration:
             assert result_user_entered is not None
 
             # Read back to see if formulas were evaluated
-            read_result_user = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:B3"
-            )
+            read_result_user = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!A1:B3")
 
             # With USER_ENTERED, formulas should be evaluated
             assert read_result_user["values"][1][0] == "3"  # =SUM(1,2) should become 3
@@ -503,29 +459,19 @@ class TestSheetsIntegration:
             assert result_raw is not None
 
             # Read back to see if formulas stayed as text
-            read_result_raw = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Sheet1!D1:E3"
-            )
+            read_result_raw = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Sheet1!D1:E3")
 
             # With RAW, formulas should stay as text
-            assert (
-                read_result_raw["values"][1][0] == "=SUM(1,2)"
-            )  # Should stay as formula text
-            assert (
-                read_result_raw["values"][2][0] == "=10*5"
-            )  # Should stay as formula text
+            assert read_result_raw["values"][1][0] == "=SUM(1,2)"  # Should stay as formula text
+            assert read_result_raw["values"][2][0] == "=10*5"  # Should stay as formula text
 
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_add_sheet_integration(self, sheets_service):
         """Integration test for add_sheet method."""
         # Create a spreadsheet for testing
@@ -539,9 +485,7 @@ class TestSheetsIntegration:
         try:
             # Add a new sheet
             sheet_title = "New Test Sheet"
-            result = sheets_service.add_sheet(
-                spreadsheet_id=spreadsheet_id, title=sheet_title
-            )
+            result = sheets_service.add_sheet(spreadsheet_id=spreadsheet_id, title=sheet_title)
 
             assert result is not None
             assert result["spreadsheet_id"] == spreadsheet_id
@@ -560,27 +504,18 @@ class TestSheetsIntegration:
             for sheet in metadata_result["sheets"]:
                 if sheet["properties"]["title"] == sheet_title:
                     new_sheet_found = True
-                    assert (
-                        sheet["properties"]["sheetId"]
-                        == result["sheet_properties"]["sheetId"]
-                    )
+                    assert sheet["properties"]["sheetId"] == result["sheet_properties"]["sheetId"]
                     break
 
-            assert (
-                new_sheet_found
-            ), f"New sheet '{sheet_title}' not found in spreadsheet metadata"
+            assert new_sheet_found, f"New sheet '{sheet_title}' not found in spreadsheet metadata"
 
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_delete_sheet_integration(self, sheets_service):
         """Integration test for delete_sheet method."""
         # Create a spreadsheet for testing
@@ -594,9 +529,7 @@ class TestSheetsIntegration:
         try:
             # First add a sheet to delete
             sheet_title = "Sheet to Delete"
-            add_result = sheets_service.add_sheet(
-                spreadsheet_id=spreadsheet_id, title=sheet_title
-            )
+            add_result = sheets_service.add_sheet(spreadsheet_id=spreadsheet_id, title=sheet_title)
             assert add_result is not None
             sheet_id = add_result["sheet_properties"]["sheetId"]
 
@@ -605,9 +538,7 @@ class TestSheetsIntegration:
             assert len(metadata_before["sheets"]) == 2
 
             # Delete the sheet
-            result = sheets_service.delete_sheet(
-                spreadsheet_id=spreadsheet_id, sheet_id=sheet_id
-            )
+            result = sheets_service.delete_sheet(spreadsheet_id=spreadsheet_id, sheet_id=sheet_id)
 
             assert result is not None
             assert result["spreadsheet_id"] == spreadsheet_id
@@ -621,21 +552,15 @@ class TestSheetsIntegration:
 
             # Verify the deleted sheet is not in the metadata
             for sheet in metadata_after["sheets"]:
-                assert (
-                    sheet["properties"]["sheetId"] != sheet_id
-                ), "Deleted sheet still found in metadata"
+                assert sheet["properties"]["sheetId"] != sheet_id, "Deleted sheet still found in metadata"
 
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_get_spreadsheet_metadata_integration(self, sheets_service):
         """Integration test for get_spreadsheet_metadata method."""
         # Create a spreadsheet for testing
@@ -669,9 +594,7 @@ class TestSheetsIntegration:
 
             # Test with custom fields
             custom_fields = "properties.title,sheets.properties.title"
-            result_custom = sheets_service.get_spreadsheet_metadata(
-                spreadsheet_id, fields=custom_fields
-            )
+            result_custom = sheets_service.get_spreadsheet_metadata(spreadsheet_id, fields=custom_fields)
 
             assert result_custom is not None
             assert "properties" in result_custom
@@ -679,21 +602,15 @@ class TestSheetsIntegration:
             assert "sheets" in result_custom
             assert "title" in result_custom["sheets"][0]["properties"]
             # Should not have other fields like sheetId when using custom fields
-            assert (
-                "spreadsheetId" not in result_custom
-            )  # Not requested in custom fields
+            assert "spreadsheetId" not in result_custom  # Not requested in custom fields
 
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()
 
-    @pytest.mark.skipif(
-        not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled"
-    )
+    @pytest.mark.skipif(not os.getenv("RUN_INTEGRATION_TESTS"), reason="Integration tests not enabled")
     def test_sheet_management_workflow_integration(self, sheets_service):
         """Integration test for complete sheet management workflow."""
         # Create a spreadsheet for testing
@@ -715,31 +632,23 @@ class TestSheetsIntegration:
             added_sheet_ids = []
 
             for sheet_name in sheet_names:
-                add_result = sheets_service.add_sheet(
-                    spreadsheet_id=spreadsheet_id, title=sheet_name
-                )
+                add_result = sheets_service.add_sheet(spreadsheet_id=spreadsheet_id, title=sheet_name)
                 assert add_result is not None
                 added_sheet_ids.append(add_result["sheet_properties"]["sheetId"])
 
             # 3. Verify all sheets were added
-            metadata_after_adds = sheets_service.get_spreadsheet_metadata(
-                spreadsheet_id
-            )
+            metadata_after_adds = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
             assert len(metadata_after_adds["sheets"]) == 4  # Original + 3 new
 
             # Verify all sheet names are present
-            sheet_titles = [
-                sheet["properties"]["title"] for sheet in metadata_after_adds["sheets"]
-            ]
+            sheet_titles = [sheet["properties"]["title"] for sheet in metadata_after_adds["sheets"]]
             assert "Sheet1" in sheet_titles  # Original sheet
             for sheet_name in sheet_names:
                 assert sheet_name in sheet_titles
 
             # 4. Delete one of the added sheets
             sheet_to_delete_id = added_sheet_ids[1]  # Delete "Analysis" sheet
-            delete_result = sheets_service.delete_sheet(
-                spreadsheet_id=spreadsheet_id, sheet_id=sheet_to_delete_id
-            )
+            delete_result = sheets_service.delete_sheet(spreadsheet_id=spreadsheet_id, sheet_id=sheet_to_delete_id)
             assert delete_result is not None
             assert delete_result["success"] is True
 
@@ -747,9 +656,7 @@ class TestSheetsIntegration:
             final_metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
             assert len(final_metadata["sheets"]) == 3  # Original + 2 remaining
 
-            final_sheet_titles = [
-                sheet["properties"]["title"] for sheet in final_metadata["sheets"]
-            ]
+            final_sheet_titles = [sheet["properties"]["title"] for sheet in final_metadata["sheets"]]
             assert "Sheet1" in final_sheet_titles
             assert "Data" in final_sheet_titles
             assert "Summary" in final_sheet_titles
@@ -757,22 +664,16 @@ class TestSheetsIntegration:
 
             # 6. Write data to one of the new sheets
             test_data = [["Name", "Value"], ["Test", 123]]
-            write_result = sheets_service.write_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Data!A1:B2", values=test_data
-            )
+            write_result = sheets_service.write_range(spreadsheet_id=spreadsheet_id, range_a1="Data!A1:B2", values=test_data)
             assert write_result is not None
 
             # 7. Read back the data to verify it worked
-            read_result = sheets_service.read_range(
-                spreadsheet_id=spreadsheet_id, range_a1="Data!A1:B2"
-            )
+            read_result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1="Data!A1:B2")
             assert read_result is not None
             assert read_result["values"] == [["Name", "Value"], ["Test", "123"]]
 
         finally:
             # Clean up: delete the test spreadsheet
             with suppress(Exception):
-                drive_service = build(
-                    "drive", "v3", credentials=sheets_service.service._http.credentials
-                )
+                drive_service = build("drive", "v3", credentials=sheets_service.service._http.credentials)
                 drive_service.files().delete(fileId=spreadsheet_id).execute()

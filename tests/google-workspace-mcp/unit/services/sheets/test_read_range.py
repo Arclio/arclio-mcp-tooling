@@ -141,9 +141,7 @@ class TestSheetsReadRange:
         result = mock_sheets_service.read_range(spreadsheet_id, range_a1)
 
         # Verify error handling
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "read_range", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("read_range", http_error)
         assert result == expected_error
 
     def test_read_range_http_error_not_found(self, mock_sheets_service):
@@ -156,9 +154,7 @@ class TestSheetsReadRange:
         mock_resp = MagicMock()
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
-        http_error = HttpError(
-            mock_resp, b'{"error": {"message": "Spreadsheet not found"}}'
-        )
+        http_error = HttpError(mock_resp, b'{"error": {"message": "Spreadsheet not found"}}')
 
         # Setup the mock to raise the error
         mock_sheets_service.service.spreadsheets.return_value.values.return_value.get.return_value.execute.side_effect = (
@@ -179,9 +175,7 @@ class TestSheetsReadRange:
         result = mock_sheets_service.read_range(spreadsheet_id, range_a1)
 
         # Verify error handling
-        mock_sheets_service.handle_api_error.assert_called_once_with(
-            "read_range", http_error
-        )
+        mock_sheets_service.handle_api_error.assert_called_once_with("read_range", http_error)
         assert result == expected_error
 
     def test_read_range_unexpected_error(self, mock_sheets_service):

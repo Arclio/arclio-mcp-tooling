@@ -277,11 +277,7 @@ def convert_style(value: str) -> tuple[str, Any]:
 
         # Recursively parse the color component
         color_type, color_value = convert_style(color_str.strip())
-        color_data = (
-            color_value
-            if color_type == "color"
-            else {"type": "unknown", "value": color_value}
-        )
+        color_data = color_value if color_type == "color" else {"type": "unknown", "value": color_value}
 
         border_info = {
             "width": width_str,
@@ -296,22 +292,16 @@ def convert_style(value: str) -> tuple[str, Any]:
 
     # ENHANCEMENT P8: Box shadow parsing - improved to handle inset shadows
     # Pattern matches: [inset] <offset-x> <offset-y> [blur-radius] [spread-radius] <color>
-    shadow_pattern = r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
-    if (
-        re.match(shadow_pattern, value, re.IGNORECASE)
-        or "shadow" in value.lower()
-        or re.match(r"^\d+.*\d+", value)
-    ):
+    shadow_pattern = (
+        r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
+    )
+    if re.match(shadow_pattern, value, re.IGNORECASE) or "shadow" in value.lower() or re.match(r"^\d+.*\d+", value):
         return ("shadow", {"type": "css", "value": value})
 
     # ENHANCEMENT P8: CSS transition/animation parsing
     # Recognize typical transition/animation patterns (more specific)
     transition_pattern = r"^(all|\w+)\s+[\d.]+s\s+[\w-]+(?:\s+[\d.]+s)?$"
-    if (
-        "transition" in value.lower()
-        or "animation" in value.lower()
-        or re.match(transition_pattern, value.lower())
-    ):
+    if "transition" in value.lower() or "animation" in value.lower() or re.match(transition_pattern, value.lower()):
         return ("animation", {"type": "css", "value": value})
 
     # Simple border styles

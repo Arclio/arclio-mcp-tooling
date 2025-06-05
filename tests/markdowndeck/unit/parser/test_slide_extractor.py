@@ -129,10 +129,7 @@ Content"""
         markdown2 = """# [invalid:value][valid=good] Title With Mixed Directives
 Content"""
         slides2 = extractor.extract_slides(markdown2)
-        assert (
-            slides2[0]["title"]
-            == "[invalid:value][valid=good] Title With Mixed Directives"
-        )
+        assert slides2[0]["title"] == "[invalid:value][valid=good] Title With Mixed Directives"
         # When there's an invalid directive format, entire directive parsing fails
         assert slides2[0]["title_directives"] == {}
 
@@ -286,9 +283,7 @@ Content"""
         # SlideExtractor no longer processes backgrounds
         assert slides1[0]["background"] is None
         # Background directive should remain in content
-        assert (
-            "[background=url(https://example.com/image.jpg)]" in slides1[0]["content"]
-        )
+        assert "[background=url(https://example.com/image.jpg)]" in slides1[0]["content"]
 
         # Invalid URL should also remain in content for DirectiveParser to handle
         markdown2 = """# Invalid Background
@@ -372,9 +367,7 @@ Content here."""
         markdown2 = """# Title with "quotes" and 'apostrophes' & symbols!
 Content below."""
         slides2 = extractor.extract_slides(markdown2)
-        assert (
-            slides2[0]["title"] == "Title with \"quotes\" and 'apostrophes' & symbols!"
-        )
+        assert slides2[0]["title"] == "Title with \"quotes\" and 'apostrophes' & symbols!"
         assert slides2[0]["content"] == "Content below."
 
     def test_title_directive_invalid_values(self, extractor: SlideExtractor):
@@ -386,10 +379,7 @@ Content"""
 
         assert slide["title"] == "Title With Invalid Directives"
         # Invalid fontsize should be skipped or handled gracefully
-        assert (
-            "fontsize" not in slide["title_directives"]
-            or slide["title_directives"]["fontsize"] == "invalid"
-        )
+        assert "fontsize" not in slide["title_directives"] or slide["title_directives"]["fontsize"] == "invalid"
         # Empty color should be preserved as structured value
         assert slide["title_directives"]["color"] == {"type": "named", "value": ""}
         # Invalid align should be preserved as-is
