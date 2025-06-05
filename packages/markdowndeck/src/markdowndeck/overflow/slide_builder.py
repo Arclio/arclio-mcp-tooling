@@ -3,256 +3,237 @@
 import logging
 import uuid
 from copy import deepcopy
+from typing import TYPE_CHECKING
 
-from markdowndeck.models import ElementType, Slide, SlideLayout, TextElement
-from markdowndeck.overflow.models import ContentGroup
+if TYPE_CHECKING:
+    from markdowndeck.models import Slide, TextElement
+    from markdowndeck.models.slide import Section
+
+from markdowndeck.overflow.constants import (
+    CONTINUED_FOOTER_SUFFIX,
+    CONTINUED_TITLE_SUFFIX,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SlideBuilder:
     """
-    Builds continuation slides with consistent formatting and metadata.
+    Factory class for creating continuation slides with consistent formatting.
 
-    Handles:
-    - Title creation for continuation slides
-    - Footer preservation and updates
-    - Slide metadata consistency
-    - Element ID generation
+    This class handles the clerical work of creating new slides that maintain
+    the same visual style and metadata as the original slide while clearly
+    indicating they are continuations.
     """
 
-    def __init__(
-        self,
-        slide_width: float = 720,
-        slide_height: float = 405,
-        margins: dict[str, float] = None,
-    ):
+    def __init__(self, original_slide: "Slide"):
         """
-        Initialize slide builder.
+        Initialize the slide builder with an original slide template.
 
         Args:
-            slide_width: Width of slides in points
-            slide_height: Height of slides in points
-            margins: Slide margins
+            original_slide: The slide to use as a template for continuation slides
         """
-        self.slide_width = slide_width
-        self.slide_height = slide_height
-        self.margins = margins or {"top": 50, "right": 50, "bottom": 50, "left": 50}
-
-        # Calculate positioning constants
-        self.header_height = 90.0
-        self.footer_height = 30.0
-        self.title_y = self.margins["top"] + 20
-        self.footer_y = slide_height - margins["bottom"] - self.footer_height
-
-        logger.debug("SlideBuilder initialized")
-
-    def create_first_slide(self, original_slide: Slide, content_groups: list[ContentGroup]) -> Slide:
-        """
-        Create the first slide, preserving original title and adding selected content.
-
-        Args:
-            original_slide: Original slide to base on
-            content_groups: Content groups for this slide
-
-        Returns:
-            First slide with original title and selected content
-        """
-        logger.debug(f"Creating first slide from {original_slide.object_id}")
-
-        # Create new slide with same metadata
-        new_slide = Slide(
-            object_id=original_slide.object_id,  # Keep original ID for first slide
-            layout=original_slide.layout,
-            notes=original_slide.notes,
-            background=original_slide.background,
-            title=original_slide.title,
-            sections=[],  # Clear sections - we're working with positioned elements
-            elements=[],
+        self.original_slide = original_slide
+        logger.debug(
+            f"SlideBuilder initialized with original slide: {original_slide.object_id}"
         )
-
-        # Copy header elements (title, subtitle)
-        self._copy_header_elements(original_slide, new_slide)
-
-        # Add content elements from groups
-        self._add_content_elements(new_slide, content_groups)
-
-        # Copy footer elements
-        self._copy_footer_elements(original_slide, new_slide)
-
-        logger.debug(f"First slide created with {len(new_slide.elements)} elements")
-        return new_slide
 
     def create_continuation_slide(
-        self,
-        original_slide: Slide,
-        content_groups: list[ContentGroup],
-        slide_number: int,
-    ) -> Slide:
+        self, new_sections: list["Section"], slide_number: int
+    ) -> "Slide":
         """
-        Create a continuation slide with modified title and selected content.
+        Create a continuation slide with the specified sections.
 
         Args:
-            original_slide: Original slide to base on
-            content_groups: Content groups for this slide
-            slide_number: Sequential number of this continuation slide
+            new_sections: List of sections to include in the continuation slide
+            slide_number: The sequence number of this continuation slide (1, 2, 3...)
 
         Returns:
-            Continuation slide with appropriate title and content
+            A new Slide object configured as a continuation slide
         """
-        logger.debug(f"Creating continuation slide {slide_number} from {original_slide.object_id}")
+        logger.debug(
+            f"Creating continuation slide {slide_number} with {len(new_sections)} sections"
+        )
 
-        # Create new slide ID
-        new_slide_id = f"{original_slide.object_id}_cont_{slide_number}"
+        # Generate unique ID for the continuation slide
+        continuation_id = f"{self.original_slide.object_id}_cont_{slide_number}_{uuid.uuid4().hex[:6]}"
 
-        # Create new slide
-        new_slide = Slide(
-            object_id=new_slide_id,
-            layout=SlideLayout.TITLE_AND_BODY,  # Standard layout for continuation
-            notes=original_slide.notes,  # Keep original notes for reference
-            background=original_slide.background,
-            title=self._create_continuation_title(original_slide.title, slide_number),
-            sections=[],  # Clear sections
-            elements=[],
+        # Create the base slide structure
+        from markdowndeck.models import Slide, SlideLayout
+
+        continuation_slide = Slide(
+            object_id=continuation_id,
+            layout=SlideLayout.TITLE_AND_BODY,  # Use standard layout for continuations
+            sections=deepcopy(new_sections),
+            elements=[],  # Will be populated from sections and metadata
+            background=(
+                deepcopy(self.original_slide.background)
+                if self.original_slide.background
+                else None
+            ),
+            notes=self.original_slide.notes,  # Keep original notes for reference
         )
 
         # Create continuation title
-        self._create_continuation_header(original_slide, new_slide, slide_number)
+        continuation_title = self._create_continuation_title(slide_number)
+        if continuation_title:
+            continuation_slide.elements.append(continuation_title)
+            continuation_slide.title = continuation_title.text
 
-        # Add content elements from groups
-        self._add_content_elements(new_slide, content_groups)
+        # Create continuation footer if original had footer
+        continuation_footer = self._create_continuation_footer()
+        if continuation_footer:
+            continuation_slide.elements.append(continuation_footer)
 
-        # Create continuation footer
-        self._create_continuation_footer(original_slide, new_slide, slide_number)
+        # Extract all elements from sections and add to slide
+        self._extract_elements_from_sections(continuation_slide)
 
-        logger.debug(f"Continuation slide {slide_number} created with {len(new_slide.elements)} elements")
-        return new_slide
+        logger.info(
+            f"Created continuation slide {continuation_id} with {len(continuation_slide.elements)} elements"
+        )
+        return continuation_slide
 
-    def _copy_header_elements(self, source_slide: Slide, target_slide: Slide) -> None:
-        """Copy header elements (title, subtitle) from source to target slide."""
-        for element in source_slide.elements:
-            if element.element_type in (ElementType.TITLE, ElementType.SUBTITLE):
-                # Deep copy to avoid modifying original
-                copied_element = deepcopy(element)
+    def _create_continuation_title(self, slide_number: int) -> "TextElement | None":
+        """
+        Create a title element for the continuation slide.
 
-                # Generate new object ID to avoid conflicts
-                copied_element.object_id = self._generate_element_id(element.element_type)
+        Args:
+            slide_number: The sequence number of this continuation slide
 
-                target_slide.elements.append(copied_element)
+        Returns:
+            A TextElement for the continuation title, or None if original had no title
+        """
+        original_title = self._extract_original_title_text()
 
-    def _create_continuation_header(self, original_slide: Slide, new_slide: Slide, slide_number: int) -> None:
-        """Create header for continuation slide."""
-        # Create continuation title
-        continuation_title = self._create_continuation_title(original_slide.title, slide_number)
+        if not original_title:
+            # If no original title, create a generic continuation title
+            original_title = "Content"
+
+        # Create continuation title text
+        if slide_number == 1:
+            continuation_text = f"{original_title} {CONTINUED_TITLE_SUFFIX}"
+        else:
+            continuation_text = (
+                f"{original_title} {CONTINUED_TITLE_SUFFIX} ({slide_number})"
+            )
+
+        # Create title element with original styling if available
+        from markdowndeck.models import ElementType, TextElement
 
         title_element = TextElement(
             element_type=ElementType.TITLE,
-            text=continuation_title,
-            object_id=self._generate_element_id(ElementType.TITLE),
-            position=(self._calculate_title_x(continuation_title), self.title_y),
-            size=(self._calculate_title_width(continuation_title), 40),
+            text=continuation_text,
+            object_id=f"title_{uuid.uuid4().hex[:8]}",
+            horizontal_alignment="center",  # Titles are typically centered
         )
 
-        new_slide.elements.append(title_element)
+        # Copy title directives from original if available
+        original_title_element = self._find_original_title_element()
+        if original_title_element and hasattr(original_title_element, "directives"):
+            title_element.directives = deepcopy(original_title_element.directives)
 
-    def _copy_footer_elements(self, source_slide: Slide, target_slide: Slide) -> None:
-        """Copy footer elements from source to target slide."""
-        for element in source_slide.elements:
-            if element.element_type == ElementType.FOOTER:
-                # Deep copy footer
-                copied_footer = deepcopy(element)
+        logger.debug(f"Created continuation title: '{continuation_text}'")
+        return title_element
 
-                # Generate new object ID
-                copied_footer.object_id = self._generate_element_id(ElementType.FOOTER)
+    def _create_continuation_footer(self) -> "TextElement | None":
+        """
+        Create a footer element for the continuation slide.
 
-                # Update position to ensure it's at the bottom
-                if copied_footer.size:
-                    copied_footer.position = (
-                        (copied_footer.position[0] if copied_footer.position else self.margins["left"]),
-                        self.footer_y,
-                    )
+        Returns:
+            A TextElement for the continuation footer, or None if original had no footer
+        """
+        original_footer_element = self._find_original_footer_element()
 
-                target_slide.elements.append(copied_footer)
+        if not original_footer_element:
+            return None
 
-    def _create_continuation_footer(self, original_slide: Slide, new_slide: Slide, slide_number: int) -> None:
-        """Create footer for continuation slide."""
-        # Find original footer
-        original_footer = None
-        for element in original_slide.elements:
-            if element.element_type == ElementType.FOOTER:
-                original_footer = element
-                break
+        # Get original footer text
+        original_footer_text = getattr(original_footer_element, "text", "")
 
-        if original_footer:
-            # Copy and modify footer
-            footer_text = original_footer.text if hasattr(original_footer, "text") else "Page Footer"
-
-            # Add continuation indicator if not already present
-            if "(cont.)" not in footer_text:
-                footer_text = f"{footer_text} (cont.)"
-
-            footer_element = TextElement(
-                element_type=ElementType.FOOTER,
-                text=footer_text,
-                object_id=self._generate_element_id(ElementType.FOOTER),
-                position=(self.margins["left"], self.footer_y),
-                size=(
-                    self.slide_width - self.margins["left"] - self.margins["right"],
-                    self.footer_height,
-                ),
+        # Create continuation footer text
+        if CONTINUED_FOOTER_SUFFIX not in original_footer_text:
+            continuation_footer_text = (
+                f"{original_footer_text} {CONTINUED_FOOTER_SUFFIX}"
             )
+        else:
+            continuation_footer_text = original_footer_text
 
-            new_slide.elements.append(footer_element)
+        # Create footer element
+        from markdowndeck.models import ElementType, TextElement
 
-    def _add_content_elements(self, slide: Slide, content_groups: list[ContentGroup]) -> None:
-        """Add content elements from groups to the slide."""
-        for group in content_groups:
-            for element in group.elements:
-                # Deep copy to avoid modifying original
-                copied_element = deepcopy(element)
+        footer_element = TextElement(
+            element_type=ElementType.FOOTER,
+            text=continuation_footer_text,
+            object_id=f"footer_{uuid.uuid4().hex[:8]}",
+            horizontal_alignment=getattr(
+                original_footer_element, "horizontal_alignment", "left"
+            ),
+            directives=deepcopy(getattr(original_footer_element, "directives", {})),
+        )
 
-                # Generate new object ID to avoid conflicts
-                copied_element.object_id = self._generate_element_id(element.element_type)
+        logger.debug(f"Created continuation footer: '{continuation_footer_text}'")
+        return footer_element
 
-                slide.elements.append(copied_element)
+    def _extract_original_title_text(self) -> str:
+        """Extract the title text from the original slide."""
+        # First try the title attribute
+        if hasattr(self.original_slide, "title") and self.original_slide.title:
+            return self.original_slide.title
 
-    def _create_continuation_title(self, original_title: str, slide_number: int) -> str:
-        """Create title text for continuation slide."""
-        if not original_title:
-            return f"Content (cont. {slide_number})"
+        # Then look for title element
+        title_element = self._find_original_title_element()
+        if title_element and hasattr(title_element, "text"):
+            return title_element.text
 
-        # Remove existing continuation markers
-        clean_title = original_title.replace("(cont.)", "").replace("(cont)", "").strip()
+        return ""
 
-        return f"{clean_title} (cont.)"
+    def _find_original_title_element(self) -> "TextElement | None":
+        """Find the title element in the original slide."""
+        from markdowndeck.models import ElementType
 
-    def _calculate_title_x(self, title_text: str) -> float:
-        """Calculate X position for centered title."""
-        # Estimate title width and center it
-        char_width = 5.5  # Approximate character width for titles
-        title_width = len(title_text) * char_width
+        for element in self.original_slide.elements:
+            if element.element_type == ElementType.TITLE:
+                return element
+        return None
 
-        content_width = self.slide_width - self.margins["left"] - self.margins["right"]
-        return self.margins["left"] + (content_width - title_width) / 2
+    def _find_original_footer_element(self) -> "TextElement | None":
+        """Find the footer element in the original slide."""
+        from markdowndeck.models import ElementType
 
-    def _calculate_title_width(self, title_text: str) -> float:
-        """Calculate width for title element."""
-        char_width = 5.5
-        return len(title_text) * char_width
+        for element in self.original_slide.elements:
+            if element.element_type == ElementType.FOOTER:
+                return element
+        return None
 
-    def _generate_element_id(self, element_type: ElementType) -> str:
-        """Generate unique element ID."""
-        type_prefix = {
-            ElementType.TITLE: "title",
-            ElementType.SUBTITLE: "subtitle",
-            ElementType.TEXT: "text",
-            ElementType.BULLET_LIST: "list",
-            ElementType.ORDERED_LIST: "olist",
-            ElementType.IMAGE: "img",
-            ElementType.TABLE: "table",
-            ElementType.CODE: "code",
-            ElementType.QUOTE: "quote",
-            ElementType.FOOTER: "footer",
-        }.get(element_type, "elem")
+    def _extract_elements_from_sections(self, slide: "Slide") -> None:
+        """
+        Extract all elements from sections and add them to the slide's elements list.
 
-        return f"{type_prefix}_{uuid.uuid4().hex[:8]}"
+        This recursively processes sections and their subsections to build a flat
+        list of elements for the slide.
+
+        Args:
+            slide: The slide to populate with elements from its sections
+        """
+        from markdowndeck.models.slide import Section
+
+        def extract_from_section_list(sections: list[Section]):
+            for section in sections:
+                if section.elements:
+                    # Add elements from this section
+                    for element in section.elements:
+                        # Generate unique object ID for each element to avoid conflicts
+                        if hasattr(element, "object_id"):
+                            element.object_id = (
+                                f"{element.element_type}_{uuid.uuid4().hex[:8]}"
+                            )
+                        slide.elements.append(deepcopy(element))
+
+                if section.subsections:
+                    # Recursively process subsections
+                    extract_from_section_list(section.subsections)
+
+        extract_from_section_list(slide.sections)
+        logger.debug(
+            f"Extracted {len(slide.elements)} elements from {len(slide.sections)} sections"
+        )

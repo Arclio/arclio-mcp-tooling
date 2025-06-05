@@ -28,7 +28,6 @@ import logging
 from markdowndeck.overflow.detector import OverflowDetector
 from markdowndeck.overflow.handlers import StandardOverflowHandler
 from markdowndeck.overflow.manager import OverflowManager
-from markdowndeck.overflow.models import OverflowStrategy, OverflowType
 from markdowndeck.overflow.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -36,8 +35,6 @@ logger = logging.getLogger(__name__)
 # Public API exports
 __all__ = [
     "OverflowManager",
-    "OverflowStrategy",
-    "OverflowType",
     "OverflowDetector",
     "StandardOverflowHandler",
     "SlideBuilder",
@@ -50,7 +47,6 @@ def create_overflow_manager(
     slide_width: float = 720,
     slide_height: float = 405,
     margins: dict[str, float] = None,
-    strategy: OverflowStrategy = OverflowStrategy.STANDARD,
 ) -> OverflowManager:
     """
     Create a configured overflow manager.
@@ -59,7 +55,6 @@ def create_overflow_manager(
         slide_width: Width of slides in points
         slide_height: Height of slides in points
         margins: Slide margins (top, right, bottom, left)
-        strategy: Overflow handling strategy
 
     Returns:
         Configured OverflowManager instance
@@ -72,7 +67,6 @@ def create_overflow_manager(
         slide_width=slide_width,
         slide_height=slide_height,
         margins=margins,
-        strategy=strategy,
     )
 
 
@@ -81,7 +75,6 @@ def process_positioned_slide(
     slide_width: float = 720,
     slide_height: float = 405,
     margins: dict[str, float] = None,
-    strategy: OverflowStrategy = OverflowStrategy.STANDARD,
 ) -> list:
     """
     Convenience function to process a single positioned slide.
@@ -91,7 +84,6 @@ def process_positioned_slide(
         slide_width: Width of slides in points
         slide_height: Height of slides in points
         margins: Slide margins
-        strategy: Overflow handling strategy
 
     Returns:
         List of slides with content properly distributed
@@ -108,7 +100,6 @@ def process_positioned_slide(
         slide_width=slide_width,
         slide_height=slide_height,
         margins=margins,
-        strategy=strategy,
     )
 
     return manager.process_slide(positioned_slide)

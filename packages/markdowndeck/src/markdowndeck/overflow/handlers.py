@@ -1,9 +1,14 @@
-"""Overflow handling strategies for content distribution."""
+"""Core overflow handling strategies for content distribution."""
 
 import logging
+from copy import deepcopy
+from typing import TYPE_CHECKING
 
-from markdowndeck.models import Slide
-from markdowndeck.overflow.models import ContentGroup, DistributionPlan, OverflowInfo
+if TYPE_CHECKING:
+    from markdowndeck.models import Slide
+    from markdowndeck.models.slide import Section
+
+from markdowndeck.overflow.constants import MINIMUM_CONTENT_RATIO_TO_SPLIT
 from markdowndeck.overflow.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -11,210 +16,475 @@ logger = logging.getLogger(__name__)
 
 class StandardOverflowHandler:
     """
-    Standard overflow handling strategy.
+    Standard overflow handling strategy with intelligent content partitioning.
 
-    Implements intelligent content distribution with:
-    - Respect for element relationships
-    - Smart content grouping
-    - Optimal slide utilization
-    - Clean continuation slide creation
+    This handler implements a recursive partitioning algorithm that respects
+    element relationships and applies smart splitting rules to create clean
+    continuation slides.
     """
 
-    def __init__(
-        self,
-        slide_width: float = 720,
-        slide_height: float = 405,
-        margins: dict[str, float] = None,
-    ):
+    def __init__(self, body_height: float):
         """
-        Initialize standard overflow handler.
+        Initialize the overflow handler.
 
         Args:
-            slide_width: Width of slides in points
-            slide_height: Height of slides in points
-            margins: Slide margins
+            body_height: The available height in the slide's body zone
         """
-        self.slide_width = slide_width
-        self.slide_height = slide_height
-        self.margins = margins or {"top": 50, "right": 50, "bottom": 50, "left": 50}
+        self.body_height = body_height
+        logger.debug(
+            f"StandardOverflowHandler initialized with body_height={body_height}"
+        )
 
-        # Calculate available body height for content distribution
-        header_height = 90.0
-        footer_height = 30.0
-        self.body_height = slide_height - margins["top"] - margins["bottom"] - header_height - footer_height
-
-        # Initialize slide builder
-        self.slide_builder = SlideBuilder(slide_width=slide_width, slide_height=slide_height, margins=margins)
-
-        logger.debug(f"StandardOverflowHandler initialized - {self.body_height}pt body height available")
-
-    def handle_overflow(self, slide: Slide, overflow_info: OverflowInfo) -> list[Slide]:
+    def handle_overflow(
+        self, slide: "Slide", overflowing_section: "Section"
+    ) -> tuple["Slide", "Slide"]:
         """
-        Handle overflow by distributing content across multiple slides.
+        Handle overflow by partitioning the overflowing section and creating a continuation slide.
 
         Args:
-            slide: Original slide with overflow
-            overflow_info: Overflow analysis details
+            slide: The original slide with overflow
+            overflowing_section: The first section that overflows
 
         Returns:
-            List of slides with content properly distributed
+            Tuple of (modified_original_slide, continuation_slide)
         """
-        logger.info(f"Handling overflow for slide {slide.object_id}")
+        logger.info(
+            f"Handling overflow for section at position {overflowing_section.position}"
+        )
 
-        # Step 1: Analyze content groups
-        from markdowndeck.overflow.detector import OverflowDetector
+        # Calculate available height before the overflowing section
+        available_height = self.body_height - overflowing_section.position[1]
+        logger.debug(f"Available height for overflow section: {available_height}")
 
-        detector = OverflowDetector(self.slide_width, self.slide_height, self.margins)
-        content_groups = detector.analyze_content_groups(slide)
+        # Partition the overflowing section
+        fitted_part, overflowing_part = self._partition_section(
+            overflowing_section, available_height
+        )
 
-        if not content_groups:
-            logger.warning("No content groups found - returning original slide")
-            return [slide]
+        # Find the index of the overflowing section in the original slide
+        section_index = -1
+        for i, section in enumerate(slide.sections):
+            if section is overflowing_section:
+                section_index = i
+                break
 
-        # Step 2: Create distribution plan
-        distribution_plan = self._create_distribution_plan(content_groups)
+        if section_index == -1:
+            logger.error("Could not find overflowing section in slide sections list")
+            return slide, slide  # Fallback - return duplicate slides
 
-        # Step 3: Build slides from distribution plan
-        result_slides = self._build_slides_from_plan(slide, distribution_plan)
+        # Collect subsequent sections that should move to continuation slide
+        subsequent_sections = slide.sections[section_index + 1 :]
 
-        logger.info(f"Overflow handling complete: {len(result_slides)} slides created")
-        return result_slides
+        # Create sections for continuation slide
+        continuation_sections = []
+        if overflowing_part:
+            continuation_sections.append(overflowing_part)
+        continuation_sections.extend(deepcopy(subsequent_sections))
 
-    def _create_distribution_plan(self, content_groups: list[ContentGroup]) -> DistributionPlan:
+        # Create continuation slide
+        slide_builder = SlideBuilder(slide)
+        continuation_slide = slide_builder.create_continuation_slide(
+            continuation_sections, 1
+        )
+
+        # Modify original slide
+        modified_original = deepcopy(slide)
+
+        # Replace overflowing section with fitted part (if any)
+        if fitted_part:
+            modified_original.sections[section_index] = fitted_part
+        else:
+            # Remove the section entirely if nothing fits
+            modified_original.sections.pop(section_index)
+
+        # Remove all subsequent sections from original slide
+        modified_original.sections = modified_original.sections[
+            : section_index + (1 if fitted_part else 0)
+        ]
+
+        # Update elements list to match the modified sections
+        self._rebuild_elements_from_sections(modified_original)
+
+        logger.info(
+            f"Created continuation slide with {len(continuation_sections)} sections"
+        )
+        return modified_original, continuation_slide
+
+    def _partition_section(
+        self, section: "Section", available_height: float
+    ) -> tuple["Section | None", "Section | None"]:
         """
-        Create a plan for distributing content groups across slides.
+        Recursively partition a section to fit within available height.
 
         Args:
-            content_groups: Groups of related content
+            section: The section to partition
+            available_height: The height available for this section
 
         Returns:
-            Distribution plan with groups assigned to slides
+            Tuple of (fitted_part, overflowing_part). Either can be None.
         """
-        logger.debug(f"Creating distribution plan for {len(content_groups)} content groups")
+        logger.debug(
+            f"Partitioning section {section.id} with available_height={available_height}"
+        )
 
-        slides = []
-        current_slide_groups = []
-        current_slide_height = 0.0
+        if section.elements:
+            # Base case: Section has elements - apply Rule A
+            return self._apply_rule_a(section, available_height)
 
-        # Reserve some space for spacing between groups
-        spacing_per_group = 10.0
-        usable_height = self.body_height - (len(content_groups) * spacing_per_group)
+        if section.subsections:
+            # Recursive case: Section has subsections
+            if section.type == "row":
+                # Rule B: Row of columns partitioning
+                return self._apply_rule_b(section, available_height)
+            # Standard subsection partitioning
+            return self._partition_section_with_subsections(section, available_height)
 
-        for group in content_groups:
-            group_height = group.total_height
+        # Empty section
+        logger.warning(f"Empty section {section.id} encountered during partitioning")
+        return None, None
 
-            # Check if group fits in current slide
-            if current_slide_height + group_height <= usable_height and current_slide_groups:  # Not the first group
-                # Add to current slide
-                current_slide_groups.append(group)
-                current_slide_height += group_height
-                logger.debug(f"Added group to current slide (height now: {current_slide_height:.1f})")
+    def _apply_rule_a(
+        self, section: "Section", available_height: float
+    ) -> tuple["Section | None", "Section | None"]:
+        """
+        Rule A: Standard section partitioning with elements.
 
+        Args:
+            section: Section containing elements
+            available_height: Available height for this section
+
+        Returns:
+            Tuple of (fitted_part, overflowing_part)
+        """
+        logger.debug(
+            f"Applying Rule A to section {section.id} with {len(section.elements)} elements"
+        )
+
+        if not section.elements:
+            return None, None
+
+        # Calculate section width for element measurements
+        section_width = section.size[0] if section.size else 400.0
+
+        # Find the split point among elements
+        fitted_elements = []
+        current_height = 0.0
+        split_element_parts = None
+
+        for i, element in enumerate(section.elements):
+            # Calculate height this element would require
+            from markdowndeck.layout.metrics import calculate_element_height
+
+            element_height = calculate_element_height(element, section_width)
+
+            if current_height + element_height <= available_height:
+                # Element fits completely
+                fitted_elements.append(deepcopy(element))
+                current_height += element_height
             else:
-                # Start new slide
-                if current_slide_groups:
-                    slides.append(current_slide_groups)
-                    logger.debug(f"Completed slide with {len(current_slide_groups)} groups")
+                # Element crosses the boundary - apply threshold rule
+                remaining_height = available_height - current_height
 
-                current_slide_groups = [group]
-                current_slide_height = group_height
+                # Check if element is splittable and meets threshold
+                if self._is_element_splittable(element) and self._meets_split_threshold(
+                    element, remaining_height, section_width
+                ):
+                    # Split the element
+                    logger.debug(
+                        f"Splitting element {element.element_type} at threshold"
+                    )
+                    fitted_part, overflowing_part = element.split(remaining_height)
 
-                # Handle oversized groups
-                if group_height > usable_height:
-                    logger.warning(f"Group exceeds slide capacity ({group_height:.1f} > {usable_height:.1f})")
-                    # For now, still place it - future enhancement could split large groups
+                    if fitted_part:
+                        fitted_elements.append(fitted_part)
 
-        # Add final slide if it has content
-        if current_slide_groups:
-            slides.append(current_slide_groups)
-            logger.debug(f"Added final slide with {len(current_slide_groups)} groups")
+                    if overflowing_part:
+                        split_element_parts = (fitted_part, overflowing_part, i)
+                else:
+                    # Don't split - promote entire element to next slide
+                    logger.debug(
+                        f"Promoting entire element {element.element_type} to next slide"
+                    )
+                    split_element_parts = (None, element, i)
 
-        return DistributionPlan(slides=slides)
+                break
 
-    def _build_slides_from_plan(self, original_slide: Slide, plan: DistributionPlan) -> list[Slide]:
+        # Construct result sections
+        fitted_section = None
+        overflowing_section = None
+
+        if fitted_elements:
+            fitted_section = deepcopy(section)
+            fitted_section.elements = fitted_elements
+            # Update section size
+            fitted_section.size = (section_width, current_height)
+
+        # Handle overflowing elements
+        overflowing_elements = []
+
+        if split_element_parts:
+            _, overflowing_element_part, split_index = split_element_parts
+
+            if overflowing_element_part:
+                overflowing_elements.append(overflowing_element_part)
+
+            # Add all subsequent elements
+            overflowing_elements.extend(deepcopy(section.elements[split_index + 1 :]))
+
+        if overflowing_elements:
+            overflowing_section = deepcopy(section)
+            overflowing_section.elements = overflowing_elements
+            # Reset position for continuation slide
+            overflowing_section.position = None
+            overflowing_section.size = None
+
+        logger.debug(
+            f"Rule A result: fitted={len(fitted_elements) if fitted_elements else 0} elements, "
+            f"overflowing={len(overflowing_elements)} elements"
+        )
+
+        return fitted_section, overflowing_section
+
+    def _apply_rule_b(
+        self, row_section: "Section", available_height: float
+    ) -> tuple["Section | None", "Section | None"]:
         """
-        Build actual slides from the distribution plan.
+        Rule B: Row of columns partitioning.
 
         Args:
-            original_slide: Original slide to base new slides on
-            plan: Distribution plan
+            row_section: Section of type "row" containing column subsections
+            available_height: Available height for this row
 
         Returns:
-            List of constructed slides
+            Tuple of (fitted_row, overflowing_row)
         """
-        logger.debug(f"Building {plan.total_slides} slides from distribution plan")
+        logger.debug(
+            f"Applying Rule B to row section {row_section.id} with {len(row_section.subsections)} columns"
+        )
 
-        result_slides = []
+        if not row_section.subsections:
+            return None, None
 
-        for slide_index, slide_groups in enumerate(plan.slides):
-            is_first_slide = slide_index == 0
+        # Find the tallest column and identify overflowing elements
+        tallest_column = None
+        max_height = 0.0
+        overflowing_element = None
 
-            # Create slide
-            if is_first_slide:
-                # First slide keeps original title and structure
-                new_slide = self.slide_builder.create_first_slide(original_slide, slide_groups)
-            else:
-                # Continuation slides get modified titles
-                new_slide = self.slide_builder.create_continuation_slide(original_slide, slide_groups, slide_index)
+        for column in row_section.subsections:
+            if column.size and column.size[1] > max_height:
+                max_height = column.size[1]
+                tallest_column = column
 
-            # Position elements within the slide
-            self._position_slide_elements(new_slide, slide_groups)
+        if not tallest_column:
+            logger.warning("Could not identify tallest column in row section")
+            return None, deepcopy(row_section)
 
-            result_slides.append(new_slide)
-            logger.debug(f"Built slide {slide_index + 1} with {len(slide_groups)} content groups")
+        # Find the overflowing element in the tallest column
+        if tallest_column.elements:
+            column_width = tallest_column.size[0] if tallest_column.size else 400.0
+            current_y = 0.0
 
-        return result_slides
+            for element in tallest_column.elements:
+                from markdowndeck.layout.metrics import calculate_element_height
 
-    def _position_slide_elements(self, slide: Slide, content_groups: list[ContentGroup]) -> None:
+                element_height = calculate_element_height(element, column_width)
+                if current_y + element_height > available_height:
+                    overflowing_element = element
+                    break
+                current_y += element_height
+
+        # Check if overflowing element is splittable
+        if overflowing_element and not self._is_element_splittable(overflowing_element):
+            # Entire row is atomic
+            logger.debug(
+                "Row contains unsplittable overflowing element - promoting entire row"
+            )
+            return None, deepcopy(row_section)
+
+        # Determine vertical split point (Y-coordinate)
+        split_y = available_height
+
+        # Partition all columns at the same Y-coordinate
+        fitted_columns = []
+        overflowing_columns = []
+
+        for column in row_section.subsections:
+            fitted_col, overflowing_col = self._partition_section(column, split_y)
+
+            if fitted_col:
+                fitted_columns.append(fitted_col)
+            if overflowing_col:
+                overflowing_columns.append(overflowing_col)
+
+        # Construct result rows
+        fitted_row = None
+        overflowing_row = None
+
+        if fitted_columns:
+            fitted_row = deepcopy(row_section)
+            fitted_row.subsections = fitted_columns
+
+        if overflowing_columns:
+            overflowing_row = deepcopy(row_section)
+            overflowing_row.subsections = overflowing_columns
+            # Reset position for continuation slide
+            overflowing_row.position = None
+            overflowing_row.size = None
+
+        logger.debug(
+            f"Rule B result: fitted={len(fitted_columns)} columns, "
+            f"overflowing={len(overflowing_columns)} columns"
+        )
+
+        return fitted_row, overflowing_row
+
+    def _partition_section_with_subsections(
+        self, section: "Section", available_height: float
+    ) -> tuple["Section | None", "Section | None"]:
         """
-        Position elements within a slide based on content groups.
+        Partition a section containing subsections (non-row).
 
         Args:
-            slide: Slide to position elements in
-            content_groups: Content groups for this slide
-        """
-        # Start positioning after header
-        header_height = 90.0
-        current_y = self.margins["top"] + header_height
-        group_spacing = 10.0
-
-        for group in content_groups:
-            # Position each element in the group
-            for element in group.elements:
-                if element.position and element.size:
-                    # Update Y position while preserving X position and size
-                    element.position = (element.position[0], current_y)
-                    current_y += element.size[1]
-
-                    # Add small spacing between elements within a group
-                    if element != group.elements[-1]:  # Not the last element in group
-                        current_y += 5.0
-
-            # Add spacing between groups
-            if group != content_groups[-1]:  # Not the last group
-                current_y += group_spacing
-
-        logger.debug(f"Positioned {sum(len(g.elements) for g in content_groups)} elements ending at y={current_y:.1f}")
-
-    def _handle_oversized_group(self, group: ContentGroup) -> list[ContentGroup]:
-        """
-        Handle a content group that's too large for a single slide.
-
-        Future enhancement: Could implement smart splitting of large groups.
-        For now, returns the group as-is with a warning.
-
-        Args:
-            group: Oversized content group
+            section: Section containing subsections
+            available_height: Available height for this section
 
         Returns:
-            List of groups (potentially split)
+            Tuple of (fitted_part, overflowing_part)
         """
-        logger.warning(f"Content group of type '{group.group_type}' exceeds slide capacity")
+        # Find first overflowing subsection
+        overflowing_subsection_index = -1
 
-        # Future implementation could:
-        # 1. Split long text elements across slides
-        # 2. Split large lists into chunks
-        # 3. Split large tables by rows
-        # 4. Create "continued on next slide" markers
+        for i, subsection in enumerate(section.subsections):
+            if subsection.position and subsection.size:
+                subsection_bottom = subsection.position[1] + subsection.size[1]
+                if subsection_bottom > available_height:
+                    overflowing_subsection_index = i
+                    break
 
-        return [group]  # For now, return as-is
+        if overflowing_subsection_index == -1:
+            # No overflow in subsections
+            return deepcopy(section), None
+
+        # Recursively partition the overflowing subsection
+        overflowing_subsection = section.subsections[overflowing_subsection_index]
+        subsection_available_height = available_height - (
+            overflowing_subsection.position[1] if overflowing_subsection.position else 0
+        )
+
+        fitted_subsection, overflowing_subsection_part = self._partition_section(
+            overflowing_subsection, subsection_available_height
+        )
+
+        # Build result sections
+        fitted_section = None
+        overflowing_section = None
+
+        # Fitted part includes subsections before overflow point plus fitted part of overflowing subsection
+        fitted_subsections = deepcopy(
+            section.subsections[:overflowing_subsection_index]
+        )
+        if fitted_subsection:
+            fitted_subsections.append(fitted_subsection)
+
+        if fitted_subsections:
+            fitted_section = deepcopy(section)
+            fitted_section.subsections = fitted_subsections
+
+        # Overflowing part includes overflowing part of subsection plus all subsequent subsections
+        overflowing_subsections = []
+        if overflowing_subsection_part:
+            overflowing_subsections.append(overflowing_subsection_part)
+        overflowing_subsections.extend(
+            deepcopy(section.subsections[overflowing_subsection_index + 1 :])
+        )
+
+        if overflowing_subsections:
+            overflowing_section = deepcopy(section)
+            overflowing_section.subsections = overflowing_subsections
+            # Reset position for continuation slide
+            overflowing_section.position = None
+            overflowing_section.size = None
+
+        return fitted_section, overflowing_section
+
+    def _is_element_splittable(self, element) -> bool:
+        """
+        Check if an element supports splitting.
+
+        Args:
+            element: The element to check
+
+        Returns:
+            True if the element can be split across slides
+        """
+        # Images are atomic
+        from markdowndeck.models import ElementType
+
+        if element.element_type == ElementType.IMAGE:
+            return False
+
+        # Check if element has a split method
+        return hasattr(element, "split") and callable(element.split)
+
+    def _meets_split_threshold(
+        self, element, available_height: float, element_width: float
+    ) -> bool:
+        """
+        Apply the threshold rule to determine if an element should be split.
+
+        Args:
+            element: The element to check
+            available_height: Height available for this element
+            element_width: Width of the element
+
+        Returns:
+            True if the element should be split (meets minimum ratio threshold)
+        """
+        from markdowndeck.layout.metrics import calculate_element_height
+
+        total_element_height = calculate_element_height(element, element_width)
+
+        if total_element_height == 0:
+            return False
+
+        ratio_that_fits = available_height / total_element_height
+        meets_threshold = ratio_that_fits >= MINIMUM_CONTENT_RATIO_TO_SPLIT
+
+        logger.debug(
+            f"Threshold check: ratio={ratio_that_fits:.2f}, threshold={MINIMUM_CONTENT_RATIO_TO_SPLIT}, meets={meets_threshold}"
+        )
+
+        return meets_threshold
+
+    def _rebuild_elements_from_sections(self, slide: "Slide") -> None:
+        """
+        Rebuild the slide's elements list from its sections.
+
+        Args:
+            slide: The slide to rebuild elements for
+        """
+        slide.elements = []
+
+        # Keep title and footer elements
+        original_elements = []
+        original_elements = (
+            slide._original_elements
+            if hasattr(slide, "_original_elements")
+            else deepcopy(slide.elements)
+        )
+
+        for element in original_elements:
+            from markdowndeck.models import ElementType
+
+            if element.element_type in (ElementType.TITLE, ElementType.FOOTER):
+                slide.elements.append(element)
+
+        # Extract elements from sections
+        def extract_elements(sections):
+            for section in sections:
+                if section.elements:
+                    slide.elements.extend(deepcopy(section.elements))
+                if section.subsections:
+                    extract_elements(section.subsections)
+
+        extract_elements(slide.sections)
