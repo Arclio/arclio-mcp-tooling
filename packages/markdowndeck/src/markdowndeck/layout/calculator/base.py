@@ -1,4 +1,4 @@
-"""Refactored base position calculator - Content-aware layout engine."""
+"""Refactored base position calculator - Unified Section Model layout engine."""
 
 import logging
 from copy import deepcopy
@@ -27,17 +27,19 @@ from markdowndeck.layout.constants import (
     TITLE_WIDTH_FRACTION,
 )
 from markdowndeck.models import ElementType, Slide
+from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
 
 
 class PositionCalculator:
     """
-    Content-aware layout calculator that follows the Layout Calculation Contract.
+    Unified layout calculator implementing the Universal Section Model.
 
-    This calculator operates on the principle of separating spatial planning from
-    problem-solving. It calculates ideal positions and sizes for all elements
-    and sections based on content, but does not handle overflow or fitting constraints.
+    This calculator operates on the principle that every slide uses a section-based
+    layout. If no explicit sections are defined, a single root section is created
+    to contain all body elements. This eliminates the dual-mode complexity and
+    ensures consistent behavior across all slide types.
     """
 
     def __init__(
@@ -116,10 +118,11 @@ class PositionCalculator:
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions for all elements in a slide according to the Layout Contract.
+        Calculate positions for all elements using the Universal Section Model.
 
-        This is the main entry point that dispatches to either zone-based or
-        section-based layout depending on the slide structure.
+        This is the main entry point that implements the unified architecture.
+        All slides are treated as section-based layouts. If no sections are defined,
+        a single root section is created to contain all body elements.
 
         Args:
             slide: The slide to calculate positions for
@@ -136,22 +139,75 @@ class PositionCalculator:
         self._position_header_elements(updated_slide)
         self._position_footer_elements(updated_slide)
 
-        # Determine layout strategy based on slide structure
-        if updated_slide.sections:
-            logger.debug(
-                f"Using section-based layout for slide {updated_slide.object_id}"
-            )
-            from markdowndeck.layout.calculator.section_layout import (
-                calculate_section_based_positions,
-            )
+        # Implement Universal Section Model
+        sections_to_process = self._ensure_section_based_layout(updated_slide)
 
-            return calculate_section_based_positions(self, updated_slide)
-        logger.debug(f"Using zone-based layout for slide {updated_slide.object_id}")
-        from markdowndeck.layout.calculator.zone_layout import (
-            calculate_zone_based_positions,
+        # Apply section-based layout to all slides
+        logger.debug(
+            f"Using unified section-based layout for slide {updated_slide.object_id}"
+        )
+        from markdowndeck.layout.calculator.section_layout import (
+            calculate_section_based_positions,
         )
 
-        return calculate_zone_based_positions(self, updated_slide)
+        # Update the slide's sections with the processed sections
+        updated_slide.sections = sections_to_process
+
+        return calculate_section_based_positions(self, updated_slide)
+
+    def _ensure_section_based_layout(self, slide: Slide) -> list[Section]:
+        """
+        Ensure the slide has a section-based layout.
+
+        If no sections exist, creates a single root section containing all body elements.
+        This implements the Universal Section Model from the specification.
+
+        Args:
+            slide: The slide to process
+
+        Returns:
+            List of sections ready for section-based layout processing
+        """
+        if slide.sections:
+            # Slide already has sections, use them as-is
+            logger.debug(
+                f"Slide {slide.object_id} has {len(slide.sections)} existing sections"
+            )
+            return slide.sections
+
+        # Create a root section for body elements
+        body_elements = self.get_body_elements(slide)
+
+        if not body_elements:
+            logger.debug(
+                f"Slide {slide.object_id} has no body elements, creating empty root section"
+            )
+            # Still create a root section for consistency
+            root_section = Section(
+                id="root",
+                content="",
+                elements=[],
+                position=(self.body_left, self.body_top),
+                size=(self.body_width, self.body_height),
+                directives={"height": self.body_height},
+            )
+            return [root_section]
+
+        # Create root section with all body elements
+        root_section = Section(
+            id="root",
+            content="Auto-generated root section",
+            elements=body_elements,
+            position=(self.body_left, self.body_top),
+            size=(self.body_width, self.body_height),
+            directives={"height": self.body_height},
+        )
+
+        logger.debug(
+            f"Created root section for slide {slide.object_id} with {len(body_elements)} elements"
+        )
+
+        return [root_section]
 
     def _position_header_elements(self, slide: Slide):
         """Position title and subtitle elements within the fixed header zone."""

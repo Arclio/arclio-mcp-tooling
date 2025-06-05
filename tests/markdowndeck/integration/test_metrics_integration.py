@@ -1,4 +1,4 @@
-"""Comprehensive integration tests for the metrics system with the layout engine."""
+"""Comprehensive integration tests for the metrics system with the unified layout engine."""
 
 import pytest
 from markdowndeck.layout import LayoutManager
@@ -176,8 +176,8 @@ class TestMetricsSystemIntegration:
             code_narrow > code_wide
         ), f"Code should be taller when narrow ({code_narrow}) vs wide ({code_wide})"
 
-    def test_metrics_integration_in_layout_context(self, layout_manager):
-        """Test that metrics work correctly when integrated with the full layout system."""
+    def test_metrics_integration_in_unified_layout_context(self, layout_manager):
+        """Test that metrics work correctly when integrated with the unified layout system."""
 
         title = TextElement(
             element_type=ElementType.TITLE, text="Metrics Integration Test"
@@ -208,23 +208,28 @@ class TestMetricsSystemIntegration:
             object_id="large_table",
         )
 
+        # Test with unified layout (no explicit sections - should create root section)
         slide = Slide(
             object_id="metrics_integration_slide",
             elements=[title, short_text, medium_list, large_table],
         )
 
-        # Calculate layout using full system
+        # Calculate layout using unified system
         result_slide = layout_manager.calculate_positions(slide)
 
-        # Extract positioned elements
+        # Verify root section was created
+        assert len(result_slide.sections) == 1, "Should create root section"
+        root_section = result_slide.sections[0]
+
+        # Extract positioned elements from root section
         positioned_text = next(
-            e for e in result_slide.elements if e.object_id == "short_text"
+            e for e in root_section.elements if e.object_id == "short_text"
         )
         positioned_list = next(
-            e for e in result_slide.elements if e.object_id == "medium_list"
+            e for e in root_section.elements if e.object_id == "medium_list"
         )
         positioned_table = next(
-            e for e in result_slide.elements if e.object_id == "large_table"
+            e for e in root_section.elements if e.object_id == "large_table"
         )
 
         # Heights should reflect content complexity: table > list > short text
@@ -278,15 +283,17 @@ class TestMetricsSystemIntegration:
 
         result_slide = layout_manager.calculate_positions(slide)
 
-        # Extract positioned elements
+        # Extract positioned elements from root section
+        root_section = result_slide.sections[0]
+
         positioned_large_font = next(
-            e for e in result_slide.elements if e.object_id == "large_font"
+            e for e in root_section.elements if e.object_id == "large_font"
         )
         positioned_narrow = next(
-            e for e in result_slide.elements if e.object_id == "narrow_text"
+            e for e in root_section.elements if e.object_id == "narrow_text"
         )
         positioned_image = next(
-            e for e in result_slide.elements if e.object_id == "fixed_image"
+            e for e in root_section.elements if e.object_id == "fixed_image"
         )
 
         # Large font text should be taller than normal
@@ -314,13 +321,13 @@ class TestMetricsSystemIntegration:
             abs(positioned_image.size[1] - 150) < 1
         ), "Image with height directive should have exact specified height"
 
-    def test_metrics_consistency_across_layout_modes(self, layout_manager):
-        """Test that metrics produce consistent results across zone-based and section-based layouts."""
+    def test_metrics_consistency_in_unified_model(self, layout_manager):
+        """Test that metrics produce consistent results in the unified layout model."""
 
-        # Create identical content
+        # Create identical content for both explicit section and root section scenarios
         test_text = TextElement(
             element_type=ElementType.TEXT,
-            text="This is test content that should have consistent metrics regardless of layout mode",
+            text="This is test content that should have consistent metrics regardless of section configuration",
             object_id="test_text",
         )
 
@@ -334,41 +341,108 @@ class TestMetricsSystemIntegration:
             object_id="test_list",
         )
 
-        # Zone-based layout (no sections)
-        zone_slide = Slide(
-            object_id="zone_based_slide", elements=[test_text, test_list]
+        # Test 1: Root section (no explicit sections)
+        root_slide = Slide(
+            object_id="root_section_slide", elements=[test_text, test_list]
         )
 
-        # Section-based layout (with section)
+        # Test 2: Explicit section
         test_section = Section(
             id="test_section", type="section", elements=[test_text, test_list]
         )
 
-        section_slide = Slide(
-            object_id="section_based_slide",
+        explicit_slide = Slide(
+            object_id="explicit_section_slide",
             elements=[test_text, test_list],
             sections=[test_section],
         )
 
         # Calculate both layouts
-        zone_result = layout_manager.calculate_positions(zone_slide)
-        section_result = layout_manager.calculate_positions(section_slide)
+        root_result = layout_manager.calculate_positions(root_slide)
+        explicit_result = layout_manager.calculate_positions(explicit_slide)
 
         # Extract elements from both results
-        zone_text = next(e for e in zone_result.elements if e.object_id == "test_text")
-        zone_list = next(e for e in zone_result.elements if e.object_id == "test_list")
+        root_section = root_result.sections[0]
+        root_text = next(e for e in root_section.elements if e.object_id == "test_text")
+        root_list = next(e for e in root_section.elements if e.object_id == "test_list")
 
-        section_text = section_result.sections[0].elements[0]
-        section_list = section_result.sections[0].elements[1]
+        explicit_section = explicit_result.sections[0]
+        explicit_text = next(
+            e for e in explicit_section.elements if e.object_id == "test_text"
+        )
+        explicit_list = next(
+            e for e in explicit_section.elements if e.object_id == "test_list"
+        )
 
         # Heights should be very similar (allowing for small differences in available width)
         assert (
-            abs(zone_text.size[1] - section_text.size[1]) < 5
-        ), f"Text height should be consistent: zone={zone_text.size[1]}, section={section_text.size[1]}"
+            abs(root_text.size[1] - explicit_text.size[1]) < 5
+        ), f"Text height should be consistent: root={root_text.size[1]}, explicit={explicit_text.size[1]}"
 
         assert (
-            abs(zone_list.size[1] - section_list.size[1]) < 5
-        ), f"List height should be consistent: zone={zone_list.size[1]}, section={section_list.size[1]}"
+            abs(root_list.size[1] - explicit_list.size[1]) < 5
+        ), f"List height should be consistent: root={root_list.size[1]}, explicit={explicit_list.size[1]}"
+
+    def test_metrics_with_section_constraints(self, layout_manager):
+        """Test that metrics work correctly when elements are in constrained sections."""
+
+        title = TextElement(
+            element_type=ElementType.TITLE, text="Section Constraints Test"
+        )
+
+        # Create content that will be constrained by section width
+        wide_content_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="This is a long piece of content that will wrap differently in narrow vs wide sections to test metrics integration",
+            object_id="wide_content",
+        )
+
+        # Create two sections with different widths
+        narrow_section = Section(
+            id="narrow_section",
+            type="section",
+            directives={"width": 0.3},  # 30% width
+            elements=[wide_content_text],
+        )
+
+        wide_section = Section(
+            id="wide_section",
+            type="section",
+            directives={"width": 0.7},  # 70% width
+            elements=[wide_content_text],
+        )
+
+        slide = Slide(
+            object_id="section_constraints_slide",
+            elements=[
+                title,
+                wide_content_text,
+                wide_content_text,
+            ],  # Duplicate for both sections
+            sections=[narrow_section, wide_section],
+        )
+
+        result_slide = layout_manager.calculate_positions(slide)
+
+        # Extract elements from sections
+        narrow_sec = result_slide.sections[0]
+        wide_sec = result_slide.sections[1]
+
+        narrow_text = narrow_sec.elements[0]
+        wide_text = wide_sec.elements[0]
+
+        # Narrow section should have taller text due to wrapping
+        assert (
+            narrow_text.size[1] > wide_text.size[1]
+        ), f"Text in narrow section ({narrow_text.size[1]}) should be taller than in wide section ({wide_text.size[1]})"
+
+        # Both should have reasonable dimensions
+        assert (
+            narrow_text.size[0] < wide_text.size[0]
+        ), "Narrow section text should be narrower"
+        assert (
+            narrow_text.size[1] > 0 and wide_text.size[1] > 0
+        ), "Both should have positive heights"
 
     def test_metrics_error_handling_and_edge_cases(self, layout_manager):
         """Test that metrics handle error cases and edge conditions gracefully."""
@@ -409,7 +483,7 @@ class TestMetricsSystemIntegration:
         assert negative_width_height > 0, "Should handle negative width gracefully"
 
     def test_metrics_performance_characteristics(self, layout_manager):
-        """Test that metrics calculations are reasonably efficient."""
+        """Test that metrics calculations are reasonably efficient in unified model."""
 
         import time
 
@@ -445,6 +519,7 @@ class TestMetricsSystemIntegration:
                 )
             )
 
+        # Test with unified model (should create root section)
         slide = Slide(object_id="performance_test_slide", elements=elements)
 
         # Time the layout calculation
@@ -459,11 +534,180 @@ class TestMetricsSystemIntegration:
             calculation_time < 2.0
         ), f"Layout calculation should complete quickly, took {calculation_time:.2f} seconds"
 
-        # All elements should be positioned
-        assert len(result_slide.elements) == len(
-            elements
-        ), "All elements should be processed"
+        # Should have created root section
+        assert len(result_slide.sections) == 1, "Should create root section"
+        root_section = result_slide.sections[0]
 
-        for element in result_slide.elements:
+        # All body elements should be in root section
+        expected_body_count = len(
+            elements
+        )  # All elements are body elements (no title/footer)
+        assert (
+            len(root_section.elements) == expected_body_count
+        ), f"Root section should contain all {expected_body_count} body elements"
+
+        for element in root_section.elements:
             assert element.position is not None, "All elements should be positioned"
             assert element.size is not None, "All elements should be sized"
+
+    def test_metrics_with_nested_sections(self, layout_manager):
+        """Test that metrics work correctly with nested section layouts."""
+
+        title = TextElement(
+            element_type=ElementType.TITLE, text="Nested Sections Metrics Test"
+        )
+
+        # Create content for nested sections
+        outer_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Content in outer section",
+            object_id="outer_text",
+        )
+
+        inner_text1 = TextElement(
+            element_type=ElementType.TEXT,
+            text="Content in first inner section",
+            object_id="inner_text1",
+        )
+
+        inner_text2 = TextElement(
+            element_type=ElementType.TEXT,
+            text="Content in second inner section with more text to test wrapping behavior",
+            object_id="inner_text2",
+        )
+
+        # Create nested structure
+        inner_section1 = Section(
+            id="inner1",
+            type="section",
+            directives={"height": 0.4},  # 40% of parent height
+            elements=[inner_text1],
+        )
+
+        inner_section2 = Section(
+            id="inner2",
+            type="section",
+            directives={"height": 0.6},  # 60% of parent height
+            elements=[inner_text2],
+        )
+
+        outer_section = Section(
+            id="outer",
+            type="section",
+            directives={"width": 0.5},  # 50% of slide width
+            subsections=[inner_section1, inner_section2],
+        )
+
+        main_section = Section(
+            id="main",
+            type="section",
+            directives={"width": 0.5},  # Other 50% of slide width
+            elements=[outer_text],
+        )
+
+        slide = Slide(
+            object_id="nested_metrics_slide",
+            elements=[title, outer_text, inner_text1, inner_text2],
+            sections=[main_section, outer_section],
+        )
+
+        result_slide = layout_manager.calculate_positions(slide)
+
+        # Verify nested structure is maintained
+        assert len(result_slide.sections) == 2, "Should have main sections"
+
+        main_sec = result_slide.sections[0]
+        nested_sec = result_slide.sections[1]
+
+        assert len(main_sec.elements) == 1, "Main section should have one element"
+        assert (
+            len(nested_sec.subsections) == 2
+        ), "Nested section should have two subsections"
+
+        # Verify elements are sized appropriately for their containers
+        main_element = main_sec.elements[0]
+        inner1_element = nested_sec.subsections[0].elements[0]
+        inner2_element = nested_sec.subsections[1].elements[0]
+
+        # All should have positive dimensions
+        assert main_element.size[0] > 0
+        assert main_element.size[1] > 0
+        assert inner1_element.size[0] > 0
+        assert inner1_element.size[1] > 0
+        assert inner2_element.size[0] > 0
+        assert inner2_element.size[1] > 0
+
+        # Width should be constrained by section widths
+        body_width = layout_manager.position_calculator.body_width
+        expected_section_width = body_width * 0.5
+
+        assert (
+            abs(main_element.size[0] - expected_section_width) < 20
+        ), "Main element width should be constrained by section width"
+        assert (
+            abs(inner1_element.size[0] - expected_section_width) < 20
+        ), "Inner element width should be constrained by section width"
+
+    def test_metrics_integration_with_overflow_scenarios(self, layout_manager):
+        """Test metrics integration when content overflows section boundaries."""
+
+        title = TextElement(
+            element_type=ElementType.TITLE, text="Overflow Metrics Test"
+        )
+
+        # Create very large content
+        huge_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Column A", "Column B", "Column C", "Column D"],
+            rows=[
+                [
+                    f"Row {i} Cell A with content",
+                    f"Row {i} Cell B",
+                    f"Row {i} Cell C",
+                    f"Row {i} Cell D",
+                ]
+                for i in range(1, 25)  # 24 rows - will be very tall
+            ],
+            object_id="huge_table",
+        )
+
+        # Put in very small section
+        tiny_section = Section(
+            id="tiny_section",
+            type="section",
+            directives={"height": 60, "width": 300},  # Very constrained
+            elements=[huge_table],
+        )
+
+        slide = Slide(
+            object_id="overflow_metrics_slide",
+            elements=[title, huge_table],
+            sections=[tiny_section],
+        )
+
+        # Should not crash despite overflow
+        result_slide = layout_manager.calculate_positions(slide)
+
+        section = result_slide.sections[0]
+        table_element = section.elements[0]
+
+        # Table should be sized based on content (will overflow)
+        assert (
+            table_element.size[1] > section.size[1]
+        ), f"Table height ({table_element.size[1]}) should exceed section height ({section.size[1]})"
+
+        # Width should be constrained by section
+        assert (
+            abs(table_element.size[0] - section.size[0]) < 5
+        ), "Table width should be constrained by section width"
+
+        # Should have valid position
+        assert (
+            table_element.position is not None
+        ), "Overflowing table should still be positioned"
+        assert (
+            table_element.position[0] >= section.position[0]
+        ), "Table should start within section horizontally"
+        assert (
+            table_element.position[1] >= section.position[1]
+        ), "Table should start within section vertically"

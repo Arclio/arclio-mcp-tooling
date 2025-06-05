@@ -23,6 +23,9 @@ def apply_horizontal_alignment(
     """
     Apply horizontal alignment to an element within an area.
 
+    This is the unified function for all horizontal alignment logic,
+    consolidating both element-level and section-level alignment directives.
+
     Args:
         element: Element to align
         area_x: X-coordinate of the area
@@ -83,7 +86,7 @@ def adjust_vertical_spacing(element: Element, spacing: float) -> float:
     """
     # If this element is related to the next one, reduce spacing
     if hasattr(element, "related_to_next") and element.related_to_next:
-        return spacing * VERTICAL_SPACING_REDUCTION  # Reduce spacing by 30%
+        return spacing * VERTICAL_SPACING_REDUCTION  # Reduce spacing by 40%
 
     # If no adjustment needed, return original spacing
     return spacing

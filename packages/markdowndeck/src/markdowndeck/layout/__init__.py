@@ -1,4 +1,4 @@
-"""Refactored layout management - Orchestrates the content-aware layout engine."""
+"""Refactored layout management - Orchestrates the unified content-aware layout engine."""
 
 import logging
 
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 class LayoutManager:
     """
-    Orchestrates the content-aware layout engine for slide positioning.
+    Orchestrates the unified content-aware layout engine for slide positioning.
 
     The LayoutManager provides a high-level interface to the layout calculation
-    system while maintaining the architectural separation between layout
-    calculation and overflow handling.
+    system, now implementing the Universal Section Model where all slides
+    use section-based layout for consistency and predictability.
     """
 
     def __init__(
@@ -74,8 +74,9 @@ class LayoutManager:
         """
         Calculate positions for all elements and sections in a slide.
 
-        This is the main entry point for layout calculation. It delegates to
-        the PositionCalculator which implements the Layout Calculation Contract.
+        This is the main entry point for layout calculation using the unified
+        Universal Section Model. All slides now use section-based layout for
+        consistency and predictability.
 
         The returned slide will have all elements positioned according to their
         content needs. Elements may extend beyond their containers' boundaries
@@ -100,7 +101,7 @@ class LayoutManager:
             logger.error("Slide missing elements attribute")
             raise ValueError("Slide must have elements attribute")
 
-        # Delegate to position calculator
+        # Delegate to unified position calculator
         try:
             positioned_slide = self.position_calculator.calculate_positions(slide)
 

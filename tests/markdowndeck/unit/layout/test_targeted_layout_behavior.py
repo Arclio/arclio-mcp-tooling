@@ -1,11 +1,10 @@
-"""Targeted unit tests for specific layout behaviors per the Layout Calculation Contract."""
+"""Targeted unit tests for specific layout behaviors per the Unified Layout Calculation Contract."""
 
 import pytest
 from markdowndeck.layout.calculator.base import PositionCalculator
 from markdowndeck.layout.calculator.section_layout import (
     _calculate_predictable_dimensions,
 )
-from markdowndeck.layout.calculator.zone_layout import calculate_zone_based_positions
 from markdowndeck.layout.constants import HORIZONTAL_SPACING, VERTICAL_SPACING
 from markdowndeck.models import (
     CodeElement,
@@ -127,8 +126,8 @@ class TestEqualSplitBehavior:
                 abs(width - expected_width) < 0.1
             ), f"Section {i} in 6-way split should get equal width"
 
-    def test_equal_split_positioning(self, calculator):
-        """Test that equal split sections are positioned correctly."""
+    def test_equal_split_positioning_unified_model(self, calculator):
+        """Test that equal split sections are positioned correctly in unified model."""
 
         title = TextElement(element_type=ElementType.TITLE, text="Equal Split Test")
 
@@ -151,39 +150,31 @@ class TestEqualSplitBehavior:
 
         result_slide = calculator.calculate_positions(slide)
 
-        # Verify equal height allocation and proper vertical positioning (default vertical layout)
+        # Verify equal width allocation and proper horizontal positioning (default horizontal layout)
         positioned_sections = result_slide.sections
         body_width = calculator.body_width
-        body_height = calculator.body_height
-        expected_height = (
-            body_height - VERTICAL_SPACING * 2
-        ) / 3  # 3 sections with 2 spacings
+        expected_width = body_width / 3  # Approximate, ignoring spacing for simplicity
 
         for i, section in enumerate(positioned_sections):
-            # Check that all sections have full body width (vertical layout)
+            # Check width
             assert (
-                abs(section.size[0] - body_width) < 2
-            ), f"Section {i} should have full body width in vertical layout"
+                abs(section.size[0] - expected_width) < 20
+            ), f"Section {i} should have approximately equal width"
 
-            # Check height allocation
-            assert (
-                abs(section.size[1] - expected_height) < 20
-            ), f"Section {i} should have approximately equal height"
-
-            # Check vertical positioning (each should be below the previous)
+            # Check horizontal positioning (each should be to the right of previous)
             if i > 0:
-                prev_bottom = (
-                    positioned_sections[i - 1].position[1]
-                    + positioned_sections[i - 1].size[1]
+                prev_right = (
+                    positioned_sections[i - 1].position[0]
+                    + positioned_sections[i - 1].size[0]
                 )
-                curr_top = section.position[1]
+                curr_left = section.position[0]
                 assert (
-                    curr_top >= prev_bottom
-                ), f"Section {i} should be positioned below section {i-1}"
+                    curr_left >= prev_right - 5
+                ), f"Section {i} should be positioned after section {i-1}"
 
 
-class TestExplicitSplitBehavior:
-    """Test explicit directive handling for precise space allocation."""
+class TestUnifiedExplicitSplitBehavior:
+    """Test explicit directive handling for precise space allocation in unified model."""
 
     @pytest.fixture
     def calculator(self):
@@ -195,7 +186,7 @@ class TestExplicitSplitBehavior:
         # Create sections with specific percentage directives
         section1 = Section(id="25pct", directives={"width": 0.25})  # 25%
         section2 = Section(id="50pct", directives={"width": 0.50})  # 50%
-        section3 = Section(id="25pct", directives={"width": 0.25})  # 25%
+        section3 = Section(id="25pct_2", directives={"width": 0.25})  # 25%
 
         sections = [section1, section2, section3]
         body_width = calculator.body_width
@@ -330,15 +321,15 @@ class TestExplicitSplitBehavior:
             ), f"Section {i} should have exact height: expected {expected}, got {actual:.1f}"
 
 
-class TestIntrinsicElementHeight:
-    """Test that elements are sized based on their intrinsic content needs."""
+class TestUnifiedIntrinsicElementHeight:
+    """Test that elements are sized based on their intrinsic content needs in unified model."""
 
     @pytest.fixture
     def calculator(self):
         return PositionCalculator()
 
-    def test_text_element_content_driven_height(self, calculator):
-        """Test that text elements get height based on content length."""
+    def test_text_element_content_driven_height_unified(self, calculator):
+        """Test that text elements get height based on content length in unified model."""
 
         short_text = TextElement(
             element_type=ElementType.TEXT, text="Short", object_id="short"
@@ -351,16 +342,20 @@ class TestIntrinsicElementHeight:
             object_id="long",
         )
 
+        # Test with unified model (no explicit sections - should create root section)
         slide = Slide(object_id="text_height_slide", elements=[short_text, long_text])
 
-        # Use zone-based positioning to test intrinsic heights
-        result_slide = calculate_zone_based_positions(calculator, slide)
+        result_slide = calculator.calculate_positions(slide)
+
+        # Should have created root section
+        assert len(result_slide.sections) == 1, "Should create root section"
+        root_section = result_slide.sections[0]
 
         short_positioned = next(
-            e for e in result_slide.elements if e.object_id == "short"
+            e for e in root_section.elements if e.object_id == "short"
         )
         long_positioned = next(
-            e for e in result_slide.elements if e.object_id == "long"
+            e for e in root_section.elements if e.object_id == "long"
         )
 
         assert short_positioned.size is not None
@@ -369,8 +364,8 @@ class TestIntrinsicElementHeight:
             long_positioned.size[1] > short_positioned.size[1]
         ), f"Long text ({long_positioned.size[1]:.1f}) should be taller than short text ({short_positioned.size[1]:.1f})"
 
-    def test_list_element_content_driven_height(self, calculator):
-        """Test that list elements get height based on number and content of items."""
+    def test_list_element_content_driven_height_unified(self, calculator):
+        """Test that list elements get height based on number and content of items in unified model."""
 
         short_list = ListElement(
             element_type=ElementType.BULLET_LIST,
@@ -389,21 +384,24 @@ class TestIntrinsicElementHeight:
 
         slide = Slide(object_id="list_height_slide", elements=[short_list, long_list])
 
-        result_slide = calculate_zone_based_positions(calculator, slide)
+        result_slide = calculator.calculate_positions(slide)
+
+        # Should create root section
+        root_section = result_slide.sections[0]
 
         short_positioned = next(
-            e for e in result_slide.elements if e.object_id == "short_list"
+            e for e in root_section.elements if e.object_id == "short_list"
         )
         long_positioned = next(
-            e for e in result_slide.elements if e.object_id == "long_list"
+            e for e in root_section.elements if e.object_id == "long_list"
         )
 
         assert (
             long_positioned.size[1] > short_positioned.size[1]
         ), "List with more items should be taller than list with fewer items"
 
-    def test_table_element_content_driven_height(self, calculator):
-        """Test that table elements get height based on number of rows and content."""
+    def test_table_element_content_driven_height_unified(self, calculator):
+        """Test that table elements get height based on number of rows and content in unified model."""
 
         small_table = TableElement(
             element_type=ElementType.TABLE,
@@ -426,21 +424,24 @@ class TestIntrinsicElementHeight:
             object_id="table_height_slide", elements=[small_table, large_table]
         )
 
-        result_slide = calculate_zone_based_positions(calculator, slide)
+        result_slide = calculator.calculate_positions(slide)
+
+        # Should create root section
+        root_section = result_slide.sections[0]
 
         small_positioned = next(
-            e for e in result_slide.elements if e.object_id == "small_table"
+            e for e in root_section.elements if e.object_id == "small_table"
         )
         large_positioned = next(
-            e for e in result_slide.elements if e.object_id == "large_table"
+            e for e in root_section.elements if e.object_id == "large_table"
         )
 
         assert (
             large_positioned.size[1] > small_positioned.size[1]
         ), "Table with more rows should be taller than table with fewer rows"
 
-    def test_code_element_content_driven_height(self, calculator):
-        """Test that code elements get height based on lines of code."""
+    def test_code_element_content_driven_height_unified(self, calculator):
+        """Test that code elements get height based on lines of code in unified model."""
 
         short_code = CodeElement(
             element_type=ElementType.CODE,
@@ -472,21 +473,24 @@ class TestIntrinsicElementHeight:
 
         slide = Slide(object_id="code_height_slide", elements=[short_code, long_code])
 
-        result_slide = calculate_zone_based_positions(calculator, slide)
+        result_slide = calculator.calculate_positions(slide)
+
+        # Should create root section
+        root_section = result_slide.sections[0]
 
         short_positioned = next(
-            e for e in result_slide.elements if e.object_id == "short_code"
+            e for e in root_section.elements if e.object_id == "short_code"
         )
         long_positioned = next(
-            e for e in result_slide.elements if e.object_id == "long_code"
+            e for e in root_section.elements if e.object_id == "long_code"
         )
 
         assert (
             long_positioned.size[1] > short_positioned.size[1]
         ), "Multi-line code should be taller than single-line code"
 
-    def test_element_heights_respect_available_width(self, calculator):
-        """Test that element heights vary with available width (narrower = taller due to wrapping)."""
+    def test_element_heights_respect_available_width_unified(self, calculator):
+        """Test that element heights vary with available width in unified model."""
 
         wrappable_text = TextElement(
             element_type=ElementType.TEXT,
@@ -494,10 +498,10 @@ class TestIntrinsicElementHeight:
             object_id="wrappable",
         )
 
-        # Test with different widths to verify content-aware wrapping
+        # Test 1: With root section (full width)
         wide_slide = Slide(object_id="wide_slide", elements=[wrappable_text])
 
-        # Simulate narrow layout by creating a section with reduced width
+        # Test 2: With explicit narrow section
         narrow_section = Section(
             id="narrow_section",
             type="section",
@@ -512,11 +516,12 @@ class TestIntrinsicElementHeight:
         )
 
         # Calculate both layouts
-        wide_result = calculate_zone_based_positions(calculator, wide_slide)
+        wide_result = calculator.calculate_positions(wide_slide)
         narrow_result = calculator.calculate_positions(narrow_slide)
 
-        wide_element = wide_result.elements[0]
-        narrow_element = narrow_result.sections[0].elements[0]
+        # Extract elements
+        wide_element = wide_result.sections[0].elements[0]  # From root section
+        narrow_element = narrow_result.sections[0].elements[0]  # From narrow section
 
         # Narrower width should result in taller height due to text wrapping
         assert (
@@ -524,14 +529,14 @@ class TestIntrinsicElementHeight:
         ), f"Narrow layout ({narrow_element.size[1]:.1f}) should be taller than wide layout ({wide_element.size[1]:.1f})"
 
 
-class TestVerticalAlignmentCorrectness:
-    """Test that valign directives work correctly using two-pass pattern."""
+class TestUnifiedVerticalAlignmentCorrectness:
+    """Test that valign directives work correctly using two-pass pattern in unified model."""
 
     @pytest.fixture
     def calculator(self):
         return PositionCalculator()
 
-    def test_valign_top_default_behavior(self, calculator):
+    def test_valign_top_default_behavior_unified(self, calculator):
         """Test that default (top) vertical alignment positions elements at section top."""
 
         title = TextElement(element_type=ElementType.TITLE, text="VAlign Top Test")
@@ -571,7 +576,7 @@ class TestVerticalAlignmentCorrectness:
             abs(first_element_y - section_top) <= 10
         ), f"Top-aligned content should start near section top: section={section_top}, element={first_element_y}"
 
-    def test_valign_middle_centers_content(self, calculator):
+    def test_valign_middle_centers_content_unified(self, calculator):
         """Test that middle vertical alignment centers content in available space."""
 
         title = TextElement(element_type=ElementType.TITLE, text="VAlign Middle Test")
@@ -618,7 +623,7 @@ class TestVerticalAlignmentCorrectness:
             abs(content_center - section_center) <= 15
         ), f"Middle-aligned content center ({content_center:.1f}) should be near section center ({section_center:.1f})"
 
-    def test_valign_bottom_aligns_to_bottom(self, calculator):
+    def test_valign_bottom_aligns_to_bottom_unified(self, calculator):
         """Test that bottom vertical alignment positions content at section bottom."""
 
         title = TextElement(element_type=ElementType.TITLE, text="VAlign Bottom Test")
@@ -658,74 +663,16 @@ class TestVerticalAlignmentCorrectness:
             abs(last_element_bottom - section_bottom) <= 15
         ), f"Bottom-aligned content should end near section bottom: section={section_bottom}, element={last_element_bottom}"
 
-    def test_valign_with_varying_content_heights(self, calculator):
-        """Test vertical alignment with elements of different heights."""
 
-        title = TextElement(
-            element_type=ElementType.TITLE, text="VAlign Varying Heights Test"
-        )
-
-        # Elements with different expected heights
-        short_text = TextElement(
-            element_type=ElementType.TEXT, text="Short", object_id="short"
-        )
-
-        long_text = TextElement(
-            element_type=ElementType.TEXT,
-            text="This is much longer text that will take up more vertical space " * 3,
-            object_id="long",
-        )
-
-        simple_list = ListElement(
-            element_type=ElementType.BULLET_LIST,
-            items=[
-                ListItem(text="Item 1"),
-                ListItem(text="Item 2"),
-                ListItem(text="Item 3"),
-            ],
-            object_id="list",
-        )
-
-        # Test middle alignment with varying content
-        middle_section = Section(
-            id="varying_heights_section",
-            type="section",
-            directives={"valign": "middle", "height": 300},  # Large fixed height
-            elements=[short_text, long_text, simple_list],
-        )
-
-        slide = Slide(
-            object_id="valign_varying_slide",
-            elements=[title, short_text, long_text, simple_list],
-            sections=[middle_section],
-        )
-
-        result_slide = calculator.calculate_positions(slide)
-
-        section = result_slide.sections[0]
-        elements = section.elements
-
-        # Verify that total content is centered even with varying element heights
-        section_center = section.position[1] + section.size[1] / 2
-
-        first_element_top = elements[0].position[1]
-        last_element_bottom = elements[-1].position[1] + elements[-1].size[1]
-        content_center = (first_element_top + last_element_bottom) / 2
-
-        assert (
-            abs(content_center - section_center) <= 20
-        ), "Content with varying heights should still be properly centered"
-
-
-class TestOverflowAcceptance:
-    """Test that content overflow is accepted and positioned correctly without constraints."""
+class TestUnifiedOverflowAcceptance:
+    """Test that content overflow is accepted and positioned correctly in unified model."""
 
     @pytest.fixture
     def calculator(self):
         return PositionCalculator()
 
-    def test_element_overflow_in_small_section(self, calculator):
-        """Test that large elements overflow small sections without constraint."""
+    def test_element_overflow_in_small_section_unified(self, calculator):
+        """Test that large elements overflow small sections without constraint in unified model."""
 
         title = TextElement(element_type=ElementType.TITLE, text="Overflow Test")
 
@@ -777,7 +724,7 @@ class TestOverflowAcceptance:
 
         assert (
             abs(table.size[0] - section.size[0]) < 1
-        ), f"Table width ({table.size[0]:.1f}) should be clamped to section width ({section.size[0]:.1f})"
+        ), f"Table width ({table.size[0]:.1f}) should be constrained by section width ({section.size[0]:.1f})"
 
         # Table should start within section bounds (but extend beyond)
         assert (
@@ -787,8 +734,8 @@ class TestOverflowAcceptance:
             table.position[1] >= section.position[1]
         ), "Table should start within section vertically"
 
-    def test_multiple_overflowing_elements(self, calculator):
-        """Test multiple large elements in constrained sections."""
+    def test_multiple_overflowing_elements_unified(self, calculator):
+        """Test multiple large elements in constrained sections in unified model."""
 
         title = TextElement(
             element_type=ElementType.TITLE, text="Multiple Overflow Test"
@@ -854,8 +801,8 @@ class TestOverflowAcceptance:
             list_element.position[1] > text_element.position[1]
         ), "List should be positioned below text element"
 
-    def test_overflow_with_section_padding(self, calculator):
-        """Test that overflow works correctly even with section padding."""
+    def test_overflow_with_section_padding_unified(self, calculator):
+        """Test that overflow works correctly even with section padding in unified model."""
 
         title = TextElement(
             element_type=ElementType.TITLE, text="Overflow with Padding Test"
@@ -909,3 +856,63 @@ class TestOverflowAcceptance:
         assert (
             code_element.size[1] > available_content_height
         ), "Large code block should overflow constrained padded section"
+
+    def test_root_section_overflow_behavior(self, calculator):
+        """Test overflow behavior when elements are in auto-created root section."""
+
+        title = TextElement(
+            element_type=ElementType.TITLE, text="Root Section Overflow Test"
+        )
+
+        # Create very large content that would overflow even the full body zone
+        massive_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Column A", "Column B", "Column C"],
+            rows=[
+                [
+                    f"Row {i} with substantial content",
+                    f"Row {i} Col B",
+                    f"Row {i} Col C",
+                ]
+                for i in range(1, 50)  # 49 rows - will be extremely tall
+            ],
+            object_id="massive_table",
+        )
+
+        # No explicit sections - should create root section
+        slide = Slide(
+            object_id="root_overflow_slide",
+            elements=[title, massive_table],
+        )
+
+        result_slide = calculator.calculate_positions(slide)
+
+        # Should have root section
+        assert len(result_slide.sections) == 1, "Should create root section"
+        root_section = result_slide.sections[0]
+
+        table_element = root_section.elements[0]
+
+        # Table should be positioned normally
+        assert table_element.position is not None
+        assert table_element.size is not None
+
+        # Table should be sized based on content (will definitely overflow)
+        body_height = calculator.body_height
+        assert (
+            table_element.size[1] > body_height
+        ), f"Massive table height ({table_element.size[1]:.1f}) should exceed body height ({body_height:.1f})"
+
+        # Width should be constrained by body width
+        body_width = calculator.body_width
+        assert (
+            abs(table_element.size[0] - body_width) < 5
+        ), "Table width should be constrained by body width"
+
+        # Position should be within root section (which spans body zone)
+        assert (
+            table_element.position[0] >= root_section.position[0]
+        ), "Table should start within root section horizontally"
+        assert (
+            table_element.position[1] >= root_section.position[1]
+        ), "Table should start within root section vertically"

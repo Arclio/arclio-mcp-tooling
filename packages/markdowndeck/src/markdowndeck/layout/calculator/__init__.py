@@ -1,4 +1,4 @@
-"""Position calculation for slide elements."""
+"""Position calculation for slide elements - Unified layout engine."""
 
 from markdowndeck.layout.calculator.base import PositionCalculator
 

@@ -29,6 +29,14 @@ def calculate_element_height(element: Element, available_width: float) -> float:
     Returns:
         The calculated height in points (intrinsic height based on content)
     """
+    # Handle None input gracefully
+    if element is None:
+        return 60.0  # Default fallback height
+
+    # Handle elements without element_type attribute
+    if not hasattr(element, "element_type"):
+        return 60.0  # Default fallback height
+
     # Dispatch to specific optimized metric functions based on element type
     if element.element_type in (
         ElementType.TEXT,
@@ -72,7 +80,9 @@ def calculate_element_height(element: Element, available_width: float) -> float:
         elif hasattr(element, "_parent_height"):
             available_height = element._parent_height
 
-        return calculate_image_element_height(element, available_width, available_height)
+        return calculate_image_element_height(
+            element, available_width, available_height
+        )
 
     # Default height for unknown element types
     return 60
@@ -81,7 +91,9 @@ def calculate_element_height(element: Element, available_width: float) -> float:
 # Fallback implementations for when specialized metric modules are not available
 
 
-def calculate_text_element_height(element: TextElement | Element, available_width: float) -> float:
+def calculate_text_element_height(
+    element: TextElement | Element, available_width: float
+) -> float:
     """
     Calculate height needed for a text element.
 
@@ -161,7 +173,9 @@ def calculate_text_element_height(element: TextElement | Element, available_widt
     return max(min_height, calculated_height)
 
 
-def calculate_list_element_height(element: ListElement | Element, available_width: float) -> float:
+def calculate_list_element_height(
+    element: ListElement | Element, available_width: float
+) -> float:
     """
     Calculate height needed for a list element.
 
@@ -209,7 +223,9 @@ def calculate_list_element_height(element: ListElement | Element, available_widt
                 child_text_length = len(child.text)
                 child_width = available_width - 16  # indent
                 child_chars_per_line = max(1, int(child_width / 5.0))
-                child_lines = (child_text_length + child_chars_per_line - 1) // child_chars_per_line
+                child_lines = (
+                    child_text_length + child_chars_per_line - 1
+                ) // child_chars_per_line
                 child_height = 22 + ((child_lines - 1) * 14)
                 item_height += child_height + (item_spacing / 2)
 
@@ -225,7 +241,9 @@ def calculate_list_element_height(element: ListElement | Element, available_widt
     return max(total_height, 30.0)
 
 
-def calculate_table_element_height(element: TableElement | Element, available_width: float) -> float:
+def calculate_table_element_height(
+    element: TableElement | Element, available_width: float
+) -> float:
     """
     Calculate height needed for a table element.
 
@@ -255,7 +273,9 @@ def calculate_table_element_height(element: TableElement | Element, available_wi
 
     # Calculate table dimensions
     row_count = len(rows)
-    col_count = max(len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0)
+    col_count = max(
+        len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0
+    )
 
     if col_count == 0:
         return 35
@@ -268,7 +288,9 @@ def calculate_table_element_height(element: TableElement | Element, available_wi
     return max(total_height, 35.0)
 
 
-def calculate_code_element_height(element: CodeElement | Element, available_width: float) -> float:
+def calculate_code_element_height(
+    element: CodeElement | Element, available_width: float
+) -> float:
     """
     Calculate height needed for a code element.
 
@@ -300,7 +322,11 @@ def calculate_code_element_height(element: CodeElement | Element, available_widt
     avg_char_width_pt = 7.5
     line_height_pt = 14.0
     padding_pt = 8.0
-    language_height = 12.0 if language and language.lower() not in ("text", "plaintext", "plain") else 0
+    language_height = (
+        12.0
+        if language and language.lower() not in ("text", "plaintext", "plain")
+        else 0
+    )
 
     # Calculate lines of code
     effective_width = max(1.0, available_width - 12.0)
