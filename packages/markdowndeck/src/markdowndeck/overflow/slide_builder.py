@@ -200,6 +200,7 @@ class SlideBuilder:
         for element in self.original_slide.elements:
             if element.element_type == ElementType.FOOTER:
                 return element
+                return None
         return None
 
     def _extract_elements_from_sections(self, slide: "Slide") -> None:
@@ -216,7 +217,16 @@ class SlideBuilder:
 
         def extract_from_section_list(sections: list[Section]):
             for section in sections:
+                # CRITICAL FIX: Reset section position and size for continuation slides
+                section.position = None
+                section.size = None
+
                 if section.elements:
+                    # Reset element positions within the section as well
+                    for element in section.elements:
+                        element.position = None
+                        element.size = None
+
                     # Add elements from this section
                     for element in section.elements:
                         # Generate unique object ID for each element to avoid conflicts
@@ -224,7 +234,13 @@ class SlideBuilder:
                             element.object_id = (
                                 f"{element.element_type}_{uuid.uuid4().hex[:8]}"
                             )
-                        slide.elements.append(deepcopy(element))
+
+                        # CRITICAL FIX: Reset element positions for continuation slides
+                        # Elements in continuation slides must start with fresh positioning
+                        element_copy = deepcopy(element)
+                        element_copy.position = None
+                        element_copy.size = None
+                        slide.elements.append(element_copy)
 
                 if section.subsections:
                     # Recursively process subsections
