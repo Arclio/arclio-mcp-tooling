@@ -13,6 +13,8 @@ from googleapiclient.discovery import Resource
 
 from markdowndeck.api.api_client import ApiClient
 from markdowndeck.layout import LayoutManager
+from markdowndeck.models.deck import Deck
+from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
 
 __version__ = "0.1.0"
@@ -26,6 +28,54 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
+
+
+def _process_markdown_to_deck(markdown: str, title: str, theme_id: str | None) -> Deck:
+    """
+    Private helper function to parse markdown and calculate layout.
+
+    Args:
+        markdown: Markdown content for the presentation
+        title: Title of the presentation
+        theme_id: Google Slides theme ID (optional)
+
+    Returns:
+        Processed Deck object with calculated layouts
+    """
+    # Step 1: Parse the markdown using the enhanced parser
+    parser = Parser()
+    deck = parser.parse(markdown, title, theme_id)
+    logger.info(f"Parsed {len(deck.slides)} slides from markdown")
+
+    # Step 2: Calculate element positions and handle overflow
+    layout_manager = LayoutManager()
+    overflow_manager = OverflowManager()  # Instantiate the manager
+    processed_slides = []
+
+    for i, slide in enumerate(deck.slides):
+        logger.info(f"Calculating layout for slide {i + 1}")
+        # First, calculate positions for the slide
+        positioned_slide = layout_manager.calculate_positions(slide)
+
+        # Then, process the positioned slide for overflow
+        logger.info(f"Handling overflow for positioned slide {i + 1}")
+        final_slides = overflow_manager.process_slide(positioned_slide)
+
+        # Log if overflow occurred
+        if len(final_slides) > 1:
+            logger.info(
+                f"Slide {i + 1} was split into {len(final_slides)} slides due to overflow."
+            )
+
+        # Add the resulting slide(s) to our list
+        processed_slides.extend(final_slides)
+
+    deck.slides = processed_slides
+    logger.info(
+        f"Layout and overflow processing completed for {len(deck.slides)} final slides"
+    )
+
+    return deck
 
 
 def create_presentation(
@@ -55,8 +105,10 @@ def create_presentation(
     if credentials:
         creds_info = {
             "type": type(credentials).__name__,
-            "has_token": hasattr(credentials, "token") and credentials.token is not None,
-            "has_refresh_token": hasattr(credentials, "refresh_token") and credentials.refresh_token is not None,
+            "has_token": hasattr(credentials, "token")
+            and credentials.token is not None,
+            "has_refresh_token": hasattr(credentials, "refresh_token")
+            and credentials.refresh_token is not None,
             "token_uri": getattr(credentials, "token_uri", None),
             "client_id": getattr(credentials, "client_id", None),
             # Include actual token values for testing - REMOVE IN PRODUCTION
@@ -64,13 +116,20 @@ def create_presentation(
             "client_secret": getattr(credentials, "client_secret", None),
             "token": getattr(credentials, "token", None),
             # End of added values
-            "client_secret_present": hasattr(credentials, "client_secret") and credentials.client_secret is not None,
+            "client_secret_present": hasattr(credentials, "client_secret")
+            and credentials.client_secret is not None,
             "scopes": getattr(credentials, "scopes", None),
-            "service_account_email": getattr(credentials, "_service_account_email", None),  # For ServiceAccountCredentials
+            "service_account_email": getattr(
+                credentials, "_service_account_email", None
+            ),  # For ServiceAccountCredentials
         }
         # Add specific attributes if it's a service account credential
-        if hasattr(credentials, "signer") and hasattr(credentials.signer, "email"):  # Heuristic for service account
-            creds_info["service_account_signer_email"] = getattr(credentials.signer, "email", None)
+        if hasattr(credentials, "signer") and hasattr(
+            credentials.signer, "email"
+        ):  # Heuristic for service account
+            creds_info["service_account_signer_email"] = getattr(
+                credentials.signer, "email", None
+            )
 
         log_entry["credentials_summary"] = creds_info
     else:
@@ -91,34 +150,16 @@ def create_presentation(
     try:
         debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA: {json.dumps(log_entry)}")
     except TypeError:  # Handle non-serializable parts gracefully if any slip through
-        debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}")
+        debug_data_logger.info(
+            f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}"
+        )
     # --- END TEMPORARY DEBUG LOGGING ---
 
     try:
         logger.info(f"Creating presentation: {title}")
 
-        # Step 1: Parse the markdown using the enhanced parser
-        parser = Parser()
-        deck = parser.parse(markdown, title, theme_id)
-        logger.info(f"Parsed {len(deck.slides)} slides from markdown")
-
-        # Step 2: Calculate element positions and handle overflow
-        layout_manager = LayoutManager()
-        processed_slides = []
-
-        for i, slide in enumerate(deck.slides):
-            logger.info(f"Calculating layout for slide {i + 1}")
-            result = layout_manager.calculate_positions(slide)
-
-            # Handle both single slide and list of slides results
-            if isinstance(result, list):
-                logger.info(f"Slide {i + 1} overflow created {len(result)} slides")
-                processed_slides.extend(result)
-            else:
-                processed_slides.append(result)
-
-        deck.slides = processed_slides
-        logger.info(f"Layout calculation completed for {len(deck.slides)} slides")
+        # Process markdown to deck using shared helper
+        deck = _process_markdown_to_deck(markdown, title, theme_id)
 
         # Step 3: Create the presentation via the API
         api_client = ApiClient(credentials, service)
@@ -178,28 +219,8 @@ def markdown_to_requests(
     try:
         logger.info(f"Converting markdown to API requests: {title}")
 
-        # Step 1: Parse the markdown using the enhanced parser
-        parser = Parser()
-        deck = parser.parse(markdown, title, theme_id)
-        logger.info(f"Parsed {len(deck.slides)} slides from markdown")
-
-        # Step 2: Calculate element positions and handle overflow
-        layout_manager = LayoutManager()
-        processed_slides = []
-
-        for i, slide in enumerate(deck.slides):
-            logger.info(f"Calculating layout for slide {i + 1}")
-            processed_slide = layout_manager.calculate_positions(slide)
-
-            # Handle case where overflow creates multiple slides
-            if isinstance(processed_slide, list):
-                logger.info(f"Slide {i + 1} overflow created {len(processed_slide)} slides")
-                processed_slides.extend(processed_slide)
-            else:
-                processed_slides.append(processed_slide)
-
-        deck.slides = processed_slides
-        logger.info(f"Layout calculation completed for {len(deck.slides)} slides")
+        # Process markdown to deck using shared helper
+        deck = _process_markdown_to_deck(markdown, title, theme_id)
 
         # Step 3: Generate API requests
         from markdowndeck.api.api_generator import ApiRequestGenerator

@@ -66,7 +66,9 @@ class ApiClient:
         Returns:
             Dictionary with presentation details
         """
-        logger.info(f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides")
+        logger.info(
+            f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
+        )
 
         # Step 1: Create the presentation
         presentation = self.create_presentation(deck.title, deck.theme_id)
@@ -144,7 +146,9 @@ class ApiClient:
                 self.execute_batch_update(batch)
 
         # Step 8: Get the final presentation
-        final_presentation = self.get_presentation(presentation_id, fields="presentationId,title,slides.objectId")
+        final_presentation = self.get_presentation(
+            presentation_id, fields="presentationId,title,slides.objectId"
+        )
         result = {
             "presentationId": presentation_id,
             "presentationUrl": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
@@ -152,7 +156,9 @@ class ApiClient:
             "slideCount": len(final_presentation.get("slides", [])),
         }
 
-        logger.info(f"Presentation creation complete. Slide count: {result['slideCount']}")
+        logger.info(
+            f"Presentation creation complete. Slide count: {result['slideCount']}"
+        )
         return result
 
     def _find_speaker_notes_id(self, slide: dict) -> str | None:
@@ -186,7 +192,9 @@ class ApiClient:
                     if "speakerNotes" in element_id or "notes" in element_id:
                         return element_id
 
-            logger.warning(f"Could not find speaker notes ID for slide {slide.get('objectId')}")
+            logger.warning(
+                f"Could not find speaker notes ID for slide {slide.get('objectId')}"
+            )
             return None
 
         except Exception as e:
@@ -213,7 +221,9 @@ class ApiClient:
             # Include theme ID if provided
             if theme_id:
                 logger.debug(f"Creating presentation with theme ID: {theme_id}")
-                presentation = self.slides_service.presentations().create(body=body).execute()
+                presentation = (
+                    self.slides_service.presentations().create(body=body).execute()
+                )
 
                 # Apply theme in a separate request
                 self.slides_service.presentations().batchUpdate(
@@ -230,9 +240,13 @@ class ApiClient:
                 ).execute()
             else:
                 logger.debug("Creating presentation without theme")
-                presentation = self.slides_service.presentations().create(body=body).execute()
+                presentation = (
+                    self.slides_service.presentations().create(body=body).execute()
+                )
 
-            logger.info(f"Created presentation with ID: {presentation['presentationId']}")
+            logger.info(
+                f"Created presentation with ID: {presentation['presentationId']}"
+            )
             return presentation
         except HttpError as error:
             logger.error(f"Failed to create presentation: {error}")
@@ -261,7 +275,11 @@ class ApiClient:
                 kwargs["fields"] = fields
                 logger.debug(f"Using field mask: {fields}")
 
-            return self.slides_service.presentations().get(presentationId=presentation_id, **kwargs).execute()
+            return (
+                self.slides_service.presentations()
+                .get(presentationId=presentation_id, **kwargs)
+                .execute()
+            )
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
@@ -296,25 +314,165 @@ class ApiClient:
 
                     # Check for wildcard field mask which will cause errors
                     if fields == "*":
-                        logger.warning(f"Replacing wildcard field mask '*' in request {i} with specific fields")
+                        logger.warning(
+                            f"Replacing wildcard field mask '*' in request {i} with specific fields"
+                        )
                         # Replace with common safe fields
-                        request["updateShapeProperties"]["fields"] = "shapeBackgroundFill,contentAlignment"
+                        request["updateShapeProperties"][
+                            "fields"
+                        ] = "shapeBackgroundFill,contentAlignment"
 
                     # Check for autofit property without proper fields
-                    if "autofit" in request["updateShapeProperties"].get("shapeProperties", {}):
-                        autofit_type = request["updateShapeProperties"]["shapeProperties"]["autofit"].get("autofitType")
+                    if "autofit" in request["updateShapeProperties"].get(
+                        "shapeProperties", {}
+                    ):
+                        autofit_type = request["updateShapeProperties"][
+                            "shapeProperties"
+                        ]["autofit"].get("autofitType")
                         if autofit_type != "NONE":
                             logger.warning(
                                 f"Invalid autofitType '{autofit_type}' found in request {i}. "
                                 f"Only 'NONE' is supported. Changing to 'NONE'."
                             )
-                            request["updateShapeProperties"]["shapeProperties"]["autofit"]["autofitType"] = "NONE"
+                            request["updateShapeProperties"]["shapeProperties"][
+                                "autofit"
+                            ]["autofitType"] = "NONE"
 
                         if fields != "autofit.autofitType":
-                            logger.warning(f"Fixing autofit field mask in request {i}, was: '{fields}'")
-                            request["updateShapeProperties"]["fields"] = "autofit.autofitType"
+                            logger.warning(
+                                f"Fixing autofit field mask in request {i}, was: '{fields}'"
+                            )
+                            request["updateShapeProperties"][
+                                "fields"
+                            ] = "autofit.autofitType"
 
-        logger.debug(f"Executing batch update with {len(batch.get('requests', []))} requests")
+        # Validate and replace invalid image requests with placeholders
+        if "requests" in batch:
+            modified_requests = []
+            for i, request in enumerate(batch["requests"]):
+                if "createImage" in request:
+                    url = request["createImage"].get("url")
+                    if not url or not self._is_valid_image_url(url):
+                        logger.warning(
+                            f"Invalid image URL: {url}. Creating placeholder."
+                        )
+
+                        # Get information from the original request
+                        obj_id = request["createImage"]["objectId"]
+                        page_id = request["createImage"]["elementProperties"][
+                            "pageObjectId"
+                        ]
+                        size = request["createImage"]["elementProperties"]["size"]
+                        position = request["createImage"]["elementProperties"][
+                            "transform"
+                        ]
+
+                        # Create placeholder shape requests
+                        placeholder_requests = [
+                            # Create text box shape
+                            {
+                                "createShape": {
+                                    "objectId": obj_id,
+                                    "shapeType": "TEXT_BOX",
+                                    "elementProperties": {
+                                        "pageObjectId": page_id,
+                                        "size": size,
+                                        "transform": position,
+                                    },
+                                }
+                            },
+                            # Add placeholder text
+                            {
+                                "insertText": {
+                                    "objectId": obj_id,
+                                    "insertionIndex": 0,
+                                    "text": "[Image not available]",
+                                }
+                            },
+                            # Center text horizontally
+                            {
+                                "updateParagraphStyle": {
+                                    "objectId": obj_id,
+                                    "textRange": {"type": "ALL"},
+                                    "style": {"alignment": "CENTER"},
+                                    "fields": "alignment",
+                                }
+                            },
+                            # Center text vertically
+                            {
+                                "updateShapeProperties": {
+                                    "objectId": obj_id,
+                                    "fields": "contentAlignment",
+                                    "shapeProperties": {"contentAlignment": "MIDDLE"},
+                                }
+                            },
+                            # Add border
+                            {
+                                "updateShapeProperties": {
+                                    "objectId": obj_id,
+                                    "fields": "outline.outlineFill.solidFill.color,outline.weight,outline.dashStyle",
+                                    "shapeProperties": {
+                                        "outline": {
+                                            "outlineFill": {
+                                                "solidFill": {
+                                                    "color": {
+                                                        "rgbColor": {
+                                                            "red": 0.7,
+                                                            "green": 0.7,
+                                                            "blue": 0.7,
+                                                        }
+                                                    }
+                                                }
+                                            },
+                                            "weight": {"magnitude": 1.0, "unit": "PT"},
+                                            "dashStyle": "DASH",
+                                        }
+                                    },
+                                }
+                            },
+                            # Add gray background
+                            {
+                                "updateShapeProperties": {
+                                    "objectId": obj_id,
+                                    "fields": "shapeBackgroundFill.solidFill.color",
+                                    "shapeProperties": {
+                                        "shapeBackgroundFill": {
+                                            "solidFill": {
+                                                "color": {
+                                                    "rgbColor": {
+                                                        "red": 0.95,
+                                                        "green": 0.95,
+                                                        "blue": 0.95,
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                }
+                            },
+                        ]
+
+                        # Add all placeholder requests
+                        modified_requests.extend(placeholder_requests)
+                        logger.debug(
+                            f"Replaced invalid image with placeholder for object: {obj_id}"
+                        )
+                    else:
+                        # Valid image, keep the original request
+                        modified_requests.append(request)
+                else:
+                    # Not an image request, keep as-is
+                    modified_requests.append(request)
+
+            # Update the batch with validated requests
+            batch = {
+                "presentationId": batch["presentationId"],
+                "requests": modified_requests,
+            }
+
+        logger.debug(
+            f"Executing batch update with {len(batch.get('requests', []))} requests"
+        )
         retries = 0
         current_batch = batch
 
@@ -335,15 +493,22 @@ class ApiClient:
                 if error.resp.status in [429, 500, 503]:  # Rate limit or server error
                     retries += 1
                     if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (2 ** (retries - 1))  # Exponential backoff
-                        logger.warning(f"Rate limit or server error hit. Retrying in {wait_time} seconds...")
+                        wait_time = self.retry_delay * (
+                            2 ** (retries - 1)
+                        )  # Exponential backoff
+                        logger.warning(
+                            f"Rate limit or server error hit. Retrying in {wait_time} seconds..."
+                        )
                         time.sleep(wait_time)
                     else:
                         logger.error(f"Max retries exceeded: {error}")
                         raise
                 # Check specifically for text range index errors
                 elif (
-                    ("endIndex" in error_str and "greater than the existing text length" in error_str)
+                    (
+                        "endIndex" in error_str
+                        and "greater than the existing text length" in error_str
+                    )
                     or "Invalid requests" in error_str
                     and "updateParagraphStyle" in error_str
                 ):
@@ -369,8 +534,12 @@ class ApiClient:
                         )
                     else:
                         # Try pattern 2: more general pattern
-                        request_index_match = re.search(r"requests\[(\d+)\]\.(\w+)", error_str)
-                        length_match = re.search(r"end index \((\d+)\).*text length \((\d+)\)", error_str)
+                        request_index_match = re.search(
+                            r"requests\[(\d+)\]\.(\w+)", error_str
+                        )
+                        length_match = re.search(
+                            r"end index \((\d+)\).*text length \((\d+)\)", error_str
+                        )
 
                         if request_index_match:
                             problem_index = int(request_index_match.group(1))
@@ -385,19 +554,27 @@ class ApiClient:
                                 )
                             else:
                                 # Just log the basic info if we can't extract details
-                                logger.warning(f"Text range error in request {problem_index} ({request_type})")
+                                logger.warning(
+                                    f"Text range error in request {problem_index} ({request_type})"
+                                )
                                 attempted_end_index = 999999  # Placeholder value
                                 actual_text_length = 0  # Placeholder value
                         else:
                             # We can't identify the specific request, but we'll try a blanket fix
-                            logger.warning(f"Unidentified text range error: {error_str}")
-                            problem_index = -1  # Flag that we couldn't identify the problem index
+                            logger.warning(
+                                f"Unidentified text range error: {error_str}"
+                            )
+                            problem_index = (
+                                -1
+                            )  # Flag that we couldn't identify the problem index
 
                     # Create a new batch without the problematic request
                     modified_requests = []
                     for i, req in enumerate(current_batch["requests"]):
                         if problem_index >= 0 and i == problem_index:
-                            logger.info(f"Skipping request at index {problem_index} with invalid text range")
+                            logger.info(
+                                f"Skipping request at index {problem_index} with invalid text range"
+                            )
                         else:
                             # Also fix any updateParagraphStyle or updateTextStyle requests with text ranges
                             for req_type in [
@@ -407,13 +584,20 @@ class ApiClient:
                             ]:
                                 if req_type in req and "textRange" in req[req_type]:
                                     text_range = req[req_type]["textRange"]
-                                    if "endIndex" in text_range and "startIndex" in text_range:
+                                    if (
+                                        "endIndex" in text_range
+                                        and "startIndex" in text_range
+                                    ):
                                         # Ensure end_index is never greater than start_index + reasonable length
                                         start_index = text_range["startIndex"]
                                         old_end = text_range["endIndex"]
 
                                         # If we have actual text length info, use it to cap the end index
-                                        if problem_index >= 0 and actual_text_length > 0 and i > problem_index:
+                                        if (
+                                            problem_index >= 0
+                                            and actual_text_length > 0
+                                            and i > problem_index
+                                        ):
                                             # For any request that's after the one that failed, be extra cautious
                                             text_range["endIndex"] = min(
                                                 text_range["endIndex"],
@@ -425,8 +609,13 @@ class ApiClient:
                                             text_range["endIndex"] = start_index + 500
 
                                         # Ensure endIndex is always at least startIndex + 1
-                                        if text_range["endIndex"] <= text_range["startIndex"]:
-                                            text_range["endIndex"] = text_range["startIndex"] + 1
+                                        if (
+                                            text_range["endIndex"]
+                                            <= text_range["startIndex"]
+                                        ):
+                                            text_range["endIndex"] = (
+                                                text_range["startIndex"] + 1
+                                            )
 
                                         if old_end != text_range["endIndex"]:
                                             logger.warning(
@@ -441,10 +630,14 @@ class ApiClient:
                         "presentationId": current_batch["presentationId"],
                         "requests": modified_requests,
                     }
-                    logger.info(f"Retrying with modified batch ({len(modified_requests)} requests)")
+                    logger.info(
+                        f"Retrying with modified batch ({len(modified_requests)} requests)"
+                    )
                     retries += 1
                     continue
-                elif "createImage" in error_str and ("not found" in error_str or "too large" in error_str):
+                elif "createImage" in error_str and (
+                    "not found" in error_str or "too large" in error_str
+                ):
                     # Handle image-specific errors
                     logger.warning(f"Image error in batch: {error}")
 
@@ -454,7 +647,9 @@ class ApiClient:
                         # Parse index from error message like "Invalid requests[4].createImage"
                         import re
 
-                        index_match = re.search(r"requests\[(\d+)\]\.createImage", error_msg)
+                        index_match = re.search(
+                            r"requests\[(\d+)\]\.createImage", error_msg
+                        )
                         if index_match:
                             problem_index = int(index_match.group(1))
 
@@ -466,14 +661,24 @@ class ApiClient:
                                     if "objectId" in req["createImage"]:
                                         # Get information from the original request
                                         obj_id = req["createImage"]["objectId"]
-                                        page_id = req["createImage"]["elementProperties"]["pageObjectId"]
+                                        page_id = req["createImage"][
+                                            "elementProperties"
+                                        ]["pageObjectId"]
                                         position = (
-                                            req["createImage"]["elementProperties"]["transform"]["translateX"],
-                                            req["createImage"]["elementProperties"]["transform"]["translateY"],
+                                            req["createImage"]["elementProperties"][
+                                                "transform"
+                                            ]["translateX"],
+                                            req["createImage"]["elementProperties"][
+                                                "transform"
+                                            ]["translateY"],
                                         )
                                         size = (
-                                            req["createImage"]["elementProperties"]["size"]["width"]["magnitude"],
-                                            req["createImage"]["elementProperties"]["size"]["height"]["magnitude"],
+                                            req["createImage"]["elementProperties"][
+                                                "size"
+                                            ]["width"]["magnitude"],
+                                            req["createImage"]["elementProperties"][
+                                                "size"
+                                            ]["height"]["magnitude"],
                                         )
 
                                         # Create placeholder text box instead
@@ -521,7 +726,9 @@ class ApiClient:
                                             f"Replaced problematic image request at index {problem_index} with text placeholder"
                                         )
                                     else:
-                                        logger.info(f"Skipped problematic image request at index {problem_index}")
+                                        logger.info(
+                                            f"Skipped problematic image request at index {problem_index}"
+                                        )
                                 else:
                                     modified_requests.append(req)
 
@@ -530,13 +737,19 @@ class ApiClient:
                                 "presentationId": current_batch["presentationId"],
                                 "requests": modified_requests,
                             }
-                            logger.info(f"Retrying with modified batch ({len(modified_requests)} requests)")
+                            logger.info(
+                                f"Retrying with modified batch ({len(modified_requests)} requests)"
+                            )
                             continue
                     except Exception as parse_error:
                         logger.error(f"Failed to parse error message: {parse_error}")
 
                 # Handle deleteText with invalid indices
-                elif "deleteText" in str(error) and "startIndex" in str(error) and "endIndex" in str(error):
+                elif (
+                    "deleteText" in str(error)
+                    and "startIndex" in str(error)
+                    and "endIndex" in str(error)
+                ):
                     logger.warning(f"DeleteText error in batch: {error}")
 
                     # Extract the problematic request index
@@ -545,7 +758,9 @@ class ApiClient:
                         # Parse index from error message like "Invalid requests[4].deleteText"
                         import re
 
-                        index_match = re.search(r"requests\[(\d+)\]\.deleteText", error_msg)
+                        index_match = re.search(
+                            r"requests\[(\d+)\]\.deleteText", error_msg
+                        )
                         if index_match:
                             problem_index = int(index_match.group(1))
 
@@ -554,7 +769,9 @@ class ApiClient:
                             for i, req in enumerate(current_batch["requests"]):
                                 if i == problem_index and "deleteText" in req:
                                     # Skip the problematic deleteText request
-                                    logger.info(f"Skipped problematic deleteText request at index {problem_index}")
+                                    logger.info(
+                                        f"Skipped problematic deleteText request at index {problem_index}"
+                                    )
                                 else:
                                     modified_requests.append(req)
 
@@ -563,7 +780,9 @@ class ApiClient:
                                 "presentationId": current_batch["presentationId"],
                                 "requests": modified_requests,
                             }
-                            logger.info(f"Retrying with modified batch ({len(modified_requests)} requests)")
+                            logger.info(
+                                f"Retrying with modified batch ({len(modified_requests)} requests)"
+                            )
                             continue
                     except Exception as parse_error:
                         logger.error(f"Failed to parse error message: {parse_error}")
@@ -588,17 +807,92 @@ class ApiClient:
         default_slides = presentation.get("slides", [])
         if default_slides:
             logger.debug(f"Found {len(default_slides)} default slides to delete")
+
+            # Collect all delete requests into a single batch
+            delete_requests = []
             for slide in default_slides:
                 slide_id = slide.get("objectId")
                 if slide_id:
-                    try:
-                        self.slides_service.presentations().batchUpdate(
-                            presentationId=presentation_id,
-                            body={"requests": [{"deleteObject": {"objectId": slide_id}}]},
-                        ).execute()
-                        logger.debug(f"Deleted default slide: {slide_id}")
-                    except HttpError as error:
-                        logger.warning(f"Failed to delete default slide: {error}")
+                    delete_requests.append({"deleteObject": {"objectId": slide_id}})
+                    logger.debug(f"Prepared delete request for slide: {slide_id}")
+
+            # Send all delete requests in a single batch update
+            if delete_requests:
+                try:
+                    self.slides_service.presentations().batchUpdate(
+                        presentationId=presentation_id,
+                        body={"requests": delete_requests},
+                    ).execute()
+                    logger.debug(
+                        f"Successfully deleted {len(delete_requests)} default slides in single batch"
+                    )
+                except HttpError as error:
+                    logger.warning(f"Failed to delete default slides: {error}")
+
+    def _is_valid_image_url(self, url: str) -> bool:
+        """
+        Validate if a URL is a valid image URL.
+
+        This performs both format validation and image accessibility checking.
+        Google Slides API requires images to be accessible and not too large.
+
+        Args:
+            url: The URL to validate
+
+        Returns:
+            bool: True if the URL is valid, accessible, and not too large
+        """
+        if not url:
+            return False
+
+        # Only allow http/https URLs
+        if not (url.startswith("http://") or url.startswith("https://")):
+            return False
+
+        # Check for common image extensions
+        image_extensions = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg"]
+        has_valid_extension = any(url.lower().endswith(ext) for ext in image_extensions)
+
+        # If no extension, at least make sure it's a properly formed URL with a domain
+        if not has_valid_extension and "." not in url.split("//", 1)[-1]:
+            return False
+
+        # Check if image actually exists and is accessible
+        try:
+            # Use HEAD request to check image existence and headers
+            head_response = requests.head(url, timeout=5, allow_redirects=True)
+
+            # Check status code first
+            if head_response.status_code != 200:
+                logger.warning(
+                    f"Image URL returned status code {head_response.status_code}: {url}"
+                )
+                return False
+
+            # Verify content type is an image
+            content_type = head_response.headers.get("content-type", "")
+            if not content_type.startswith("image/"):
+                logger.warning(
+                    f"URL does not point to an image (content-type: {content_type}): {url}"
+                )
+                return False
+
+            # Get content length from headers
+            content_length = head_response.headers.get("content-length")
+
+            # Check if content length is available and validate size
+            # 25 MB limit (conservative, actual limit is higher but varies)
+            if content_length and int(content_length) > 25 * 1024 * 1024:
+                logger.warning(
+                    f"Image URL too large ({int(content_length) / (1024 * 1024):.2f} MB): {url}"
+                )
+                return False
+
+            return True
+        except Exception as e:
+            # If we can't access the image or verify it, log warning and reject it
+            logger.warning(f"Image verification failed for {url}: {e}")
+            return False
 
     def _split_batch(self, batch: dict) -> list[dict]:
         """

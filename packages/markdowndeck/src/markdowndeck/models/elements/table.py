@@ -75,17 +75,17 @@ class TableElement(Element):
         # Calculate current element width to determine row heights
         element_width = self.size[0] if self.size else 400.0  # fallback width
 
-        # --- REPLACE THIS ENTIRE LOGIC BLOCK ---
-        from markdowndeck.layout.metrics import calculate_element_height
+        from markdowndeck.layout.constants import MIN_TABLE_HEIGHT, TABLE_HEADER_HEIGHT
 
-        header_table_for_calc = deepcopy(self)
-        header_table_for_calc.rows = []
-        header_height = calculate_element_height(header_table_for_calc, element_width)
+        header_height = 0.0
+        if self.headers:
+            # A simple, robust way is to use the constant for header height.
+            # A more complex way would be to calculate wrapped text, but this is safer for splitting.
+            header_height = TABLE_HEADER_HEIGHT
 
-        if available_height < header_height:
-            # Not even the headers fit. The entire table must be promoted.
+        # If the available height is less than a minimal table (header + one small row), promote the whole table.
+        if available_height < (header_height + MIN_TABLE_HEIGHT):
             return None, deepcopy(self)
-        # --- END REPLACEMENT ---
 
         # Find how many rows fit within available height (after accounting for headers)
         available_for_rows = available_height - header_height
