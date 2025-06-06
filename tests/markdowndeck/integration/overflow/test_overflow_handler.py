@@ -11,6 +11,7 @@ from markdowndeck.models import (
     TableElement,
     TextElement,
 )
+from markdowndeck.models.elements.code import CodeElement
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.overflow.constants import (
     CONTINUED_TITLE_SUFFIX,
@@ -249,29 +250,29 @@ class TestOverflowHandlerIntegration:
             size=(620, 40),
         )
 
-        # Create code block with multiple lines
-        code_block = TextElement(  # Will be converted to CodeElement in real usage
+        # Create code block with multiple lines using proper CodeElement
+        code_block = CodeElement(
             element_type=ElementType.CODE,
-            text="line 1\nline 2\nline 3\nline 4\nline 5",
+            code="line 1\nline 2\nline 3\nline 4\nline 5",
             position=(50, 150),
             size=(620, 100),
         )
 
         # Mock the split method to follow minimum requirements
         def mock_code_split(available_height):
-            lines = code_block.text.split("\n")
+            lines = code_block.code.split("\n")
             if len(lines) >= 4 and available_height > 40:  # Can fit minimum 2 lines
                 fitted_lines = lines[:2]  # Take 2 lines
                 overflowing_lines = lines[2:]  # Rest overflow
 
-                fitted = TextElement(
+                fitted = CodeElement(
                     element_type=ElementType.CODE,
-                    text="\n".join(fitted_lines),
+                    code="\n".join(fitted_lines),
                     size=(620, 40),
                 )
-                overflowing = TextElement(
+                overflowing = CodeElement(
                     element_type=ElementType.CODE,
-                    text="\n".join(overflowing_lines),
+                    code="\n".join(overflowing_lines),
                     size=(620, 60),
                 )
                 return fitted, overflowing

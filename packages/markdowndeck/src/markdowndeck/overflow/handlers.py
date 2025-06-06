@@ -276,22 +276,9 @@ class StandardOverflowHandler:
         if overflowing_elements:
             overflowing_section = deepcopy(section)
             overflowing_section.elements = overflowing_elements
-            # Reset position for continuation slide
+            # Reset position AND size for continuation slide (critical for layout recalculation)
             overflowing_section.position = None
-
-            # Calculate total height for overflowing section
-            total_overflow_height = 0.0
-            for element in overflowing_elements:
-                if hasattr(element, "size") and element.size:
-                    total_overflow_height += element.size[1]
-                else:
-                    from markdowndeck.layout.metrics import calculate_element_height
-
-                    total_overflow_height += calculate_element_height(
-                        element, section_width
-                    )
-
-            overflowing_section.size = (section_width, total_overflow_height)
+            overflowing_section.size = None
 
         logger.debug(
             f"Rule A result: fitted={len(fitted_elements) if fitted_elements else 0} elements, "

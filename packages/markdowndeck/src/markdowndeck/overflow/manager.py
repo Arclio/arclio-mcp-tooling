@@ -157,13 +157,11 @@ class OverflowManager:
                 f"Added fitted slide {fitted_slide.object_id} to final results"
             )
 
-            # Step 4: Reposition and enqueue continuation slide for further processing
-            repositioned_continuation_slide = self.layout_manager.calculate_positions(
-                continuation_slide
-            )
-            slides_to_process.append(repositioned_continuation_slide)
+            # Step 4: Enqueue continuation slide for further processing
+            # Note: Continuation slides already have correct positioning from slide builder
+            slides_to_process.append(continuation_slide)
             logger.debug(
-                f"Repositioned and enqueued continuation slide {continuation_slide.object_id} for processing"
+                f"Enqueued continuation slide {continuation_slide.object_id} for processing"
             )
 
         logger.info(
