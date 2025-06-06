@@ -72,79 +72,81 @@ class TableElement(Element):
         if not self.rows and not self.headers:
             return None, None
 
-        # Calculate current element width to determine row heights
-        element_width = self.size[0] if self.size else 400.0  # fallback width
+        from markdowndeck.layout.metrics.table import _calculate_row_height
 
-        from markdowndeck.layout.constants import MIN_TABLE_HEIGHT, TABLE_HEADER_HEIGHT
+        element_width = self.size[0] if self.size else 400.0
+        num_cols = self.get_column_count()
+        if num_cols == 0:
+            return deepcopy(self), None
+        col_width = element_width / num_cols
 
         header_height = 0.0
         if self.headers:
-            # A simple, robust way is to use the constant for header height.
-            # A more complex way would be to calculate wrapped text, but this is safer for splitting.
-            header_height = TABLE_HEADER_HEIGHT
+            header_height = _calculate_row_height(
+                self.headers, col_width, is_header=True
+            )
 
-        # If the available height is less than a minimal table (header + one small row), promote the whole table.
-        if available_height < (header_height + MIN_TABLE_HEIGHT):
+        if available_height < header_height:
             return None, deepcopy(self)
 
-        # Find how many rows fit within available height (after accounting for headers)
         available_for_rows = available_height - header_height
         fitted_rows = []
+        current_rows_height = 0.0
 
-        for _i, row in enumerate(self.rows):
-            # Create temporary element with current rows to measure height
-            temp_element = deepcopy(self)
-            temp_element.rows = fitted_rows + [row]
-
-            # Calculate height this would require (minus header height since we already accounted for it)
-            # Local import to avoid circular dependency
-            from markdowndeck.layout.metrics import calculate_element_height
-
-            full_height = calculate_element_height(temp_element, element_width)
-            rows_height = full_height - header_height
-
-            if rows_height <= available_for_rows:
+        for row in self.rows:
+            next_row_height = _calculate_row_height(row, col_width, is_header=False)
+            if current_rows_height + next_row_height <= available_for_rows:
                 fitted_rows.append(row)
+                current_rows_height += next_row_height
             else:
-                # This row doesn't fit
                 break
 
-        # Determine split results
-        if not fitted_rows and not self.headers:
-            # Nothing fits and no headers
-            return None, deepcopy(self)
-
         if len(fitted_rows) == len(self.rows):
-            # Everything fits
             return deepcopy(self), None
 
-        # Create fitted part
-        fitted_part = deepcopy(self)
-        fitted_part.rows = fitted_rows
-
-        # Calculate actual size for fitted part
-        if fitted_rows or self.headers:
-            # Local import to avoid circular dependency
-            from markdowndeck.layout.metrics import calculate_element_height
-
-            fitted_height = calculate_element_height(fitted_part, element_width)
-            fitted_part.size = (element_width, fitted_height)
-        else:
+        if not fitted_rows and not self.headers:
             return None, deepcopy(self)
 
-        # Create overflowing part with header duplication
-        if len(fitted_rows) < len(self.rows):
-            overflowing_rows = self.rows[len(fitted_rows) :]
-            overflowing_part = deepcopy(self)
-            overflowing_part.rows = overflowing_rows
+        # If no rows fit but there's a header that fits, the fitted part is just the header.
+        if not fitted_rows and self.headers and header_height <= available_height:
+            fitted_part = deepcopy(self)
+            fitted_part.rows = []
+            fitted_part.size = (element_width, header_height)
 
-            # CRITICAL: Always duplicate headers in overflowing part
-            if self.headers:
-                overflowing_part.headers = deepcopy(self.headers)
-
+            overflowing_part = deepcopy(self)  # The whole table overflows
+            overflowing_part.headers = deepcopy(self.headers)
+            # ✅ FIX: Calculate proper size for overflowing part
+            overflow_rows_height = sum(
+                _calculate_row_height(row, col_width, is_header=False)
+                for row in self.rows
+            )
+            overflowing_part.size = (
+                element_width,
+                header_height + overflow_rows_height,
+            )
             return fitted_part, overflowing_part
 
-        return fitted_part, None
+        if not fitted_rows:
+            return None, deepcopy(self)
+
+        fitted_part = deepcopy(self)
+        fitted_part.rows = fitted_rows
+        fitted_part.size = (element_width, header_height + current_rows_height)
+
+        overflowing_rows = self.rows[len(fitted_rows) :]
+        overflowing_part = deepcopy(self)
+        overflowing_part.rows = overflowing_rows
+        if self.headers:
+            overflowing_part.headers = deepcopy(self.headers)
+
+        # ✅ FIX: Calculate proper size for overflowing part
+        overflow_rows_height = sum(
+            _calculate_row_height(row, col_width, is_header=False)
+            for row in overflowing_rows
+        )
+        overflowing_part.size = (element_width, header_height + overflow_rows_height)
+
+        return fitted_part, overflowing_part
 
     def requires_header_duplication(self) -> bool:
         """

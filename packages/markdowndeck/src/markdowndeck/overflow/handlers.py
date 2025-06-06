@@ -67,10 +67,23 @@ class StandardOverflowHandler:
         # Calculate available height before the overflowing section
         available_height = self.body_height - overflowing_section.position[1]
         logger.debug(f"Available height for overflow section: {available_height}")
+        logger.debug(
+            f"Overflowing section info: id={overflowing_section.id}, type={overflowing_section.type}"
+        )
+        logger.debug(
+            f"Overflowing section elements: {len(overflowing_section.elements) if overflowing_section.elements else 0}"
+        )
+        logger.debug(
+            f"Overflowing section subsections: {len(overflowing_section.subsections) if overflowing_section.subsections else 0}"
+        )
 
         # Partition the overflowing section
+        logger.debug("About to call _partition_section...")
         fitted_part, overflowing_part = self._partition_section(
             overflowing_section, available_height, visited=set()
+        )
+        logger.debug(
+            f"_partition_section returned: fitted_part={fitted_part is not None}, overflowing_part={overflowing_part is not None}"
         )
 
         # Find the index of the overflowing section in the original slide
@@ -156,16 +169,29 @@ class StandardOverflowHandler:
             f"Partitioning section {section.id} with available_height={available_height}"
         )
 
+        logger.debug(
+            f"Section {section.id}: has_elements={bool(section.elements)}, elements_count={len(section.elements) if section.elements else 0}"
+        )
+        logger.debug(
+            f"Section {section.id}: has_subsections={bool(section.subsections)}, subsections_count={len(section.subsections) if section.subsections else 0}"
+        )
+        logger.debug(f"Section {section.id}: type={section.type}")
+
         if section.elements:
             # Base case: Section has elements - apply Rule A
+            logger.debug(f"Section {section.id}: Taking Rule A path (has elements)")
             return self._apply_rule_a(section, available_height, visited)
 
         if section.subsections:
             # Recursive case: Section has subsections
             if section.type == "row":
                 # Rule B: Row of columns partitioning
+                logger.debug(
+                    f"Section {section.id}: Taking Rule B path (row with subsections)"
+                )
                 return self._apply_rule_b(section, available_height, visited)
             # Standard subsection partitioning
+            logger.debug(f"Section {section.id}: Taking subsection partitioning path")
             return self._partition_section_with_subsections(
                 section, available_height, visited
             )
@@ -218,24 +244,41 @@ class StandardOverflowHandler:
                 remaining_height = available_height - current_height
 
                 # Check if element is splittable and meets threshold
-                if self._is_element_splittable(element) and self._meets_split_threshold(
-                    element, remaining_height, section_width
-                ):
-                    # Split the element
-                    logger.debug(
-                        f"Splitting element {element.element_type} at threshold"
+                logger.debug(
+                    f"Element overflow check: {element.element_type}, remaining_height={remaining_height}"
+                )
+
+                is_splittable = self._is_element_splittable(element)
+                if is_splittable:
+                    meets_threshold = self._meets_split_threshold(
+                        element, remaining_height, section_width
                     )
-                    fitted_part, overflowing_part = element.split(remaining_height)
+                    logger.debug(
+                        f"Element {element.element_type}: splittable=True, meets_threshold={meets_threshold}"
+                    )
 
-                    if fitted_part:
-                        fitted_elements.append(fitted_part)
+                    if meets_threshold:
+                        # Split the element
+                        logger.debug(
+                            f"Splitting element {element.element_type} at threshold"
+                        )
+                        fitted_part, overflowing_part = element.split(remaining_height)
 
-                    if overflowing_part:
-                        split_element_parts = (fitted_part, overflowing_part, i)
+                        if fitted_part:
+                            fitted_elements.append(fitted_part)
+
+                        if overflowing_part:
+                            split_element_parts = (fitted_part, overflowing_part, i)
+                    else:
+                        # Don't split - promote entire element to next slide
+                        logger.debug(
+                            f"Element {element.element_type} doesn't meet threshold - promoting to next slide"
+                        )
+                        split_element_parts = (None, element, i)
                 else:
                     # Don't split - promote entire element to next slide
                     logger.debug(
-                        f"Promoting entire element {element.element_type} to next slide"
+                        f"Element {element.element_type} not splittable - promoting to next slide"
                     )
                     split_element_parts = (None, element, i)
 
@@ -268,7 +311,27 @@ class StandardOverflowHandler:
             overflowing_section.elements = overflowing_elements
             # Reset position for continuation slide
             overflowing_section.position = None
-            overflowing_section.size = None
+            # ✅ FIX: Preserve split element sizes
+            # If we have split elements with calculated sizes, use them
+            if split_element_parts and overflowing_elements:
+                total_overflow_height = 0.0
+                section_width = section.size[0] if section.size else 400.0
+
+                for element in overflowing_elements:
+                    if hasattr(element, "size") and element.size:
+                        # Element has its own calculated size (from split method)
+                        total_overflow_height += element.size[1]
+                    else:
+                        # Fallback to calculating element height
+                        from markdowndeck.layout.metrics import calculate_element_height
+
+                        total_overflow_height += calculate_element_height(
+                            element, section_width
+                        )
+
+                overflowing_section.size = (section_width, total_overflow_height)
+            else:
+                overflowing_section.size = None
 
         logger.debug(
             f"Rule A result: fitted={len(fitted_elements) if fitted_elements else 0} elements, "
@@ -457,10 +520,15 @@ class StandardOverflowHandler:
         from markdowndeck.models import ElementType
 
         if element.element_type == ElementType.IMAGE:
+            logger.debug(f"Element {element.element_type} is not splittable (image)")
             return False
 
         # Check if element has a split method
-        return hasattr(element, "split") and callable(element.split)
+        has_split_method = hasattr(element, "split") and callable(element.split)
+        logger.debug(
+            f"Element {element.element_type} splittable check: has_split={has_split_method}"
+        )
+        return has_split_method
 
     def _meets_split_threshold(
         self, element, available_height: float, element_width: float
@@ -477,6 +545,7 @@ class StandardOverflowHandler:
             True if the element should be split (meets minimum ratio threshold)
         """
         from markdowndeck.layout.metrics import calculate_element_height
+        from markdowndeck.models import ElementType
 
         total_element_height = calculate_element_height(element, element_width)
 
@@ -484,10 +553,32 @@ class StandardOverflowHandler:
             return False
 
         ratio_that_fits = available_height / total_element_height
-        meets_threshold = ratio_that_fits >= MINIMUM_CONTENT_RATIO_TO_SPLIT
+
+        # Special handling for tables to prevent infinite loops
+        if element.element_type == ElementType.TABLE:
+            # For tables, use a much lower threshold to enable splitting of very large tables
+            table_threshold = 0.05  # 5% threshold for tables
+
+            # Additionally, if the table has many rows and we can fit at least some content,
+            # always allow splitting to prevent infinite promotion loops
+            table_rows = getattr(element, "rows", [])
+            if (
+                len(table_rows) > 10 and available_height > 50
+            ):  # More than 10 rows and some space available
+                logger.debug(
+                    f"Large table ({len(table_rows)} rows) with available space ({available_height}pt) - forcing split"
+                )
+                return True
+
+            meets_threshold = ratio_that_fits >= table_threshold
+            threshold_used = table_threshold
+        else:
+            # Use standard threshold for non-table elements
+            meets_threshold = ratio_that_fits >= MINIMUM_CONTENT_RATIO_TO_SPLIT
+            threshold_used = MINIMUM_CONTENT_RATIO_TO_SPLIT
 
         logger.debug(
-            f"Threshold check: ratio={ratio_that_fits:.2f}, threshold={MINIMUM_CONTENT_RATIO_TO_SPLIT}, meets={meets_threshold}"
+            f"Threshold check: element_type={element.element_type}, ratio={ratio_that_fits:.2f}, threshold={threshold_used}, meets={meets_threshold}"
         )
 
         return meets_threshold
