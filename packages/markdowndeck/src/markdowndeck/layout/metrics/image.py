@@ -1,4 +1,4 @@
-"""Pure image element metrics for layout calculations - Content-aware height calculation."""
+"""Pure image element metrics for layout calculations - Proactive scaling implementation."""
 
 import logging
 from typing import cast
@@ -23,18 +23,19 @@ def calculate_image_element_height(
     available_height: float = 0,
 ) -> float:
     """
-    Calculate the pure intrinsic height needed for an image element based on its aspect ratio.
+    Calculate the height needed for an image element with proactive scaling.
 
-    This is a pure measurement function that returns the actual height required
-    to render the image at the given width while maintaining its aspect ratio.
+    Per Rule #5 of the specification: Images are proactively scaled to fit within their
+    parent section's available width while maintaining aspect ratio. This prevents
+    layout shifts and ensures images never cause overflow by themselves.
 
     Args:
         element: The image element to measure
-        available_width: Available width for the image
+        available_width: Available width for the image (container width)
         available_height: Available height constraint (0 means no constraint)
 
     Returns:
-        The intrinsic height in points required to render the image
+        The calculated height that ensures the image fits within constraints
     """
     image_element = (
         cast(ImageElement, element)
@@ -63,30 +64,31 @@ def calculate_image_element_height(
     # Get aspect ratio for the image
     aspect_ratio = _get_image_aspect_ratio(image_url)
 
-    # Calculate height based on available width and aspect ratio
-    calculated_height = available_width / aspect_ratio
+    # PROACTIVE SCALING: Calculate height based on available width and aspect ratio
+    # This ensures the image will always fit within its container
+    scaled_height = available_width / aspect_ratio
 
     # Apply minimum height constraint
-    calculated_height = max(calculated_height, MIN_IMAGE_HEIGHT)
+    scaled_height = max(scaled_height, MIN_IMAGE_HEIGHT)
 
-    # If available_height is specified, consider it as a constraint
+    # If available_height is specified, ensure we don't exceed it
     if available_height > 0:
         max_allowed_height = available_height * IMAGE_HEIGHT_FRACTION
 
-        # Don't exceed the available height constraint
-        if calculated_height > max_allowed_height:
-            calculated_height = max_allowed_height
+        # Scale down if necessary to fit height constraint
+        if scaled_height > max_allowed_height:
+            scaled_height = max_allowed_height
             logger.debug(
-                f"Constrained image height to available space: {calculated_height:.1f}"
+                f"Image height constrained by available space: {scaled_height:.1f}"
             )
 
     logger.debug(
-        f"Image height calculation: url={image_url[:50]}..., "
-        f"aspect_ratio={aspect_ratio:.2f}, width={available_width:.1f}, "
-        f"final_height={calculated_height:.1f}"
+        f"Image proactively scaled: url={image_url[:50]}..., "
+        f"aspect_ratio={aspect_ratio:.2f}, available_width={available_width:.1f}, "
+        f"scaled_height={scaled_height:.1f}"
     )
 
-    return calculated_height
+    return scaled_height
 
 
 def _get_image_aspect_ratio(url: str) -> float:
@@ -208,15 +210,18 @@ def calculate_image_display_size(
     available_height: float = 0,
 ) -> tuple[float, float]:
     """
-    Calculate the display size (width, height) for an image element.
+    Calculate the display size (width, height) for an image element with proactive scaling.
+
+    This function implements the proactive scaling contract: images are always sized
+    to fit within their container while maintaining aspect ratio.
 
     Args:
         element: The image element
-        available_width: Available width
+        available_width: Available width (container width)
         available_height: Available height constraint
 
     Returns:
-        (display_width, display_height) tuple
+        (display_width, display_height) tuple that fits within constraints
     """
     image_element = (
         cast(ImageElement, element)
@@ -237,7 +242,7 @@ def calculate_image_display_size(
             except (ValueError, TypeError):
                 pass
 
-    # Calculate height based on the display width
+    # Calculate height based on the display width with proactive scaling
     display_height = calculate_image_element_height(
         image_element, display_width, available_height
     )

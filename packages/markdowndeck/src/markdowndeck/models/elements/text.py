@@ -1,5 +1,6 @@
-"""Text-based element models."""
+"""Text element with simple, minimum-requirement splitting logic."""
 
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,6 +11,8 @@ from markdowndeck.models.constants import (
     VerticalAlignmentType,
 )
 from markdowndeck.models.elements.base import Element
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -24,12 +27,13 @@ class TextFormat:
 
 @dataclass
 class TextElement(Element):
-    """Text element (title, subtitle, paragraph, etc.)."""
+    """Text element with simple splitting logic."""
 
     text: str = ""
     formatting: list[TextFormat] = field(default_factory=list)
     horizontal_alignment: AlignmentType = AlignmentType.LEFT
     vertical_alignment: VerticalAlignmentType = VerticalAlignmentType.TOP
+    related_to_next: bool = False
 
     def has_formatting(self) -> bool:
         """Check if this element has any formatting applied."""
@@ -38,15 +42,7 @@ class TextElement(Element):
     def add_formatting(
         self, format_type: TextFormatType, start: int, end: int, value: Any = None
     ) -> None:
-        """
-        Add formatting to a portion of the text.
-
-        Args:
-            format_type: Type of formatting
-            start: Start index of the formatting
-            end: End index of the formatting
-            value: Optional value for the formatting (e.g., URL for links)
-        """
+        """Add formatting to a portion of the text."""
         if start >= end or start < 0 or end > len(self.text):
             return
 
@@ -65,8 +61,17 @@ class TextElement(Element):
         self, available_height: float
     ) -> tuple["TextElement | None", "TextElement | None"]:
         """
-        Split this TextElement to fit within available_height.
-        Splits at line boundaries to preserve line structure.
+        Split this TextElement using simple minimum requirements.
+
+        Rule: Must fit at least 2 lines to split.
+        If minimum not met, promote entire text to next slide.
+        If minimum met, split off what fits.
+
+        Args:
+            available_height: The vertical space available for this element
+
+        Returns:
+            Tuple of (fitted_part, overflowing_part). Either can be None.
         """
         from markdowndeck.layout.metrics.text import calculate_text_element_height
 
@@ -83,25 +88,36 @@ class TextElement(Element):
         if full_height <= available_height:
             return deepcopy(self), None
 
-        # Split at line boundaries to preserve line count integrity
+        # Split at line boundaries to preserve line structure
         lines = self.text.split("\n")
-        if len(lines) <= 1:
-            # Single line that doesn't fit - promote entire element
+        total_lines = len(lines)
+
+        if total_lines <= 1:
+            logger.debug("Single line text doesn't fit - treating as atomic")
             return None, deepcopy(self)
 
         # Calculate height per line estimate
-        height_per_line = full_height / len(lines)
+        height_per_line = full_height / total_lines
         max_lines_that_fit = int(available_height / height_per_line)
 
         if max_lines_that_fit <= 0:
-            # Nothing fits - promote entire element
+            logger.debug("No text lines fit in available space")
             return None, deepcopy(self)
 
-        if max_lines_that_fit >= len(lines):
-            # Everything fits (shouldn't happen due to earlier check, but safety)
+        if max_lines_that_fit >= total_lines:
             return deepcopy(self), None
 
-        # Split the lines
+        # SIMPLE CHECK: Do we meet minimum requirement?
+        MINIMUM_LINES_REQUIRED = 2
+        fitted_line_count = max_lines_that_fit
+
+        if fitted_line_count < MINIMUM_LINES_REQUIRED:
+            logger.info(
+                f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {MINIMUM_LINES_REQUIRED}"
+            )
+            return None, deepcopy(self)
+
+        # Minimum met - proceed with split
         fitted_lines = lines[:max_lines_that_fit]
         overflowing_lines = lines[max_lines_that_fit:]
 
@@ -144,4 +160,7 @@ class TextElement(Element):
             calculate_text_element_height(overflowing_part, element_width),
         )
 
+        logger.info(
+            f"Text split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing"
+        )
         return fitted_part, overflowing_part

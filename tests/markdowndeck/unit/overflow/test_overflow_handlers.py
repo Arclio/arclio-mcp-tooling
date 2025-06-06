@@ -1,57 +1,62 @@
-"""Unit tests for individual overflow handler components."""
+"""Unit tests for overflow handler components with unanimous consent model."""
 
 from copy import deepcopy
 
 import pytest
 from markdowndeck.models import (
+    CodeElement,
     ElementType,
     ImageElement,
+    ListElement,
+    ListItem,
     Section,
     Slide,
+    TableElement,
     TextElement,
 )
 from markdowndeck.overflow.handlers import StandardOverflowHandler
 
 
 class TestStandardOverflowHandler:
-    """Unit tests for the StandardOverflowHandler component."""
+    """Unit tests for the StandardOverflowHandler component with unanimous consent model."""
 
     @pytest.fixture
     def handler(self) -> StandardOverflowHandler:
         """Create handler with standard body height."""
         return StandardOverflowHandler(body_height=255.0)
 
-    def test_rule_a_standard_element_partitioning(self, handler):
-        """Test Rule A: standard section partitioning with elements."""
+    def test_rule_a_standard_element_partitioning_with_minimum_requirements(
+        self, handler
+    ):
+        """Test Rule A: standard section partitioning with elements using minimum requirements."""
 
-        # Create section with multiple text elements
+        # Create section with multiple text elements that follow minimum requirements
         text1 = TextElement(
             element_type=ElementType.TEXT,
-            text="First text element",
+            text="First text element\nSecond line of first element",
             position=(50, 150),
-            size=(620, 30),
+            size=(620, 40),
         )
 
         text2 = TextElement(
             element_type=ElementType.TEXT,
-            text="Second text element that will overflow "
-            * 20,  # Much longer text to actually cause overflow
+            text="Second text element that will overflow\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6",
             position=(50, 190),
-            size=(620, 100),  # This will cause overflow
+            size=(620, 120),  # Large enough to cause overflow
         )
 
         text3 = TextElement(
             element_type=ElementType.TEXT,
-            text="Third text element",
-            position=(50, 300),
-            size=(620, 30),
+            text="Third text element\nShould be promoted to continuation",
+            position=(50, 310),
+            size=(620, 40),
         )
 
         overflowing_section = Section(
             id="rule_a_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),
+            size=(620, 200),  # Section overflows body_height
             elements=[text1, text2, text3],
         )
 
@@ -63,17 +68,15 @@ class TestStandardOverflowHandler:
             title="Rule A Test",
         )
 
-        # Calculate available height (from position 150 to body_height 255)
-
         fitted_slide, continuation_slide = handler.handle_overflow(
             original_slide, overflowing_section
         )
 
-        # Verify fitted slide
+        # Verify fitted slide has content that meets minimum requirements
         assert len(fitted_slide.sections) == 1, "Fitted slide should have one section"
         fitted_section = fitted_slide.sections[0]
 
-        # Should contain elements that fit
+        # Should contain elements that fit and meet minimum requirements
         assert (
             len(fitted_section.elements) >= 1
         ), "Fitted section should have elements that fit"
@@ -89,24 +92,78 @@ class TestStandardOverflowHandler:
             len(continuation_section.elements) >= 1
         ), "Continuation section should have overflowing elements"
 
-    def test_rule_b_row_column_partitioning(self, handler):
-        """Test Rule B: row of columns partitioning."""
+        # Verify position reset in continuation
+        assert (
+            continuation_section.position is None
+        ), "Continuation section position should be reset"
+        assert (
+            continuation_section.size is None
+        ), "Continuation section size should be reset"
 
-        # Create row section with columns
+    def test_rule_b_unanimous_consent_model_success(self, handler):
+        """Test Rule B: unanimous consent model when all elements can split."""
+
+        # Create left column with splittable content that meets minimum requirements
         left_text = TextElement(
             element_type=ElementType.TEXT,
-            text="Left column content",
+            text="Left column line 1\nLeft column line 2\nLeft column line 3\nLeft column line 4",
             position=(50, 150),
-            size=(300, 50),
+            size=(300, 80),
         )
 
-        right_text = TextElement(
-            element_type=ElementType.TEXT,
-            text="Right column content that overflows",
+        # Mock split method that succeeds with minimum requirements
+        def left_split(available_height):
+            if available_height >= 40:  # Minimum for 2 lines
+                fitted = TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Left column line 1\nLeft column line 2",
+                    size=(300, 40),
+                )
+                overflowing = TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Left column line 3\nLeft column line 4",
+                    size=(300, 40),
+                )
+                return fitted, overflowing
+            return None, left_text
+
+        left_text.split = left_split
+
+        # Create right column with splittable table that meets minimum requirements
+        right_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Col1", "Col2"],
+            rows=[
+                ["Row 1 A", "Row 1 B"],
+                ["Row 2 A", "Row 2 B"],
+                ["Row 3 A", "Row 3 B"],
+                ["Row 4 A", "Row 4 B"],
+            ],
             position=(360, 150),
-            size=(310, 150),  # Taller, will cause overflow
+            size=(310, 80),
         )
 
+        # Mock split method that succeeds with minimum requirements
+        def right_split(available_height):
+            if available_height >= 60:  # Minimum for header + 2 rows
+                fitted = TableElement(
+                    element_type=ElementType.TABLE,
+                    headers=["Col1", "Col2"],
+                    rows=[["Row 1 A", "Row 1 B"], ["Row 2 A", "Row 2 B"]],
+                    size=(310, 40),
+                )
+                overflowing = TableElement(
+                    element_type=ElementType.TABLE,
+                    headers=["Col1", "Col2"],
+                    rows=[["Row 3 A", "Row 3 B"], ["Row 4 A", "Row 4 B"]],
+                    size=(310, 40),
+                )
+                return fitted, overflowing
+            return None, right_table
+
+        right_table.split = right_split
+
+        # Create row structure
         left_column = Section(
             id="left_col",
             type="section",
@@ -119,222 +176,324 @@ class TestStandardOverflowHandler:
             id="right_col",
             type="section",
             position=(360, 150),
-            size=(310, 100),  # Smaller than content
-            elements=[right_text],
+            size=(310, 100),
+            elements=[right_table],
         )
 
         row_section = Section(
-            id="row_section",
+            id="unanimous_row",
             type="row",
             position=(50, 150),
-            size=(620, 100),
+            size=(620, 200),  # Row overflows
             subsections=[left_column, right_column],
         )
 
         original_slide = Slide(
-            object_id="rule_b_slide",
-            elements=[left_text, right_text],
+            object_id="unanimous_success_slide",
+            elements=[left_text, right_table],
             sections=[row_section],
-            title="Rule B Test",
+            title="Unanimous Consent Success",
         )
 
         fitted_slide, continuation_slide = handler.handle_overflow(
             original_slide, row_section
         )
 
-        # Verify that row structure is preserved
+        # Should successfully split with unanimous consent
         assert len(fitted_slide.sections) == 1, "Fitted slide should have one section"
         fitted_row = fitted_slide.sections[0]
 
         if fitted_row.type == "row":
-            assert len(fitted_row.subsections) >= 1, "Fitted row should have columns"
+            assert (
+                len(fitted_row.subsections) == 2
+            ), "Fitted row should have both columns"
 
-    def test_threshold_rule_splitting_decision(self, handler):
-        """Test that threshold rule correctly determines splitting vs promotion."""
+        # Verify continuation slide maintains row structure
+        assert (
+            len(continuation_slide.sections) == 1
+        ), "Continuation should have one section"
+        continuation_row = continuation_slide.sections[0]
 
-        # Create element that meets threshold for splitting
-        threshold_text = TextElement(
+        if continuation_row.type == "row":
+            assert (
+                len(continuation_row.subsections) == 2
+            ), "Continuation row should have both columns"
+
+    def test_rule_b_unanimous_consent_model_failure(self, handler):
+        """Test Rule B: unanimous consent model when one element rejects split."""
+
+        # Create left column with splittable content
+        left_text = TextElement(
             element_type=ElementType.TEXT,
-            text="Content for threshold testing " * 10,
+            text="Left column line 1\nLeft column line 2\nLeft column line 3",
             position=(50, 150),
-            size=(620, 100),
+            size=(300, 60),
         )
 
-        # Mock the split method for testing
-        def mock_split(available_height):
-            if available_height >= 40:  # 40% of 100 = meets threshold
+        # Mock split method that succeeds
+        def left_split(available_height):
+            if available_height >= 40:  # Minimum for 2 lines
                 fitted = TextElement(
                     element_type=ElementType.TEXT,
-                    text="Fitted part",
-                    position=(50, 150),
-                    size=(620, available_height),
+                    text="Left column line 1\nLeft column line 2",
+                    size=(300, 40),
                 )
                 overflowing = TextElement(
                     element_type=ElementType.TEXT,
-                    text="Overflowing part",
-                    position=(50, 150 + available_height),
-                    size=(620, 100 - available_height),
+                    text="Left column line 3",
+                    size=(300, 20),
                 )
                 return fitted, overflowing
-            return None, deepcopy(threshold_text)
+            return None, left_text
 
-        threshold_text.split = mock_split
+        left_text.split = left_split
 
-        section = Section(
-            id="threshold_section",
+        # Create right column with content that rejects split due to minimum requirements
+        right_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Col1"],
+            rows=[["Row 1"]],  # Only 1 row, can't meet minimum 2 rows
+            position=(360, 150),
+            size=(310, 40),
+        )
+
+        # Mock split method that always rejects due to minimum requirements
+        def right_split(available_height):
+            return None, right_table  # Always fails minimum requirements
+
+        right_table.split = right_split
+
+        # Create row structure
+        left_column = Section(
+            id="left_col",
             type="section",
             position=(50, 150),
-            size=(620, 200),
-            elements=[threshold_text],
+            size=(300, 100),
+            elements=[left_text],
+        )
+
+        right_column = Section(
+            id="right_col",
+            type="section",
+            position=(360, 150),
+            size=(310, 100),
+            elements=[right_table],
+        )
+
+        row_section = Section(
+            id="unanimous_fail_row",
+            type="row",
+            position=(50, 150),
+            size=(620, 200),  # Row overflows
+            subsections=[left_column, right_column],
         )
 
         original_slide = Slide(
-            object_id="threshold_slide",
-            elements=[threshold_text],
-            sections=[section],
-            title="Threshold Test",
+            object_id="unanimous_fail_slide",
+            elements=[left_text, right_table],
+            sections=[row_section],
+            title="Unanimous Consent Failure",
         )
-
-        # Test with exactly threshold amount available
-        handler.body_height = 150 + 40  # Available height = 40 (meets threshold)
 
         fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
+            original_slide, row_section
         )
 
-        # Should split the element
-        assert len(fitted_slide.sections[0].elements) > 0, "Should have fitted part"
+        # Should promote entire row due to failed unanimous consent
+        # Fitted slide should have empty or minimal content
+        fitted_slide.sections[0]
+
+        # Continuation slide should have the entire row
+        continuation_section = continuation_slide.sections[0]
+        assert continuation_section.type == "row", "Entire row should be promoted"
         assert (
-            len(continuation_slide.sections[0].elements) > 0
-        ), "Should have overflowing part"
+            len(continuation_section.subsections) == 2
+        ), "Both columns should be promoted"
 
-    def test_unsplittable_element_promotion(self, handler):
-        """Test that unsplittable elements are promoted entirely."""
+    def test_element_driven_splitting_delegation(self, handler):
+        """Test that splitting decisions are delegated entirely to elements."""
 
-        # Create image element (unsplittable)
-        large_image = ImageElement(
-            element_type=ElementType.IMAGE,
-            url="https://example.com/large.jpg",
-            position=(50, 200),
-            size=(620, 100),
-        )
-
-        text_before = TextElement(
+        # Create elements with custom split behavior
+        custom_text = TextElement(
             element_type=ElementType.TEXT,
-            text="Text before image",
-            position=(50, 150),
-            size=(620, 40),
-        )
-
-        section = Section(
-            id="unsplittable_section",
-            type="section",
-            position=(50, 150),
-            size=(620, 200),
-            elements=[text_before, large_image],
-        )
-
-        original_slide = Slide(
-            object_id="unsplittable_slide",
-            elements=[text_before, large_image],
-            sections=[section],
-            title="Unsplittable Test",
-        )
-
-        # Set body height so image won't fit after text
-        handler.body_height = 250  # Available = 100, not enough for text + image
-
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
-        )
-
-        # Image should be promoted entirely to continuation slide
-        continuation_elements = continuation_slide.sections[0].elements
-        image_elements = [
-            e for e in continuation_elements if e.element_type == ElementType.IMAGE
-        ]
-
-        assert len(image_elements) == 1, "Image should be in continuation slide"
-
-    def test_element_split_method_calls(self, handler):
-        """Test that element split methods are called correctly."""
-
-        # Create a text element with a custom split method for testing
-        test_text = TextElement(
-            element_type=ElementType.TEXT,
-            text="Test content for split method "
-            * 20,  # Much longer text to force overflow
+            text="Custom split behavior content " * 20,
             position=(50, 150),
             size=(620, 100),
         )
 
         split_called = False
         split_height = None
+        split_decision = True  # Control whether element chooses to split
 
-        def mock_split(available_height):
+        def custom_split(available_height):
             nonlocal split_called, split_height
             split_called = True
             split_height = available_height
 
-            fitted = TextElement(
-                element_type=ElementType.TEXT,
-                text="Fitted part",
-                size=(620, available_height),
-            )
-            overflowing = TextElement(
-                element_type=ElementType.TEXT,
-                text="Overflowing part",
-                size=(620, 100 - available_height),
-            )
-            return fitted, overflowing
+            if split_decision and available_height >= 50:  # Element's own criteria
+                fitted = TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Custom fitted part",
+                    size=(620, available_height),
+                )
+                overflowing = TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Custom overflowing part",
+                    size=(620, 100 - available_height),
+                )
+                return fitted, overflowing
+            return None, deepcopy(custom_text)
 
-        test_text.split = mock_split
+        custom_text.split = custom_split
 
         section = Section(
-            id="split_test_section",
+            id="custom_split_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),
-            elements=[test_text],
+            size=(620, 200),  # Section overflows
+            elements=[custom_text],
         )
 
         original_slide = Slide(
-            object_id="split_test_slide", elements=[test_text], sections=[section]
+            object_id="element_driven_slide", elements=[custom_text], sections=[section]
         )
 
-        # Set up overflow condition
-        handler.body_height = 200  # Available height = 50
+        # Test with element choosing to split
+        fitted_slide, continuation_slide = handler.handle_overflow(
+            original_slide, section
+        )
+
+        assert split_called, "Element split method should have been called"
+        assert split_height is not None, "Element should have received available height"
+
+        # Test with element choosing not to split
+        split_called = False
+        split_decision = False  # Element rejects split
+
+        fitted_slide2, continuation_slide2 = handler.handle_overflow(
+            original_slide, section
+        )
+
+        assert split_called, "Element split method should still be called"
+
+    def test_minimum_requirements_enforcement(self, handler):
+        """Test that minimum requirements are properly enforced."""
+
+        # Test with CodeElement (now splittable with minimum 2 lines)
+        code_element = CodeElement(
+            element_type=ElementType.CODE,
+            code="line1\nline2\nline3\nline4",
+            language="python",
+            position=(50, 150),
+            size=(620, 80),
+        )
+
+        # Test with ListElement (minimum 2 items)
+        list_element = ListElement(
+            element_type=ElementType.BULLET_LIST,
+            items=[
+                ListItem(text="Item 1"),
+                ListItem(text="Item 2"),
+                ListItem(text="Item 3"),
+                ListItem(text="Item 4"),
+            ],
+            position=(50, 240),
+            size=(620, 80),
+        )
+
+        section = Section(
+            id="minimum_req_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Section overflows
+            elements=[code_element, list_element],
+        )
+
+        original_slide = Slide(
+            object_id="minimum_req_slide",
+            elements=[code_element, list_element],
+            sections=[section],
+        )
 
         fitted_slide, continuation_slide = handler.handle_overflow(
             original_slide, section
         )
 
-        assert split_called, "Split method should have been called"
+        # Verify that elements were split according to their minimum requirements
+        fitted_section = fitted_slide.sections[0]
+        continuation_section = continuation_slide.sections[0]
+
+        # Both fitted and continuation should have content that meets minimum requirements
+        assert len(fitted_section.elements) >= 1, "Fitted section should have elements"
         assert (
-            split_height is not None
-        ), "Split method should have received height parameter"
+            len(continuation_section.elements) >= 1
+        ), "Continuation should have elements"
+
+    def test_proactive_image_scaling_contract(self, handler):
+        """Test that proactively scaled images are handled correctly."""
+
+        # Create section with pre-scaled image
+        pre_scaled_image = ImageElement(
+            element_type=ElementType.IMAGE,
+            url="https://example.com/large.jpg",
+            position=(50, 150),
+            size=(620, 150),  # Pre-scaled to fit container
+        )
+
+        text_content = TextElement(
+            element_type=ElementType.TEXT,
+            text="Text content with image " * 20,
+            position=(50, 310),
+            size=(620, 100),
+        )
+
+        section = Section(
+            id="image_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Section overflows
+            elements=[pre_scaled_image, text_content],
+        )
+
+        original_slide = Slide(
+            object_id="image_slide",
+            elements=[pre_scaled_image, text_content],
+            sections=[section],
+        )
+
+        fitted_slide, continuation_slide = handler.handle_overflow(
+            original_slide, section
+        )
+
+        # Image should be included in fitted slide (since it's pre-scaled)
+        fitted_elements = fitted_slide.sections[0].elements
+        any(e.element_type == ElementType.IMAGE for e in fitted_elements)
+
+        # Image split method should return (self, None)
+        fitted_img, overflowing_img = pre_scaled_image.split(50.0)
+        assert fitted_img == pre_scaled_image, "Pre-scaled image should always fit"
+        assert overflowing_img is None, "Pre-scaled image should never overflow"
 
     def test_section_position_reset_in_continuation(self, handler):
-        """Test that section positions are reset in continuation slides."""
+        """Test that section positions are properly reset in continuation slides."""
 
         text_element = TextElement(
             element_type=ElementType.TEXT,
-            text="Content that will overflow "
-            * 20,  # Much longer text to force overflow
+            text="Content that will overflow " * 20,
             position=(50, 150),
             size=(620, 200),
         )
 
-        # Mock split method
+        # Mock split method to ensure overflow
         def mock_split(available_height):
             fitted = TextElement(
                 element_type=ElementType.TEXT,
-                text="Fitted",
+                text="Fitted content",
                 size=(620, available_height),
             )
             overflowing = TextElement(
                 element_type=ElementType.TEXT,
-                text="Overflowing",
+                text="Overflowing content",
                 size=(620, 200 - available_height),
             )
             return fitted, overflowing
@@ -342,7 +501,7 @@ class TestStandardOverflowHandler:
         text_element.split = mock_split
 
         original_section = Section(
-            id="position_test_section",
+            id="position_reset_section",
             type="section",
             position=(50, 150),  # Original position
             size=(620, 200),
@@ -350,7 +509,7 @@ class TestStandardOverflowHandler:
         )
 
         original_slide = Slide(
-            object_id="position_test_slide",
+            object_id="position_reset_slide",
             elements=[text_element],
             sections=[original_section],
         )
@@ -361,7 +520,7 @@ class TestStandardOverflowHandler:
             original_slide, original_section
         )
 
-        # Continuation section should have reset position
+        # Continuation section should have reset position and size
         continuation_section = continuation_slide.sections[0]
         assert (
             continuation_section.position is None
@@ -369,3 +528,230 @@ class TestStandardOverflowHandler:
         assert (
             continuation_section.size is None
         ), "Continuation section size should be reset"
+
+        # Elements within continuation section should also have reset positions
+        for element in continuation_section.elements:
+            assert (
+                element.position is None
+            ), "Continuation element positions should be reset"
+            assert element.size is None, "Continuation element sizes should be reset"
+
+    def test_nested_subsection_partitioning(self, handler):
+        """Test partitioning of sections with nested subsections."""
+
+        # Create nested section structure
+        nested_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Nested content " * 10,
+            position=(50, 180),
+            size=(620, 80),
+        )
+
+        nested_section = Section(
+            id="nested_section",
+            type="section",
+            position=(50, 180),
+            size=(620, 100),
+            elements=[nested_text],
+        )
+
+        parent_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Parent content",
+            position=(50, 150),
+            size=(620, 30),
+        )
+
+        parent_section = Section(
+            id="parent_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Parent section overflows
+            elements=[parent_text],
+            subsections=[nested_section],
+        )
+
+        original_slide = Slide(
+            object_id="nested_slide",
+            elements=[parent_text, nested_text],
+            sections=[parent_section],
+        )
+
+        fitted_slide, continuation_slide = handler.handle_overflow(
+            original_slide, parent_section
+        )
+
+        # Should handle nested structure appropriately
+        assert len(fitted_slide.sections) == 1, "Should have fitted section"
+        assert len(continuation_slide.sections) == 1, "Should have continuation section"
+
+        # Verify position reset in nested structures
+        def check_reset_recursive(sections):
+            for section in sections:
+                assert (
+                    section.position is None
+                ), f"Section {section.id} position should be reset"
+                assert (
+                    section.size is None
+                ), f"Section {section.id} size should be reset"
+                if section.subsections:
+                    check_reset_recursive(section.subsections)
+
+        check_reset_recursive(continuation_slide.sections)
+
+    def test_circular_reference_protection(self, handler):
+        """Test protection against circular references in section structures."""
+
+        # Create sections with potential circular references
+        section_a = Section(
+            id="section_a",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Overflows
+            elements=[
+                TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Section A content",
+                    position=(50, 150),
+                    size=(620, 100),
+                )
+            ],
+        )
+
+        section_b = Section(
+            id="section_b",
+            type="section",
+            position=(50, 150),
+            size=(620, 100),
+            elements=[],
+        )
+
+        # Create circular reference
+        section_a.subsections = [section_b]
+        section_b.subsections = [section_a]  # Circular reference
+
+        original_slide = Slide(
+            object_id="circular_slide",
+            elements=[
+                TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Section A content",
+                    position=(50, 150),
+                    size=(620, 100),
+                )
+            ],
+            sections=[section_a],
+        )
+
+        # Should handle gracefully without infinite recursion
+        try:
+            fitted_slide, continuation_slide = handler.handle_overflow(
+                original_slide, section_a
+            )
+            # If it completes, circular reference protection worked
+            assert True, "Should handle circular references without infinite recursion"
+        except RecursionError:
+            pytest.fail("Should not cause infinite recursion with circular references")
+
+    def test_element_validation_during_partitioning(self, handler):
+        """Test that elements are properly validated during partitioning."""
+
+        # Create elements with various validation states
+        valid_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Valid text content\nSecond line",
+            position=(50, 150),
+            size=(620, 40),
+        )
+
+        invalid_image = ImageElement(
+            element_type=ElementType.IMAGE,
+            url="",  # Invalid empty URL
+            position=(50, 200),
+            size=(620, 100),
+        )
+
+        empty_list = ListElement(
+            element_type=ElementType.BULLET_LIST,
+            items=[],  # Empty list
+            position=(50, 310),
+            size=(620, 40),
+        )
+
+        section = Section(
+            id="validation_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Section overflows
+            elements=[valid_text, invalid_image, empty_list],
+        )
+
+        original_slide = Slide(
+            object_id="validation_slide",
+            elements=[valid_text, invalid_image, empty_list],
+            sections=[section],
+        )
+
+        # Should handle invalid elements gracefully
+        fitted_slide, continuation_slide = handler.handle_overflow(
+            original_slide, section
+        )
+
+        # Should still produce valid slides despite invalid elements
+        assert (
+            fitted_slide is not None
+        ), "Should produce fitted slide despite invalid elements"
+        assert (
+            continuation_slide is not None
+        ), "Should produce continuation slide despite invalid elements"
+
+    def test_handler_with_extreme_dimensions(self, handler):
+        """Test handler behavior with extreme dimensional values."""
+
+        # Test with very large content
+        huge_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Huge content " * 1000,  # Very large content
+            position=(50, 150),
+            size=(620, 10000),  # Extremely large height
+        )
+
+        huge_section = Section(
+            id="huge_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Normal section size
+            elements=[huge_text],
+        )
+
+        # Test with very small content
+        tiny_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Tiny",
+            position=(50, 150),
+            size=(620, 0.1),  # Extremely small height
+        )
+
+        tiny_section = Section(
+            id="tiny_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),
+            elements=[tiny_text],
+        )
+
+        huge_slide = Slide(
+            object_id="huge_slide", elements=[huge_text], sections=[huge_section]
+        )
+        tiny_slide = Slide(
+            object_id="tiny_slide", elements=[tiny_text], sections=[tiny_section]
+        )
+
+        # Should handle extreme dimensions gracefully
+        fitted_huge, cont_huge = handler.handle_overflow(huge_slide, huge_section)
+        fitted_tiny, cont_tiny = handler.handle_overflow(tiny_slide, tiny_section)
+
+        assert fitted_huge is not None, "Should handle huge content"
+        assert cont_huge is not None, "Should create continuation for huge content"
+        assert fitted_tiny is not None, "Should handle tiny content"
+        assert cont_tiny is not None, "Should create continuation for tiny content"

@@ -320,309 +320,37 @@ class ApiClient:
                 logger.debug("Batch update successful")
                 return response
             except HttpError as error:
-                error_str = str(error)
-                if error.resp.status in [429, 500, 503]:  # Rate limit or server error
+                # Retry only on transient server errors or rate limiting
+                if error.resp.status in [429, 500, 503]:
                     retries += 1
                     if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (
-                            2 ** (retries - 1)
-                        )  # Exponential backoff
+                        wait_time = self.retry_delay * (2 ** (retries - 1))
                         logger.warning(
-                            f"Rate limit or server error hit. Retrying in {wait_time} seconds..."
+                            f"Rate limit or server error hit (Status: {error.resp.status}). Retrying in {wait_time} seconds..."
                         )
                         time.sleep(wait_time)
-                    else:
-                        logger.error(f"Max retries exceeded: {error}")
-                        raise
-                # Check specifically for text range index errors
-                elif (
-                    (
-                        "endIndex" in error_str
-                        and "greater than the existing text length" in error_str
-                    )
-                    or "Invalid requests" in error_str
-                    and "updateParagraphStyle" in error_str
-                ):
-                    # Extract information from the error message
-                    import re
+                        continue  # Continue to the next iteration of the while loop
+                    logger.error(f"Max retries exceeded for transient error: {error}")
+                    raise  # Re-raise the exception after max retries
+                # For all other API errors, log the details and fail immediately.
+                # This indicates a bug in request generation that must be fixed.
+                import json
 
-                    # Try pattern 1: match our specific error case directly
-                    request_index_match = re.search(
-                        r"Invalid requests\[(\d+)\]\.(\w+): The end index \((\d+)\) should not be greater than the existing text length \((\d+)\)",
-                        error_str,
+                try:
+                    # Pretty-print the failing batch for easier debugging
+                    failing_batch_str = json.dumps(current_batch, indent=2)
+                    logger.error(
+                        f"Unrecoverable API error. Failing batch data:\n{failing_batch_str}"
+                    )
+                except TypeError:
+                    logger.error(
+                        f"Unrecoverable API error. Failing batch data (raw):\n{current_batch}"
                     )
 
-                    if request_index_match:
-                        # Direct match to the specific error format
-                        problem_index = int(request_index_match.group(1))
-                        request_type = request_index_match.group(2)
-                        attempted_end_index = int(request_index_match.group(3))
-                        actual_text_length = int(request_index_match.group(4))
-
-                        logger.warning(
-                            f"Text range error: request {problem_index} ({request_type}) tried to use end index {attempted_end_index} "
-                            f"but text length is {actual_text_length}"
-                        )
-                    else:
-                        # Try pattern 2: more general pattern
-                        request_index_match = re.search(
-                            r"requests\[(\d+)\]\.(\w+)", error_str
-                        )
-                        length_match = re.search(
-                            r"end index \((\d+)\).*text length \((\d+)\)", error_str
-                        )
-
-                        if request_index_match:
-                            problem_index = int(request_index_match.group(1))
-                            request_type = request_index_match.group(2)
-
-                            if length_match:
-                                attempted_end_index = int(length_match.group(1))
-                                actual_text_length = int(length_match.group(2))
-                                logger.warning(
-                                    f"Text range error: request {problem_index} ({request_type}) tried to use end index {attempted_end_index} "
-                                    f"but text length is {actual_text_length}"
-                                )
-                            else:
-                                # Just log the basic info if we can't extract details
-                                logger.warning(
-                                    f"Text range error in request {problem_index} ({request_type})"
-                                )
-                                attempted_end_index = 999999  # Placeholder value
-                                actual_text_length = 0  # Placeholder value
-                        else:
-                            # We can't identify the specific request, but we'll try a blanket fix
-                            logger.warning(
-                                f"Unidentified text range error: {error_str}"
-                            )
-                            problem_index = (
-                                -1
-                            )  # Flag that we couldn't identify the problem index
-
-                    # Create a new batch without the problematic request
-                    modified_requests = []
-                    for i, req in enumerate(current_batch["requests"]):
-                        if problem_index >= 0 and i == problem_index:
-                            logger.info(
-                                f"Skipping request at index {problem_index} with invalid text range"
-                            )
-                        else:
-                            # Also fix any updateParagraphStyle or updateTextStyle requests with text ranges
-                            for req_type in [
-                                "updateParagraphStyle",
-                                "updateTextStyle",
-                                "createParagraphBullets",
-                            ]:
-                                if req_type in req and "textRange" in req[req_type]:
-                                    text_range = req[req_type]["textRange"]
-                                    if (
-                                        "endIndex" in text_range
-                                        and "startIndex" in text_range
-                                    ):
-                                        # Ensure end_index is never greater than start_index + reasonable length
-                                        start_index = text_range["startIndex"]
-                                        old_end = text_range["endIndex"]
-
-                                        # If we have actual text length info, use it to cap the end index
-                                        if (
-                                            problem_index >= 0
-                                            and actual_text_length > 0
-                                            and i > problem_index
-                                        ):
-                                            # For any request that's after the one that failed, be extra cautious
-                                            text_range["endIndex"] = min(
-                                                text_range["endIndex"],
-                                                actual_text_length - 1,
-                                            )
-
-                                        # Apply a general safety limit
-                                        if text_range["endIndex"] > start_index + 500:
-                                            text_range["endIndex"] = start_index + 500
-
-                                        # Ensure endIndex is always at least startIndex + 1
-                                        if (
-                                            text_range["endIndex"]
-                                            <= text_range["startIndex"]
-                                        ):
-                                            text_range["endIndex"] = (
-                                                text_range["startIndex"] + 1
-                                            )
-
-                                        if old_end != text_range["endIndex"]:
-                                            logger.warning(
-                                                f"Fixed text range in request {i}: endIndex {old_end} -> {text_range['endIndex']}"
-                                            )
-
-                            # Add the fixed request
-                            modified_requests.append(req)
-
-                    # Update the batch with the modified requests
-                    current_batch = {
-                        "presentationId": current_batch["presentationId"],
-                        "requests": modified_requests,
-                    }
-                    logger.info(
-                        f"Retrying with modified batch ({len(modified_requests)} requests)"
-                    )
-                    retries += 1
-                    continue
-                elif "createImage" in error_str and (
-                    "not found" in error_str or "too large" in error_str
-                ):
-                    # Handle image-specific errors
-                    logger.warning(f"Image error in batch: {error}")
-
-                    # Extract the problematic request index
-                    error_msg = str(error)
-                    try:
-                        # Parse index from error message like "Invalid requests[4].createImage"
-                        import re
-
-                        index_match = re.search(
-                            r"requests\[(\d+)\]\.createImage", error_msg
-                        )
-                        if index_match:
-                            problem_index = int(index_match.group(1))
-
-                            # Create a new batch without the problematic request
-                            modified_requests = []
-                            for i, req in enumerate(current_batch["requests"]):
-                                if i == problem_index and "createImage" in req:
-                                    # Skip the problematic image or replace with text placeholder
-                                    if "objectId" in req["createImage"]:
-                                        # Get information from the original request
-                                        obj_id = req["createImage"]["objectId"]
-                                        page_id = req["createImage"][
-                                            "elementProperties"
-                                        ]["pageObjectId"]
-                                        position = (
-                                            req["createImage"]["elementProperties"][
-                                                "transform"
-                                            ]["translateX"],
-                                            req["createImage"]["elementProperties"][
-                                                "transform"
-                                            ]["translateY"],
-                                        )
-                                        size = (
-                                            req["createImage"]["elementProperties"][
-                                                "size"
-                                            ]["width"]["magnitude"],
-                                            req["createImage"]["elementProperties"][
-                                                "size"
-                                            ]["height"]["magnitude"],
-                                        )
-
-                                        # Create placeholder text box instead
-                                        modified_requests.append(
-                                            {
-                                                "createShape": {
-                                                    "objectId": obj_id,
-                                                    "shapeType": "TEXT_BOX",
-                                                    "elementProperties": {
-                                                        "pageObjectId": page_id,
-                                                        "size": {
-                                                            "width": {
-                                                                "magnitude": size[0],
-                                                                "unit": "PT",
-                                                            },
-                                                            "height": {
-                                                                "magnitude": size[1],
-                                                                "unit": "PT",
-                                                            },
-                                                        },
-                                                        "transform": {
-                                                            "scaleX": 1,
-                                                            "scaleY": 1,
-                                                            "translateX": position[0],
-                                                            "translateY": position[1],
-                                                            "unit": "PT",
-                                                        },
-                                                    },
-                                                }
-                                            }
-                                        )
-
-                                        # Add text to say image couldn't be loaded
-                                        modified_requests.append(
-                                            {
-                                                "insertText": {
-                                                    "objectId": obj_id,
-                                                    "insertionIndex": 0,
-                                                    "text": "[Image not available]",
-                                                }
-                                            }
-                                        )
-
-                                        logger.info(
-                                            f"Replaced problematic image request at index {problem_index} with text placeholder"
-                                        )
-                                    else:
-                                        logger.info(
-                                            f"Skipped problematic image request at index {problem_index}"
-                                        )
-                                else:
-                                    modified_requests.append(req)
-
-                            # Update the batch with the modified requests
-                            current_batch = {
-                                "presentationId": current_batch["presentationId"],
-                                "requests": modified_requests,
-                            }
-                            logger.info(
-                                f"Retrying with modified batch ({len(modified_requests)} requests)"
-                            )
-                            continue
-                    except Exception as parse_error:
-                        logger.error(f"Failed to parse error message: {parse_error}")
-
-                # Handle deleteText with invalid indices
-                elif (
-                    "deleteText" in str(error)
-                    and "startIndex" in str(error)
-                    and "endIndex" in str(error)
-                ):
-                    logger.warning(f"DeleteText error in batch: {error}")
-
-                    # Extract the problematic request index
-                    error_msg = str(error)
-                    try:
-                        # Parse index from error message like "Invalid requests[4].deleteText"
-                        import re
-
-                        index_match = re.search(
-                            r"requests\[(\d+)\]\.deleteText", error_msg
-                        )
-                        if index_match:
-                            problem_index = int(index_match.group(1))
-
-                            # Create a new batch without the problematic request
-                            modified_requests = []
-                            for i, req in enumerate(current_batch["requests"]):
-                                if i == problem_index and "deleteText" in req:
-                                    # Skip the problematic deleteText request
-                                    logger.info(
-                                        f"Skipped problematic deleteText request at index {problem_index}"
-                                    )
-                                else:
-                                    modified_requests.append(req)
-
-                            # Update the batch with the modified requests
-                            current_batch = {
-                                "presentationId": current_batch["presentationId"],
-                                "requests": modified_requests,
-                            }
-                            logger.info(
-                                f"Retrying with modified batch ({len(modified_requests)} requests)"
-                            )
-                            continue
-                    except Exception as parse_error:
-                        logger.error(f"Failed to parse error message: {parse_error}")
-
-                # For other errors, fail the batch
-                # log the data that was sent
-                logger.error(f"Batch data that failed: {current_batch}")
-                logger.error(f"Batch update failed: {error}")
-                raise
+                logger.error(
+                    f"Batch update failed permanently with status {error.resp.status}: {error}"
+                )
+                raise  # Re-raise the exception to halt execution
 
         return {}  # Should never reach here but satisfies type checker
 

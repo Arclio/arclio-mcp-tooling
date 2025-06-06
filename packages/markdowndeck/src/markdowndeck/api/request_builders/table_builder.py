@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
-    def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
+    def generate_table_element_requests(
+        self, element: TableElement, slide_id: str
+    ) -> list[dict]:
         """
         Generate requests for a table element.
 
@@ -31,7 +33,9 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"table_{slide_id}")
-            logger.debug(f"Generated missing object_id for table element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for table element: {element.object_id}"
+            )
 
         # Count rows including headers if present
         row_count = len(element.rows) + (1 if element.headers else 0)
@@ -253,7 +257,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "tableBorderProperties": {
                         "weight": weight,
                         "dashStyle": dash_style,
-                        "tableBorderFill": {"solidFill": {"color": {"rgbColor": rgb_color}}},
+                        "tableBorderFill": {
+                            "solidFill": {"color": {"rgbColor": rgb_color}}
+                        },
                     },
                     "fields": "weight,dashStyle,tableBorderFill.solidFill.color.rgbColor",  # Correct field path
                 }
@@ -309,13 +315,19 @@ class TableRequestBuilder(BaseRequestBuilder):
                 try:
                     parts = cell_range.split(":")
                     if len(parts) == 2:
-                        start_parts, end_parts = parts[0].split(","), parts[1].split(",")
+                        start_parts, end_parts = parts[0].split(","), parts[1].split(
+                            ","
+                        )
                         if len(start_parts) == 2 and len(end_parts) == 2:
-                            row_start, col_start = int(start_parts[0]), int(start_parts[1])
+                            row_start, col_start = int(start_parts[0]), int(
+                                start_parts[1]
+                            )
                             row_span = int(end_parts[0]) - row_start + 1
                             col_span = int(end_parts[1]) - col_start + 1
                 except ValueError:
-                    logger.warning(f"Failed to parse cell range: {cell_range}, using default")
+                    logger.warning(
+                        f"Failed to parse cell range: {cell_range}, using default"
+                    )
 
         if is_vertical:
             # Handle vertical alignment (top, middle, bottom)
@@ -335,7 +347,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                 }
             }
             requests.append(cell_align_request)
-            logger.debug(f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}")
+            logger.debug(
+                f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}"
+            )
         else:
             # Horizontal alignment (left, center, right, justify) is not supported with UpdateTableCellProperties
             logger.warning(
@@ -382,13 +396,17 @@ class TableRequestBuilder(BaseRequestBuilder):
         if isinstance(bg_value, str):
             if bg_value.startswith("#"):
                 try:
-                    color, fields_suffix = {"rgbColor": self._hex_to_rgb(bg_value)}, "rgbColor"
+                    color, fields_suffix = {
+                        "rgbColor": self._hex_to_rgb(bg_value)
+                    }, "rgbColor"
                 except ValueError:
                     return
             elif bg_value.upper() in theme_colors:
                 color, fields_suffix = {"themeColor": bg_value.upper()}, "themeColor"
             elif bg_value.lower() in named_colors_map:
-                color, fields_suffix = {"rgbColor": named_colors_map[bg_value.lower()]}, "rgbColor"
+                color, fields_suffix = {
+                    "rgbColor": named_colors_map[bg_value.lower()]
+                }, "rgbColor"
             else:
                 return
         else:
@@ -399,18 +417,25 @@ class TableRequestBuilder(BaseRequestBuilder):
 
         row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
         if "cell-range" in element.directives:
-            cell_range = element.directives["cell-range"]
-            if isinstance(cell_range, str):
+            cell_range_str = element.directives["cell-range"]
+            if isinstance(cell_range_str, str):
                 try:
-                    parts = cell_range.split(":")
+                    parts = cell_range_str.replace(" ", "").split(":")
                     if len(parts) == 2:
-                        start_parts, end_parts = parts[0].split(","), parts[1].split(",")
+                        start_parts = parts[0].split(",")
+                        end_parts = parts[1].split(",")
                         if len(start_parts) == 2 and len(end_parts) == 2:
-                            row_start, col_start = int(start_parts[0]), int(start_parts[1])
-                            row_span = int(end_parts[0]) - row_start + 1
-                            col_span = int(end_parts[1]) - col_start + 1
-                except ValueError:
-                    logger.warning(f"Failed to parse cell range: {cell_range}, using default")
+                            r_start, c_start = int(start_parts[0]), int(start_parts[1])
+                            r_end, c_end = int(end_parts[0]), int(end_parts[1])
+
+                            row_start = r_start
+                            col_start = c_start
+                            row_span = r_end - r_start + 1
+                            col_span = c_end - c_start + 1
+                except (ValueError, IndexError):
+                    logger.warning(
+                        f"Failed to parse cell-range directive: '{cell_range_str}'. Applying to entire table."
+                    )
 
         # FIXED: Corrected field path structure for updateTableCellProperties
         bg_request = {
@@ -421,7 +446,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
-                "tableCellProperties": {"tableCellBackgroundFill": {"solidFill": {"color": color}}},
+                "tableCellProperties": {
+                    "tableCellBackgroundFill": {"solidFill": {"color": color}}
+                },
                 "fields": fields,  # Correct field path
             }
         }

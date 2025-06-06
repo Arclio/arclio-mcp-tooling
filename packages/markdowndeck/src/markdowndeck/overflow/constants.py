@@ -1,9 +1,5 @@
 """Configuration constants for the MarkdownDeck overflow handler system."""
 
-# The ratio of content that must fit on the current slide to justify splitting an element.
-# If less than this ratio fits, the entire element is promoted to the next slide.
-MINIMUM_CONTENT_RATIO_TO_SPLIT = 0.4
-
 # The suffix to add to the titles of continuation slides.
 CONTINUED_TITLE_SUFFIX = "(continued)"
 

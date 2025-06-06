@@ -1,4 +1,4 @@
-"""Refactored layout management - Orchestrates the unified content-aware layout engine."""
+"""Refactored layout management with proactive image scaling orchestration."""
 
 import logging
 
@@ -18,11 +18,17 @@ logger = logging.getLogger(__name__)
 
 class LayoutManager:
     """
-    Orchestrates the unified content-aware layout engine for slide positioning.
+    Orchestrates the unified content-aware layout engine with proactive image scaling.
 
     The LayoutManager provides a high-level interface to the layout calculation
-    system, now implementing the Universal Section Model where all slides
-    use section-based layout for consistency and predictability.
+    system, implementing the Universal Section Model with Rule #5 (proactive image scaling)
+    where all slides use section-based layout for consistency and predictability.
+
+    Per the specification: ImageElements are handled proactively during the layout phase.
+    An ImageElement's size is always calculated to fit within its parent section's
+    available width, while maintaining its aspect ratio. This ensures an image will
+    never, by itself, cause its parent section's dimensions to expand beyond what was
+    calculated based on other content or directives.
     """
 
     def __init__(
@@ -58,7 +64,7 @@ class LayoutManager:
             self.slide_height - self.margins["top"] - self.margins["bottom"]
         )
 
-        # Initialize the position calculator
+        # Initialize the position calculator with proactive scaling capabilities
         self.position_calculator = PositionCalculator(
             slide_width=self.slide_width,
             slide_height=self.slide_height,
@@ -66,30 +72,33 @@ class LayoutManager:
         )
 
         logger.info(
-            f"LayoutManager initialized: slide={self.slide_width}x{self.slide_height}, "
+            f"LayoutManager initialized with proactive image scaling: "
+            f"slide={self.slide_width}x{self.slide_height}, "
             f"content_area={self.max_content_width}x{self.max_content_height}"
         )
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions for all elements and sections in a slide.
+        Calculate positions for all elements and sections in a slide with proactive image scaling.
 
         This is the main entry point for layout calculation using the unified
-        Universal Section Model. All slides now use section-based layout for
-        consistency and predictability.
+        Universal Section Model with Rule #5 (proactive image scaling). All slides now
+        use section-based layout for consistency and predictability, with images
+        proactively scaled to prevent layout shifts and overflow scenarios.
 
         The returned slide will have all elements positioned according to their
-        content needs. Elements may extend beyond their containers' boundaries
-        (overflow), which is the expected and correct behavior for this component.
+        content needs, with images scaled to fit their containers. Elements may extend
+        beyond their containers' boundaries (overflow) only when explicitly intended
+        through user directives, which is the expected behavior for this component.
 
         Args:
             slide: The slide to calculate positions for
 
         Returns:
-            The slide with all elements and sections positioned
+            The slide with all elements and sections positioned, images proactively scaled
         """
         logger.debug(
-            f"LayoutManager calculating positions for slide: {slide.object_id}"
+            f"LayoutManager calculating positions with proactive scaling for slide: {slide.object_id}"
         )
 
         # Validate input
@@ -101,12 +110,15 @@ class LayoutManager:
             logger.error("Slide missing elements attribute")
             raise ValueError("Slide must have elements attribute")
 
-        # Delegate to unified position calculator
+        # Pre-process images for proactive scaling analysis
+        self._analyze_images_for_scaling(slide)
+
+        # Delegate to unified position calculator with proactive scaling
         try:
             positioned_slide = self.position_calculator.calculate_positions(slide)
 
-            # Log summary of positioning results
-            self._log_positioning_summary(positioned_slide)
+            # Log summary of positioning results with scaling information
+            self._log_positioning_summary_with_scaling(positioned_slide)
 
             return positioned_slide
 
@@ -116,18 +128,60 @@ class LayoutManager:
             )
             raise
 
-    def _log_positioning_summary(self, slide: Slide) -> None:
+    def _analyze_images_for_scaling(self, slide: Slide) -> None:
         """
-        Log a summary of positioning results for debugging.
+        Analyze images in the slide for proactive scaling requirements.
+
+        This method identifies all ImageElements and logs their scaling requirements
+        for debugging purposes.
+
+        Args:
+            slide: The slide to analyze
+        """
+        from markdowndeck.models import ElementType
+
+        image_elements = [
+            element
+            for element in slide.elements
+            if element.element_type == ElementType.IMAGE
+        ]
+
+        if image_elements:
+            logger.debug(
+                f"Found {len(image_elements)} images for proactive scaling in slide {slide.object_id}"
+            )
+
+            for i, image in enumerate(image_elements):
+                image_url = getattr(image, "url", "unknown")
+                logger.debug(
+                    f"Image {i}: url={image_url[:50]}{'...' if len(image_url) > 50 else ''}, "
+                    f"has_size_directive={'width' in (image.directives or {}) or 'height' in (image.directives or {})}"
+                )
+        else:
+            logger.debug(f"No images found in slide {slide.object_id}")
+
+    def _log_positioning_summary_with_scaling(self, slide: Slide) -> None:
+        """
+        Log a summary of positioning results with proactive scaling information.
 
         Args:
             slide: The positioned slide to summarize
         """
+        from markdowndeck.models import ElementType
+
         element_count = len(slide.elements)
         positioned_count = sum(
             1 for e in slide.elements if hasattr(e, "position") and e.position
         )
         sized_count = sum(1 for e in slide.elements if hasattr(e, "size") and e.size)
+
+        # Count images that were proactively scaled
+        image_elements = [
+            e for e in slide.elements if e.element_type == ElementType.IMAGE
+        ]
+        scaled_images = sum(
+            1 for img in image_elements if hasattr(img, "size") and img.size
+        )
 
         section_count = (
             len(slide.sections) if hasattr(slide, "sections") and slide.sections else 0
@@ -145,23 +199,27 @@ class LayoutManager:
         logger.debug(
             f"Positioning summary for slide {slide.object_id}: "
             f"elements={element_count} (positioned={positioned_count}, sized={sized_count}), "
+            f"images={len(image_elements)} (scaled={scaled_images}), "
             f"sections={section_count} (positioned={positioned_sections})"
         )
 
         # Check for potential overflow situations (informational only)
         if slide.sections:
-            self._check_section_overflow(slide.sections)
+            self._check_section_overflow_with_scaling_info(slide.sections)
 
-    def _check_section_overflow(self, sections: list) -> None:
+    def _check_section_overflow_with_scaling_info(self, sections: list) -> None:
         """
-        Check and log potential element overflow within sections (informational only).
+        Check and log potential element overflow within sections with scaling information.
 
         This method does not modify anything - it only logs warnings about elements
-        that extend beyond their section boundaries, which may be useful for debugging.
+        that extend beyond their section boundaries, with special attention to images
+        that should have been proactively scaled.
 
         Args:
             sections: List of sections to check
         """
+        from markdowndeck.models import ElementType
+
         for section in sections:
             if not (
                 hasattr(section, "position")
@@ -191,21 +249,33 @@ class LayoutManager:
                     elem_right = elem_left + elem_width
                     elem_bottom = elem_top + elem_height
 
-                    # Check for overflow (informational logging only)
-                    if (
+                    # Check for overflow
+                    has_overflow = (
                         elem_left < section_left
                         or elem_right > section_right
                         or elem_top < section_top
                         or elem_bottom > section_bottom
-                    ):
-                        logger.debug(
-                            f"Element {getattr(element, 'object_id', 'unknown')} extends beyond "
-                            f"section {section.id} boundaries (this is expected for content overflow)"
-                        )
+                    )
+
+                    if has_overflow:
+                        if element.element_type == ElementType.IMAGE:
+                            # Images should never overflow due to proactive scaling
+                            logger.warning(
+                                f"UNEXPECTED: Image element {getattr(element, 'object_id', 'unknown')} "
+                                f"overflows section {section.id} despite proactive scaling. "
+                                f"This may indicate a scaling bug."
+                            )
+                        else:
+                            # Other elements may overflow, which is acceptable
+                            logger.debug(
+                                f"Element {getattr(element, 'object_id', 'unknown')} "
+                                f"({element.element_type}) extends beyond section {section.id} "
+                                f"boundaries (this is expected for content overflow)"
+                            )
 
             # Recursively check subsections
             if hasattr(section, "subsections") and section.subsections:
-                self._check_section_overflow(section.subsections)
+                self._check_section_overflow_with_scaling_info(section.subsections)
 
     def get_slide_dimensions(self) -> tuple[float, float]:
         """
@@ -241,10 +311,10 @@ class LayoutManager:
 
     def validate_slide_structure(self, slide: Slide) -> list[str]:
         """
-        Validate slide structure and return any warnings.
+        Validate slide structure and return any warnings, with special attention to image scaling.
 
         This performs basic structural validation to help identify potential
-        issues before layout calculation.
+        issues before layout calculation, including image scaling requirements.
 
         Args:
             slide: The slide to validate
@@ -252,15 +322,19 @@ class LayoutManager:
         Returns:
             List of warning messages (empty if no issues)
         """
+        from markdowndeck.models import ElementType
+
         warnings = []
 
         if not slide.elements:
             warnings.append("Slide has no elements")
 
         # Check for elements without required attributes
+        image_count = 0
         for i, element in enumerate(slide.elements):
             if not hasattr(element, "element_type"):
                 warnings.append(f"Element {i} missing element_type")
+                continue
 
             if hasattr(element, "element_type") and element.element_type:
                 # Type-specific validation
@@ -276,10 +350,26 @@ class LayoutManager:
                     if not hasattr(element, "rows") or not element.rows:
                         warnings.append(f"Table element {i} has no rows")
 
-                elif element.element_type.name == "IMAGE" and (
-                    not hasattr(element, "url") or not element.url
-                ):
-                    warnings.append(f"Image element {i} has no URL")
+                elif element.element_type.name == "IMAGE":
+                    image_count += 1
+                    if not hasattr(element, "url") or not element.url:
+                        warnings.append(f"Image element {i} has no URL")
+                    else:
+                        # Check for potentially problematic image directives
+                        if hasattr(element, "directives") and element.directives:
+                            width_dir = element.directives.get("width")
+                            height_dir = element.directives.get("height")
+
+                            if width_dir and height_dir:
+                                warnings.append(
+                                    f"Image element {i} has both width and height directives - "
+                                    f"this may conflict with proactive aspect ratio scaling"
+                                )
+
+        if image_count > 0:
+            logger.debug(
+                f"Slide has {image_count} images that will be proactively scaled"
+            )
 
         # Check section structure if present
         if hasattr(slide, "sections") and slide.sections:
@@ -317,6 +407,25 @@ class LayoutManager:
             if not has_elements and not has_subsections:
                 warnings.append(f"Section {getattr(section, 'id', 'unknown')} is empty")
 
+            # Check for directive conflicts that might affect scaling
+            if hasattr(section, "directives") and section.directives:
+                height_dir = section.directives.get("height")
+                if height_dir and has_elements:
+                    # Check if section contains images
+                    from markdowndeck.models import ElementType
+
+                    has_images = any(
+                        e.element_type == ElementType.IMAGE
+                        for e in (section.elements or [])
+                        if hasattr(e, "element_type")
+                    )
+
+                    if has_images:
+                        logger.debug(
+                            f"Section {getattr(section, 'id', 'unknown')} has fixed height "
+                            f"with images - images will be scaled to fit available space"
+                        )
+
             # Recursively validate subsections
             if has_subsections:
                 subsection_warnings = self._validate_section_structure(
@@ -325,3 +434,58 @@ class LayoutManager:
                 warnings.extend(subsection_warnings)
 
         return warnings
+
+    def get_scaling_analysis(self, slide: Slide) -> dict:
+        """
+        Get detailed analysis of image scaling requirements for debugging.
+
+        Args:
+            slide: The slide to analyze
+
+        Returns:
+            Dictionary with scaling analysis details
+        """
+        from markdowndeck.models import ElementType
+
+        analysis = {
+            "slide_id": slide.object_id,
+            "total_elements": len(slide.elements),
+            "images": [],
+            "scaling_summary": {
+                "total_images": 0,
+                "images_with_url": 0,
+                "images_with_directives": 0,
+                "potential_scaling_conflicts": 0,
+            },
+        }
+
+        for i, element in enumerate(slide.elements):
+            if element.element_type == ElementType.IMAGE:
+                image_info = {
+                    "index": i,
+                    "has_url": bool(getattr(element, "url", "")),
+                    "url_preview": (
+                        (getattr(element, "url", "")[:50] + "...")
+                        if getattr(element, "url", "")
+                        else ""
+                    ),
+                    "has_directives": bool(getattr(element, "directives", {})),
+                    "directives": getattr(element, "directives", {}),
+                    "has_scaling_conflict": False,
+                }
+
+                # Check for potential scaling conflicts
+                directives = getattr(element, "directives", {})
+                if directives.get("width") and directives.get("height"):
+                    image_info["has_scaling_conflict"] = True
+                    analysis["scaling_summary"]["potential_scaling_conflicts"] += 1
+
+                analysis["images"].append(image_info)
+                analysis["scaling_summary"]["total_images"] += 1
+
+                if image_info["has_url"]:
+                    analysis["scaling_summary"]["images_with_url"] += 1
+                if image_info["has_directives"]:
+                    analysis["scaling_summary"]["images_with_directives"] += 1
+
+        return analysis

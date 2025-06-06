@@ -99,7 +99,8 @@ class ApiRequestGenerator:
                 # Check if next element is a list type
                 if (
                     hasattr(next_element, "element_type")
-                    and next_element.element_type in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST)
+                    and next_element.element_type
+                    in (ElementType.BULLET_LIST, ElementType.ORDERED_LIST)
                     and hasattr(next_element, "related_to_prev")
                     and next_element.related_to_prev
                 ):
@@ -112,19 +113,31 @@ class ApiRequestGenerator:
                         # Based on position (left half = BODY_0, right half = BODY_1)
                         if next_element.element_type in slide.placeholder_mappings:
                             will_use_placeholder = True
-                            placeholder_id = slide.placeholder_mappings[next_element.element_type]
+                            placeholder_id = slide.placeholder_mappings[
+                                next_element.element_type
+                            ]
                         # Also check for generic BODY placeholders
                         elif ElementType.TEXT in slide.placeholder_mappings:
                             will_use_placeholder = True
-                            placeholder_id = slide.placeholder_mappings[ElementType.TEXT]
+                            placeholder_id = slide.placeholder_mappings[
+                                ElementType.TEXT
+                            ]
                         # For multi-column layouts, choose the correct BODY placeholder
                         # based on the horizontal position
-                        elif hasattr(next_element, "position") and next_element.position:
-                            slide_midpoint = slide.size[0] / 2 if hasattr(slide, "size") else 360
+                        elif (
+                            hasattr(next_element, "position") and next_element.position
+                        ):
+                            slide_midpoint = (
+                                slide.size[0] / 2 if hasattr(slide, "size") else 360
+                            )
                             is_left_column = next_element.position[0] < slide_midpoint
 
                             # Try column-specific placeholders
-                            column_key = f"{ElementType.TEXT.value}_0" if is_left_column else f"{ElementType.TEXT.value}_1"
+                            column_key = (
+                                f"{ElementType.TEXT.value}_0"
+                                if is_left_column
+                                else f"{ElementType.TEXT.value}_1"
+                            )
                             if column_key in slide.placeholder_mappings:
                                 will_use_placeholder = True
                                 placeholder_id = slide.placeholder_mappings[column_key]
@@ -136,15 +149,11 @@ class ApiRequestGenerator:
                             "text": current_element.text,
                             "formatting": getattr(current_element, "formatting", []),
                             "element_type": current_element.element_type,
-                            "horizontal_alignment": getattr(current_element, "horizontal_alignment", None),
+                            "horizontal_alignment": getattr(
+                                current_element, "horizontal_alignment", None
+                            ),
                             "placeholder_id": placeholder_id,
                         }
-
-                        logger.debug(
-                            f"Combining subheading with list in placeholder: "
-                            f"{getattr(current_element, 'object_id', 'unknown')} + "
-                            f"{getattr(next_element, 'object_id', 'unknown')}"
-                        )
 
             if is_subheading_for_list and next_element:
                 # Skip this element (subheading) as it will be combined with the list
@@ -154,11 +163,13 @@ class ApiRequestGenerator:
                 element_requests = []  # Initialize with empty list
 
                 if next_element.element_type == ElementType.BULLET_LIST:
-                    list_requests = self.list_builder.generate_bullet_list_element_requests(
-                        next_element,
-                        slide.object_id,
-                        slide.placeholder_mappings,
-                        subheading_data,
+                    list_requests = (
+                        self.list_builder.generate_bullet_list_element_requests(
+                            next_element,
+                            slide.object_id,
+                            slide.placeholder_mappings,
+                            subheading_data=subheading_data,
+                        )
                     )
                     if list_requests is not None:  # Defensive check
                         element_requests = list_requests
@@ -168,7 +179,7 @@ class ApiRequestGenerator:
                         slide.object_id,
                         "NUMBERED_DIGIT_ALPHA_ROMAN",
                         slide.placeholder_mappings,
-                        subheading_data,
+                        subheading_data=subheading_data,
                     )
                     if list_requests is not None:  # Defensive check
                         element_requests = list_requests
@@ -230,25 +241,39 @@ class ApiRequestGenerator:
 
         # Ensure element has a valid object_id (unless it's using a theme placeholder)
         element_type = getattr(element, "element_type", None)
-        use_theme_placeholder = theme_placeholders and element_type in theme_placeholders
+        use_theme_placeholder = (
+            theme_placeholders and element_type in theme_placeholders
+        )
 
         if not getattr(element, "object_id", None) and not use_theme_placeholder:
             element_type_name = getattr(element_type, "value", "unknown_element")
-            element.object_id = self.slide_builder._generate_id(f"{element_type_name}_{slide_id}")
-            logger.debug(f"Generated missing object_id for element: {element.object_id}")
+            element.object_id = self.slide_builder._generate_id(
+                f"{element_type_name}_{slide_id}"
+            )
+            logger.debug(
+                f"Generated missing object_id for element: {element.object_id}"
+            )
 
         # Delegate to appropriate builder based on element type
         requests = []  # Initialize with empty list
 
         try:
-            if element_type == ElementType.TITLE or element_type == ElementType.SUBTITLE or element_type == ElementType.TEXT:
-                builder_requests = self.text_builder.generate_text_element_requests(element, slide_id, theme_placeholders)
+            if (
+                element_type == ElementType.TITLE
+                or element_type == ElementType.SUBTITLE
+                or element_type == ElementType.TEXT
+            ):
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.BULLET_LIST:
-                builder_requests = self.list_builder.generate_bullet_list_element_requests(
-                    element, slide_id, theme_placeholders
+                builder_requests = (
+                    self.list_builder.generate_bullet_list_element_requests(
+                        element, slide_id, theme_placeholders
+                    )
                 )
                 if builder_requests is not None:
                     requests = builder_requests
@@ -261,29 +286,39 @@ class ApiRequestGenerator:
                     requests = builder_requests
 
             elif element_type == ElementType.IMAGE:
-                builder_requests = self.media_builder.generate_image_element_requests(element, slide_id)
+                builder_requests = self.media_builder.generate_image_element_requests(
+                    element, slide_id
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.TABLE:
-                builder_requests = self.table_builder.generate_table_element_requests(element, slide_id)
+                builder_requests = self.table_builder.generate_table_element_requests(
+                    element, slide_id
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.CODE:
-                builder_requests = self.code_builder.generate_code_element_requests(element, slide_id)
+                builder_requests = self.code_builder.generate_code_element_requests(
+                    element, slide_id
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.QUOTE:
                 # Quotes are handled by TextRequestBuilder with specific styling
-                builder_requests = self.text_builder.generate_text_element_requests(element, slide_id, theme_placeholders)
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.FOOTER:
                 # Footers are essentially text elements; special handling is in layout/parsing
-                builder_requests = self.text_builder.generate_text_element_requests(element, slide_id, theme_placeholders)
+                builder_requests = self.text_builder.generate_text_element_requests(
+                    element, slide_id, theme_placeholders
+                )
                 if builder_requests is not None:
                     requests = builder_requests
 

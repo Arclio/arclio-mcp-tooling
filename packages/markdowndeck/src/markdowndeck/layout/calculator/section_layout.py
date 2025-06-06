@@ -1,4 +1,4 @@
-"""Refactored section-based layout calculations - Sequential content-aware positioning."""
+"""Section-based layout calculations with proactive image scaling integration."""
 
 import logging
 
@@ -15,7 +15,7 @@ from markdowndeck.layout.constants import (
     VALIGN_TOP,
     VERTICAL_SPACING,
 )
-from markdowndeck.models import Element, Slide
+from markdowndeck.models import Element, ElementType, Slide
 from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
     """
-    Calculate positions for a section-based slide layout using the unified model.
+    Calculate positions for a section-based slide layout using the unified model with proactive image scaling.
 
     This implements the Layout Dichotomy principle:
     - Containers (sections) are sized predictably based on directives or content needs
-    - Elements within containers are sized based on their content needs
+    - Elements within containers are sized based on their content needs, with proactive image scaling
 
     Args:
         calculator: The PositionCalculator instance
@@ -53,7 +53,7 @@ def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
         calculator, slide.sections, body_area, is_vertical_layout
     )
 
-    # Position elements within all sections using two-pass pattern
+    # Position elements within all sections using two-pass pattern with proactive scaling
     _position_elements_in_all_sections(calculator, slide)
 
     logger.debug(f"Unified section-based layout completed for slide {slide.object_id}")
@@ -109,7 +109,7 @@ def _position_vertical_sections_sequential(
     area_height: float,
 ) -> None:
     """
-    Position vertical sections using sequential, content-aware model.
+    Position vertical sections using sequential, content-aware model with proactive image scaling.
 
     Implements Rule #3 from the specification: each section's height is determined
     by its intrinsic content needs, positioned sequentially from top to bottom.
@@ -170,9 +170,9 @@ def _position_vertical_sections_sequential(
                 f"Section {section.id} using explicit height: {section_height:.1f}"
             )
         else:
-            # Calculate intrinsic height based on content
-            section_height = _calculate_section_intrinsic_height(
-                calculator, section, section_width
+            # Calculate intrinsic height based on content with proactive scaling
+            section_height = _calculate_section_intrinsic_height_with_scaling(
+                calculator, section, section_width, area_height
             )
             logger.debug(
                 f"Section {section.id} calculated intrinsic height: {section_height:.1f}"
@@ -298,18 +298,19 @@ def _position_horizontal_sections_equal_division(
         current_x += section_width + HORIZONTAL_SPACING
 
 
-def _calculate_section_intrinsic_height(
-    calculator, section: Section, available_width: float
+def _calculate_section_intrinsic_height_with_scaling(
+    calculator, section: Section, available_width: float, available_height: float = 0
 ) -> float:
     """
-    Calculate the intrinsic height needed for a section based on its content.
+    Calculate the intrinsic height needed for a section with proactive image scaling.
 
-    This implements the content-aware sizing from Rule #3.
+    This implements the content-aware sizing from Rule #3 with Rule #5 (proactive image scaling).
 
     Args:
         calculator: The PositionCalculator instance
         section: The section to calculate height for
         available_width: Available width for the section
+        available_height: Available height for the section (for image scaling)
 
     Returns:
         Intrinsic height needed for the section
@@ -329,17 +330,27 @@ def _calculate_section_intrinsic_height(
     # Mark related elements for proper spacing
     mark_related_elements(section.elements)
 
-    # Calculate total height needed for all elements
+    # Calculate total height needed for all elements with proactive scaling
     total_content_height = 0.0
 
     for i, element in enumerate(section.elements):
         # Calculate element width within section
         element_width = calculator._calculate_element_width(element, content_width)
 
-        # Calculate intrinsic height based on content
-        from markdowndeck.layout.metrics import calculate_element_height
+        # Calculate intrinsic height with proactive image scaling
+        if element.element_type == ElementType.IMAGE:
+            # For images, use proactive scaling with available height constraint
+            element_height = calculator.calculate_element_height_with_proactive_scaling(
+                element, element_width, available_height
+            )
+            logger.debug(
+                f"Image element proactively scaled to height: {element_height:.1f}"
+            )
+        else:
+            # For other elements, use standard metrics
+            from markdowndeck.layout.metrics import calculate_element_height
 
-        element_height = calculate_element_height(element, element_width)
+            element_height = calculate_element_height(element, element_width)
 
         total_content_height += element_height
 
@@ -510,7 +521,7 @@ def _calculate_predictable_dimensions(
 
 def _position_elements_in_all_sections(calculator, slide: Slide) -> None:
     """
-    Position elements within all sections using the two-pass vertical alignment pattern.
+    Position elements within all sections using the two-pass vertical alignment pattern with proactive scaling.
 
     Args:
         calculator: The PositionCalculator instance
@@ -540,9 +551,9 @@ def _collect_leaf_sections(
 
 def _position_elements_within_section(calculator, section: Section) -> None:
     """
-    Position elements within a single section using the two-pass pattern with unified spacing.
+    Position elements within a single section using the two-pass pattern with proactive image scaling.
 
-    Pass 1: Calculate intrinsic sizes for all elements
+    Pass 1: Calculate intrinsic sizes for all elements (with proactive image scaling)
     Pass 2: Position elements based on vertical alignment directive
 
     Args:
@@ -580,8 +591,10 @@ def _position_elements_within_section(calculator, section: Section) -> None:
     # Mark related elements for consistent spacing
     mark_related_elements(section.elements)
 
-    # Pass 1: Calculate intrinsic sizes for all elements
-    _calculate_element_sizes_in_section(calculator, section.elements, content_width)
+    # Pass 1: Calculate intrinsic sizes for all elements with proactive scaling
+    _calculate_element_sizes_in_section_with_scaling(
+        calculator, section.elements, content_width, content_height
+    )
 
     # Pass 2: Position elements based on vertical alignment
     _apply_vertical_alignment_and_position_unified(
@@ -594,26 +607,36 @@ def _position_elements_within_section(calculator, section: Section) -> None:
     )
 
 
-def _calculate_element_sizes_in_section(
-    calculator, elements: list[Element], available_width: float
+def _calculate_element_sizes_in_section_with_scaling(
+    calculator, elements: list[Element], available_width: float, available_height: float
 ) -> None:
     """
-    Calculate intrinsic sizes for all elements in a section (Pass 1).
+    Calculate intrinsic sizes for all elements in a section with proactive image scaling (Pass 1).
 
     Args:
         calculator: The PositionCalculator instance
         elements: List of elements to size
         available_width: Available width in the section
+        available_height: Available height in the section (for image scaling)
     """
     for element in elements:
         # Calculate element width within section
         element_width = calculator._calculate_element_width(element, available_width)
 
-        # Calculate intrinsic height based on content
-        element_height = _calculate_element_intrinsic_height(element, element_width)
+        # Calculate intrinsic height with proactive image scaling
+        if element.element_type == ElementType.IMAGE:
+            # For images, use proactive scaling
+            element_height = calculator.calculate_element_height_with_proactive_scaling(
+                element, element_width, available_height
+            )
+            logger.debug(
+                f"Image element proactively scaled: {element_width:.1f} x {element_height:.1f}"
+            )
+        else:
+            # For other elements, use standard metrics
+            element_height = _calculate_element_intrinsic_height(element, element_width)
 
         # Always set size based on current section's constraints
-        # This ensures elements shared across sections get properly recalculated
         element.size = (element_width, element_height)
 
         logger.debug(

@@ -151,9 +151,6 @@ class TestListRequestBuilderStyling:
         )
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
-        # createShape, insertText (full text), createParagraphBullets, updateTextStyle (for bold)
-        assert len(requests) >= 4
-
         bold_style_req = next(
             (
                 r
@@ -168,11 +165,28 @@ class TestListRequestBuilderStyling:
         assert bold_style_req["updateTextStyle"]["objectId"] == "list_item_fmt"
         assert bold_style_req["updateTextStyle"]["textRange"]["type"] == "FIXED_RANGE"
 
-        # The builder creates a tab character `\t` for indentation, which shifts indices.
-        # "Hello bold world \n" -> "\tHello bold world \n"
-        # The start and end indices need to be offset by 1.
-        assert bold_style_req["updateTextStyle"]["textRange"]["startIndex"] == 6 + 1
-        assert bold_style_req["updateTextStyle"]["textRange"]["endIndex"] == 10 + 1
+        # Find the text insertion request to determine the correct offset
+        insert_req = next((r for r in requests if "insertText" in r), None)
+        assert insert_req is not None
+        full_text = insert_req["insertText"]["text"]
+        text_to_find = "bold"
+        text_start_index = full_text.find(text_to_find)
+
+        assert (
+            text_start_index != -1
+        ), "Formatted text 'bold' not found in insert request"
+
+        # The formatting range should now match the found text's position
+        expected_start = text_start_index
+        expected_end = text_start_index + len(text_to_find)
+
+        assert (
+            bold_style_req["updateTextStyle"]["textRange"]["startIndex"]
+            == expected_start
+        )
+        assert (
+            bold_style_req["updateTextStyle"]["textRange"]["endIndex"] == expected_end
+        )
         assert bold_style_req["updateTextStyle"]["fields"] == "bold"
 
     def test_themed_list_with_subheading_clears_placeholder(

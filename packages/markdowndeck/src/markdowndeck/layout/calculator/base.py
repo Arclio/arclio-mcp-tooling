@@ -1,4 +1,4 @@
-"""Refactored base position calculator - Unified Section Model layout engine."""
+"""Refactored base position calculator with proactive image scaling."""
 
 import logging
 from copy import deepcopy
@@ -34,12 +34,13 @@ logger = logging.getLogger(__name__)
 
 class PositionCalculator:
     """
-    Unified layout calculator implementing the Universal Section Model.
+    Unified layout calculator implementing proactive image scaling.
 
-    This calculator operates on the principle that every slide uses a section-based
-    layout. If no explicit sections are defined, a single root section is created
-    to contain all body elements. This eliminates the dual-mode complexity and
-    ensures consistent behavior across all slide types.
+    Per Rule #5 of the specification: ImageElements are handled proactively during
+    the layout phase. An ImageElement's size is always calculated to fit within its
+    parent section's available width, while maintaining its aspect ratio. This ensures
+    an image will never, by itself, cause its parent section's dimensions to expand
+    beyond what was calculated based on other content or directives.
     """
 
     def __init__(
@@ -118,7 +119,7 @@ class PositionCalculator:
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """
-        Calculate positions for all elements using the Universal Section Model.
+        Calculate positions for all elements using the Universal Section Model with proactive image scaling.
 
         This is the main entry point that implements the unified architecture.
         All slides are treated as section-based layouts. If no sections are defined,
@@ -309,12 +310,41 @@ class PositionCalculator:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid width directive: {width_directive}")
 
+        # PROACTIVE IMAGE SCALING: For images, apply width fraction but ensure they fit
+        if element.element_type == ElementType.IMAGE:
+            # Images get their width based on the container and width fraction
+            base_width = container_width * IMAGE_WIDTH_FRACTION
+
+            # Check for explicit width override
+            if hasattr(element, "directives") and element.directives:
+                width_directive = element.directives.get("width")
+                if width_directive is not None:
+                    try:
+                        if (
+                            isinstance(width_directive, float)
+                            and 0 < width_directive <= 1
+                        ):
+                            base_width = container_width * width_directive
+                        elif (
+                            isinstance(width_directive, int | float)
+                            and width_directive > 1
+                        ):
+                            base_width = min(float(width_directive), container_width)
+                    except (ValueError, TypeError):
+                        pass
+
+            # Ensure image width never exceeds container
+            image_width = min(base_width, container_width)
+            logger.debug(
+                f"Proactively scaled image width: {image_width:.1f} (container: {container_width:.1f})"
+            )
+            return image_width
+
         # Use default width fractions based on element type
         width_fractions = {
             ElementType.TITLE: TITLE_WIDTH_FRACTION,
             ElementType.SUBTITLE: SUBTITLE_WIDTH_FRACTION,
             ElementType.QUOTE: QUOTE_WIDTH_FRACTION,
-            ElementType.IMAGE: IMAGE_WIDTH_FRACTION,
             ElementType.TABLE: TABLE_WIDTH_FRACTION,
             ElementType.CODE: CODE_WIDTH_FRACTION,
             ElementType.BULLET_LIST: LIST_WIDTH_FRACTION,
@@ -325,6 +355,35 @@ class PositionCalculator:
             element.element_type, 1.0
         )  # Default to full width
         return container_width * fraction
+
+    def calculate_element_height_with_proactive_scaling(
+        self, element, available_width: float, available_height: float = 0
+    ) -> float:
+        """
+        Calculate element height with proactive image scaling applied.
+
+        For images, this ensures they are scaled to fit within the container constraints.
+        For other elements, this delegates to the standard metrics calculation.
+
+        Args:
+            element: The element to calculate height for
+            available_width: Available width for the element
+            available_height: Available height for the element (for images)
+
+        Returns:
+            Calculated height that respects container constraints
+        """
+        if element.element_type == ElementType.IMAGE:
+            # For images, use the proactive scaling image metrics
+            from markdowndeck.layout.metrics.image import calculate_image_element_height
+
+            return calculate_image_element_height(
+                element, available_width, available_height
+            )
+        # For other elements, use standard metrics
+        from markdowndeck.layout.metrics import calculate_element_height
+
+        return calculate_element_height(element, available_width)
 
     def get_body_elements(self, slide: Slide) -> list:
         """

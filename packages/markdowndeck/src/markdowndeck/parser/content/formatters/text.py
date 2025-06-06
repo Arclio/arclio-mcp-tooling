@@ -57,11 +57,14 @@ class TextFormatter(BaseFormatter):
             if len(leading_tokens) > 1 and leading_tokens[1].type == "inline":
                 inline_children = getattr(leading_tokens[1], "children", [])
                 if inline_children:
-                    image_children = [child for child in inline_children if child.type == "image"]
+                    image_children = [
+                        child for child in inline_children if child.type == "image"
+                    ]
                     other_content = [
                         child
                         for child in inline_children
-                        if child.type != "image" and (child.type != "text" or child.content.strip())
+                        if child.type != "image"
+                        and (child.type != "text" or child.content.strip())
                     ]
                     if len(image_children) > 0 and not other_content:
                         return False
@@ -82,10 +85,14 @@ class TextFormatter(BaseFormatter):
             return None, start_index
 
         token = tokens[start_index]
-        merged_directives = self.merge_directives(section_directives, element_specific_directives)
+        merged_directives = self.merge_directives(
+            section_directives, element_specific_directives
+        )
 
         if token.type == "heading_open":
-            return self._process_heading(tokens, start_index, merged_directives, **kwargs)
+            return self._process_heading(
+                tokens, start_index, merged_directives, **kwargs
+            )
         if token.type == "paragraph_open":
             return self._process_paragraph(tokens, start_index, merged_directives)
         if token.type == "blockquote_open":
@@ -107,7 +114,10 @@ class TextFormatter(BaseFormatter):
         level = int(open_token.tag[1])
 
         inline_token_index = start_index + 1
-        if inline_token_index >= len(tokens) or tokens[inline_token_index].type != "inline":
+        if (
+            inline_token_index >= len(tokens)
+            or tokens[inline_token_index].type != "inline"
+        ):
             end_idx = self.find_closing_token(tokens, start_index, "heading_close")
             return None, end_idx
 
@@ -137,7 +147,9 @@ class TextFormatter(BaseFormatter):
                 directives.setdefault("margin_bottom", 8)
 
         # Get alignment from directives
-        horizontal_alignment = AlignmentType(directives.get("align", default_alignment.value))
+        horizontal_alignment = AlignmentType(
+            directives.get("align", default_alignment.value)
+        )
 
         # Create appropriate element
         if element_type == ElementType.TITLE:
@@ -159,7 +171,9 @@ class TextFormatter(BaseFormatter):
                 directives=directives.copy(),
             )
 
-        logger.debug(f"Created heading element: {element_type}, text: '{text_content[:30]}'")
+        logger.debug(
+            f"Created heading element: {element_type}, text: '{text_content[:30]}'"
+        )
         return element, end_idx
 
     def _process_paragraph(
@@ -180,7 +194,9 @@ class TextFormatter(BaseFormatter):
         raw_content = inline_token.content or ""
 
         # CRITICAL FIX P0 & P4: Extract and remove directives from text
-        element_directives, cleaned_content = self._extract_element_directives_from_text(raw_content)
+        element_directives, cleaned_content = (
+            self._extract_element_directives_from_text(raw_content)
+        )
         final_directives = self.merge_directives(directives, element_directives)
 
         # Skip image-only paragraphs
@@ -198,10 +214,16 @@ class TextFormatter(BaseFormatter):
             # Use cleaned content for text extraction when directives were found
             if has_same_line_directives:
                 # Extract plain text from cleaned content
-                text_content, formatting = self._extract_plain_text_from_cleaned_content(cleaned_content, inline_token)
+                text_content, formatting = (
+                    self._extract_plain_text_from_cleaned_content(
+                        cleaned_content, inline_token
+                    )
+                )
             else:
                 # Use standard plain text extraction for consistency
-                text_content, formatting = self._extract_clean_text_and_formatting(inline_token)
+                text_content, formatting = self._extract_clean_text_and_formatting(
+                    inline_token
+                )
         else:
             # CRITICAL FIX: If cleaned content is empty after directive extraction,
             # the paragraph contains only directives and should be ignored
@@ -211,7 +233,9 @@ class TextFormatter(BaseFormatter):
 
             # Use original token processing if no directives were found within text
             # Use plain text extraction for standard cases
-            text_content, formatting = self._extract_clean_text_and_formatting(inline_token)
+            text_content, formatting = self._extract_clean_text_and_formatting(
+                inline_token
+            )
 
         # Skip empty paragraphs
         if not text_content.strip():
@@ -238,7 +262,9 @@ class TextFormatter(BaseFormatter):
         )
 
         close_index = self._find_paragraph_close(tokens, inline_index)
-        logger.debug(f"Created text element with cleaned content: '{text_content[:30]}'")
+        logger.debug(
+            f"Created text element with cleaned content: '{text_content[:30]}'"
+        )
         return element, close_index
 
     def _process_quote(
@@ -256,11 +282,16 @@ class TextFormatter(BaseFormatter):
             token_i = tokens[i]
             if token_i.type == "paragraph_open":
                 para_inline_idx = i + 1
-                if para_inline_idx < end_idx and tokens[para_inline_idx].type == "inline":
+                if (
+                    para_inline_idx < end_idx
+                    and tokens[para_inline_idx].type == "inline"
+                ):
                     inline_token = tokens[para_inline_idx]
 
                     # Extract clean text and formatting
-                    text_part, part_formatting = self._extract_clean_text_and_formatting(inline_token)
+                    text_part, part_formatting = (
+                        self._extract_clean_text_and_formatting(inline_token)
+                    )
 
                     if quote_text_parts:
                         current_text_len += 1  # for newline
@@ -296,7 +327,9 @@ class TextFormatter(BaseFormatter):
 
         return element, end_idx
 
-    def _extract_element_directives_from_text(self, text_content: str) -> tuple[dict[str, Any], str]:
+    def _extract_element_directives_from_text(
+        self, text_content: str
+    ) -> tuple[dict[str, Any], str]:
         """
         Extract element-specific directives from text content.
 
@@ -317,7 +350,9 @@ class TextFormatter(BaseFormatter):
 
             # CRITICAL FIX P4: Enhanced directive parsing
             # First try to parse as directive-only line
-            line_directives, remaining_text = self.directive_parser.parse_inline_directives(line_stripped)
+            line_directives, remaining_text = (
+                self.directive_parser.parse_inline_directives(line_stripped)
+            )
 
             if line_directives and not remaining_text.strip():
                 # Pure directive line
@@ -325,11 +360,15 @@ class TextFormatter(BaseFormatter):
                 logger.debug(f"Extracted directives from line: {line_directives}")
             else:
                 # Check if line starts with directives followed by text (P4 enhancement)
-                start_directives, clean_line = self._extract_line_start_directives(line_stripped)
+                start_directives, clean_line = self._extract_line_start_directives(
+                    line_stripped
+                )
                 if start_directives:
                     all_directives.update(start_directives)
                     content_lines.append(clean_line if clean_line else "")
-                    logger.debug(f"Extracted start-of-line directives: {start_directives}")
+                    logger.debug(
+                        f"Extracted start-of-line directives: {start_directives}"
+                    )
                 else:
                     content_lines.append(line)
 
@@ -355,26 +394,34 @@ class TextFormatter(BaseFormatter):
         remaining_text = line[len(directive_text) :].strip()
 
         # Parse the directive text
-        directives, _ = self.directive_parser.parse_inline_directives(directive_text.strip())
+        directives, _ = self.directive_parser.parse_inline_directives(
+            directive_text.strip()
+        )
 
         return directives, remaining_text
 
-    def _extract_clean_text_and_formatting(self, inline_token: Token) -> tuple[str, list[TextFormat]]:
+    def _extract_clean_text_and_formatting(
+        self, inline_token: Token
+    ) -> tuple[str, list[TextFormat]]:
         """
         Extract clean text content and formatting from an inline token.
 
         ARCHITECTURAL IMPROVEMENT: Centralized text extraction method.
         """
         text_content = self._get_plain_text_from_inline_token(inline_token)
-        formatting = self.element_factory._extract_formatting_from_inline_token(inline_token)
+        formatting = self.element_factory._extract_formatting_from_inline_token(
+            inline_token
+        )
         return text_content, formatting
 
-    def _extract_text_from_cleaned_content(self, cleaned_content: str, original_token: Token) -> tuple[str, list[TextFormat]]:
+    def _extract_text_from_cleaned_content(
+        self, cleaned_content: str, original_token: "Token"
+    ) -> tuple[str, list["TextFormat"]]:
         """
-        Extract text and formatting from cleaned content.
+        Extract plain text and formatting from cleaned content.
 
-        CRITICAL FIX P0: Process cleaned content to preserve markdown syntax
-        while extracting proper formatting information.
+        This method extracts plain text (without markdown syntax) from cleaned content
+        while preserving proper formatting information.
         """
         if not cleaned_content.strip():
             return "", []
@@ -385,20 +432,22 @@ class TextFormatter(BaseFormatter):
         # Find the inline token from the parsed content
         for token in tokens:
             if token.type == "inline":
-                # CRITICAL FIX: Preserve the original markdown content instead of extracting plain text
-                # The cleaned_content already has directives removed, so use it directly
-                text_content = cleaned_content.strip()
+                # Extract plain text from the cleaned content token
+                text_content = self._get_plain_text_from_inline_token(token)
 
-                # Extract formatting information with positions relative to the original markdown text
-                formatting = self._extract_formatting_with_markdown_positions(token, text_content)
+                # Extract formatting information from the cleaned content token
+                formatting = self.element_factory._extract_formatting_from_inline_token(
+                    token
+                )
                 return text_content, formatting
 
         # Fallback: if no inline token found, return the content as-is
         # This shouldn't happen for normal paragraph content, but provides safety
-        formatting = self.element_factory.extract_formatting_from_text(cleaned_content, self.md)
-        return cleaned_content, formatting
+        return cleaned_content.strip(), []
 
-    def _extract_formatting_with_markdown_positions(self, token: Token, markdown_text: str) -> list[TextFormat]:
+    def _extract_formatting_with_markdown_positions(
+        self, token: Token, markdown_text: str
+    ) -> list[TextFormat]:
         """
         Extract formatting with positions relative to plain text content.
 
@@ -450,7 +499,9 @@ class TextFormatter(BaseFormatter):
                     format_type_enum = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     format_type_enum = TextFormatType.LINK
-                    value = child.attrs.get("href", "") if hasattr(child, "attrs") else ""
+                    value = (
+                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
+                    )
 
                 if format_type_enum:
                     # Record the start position in plain text coordinates
@@ -491,11 +542,14 @@ class TextFormatter(BaseFormatter):
         if not hasattr(inline_token, "children") or not inline_token.children:
             return False
 
-        image_children = [child for child in inline_token.children if child.type == "image"]
+        image_children = [
+            child for child in inline_token.children if child.type == "image"
+        ]
         non_image_content = [
             child
             for child in inline_token.children
-            if child.type not in ["image", "softbreak"] and not (child.type == "text" and not child.content.strip())
+            if child.type not in ["image", "softbreak"]
+            and not (child.type == "text" and not child.content.strip())
         ]
 
         return len(image_children) > 0 and len(non_image_content) == 0
@@ -503,7 +557,9 @@ class TextFormatter(BaseFormatter):
     def _find_paragraph_close(self, tokens: list[Token], inline_index: int) -> int:
         """Find the closing paragraph token."""
         close_index = inline_index + 1
-        while close_index < len(tokens) and tokens[close_index].type != "paragraph_close":
+        while (
+            close_index < len(tokens) and tokens[close_index].type != "paragraph_close"
+        ):
             close_index += 1
         return close_index
 
@@ -529,7 +585,9 @@ class TextFormatter(BaseFormatter):
                 text_content = self._get_plain_text_from_inline_token(token)
 
                 # Extract formatting information from the cleaned content token
-                formatting = self.element_factory._extract_formatting_from_inline_token(token)
+                formatting = self.element_factory._extract_formatting_from_inline_token(
+                    token
+                )
                 return text_content, formatting
 
         # Fallback: if no inline token found, return the content as-is

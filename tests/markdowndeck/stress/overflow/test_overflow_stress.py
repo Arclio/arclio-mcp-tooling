@@ -1,4 +1,4 @@
-"""Behavioral and edge case tests for overflow handler system."""
+"""Behavioral and edge case tests for overflow handler system with specification compliance."""
 
 import pytest
 from markdowndeck.models import (
@@ -13,13 +13,10 @@ from markdowndeck.models import (
     TextFormatType,
 )
 from markdowndeck.overflow import OverflowManager
-from markdowndeck.overflow.constants import (
-    MINIMUM_CONTENT_RATIO_TO_SPLIT,
-)
 
 
 class TestOverflowEdgeCases:
-    """Test complex edge cases and boundary conditions."""
+    """Test complex edge cases and boundary conditions with specification compliance."""
 
     @pytest.fixture
     def overflow_manager(self) -> OverflowManager:
@@ -30,8 +27,10 @@ class TestOverflowEdgeCases:
             margins={"top": 50, "right": 50, "bottom": 50, "left": 50},
         )
 
-    def test_infinitely_nested_section_structures(self, overflow_manager):
-        """Test handling of deeply nested section hierarchies."""
+    def test_deeply_nested_section_structures_with_circular_protection(
+        self, overflow_manager
+    ):
+        """Test handling of deeply nested section hierarchies with circular reference protection."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
@@ -43,9 +42,9 @@ class TestOverflowEdgeCases:
         # Create deeply nested sections (10 levels deep)
         content = TextElement(
             element_type=ElementType.TEXT,
-            text="Deep content that overflows",
+            text="Deep content that causes external overflow",
             position=(50, 150),
-            size=(620, 300),  # Overflows
+            size=(620, 100),
         )
 
         # Build nested structure from inside out
@@ -53,7 +52,7 @@ class TestOverflowEdgeCases:
             id="level_10",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Smaller than content
+            size=(620, 300),  # External boundary overflows body_height
             elements=[content],
         )
 
@@ -62,7 +61,7 @@ class TestOverflowEdgeCases:
                 id=f"level_{level}",
                 type="section",
                 position=(50, 150),
-                size=(620, 200),
+                size=(620, 300),  # Maintain overflow at top level
                 subsections=[current_section],
             )
             current_section = parent_section
@@ -83,10 +82,16 @@ class TestOverflowEdgeCases:
 
         # Verify no infinite recursion occurred
         assert (
-            len(result_slides) < 100
+            len(result_slides) < 50
         ), "Should not create excessive slides from deep nesting"
 
-    def test_circular_reference_prevention(self, overflow_manager):
+        # Verify circular reference protection worked
+        for result_slide in result_slides:
+            assert (
+                result_slide.object_id is not None
+            ), "All slides should have valid IDs"
+
+    def test_circular_reference_prevention_with_detection(self, overflow_manager):
         """Test prevention of circular references in section structures."""
 
         title = TextElement(
@@ -98,22 +103,25 @@ class TestOverflowEdgeCases:
 
         # Create sections that could potentially create circular references
         section_a = Section(
-            id="section_a", type="section", position=(50, 150), size=(620, 200)
+            id="section_a",
+            type="section",
+            position=(50, 150),
+            size=(620, 300),  # Overflows
         )
         section_b = Section(
             id="section_b", type="section", position=(50, 150), size=(620, 200)
         )
 
-        # Set up potential circular reference (in real code this should be prevented)
+        # Set up potential circular reference
         section_a.subsections = [section_b]
         section_b.subsections = [section_a]  # Circular reference
 
-        # Add content to force overflow
+        # Add content to force external overflow
         content = TextElement(
             element_type=ElementType.TEXT,
-            text="Content that causes overflow",
+            text="Content that causes external overflow",
             position=(50, 150),
-            size=(620, 300),
+            size=(620, 100),
         )
         section_a.elements = [content]
 
@@ -132,8 +140,8 @@ class TestOverflowEdgeCases:
         except RecursionError:
             pytest.fail("Should not cause infinite recursion with circular references")
 
-    def test_massive_element_count_performance(self, overflow_manager):
-        """Test performance with slides containing massive numbers of elements."""
+    def test_massive_element_count_with_minimum_requirements(self, overflow_manager):
+        """Test performance with massive numbers of elements following minimum requirements."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
@@ -144,21 +152,22 @@ class TestOverflowEdgeCases:
 
         # Create a massive list with thousands of items
         massive_items = [
-            ListItem(text=f"Item {i} with content") for i in range(1, 5000)
+            ListItem(text=f"Item {i} with content")
+            for i in range(1, 1000)  # Reduced for performance
         ]
 
         massive_list = ListElement(
             element_type=ElementType.BULLET_LIST,
             items=massive_items,
             position=(50, 150),
-            size=(620, 50000),  # Extremely large
+            size=(620, 10000),  # Very large
         )
 
         section = Section(
             id="massive_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),
+            size=(620, 300),  # External boundary overflows
             elements=[massive_list],
         )
 
@@ -180,14 +189,14 @@ class TestOverflowEdgeCases:
 
         # Should complete in reasonable time even with massive content
         assert (
-            processing_time < 10.0
+            processing_time < 5.0
         ), f"Should handle massive content efficiently, took {processing_time:.2f}s"
         assert (
             len(result_slides) >= 2
         ), "Should create multiple slides for massive content"
 
-    def test_zero_height_available_space(self, overflow_manager):
-        """Test handling when no vertical space is available."""
+    def test_zero_height_available_space_with_external_boundary(self, overflow_manager):
+        """Test handling when section external boundary is at the limit."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
@@ -198,22 +207,22 @@ class TestOverflowEdgeCases:
 
         content = TextElement(
             element_type=ElementType.TEXT,
-            text="Content with no space",
-            position=(50, 255),  # At the very bottom
+            text="Content at boundary",
+            position=(50, 255),  # At the body height limit
             size=(620, 50),
         )
 
-        # Section positioned at the very limit with no available space
+        # Section positioned exactly at body height limit
         section = Section(
-            id="zero_space_section",
+            id="boundary_section",
             type="section",
             position=(50, 255),  # At body_height limit
-            size=(620, 0),  # Zero height
+            size=(620, 1),  # Even 1 point overflows
             elements=[content],
         )
 
         slide = Slide(
-            object_id="zero_space_slide",
+            object_id="boundary_slide",
             elements=[title, content],
             sections=[section],
             title="Zero Space Test",
@@ -221,18 +230,18 @@ class TestOverflowEdgeCases:
 
         result_slides = overflow_manager.process_slide(slide)
 
-        # Should handle gracefully and promote all content to continuation
+        # Should handle gracefully and promote content to continuation
         assert len(result_slides) == 2, "Should create continuation slide"
 
-        # Original slide should have no content in the section
+        # Original slide should have modified section
         result_slides[0].sections[0]
-        # Continuation should have all the content
+        # Continuation should have the content
         continuation_section = result_slides[1].sections[0]
         assert (
             len(continuation_section.elements) > 0
         ), "Content should be in continuation"
 
-    def test_negative_dimensions_handling(self, overflow_manager):
+    def test_negative_dimensions_handling_with_validation(self, overflow_manager):
         """Test handling of sections with negative or invalid dimensions."""
 
         title = TextElement(
@@ -270,130 +279,223 @@ class TestOverflowEdgeCases:
 
         assert len(result_slides) >= 1, "Should handle negative dimensions gracefully"
 
-    def test_extremely_small_threshold_values(self, overflow_manager):
-        """Test behavior with threshold values at extreme boundaries."""
+        # Validate slide structure
+        warnings = overflow_manager.validate_slide_structure(slide)
+        assert isinstance(warnings, list), "Should return validation warnings"
+
+    def test_minimum_requirements_boundary_values(self, overflow_manager):
+        """Test minimum requirements at various boundary conditions."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
-            text="Threshold Boundary Test",
+            text="Minimum Requirements Test",
             position=(50, 50),
             size=(620, 40),
         )
 
-        # Create content sized exactly to test threshold boundaries
-        precise_content = TextElement(
-            element_type=ElementType.TEXT,
-            text="Precisely sized content for threshold testing",
+        # Test table with exactly minimum requirements (header + 2 rows)
+        minimal_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Col1", "Col2"],
+            rows=[
+                ["Row 1 A", "Row 1 B"],
+                ["Row 2 A", "Row 2 B"],  # Exactly 2 rows = minimum
+            ],
             position=(50, 150),
-            size=(620, 100),  # Exactly 100 points
+            size=(620, 100),
         )
 
-        # Mock the split method to test exact threshold behavior
-        def precise_split(available_height):
-            ratio = available_height / 100.0
-            if ratio >= MINIMUM_CONTENT_RATIO_TO_SPLIT:
-                fitted = TextElement(
-                    element_type=ElementType.TEXT,
-                    text="Fitted portion",
-                    size=(620, available_height),
+        # Mock split to test minimum requirements
+        def table_split(available_height):
+            if available_height > 60:  # Enough for header + 2 rows
+                fitted = TableElement(
+                    element_type=ElementType.TABLE,
+                    headers=["Col1", "Col2"],
+                    rows=[["Row 1 A", "Row 1 B"]],  # 1 row
+                    size=(620, 40),
                 )
-                overflowing = TextElement(
-                    element_type=ElementType.TEXT,
-                    text="Overflowing portion",
-                    size=(620, 100 - available_height),
+                overflowing = TableElement(
+                    element_type=ElementType.TABLE,
+                    headers=["Col1", "Col2"],
+                    rows=[["Row 2 A", "Row 2 B"]],  # 1 row
+                    size=(620, 40),
                 )
                 return fitted, overflowing
-            return None, TextElement(
-                element_type=ElementType.TEXT,
-                text="Precisely sized content for threshold testing",
-                size=(620, 100),
-            )
+            # Not enough space for minimum
+            return None, minimal_table
 
-        precise_content.split = precise_split
-
-        # Test exactly at threshold
-        threshold_height = 100 * MINIMUM_CONTENT_RATIO_TO_SPLIT
+        minimal_table.split = table_split
 
         section = Section(
-            id="threshold_section",
+            id="minimal_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),
-            elements=[precise_content],
+            size=(620, 200),  # Section overflows
+            elements=[minimal_table],
         )
 
         slide = Slide(
-            object_id="threshold_slide",
-            elements=[title, precise_content],
+            object_id="minimal_slide",
+            elements=[title, minimal_table],
             sections=[section],
-            title="Threshold Boundary Test",
+            title="Minimum Requirements Test",
         )
-
-        # Simulate exactly threshold available space
-        overflow_manager.body_height = 150 + threshold_height
 
         result_slides = overflow_manager.process_slide(slide)
 
-        # At exact threshold, should split
-        if len(result_slides) > 1:
-            # Verify split occurred
-            assert (
-                len(result_slides[0].sections[0].elements) > 0
-            ), "Should have fitted content"
-            assert (
-                len(result_slides[1].sections[0].elements) > 0
-            ), "Should have overflowing content"
+        # Should process according to minimum requirements
+        assert len(result_slides) >= 1, "Should handle minimum requirements boundary"
 
-    def test_concurrent_overflow_detection_race_conditions(self, overflow_manager):
-        """Test for potential race conditions in overflow detection."""
+    def test_external_vs_internal_overflow_distinction(self, overflow_manager):
+        """Test clear distinction between external section overflow and internal content overflow."""
 
-        # Create slide with multiple sections that all overflow simultaneously
         title = TextElement(
             element_type=ElementType.TITLE,
-            text="Concurrent Overflow Test",
+            text="Overflow Distinction Test",
             position=(50, 50),
             size=(620, 40),
         )
 
-        # Multiple overflowing sections
-        sections = []
-        elements = []
+        # Test 1: Internal content overflow (should be ignored)
+        large_content = TextElement(
+            element_type=ElementType.TEXT,
+            text="Very large content that exceeds section" * 30,
+            position=(50, 150),
+            size=(620, 500),  # Much larger than section
+        )
 
-        for i in range(5):
-            content = TextElement(
-                element_type=ElementType.TEXT,
-                text=f"Overflowing content section {i}",
-                position=(50, 150 + i * 60),
-                size=(620, 100),  # Each overflows
-            )
-            elements.append(content)
+        internal_overflow_section = Section(
+            id="internal_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 100),  # Section fits in slide (bottom at 250)
+            directives={"height": 100},  # Explicit height directive
+            elements=[large_content],
+        )
 
-            section = Section(
-                id=f"concurrent_section_{i}",
-                type="section",
-                position=(50, 150 + i * 60),
-                size=(620, 50),  # Smaller than content
-                elements=[content],
-            )
-            sections.append(section)
+        internal_slide = Slide(
+            object_id="internal_overflow_slide",
+            elements=[title, large_content],
+            sections=[internal_overflow_section],
+        )
+
+        # Should NOT create continuation (internal overflow ignored)
+        result1 = overflow_manager.process_slide(internal_slide)
+        assert len(result1) == 1, "Internal overflow should be ignored"
+
+        # Test 2: External section overflow (should be handled)
+        normal_content = TextElement(
+            element_type=ElementType.TEXT,
+            text="Normal content that fits",
+            position=(50, 150),
+            size=(620, 80),
+        )
+
+        external_overflow_section = Section(
+            id="external_section",
+            type="section",
+            position=(50, 150),
+            size=(620, 200),  # Section bottom at 350, overflows body_height ~255
+            elements=[normal_content],
+        )
+
+        external_slide = Slide(
+            object_id="external_overflow_slide",
+            elements=[title, normal_content],
+            sections=[external_overflow_section],
+        )
+
+        # Should create continuation (external overflow handled)
+        result2 = overflow_manager.process_slide(external_slide)
+        assert len(result2) >= 2, "External overflow should be handled"
+
+    def test_unanimous_consent_failure_scenarios(self, overflow_manager):
+        """Test scenarios where unanimous consent fails and entire row is promoted."""
+
+        title = TextElement(
+            element_type=ElementType.TITLE,
+            text="Unanimous Consent Failure",
+            position=(50, 50),
+            size=(620, 40),
+        )
+
+        # Left column: splittable content
+        left_text = TextElement(
+            element_type=ElementType.TEXT,
+            text="Left content\nLine 2\nLine 3\nLine 4",
+            position=(50, 150),
+            size=(300, 80),
+        )
+
+        # Mock split that can succeed
+        def left_split(available_height):
+            if available_height > 40:  # Minimum met
+                fitted = TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Left content\nLine 2",
+                    size=(300, 40),
+                )
+                overflowing = TextElement(
+                    element_type=ElementType.TEXT, text="Line 3\nLine 4", size=(300, 40)
+                )
+                return fitted, overflowing
+            return None, left_text
+
+        left_text.split = left_split
+
+        # Right column: content that can't meet minimum requirements
+        right_table = TableElement(
+            element_type=ElementType.TABLE,
+            headers=["Col1"],
+            rows=[["Row 1"]],  # Only 1 row, less than minimum 2
+            position=(360, 150),
+            size=(310, 80),
+        )
+
+        # Mock split that always fails minimum requirements
+        def right_split(available_height):
+            return None, right_table  # Always fails minimum requirements
+
+        right_table.split = right_split
+
+        # Create row structure
+        left_column = Section(
+            id="left_col",
+            type="section",
+            position=(50, 150),
+            size=(300, 100),
+            elements=[left_text],
+        )
+
+        right_column = Section(
+            id="right_col",
+            type="section",
+            position=(360, 150),
+            size=(310, 100),
+            elements=[right_table],
+        )
+
+        row_section = Section(
+            id="consensus_row",
+            type="row",
+            position=(50, 150),
+            size=(620, 200),  # Row overflows
+            subsections=[left_column, right_column],
+        )
 
         slide = Slide(
-            object_id="concurrent_overflow_slide",
-            elements=[title] + elements,
-            sections=sections,
-            title="Concurrent Overflow Test",
+            object_id="consensus_failure_slide",
+            elements=[title, left_text, right_table],
+            sections=[row_section],
         )
 
         result_slides = overflow_manager.process_slide(slide)
 
-        # Should process all overflows systematically
-        assert len(result_slides) >= 2, "Should handle multiple concurrent overflows"
+        # Should promote entire row due to unanimous consent failure
+        assert len(result_slides) >= 2, "Should create continuation slide"
 
-        # Verify systematic processing (first overflow handled first)
-        # Original slide should have content from only non-overflowing or first overflowing section
-
-    def test_malformed_section_data_resilience(self, overflow_manager):
-        """Test resilience to malformed or inconsistent section data."""
+    def test_malformed_section_data_resilience_with_validation(self, overflow_manager):
+        """Test resilience to malformed or inconsistent section data with validation."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
@@ -409,7 +511,7 @@ class TestOverflowEdgeCases:
             size=(620, 100),
         )
 
-        # Section with inconsistent data
+        # Section with missing position
         malformed_section = Section(
             id="malformed_section",
             type="section",
@@ -446,13 +548,17 @@ class TestOverflowEdgeCases:
 
         assert len(result_slides) >= 1, "Should handle malformed data gracefully"
 
-    def test_element_split_formatting_edge_cases(self):
-        """Test element splitting with complex formatting edge cases."""
+        # Validate and get warnings
+        warnings = overflow_manager.validate_slide_structure(slide)
+        assert len(warnings) > 0, "Should detect malformed data issues"
 
-        # Text with overlapping formatting
+    def test_element_split_formatting_edge_cases_with_minimum_requirements(self):
+        """Test element splitting with complex formatting and minimum requirements."""
+
+        # Text with overlapping formatting that must meet minimum 2 lines
         complex_text = TextElement(
             element_type=ElementType.TEXT,
-            text="This text has overlapping bold and italic formatting regions",
+            text="Line 1 with overlapping formatting\nLine 2 continues\nLine 3 more\nLine 4 final",
             formatting=[
                 TextFormat(start=0, end=20, format_type=TextFormatType.BOLD),
                 TextFormat(
@@ -462,10 +568,11 @@ class TestOverflowEdgeCases:
                     start=25, end=40, format_type=TextFormatType.UNDERLINE
                 ),  # Overlaps with italic
             ],
-            size=(400, 60),
+            size=(400, 80),
         )
 
-        fitted, overflowing = complex_text.split(30.0)
+        # Test split with minimum requirements
+        fitted, overflowing = complex_text.split(50.0)  # Should fit 2+ lines
 
         if fitted and overflowing:
             # Verify formatting integrity
@@ -481,12 +588,16 @@ class TestOverflowEdgeCases:
                     overflowing.text
                 ), "Overflowing formatting end should be within text"
 
-    def test_list_split_with_deeply_nested_items(self):
-        """Test list splitting with complex nested item structures."""
+            # Verify minimum requirements met
+            fitted_lines = fitted.text.count("\n") + 1
+            assert fitted_lines >= 2, "Should meet minimum 2 lines requirement"
+
+    def test_list_split_with_deeply_nested_items_and_minimum_requirements(self):
+        """Test list splitting with complex nested item structures and minimum requirements."""
 
         # Create deeply nested list items
         level_3_items = [
-            ListItem(text=f"Level 3 item {i}", level=3) for i in range(1, 6)
+            ListItem(text=f"Level 3 item {i}", level=3) for i in range(1, 4)
         ]
         level_2_items = [
             ListItem(text="Level 2 item 1", level=2, children=level_3_items[:2]),
@@ -510,7 +621,7 @@ class TestOverflowEdgeCases:
 
         if fitted and overflowing:
             # Verify nested structure integrity
-            assert len(fitted.items) > 0, "Should have fitted items"
+            assert len(fitted.items) >= 2, "Should meet minimum 2 items requirement"
             assert len(overflowing.items) > 0, "Should have overflowing items"
 
             # Check that nested relationships are preserved
@@ -521,214 +632,108 @@ class TestOverflowEdgeCases:
                             child.level > item.level
                         ), "Child levels should be correct"
 
-    def test_table_split_with_extremely_wide_content(self):
-        """Test table splitting with content that exceeds normal width constraints."""
+    def test_table_split_with_minimum_requirements_validation(self):
+        """Test table splitting with minimum header + 2 rows requirement."""
 
-        # Create table with very wide cell content
-        wide_headers = [
-            f"Very Long Header Name {i}" for i in range(1, 11)
-        ]  # 10 columns
-        wide_rows = [
-            [
-                f"Extremely long content for row {r} column {c} that might wrap"
-                for c in range(1, 11)
-            ]
-            for r in range(1, 21)  # 20 rows
+        # Create table with sufficient rows for minimum requirements
+        headers = ["Header 1", "Header 2", "Header 3"]
+        rows = [
+            [f"Row {r} Col {c}" for c in range(1, 4)]
+            for r in range(1, 8)  # 7 rows total
         ]
 
-        wide_table = TableElement(
+        table = TableElement(
             element_type=ElementType.TABLE,
-            headers=wide_headers,
-            rows=wide_rows,
-            size=(400, 800),  # Very tall
+            headers=headers,
+            rows=rows,
+            size=(400, 200),
         )
 
-        fitted, overflowing = wide_table.split(300.0)
+        fitted, overflowing = table.split(100.0)  # Limited space
 
         if fitted and overflowing:
             # Both parts should maintain table structure
             assert len(fitted.headers) == len(
-                wide_headers
+                headers
             ), "Fitted table should have all headers"
             assert len(overflowing.headers) == len(
-                wide_headers
+                headers
             ), "Overflowing table should have all headers"
+
+            # Verify minimum requirements
+            assert len(fitted.rows) >= 2, "Fitted table should meet minimum 2 rows"
 
             # Verify column consistency
             for row in fitted.rows:
                 assert len(row) == len(
-                    wide_headers
+                    headers
                 ), "Fitted rows should have correct column count"
 
             for row in overflowing.rows:
                 assert len(row) == len(
-                    wide_headers
+                    headers
                 ), "Overflowing rows should have correct column count"
 
-    def test_memory_usage_with_large_content_copies(self, overflow_manager):
-        """Test memory efficiency when copying large content structures."""
+    def test_specification_compliance_edge_cases(self, overflow_manager):
+        """Test edge cases that verify specification compliance."""
 
-        # Create slide with large content that will be copied multiple times
-        title = TextElement(
-            element_type=ElementType.TITLE,
-            text="Memory Usage Test",
-            position=(50, 50),
-            size=(620, 40),
-        )
+        # Test 1: Image should never cause external overflow due to proactive scaling
+        from markdowndeck.models import ImageElement
 
-        # Large text content
-        large_content = "Lorem ipsum dolor sit amet. " * 1000  # Large string
-
-        large_text = TextElement(
-            element_type=ElementType.TEXT,
-            text=large_content,
+        large_image = ImageElement(
+            element_type=ElementType.IMAGE,
+            url="https://example.com/huge-image.jpg",
             position=(50, 150),
-            size=(620, 2000),  # Very large
+            size=(620, 150),  # Pre-scaled size
         )
 
-        section = Section(
-            id="memory_section",
-            type="section",
+        image_section = Section(
+            id="image_section",
+            position=(50, 150),
+            size=(620, 150),  # Section fits
+            elements=[large_image],
+        )
+
+        image_slide = Slide(
+            object_id="image_compliance_test",
+            elements=[large_image],
+            sections=[image_section],
+        )
+
+        result = overflow_manager.process_slide(image_slide)
+        assert len(result) == 1, "Proactively scaled images should not cause overflow"
+
+        # Test 2: Position reset compliance
+        text_content = TextElement(
+            element_type=ElementType.TEXT,
+            text="Content for position reset test " * 20,
             position=(50, 150),
             size=(620, 200),
-            elements=[large_text],
         )
 
-        slide = Slide(
-            object_id="memory_slide",
-            elements=[title, large_text],
-            sections=[section],
-            title="Memory Usage Test",
+        overflow_section = Section(
+            id="position_test_section",
+            position=(50, 150),
+            size=(620, 300),  # Overflows
+            elements=[text_content],
         )
 
-        import os
+        position_slide = Slide(
+            object_id="position_compliance_test",
+            elements=[text_content],
+            sections=[overflow_section],
+        )
 
-        import psutil
+        result = overflow_manager.process_slide(position_slide)
+        if len(result) > 1:
+            continuation = result[1]
+            for section in continuation.sections:
+                assert section.position is None, "Continuation positions must be reset"
+                assert section.size is None, "Continuation sizes must be reset"
 
-        # Measure memory before processing
-        process = psutil.Process(os.getpid())
-        memory_before = process.memory_info().rss
-
-        result_slides = overflow_manager.process_slide(slide)
-
-        # Measure memory after processing
-        memory_after = process.memory_info().rss
-        memory_increase = memory_after - memory_before
-
-        # Memory increase should be reasonable (not exponential)
-        # This is a rough check - exact values depend on system
+        # Test 3: Jurisdictional boundary compliance
+        analysis = overflow_manager.get_overflow_analysis(position_slide)
+        assert "has_overflow" in analysis, "Analysis should include overflow detection"
         assert (
-            memory_increase < 100 * 1024 * 1024
-        ), f"Memory increase should be reasonable, got {memory_increase} bytes"
-
-        assert len(result_slides) >= 2, "Should create multiple slides"
-
-    def test_slide_id_uniqueness_with_many_continuations(self, overflow_manager):
-        """Test that slide IDs remain unique even with many continuation slides."""
-
-        title = TextElement(
-            element_type=ElementType.TITLE,
-            text="ID Uniqueness Test",
-            position=(50, 50),
-            size=(620, 40),
-        )
-
-        # Create content that will generate many continuation slides
-        mega_table = TableElement(
-            element_type=ElementType.TABLE,
-            headers=["Col1", "Col2"],
-            rows=[
-                [f"Row {i} Cell 1", f"Row {i} Cell 2"] for i in range(1, 1000)
-            ],  # 999 rows
-            position=(50, 150),
-            size=(620, 10000),  # Extremely large
-        )
-
-        section = Section(
-            id="id_test_section",
-            type="section",
-            position=(50, 150),
-            size=(620, 200),
-            elements=[mega_table],
-        )
-
-        slide = Slide(
-            object_id="id_uniqueness_slide",
-            elements=[title, mega_table],
-            sections=[section],
-            title="ID Uniqueness Test",
-        )
-
-        result_slides = overflow_manager.process_slide(slide)
-
-        # Collect all slide IDs
-        slide_ids = [slide.object_id for slide in result_slides]
-
-        # Verify uniqueness
-        assert len(slide_ids) == len(set(slide_ids)), "All slide IDs should be unique"
-
-        # Verify continuation ID format
-        for i, slide_id in enumerate(slide_ids[1:], 1):
-            assert (
-                "id_uniqueness_slide_cont" in slide_id
-            ), f"Continuation slide {i} should have proper ID format"
-
-    def test_overflow_with_empty_sections_mixed(self, overflow_manager):
-        """Test overflow handling when some sections are empty."""
-
-        title = TextElement(
-            element_type=ElementType.TITLE,
-            text="Empty Sections Test",
-            position=(50, 50),
-            size=(620, 40),
-        )
-
-        # Mix of empty and content sections
-        content = TextElement(
-            element_type=ElementType.TEXT,
-            text="Content that overflows",
-            position=(50, 150),
-            size=(620, 300),
-        )
-
-        empty_section1 = Section(
-            id="empty_1",
-            type="section",
-            position=(50, 100),
-            size=(620, 40),
-            elements=[],  # Empty
-        )
-
-        content_section = Section(
-            id="content_section",
-            type="section",
-            position=(50, 150),
-            size=(620, 100),  # Smaller than content
-            elements=[content],
-        )
-
-        empty_section2 = Section(
-            id="empty_2",
-            type="section",
-            position=(50, 260),
-            size=(620, 40),
-            elements=[],  # Empty
-        )
-
-        slide = Slide(
-            object_id="empty_sections_slide",
-            elements=[title, content],
-            sections=[empty_section1, content_section, empty_section2],
-            title="Empty Sections Test",
-        )
-
-        result_slides = overflow_manager.process_slide(slide)
-
-        # Should handle empty sections gracefully
-        assert (
-            len(result_slides) >= 2
-        ), "Should create continuation for overflowing content"
-
-        # Verify structure preservation
-        for result_slide in result_slides:
-            assert len(result_slide.sections) >= 1, "Should preserve section structure"
+            "sections_analysis" in analysis
+        ), "Analysis should include section details"

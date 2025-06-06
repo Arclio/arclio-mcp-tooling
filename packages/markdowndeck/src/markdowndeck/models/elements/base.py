@@ -12,7 +12,7 @@ class Element:
 
     element_type: ElementType
     position: tuple[float, float] = field(default_factory=lambda: (100, 100))
-    size: tuple[float, float] = field(default_factory=lambda: (600, 100))
+    size: tuple[float, float] | None = None
     object_id: str | None = None
     directives: dict[str, Any] = field(default_factory=dict)
 

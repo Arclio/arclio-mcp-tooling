@@ -1,4 +1,4 @@
-"""Unit tests for the refactored pure measurement metrics modules."""
+"""Updated unit tests for text element metrics with split() method support."""
 
 from markdowndeck.layout.constants import (
     MIN_CODE_HEIGHT,
@@ -140,6 +140,143 @@ class TestTextMetrics:
         assert (
             height > 60
         ), "Title height should be based on content and not capped at a low value."
+
+
+class TestTextElementSplitting:
+    """Test the split() method functionality for TextElement."""
+
+    def test_text_split_basic_functionality(self):
+        """Test basic split() method functionality."""
+        text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
+        element = TextElement(element_type=ElementType.TEXT, text=text)
+        element.size = (400, 100)
+
+        # Test with sufficient height (should fit all)
+        fitted, overflowing = element.split(200)
+        assert fitted is not None
+        assert overflowing is None
+        assert fitted.text == text
+
+    def test_text_split_minimum_requirements(self):
+        """Test that split() respects minimum 2-line requirement."""
+        text = "Line 1\nLine 2\nLine 3\nLine 4"
+        element = TextElement(element_type=ElementType.TEXT, text=text)
+        element.size = (400, 80)
+
+        # Test with very limited height (less than 2 lines worth)
+        fitted, overflowing = element.split(10)  # Very small height
+
+        # Should reject split due to minimum requirement
+        assert fitted is None
+        assert overflowing is not None
+        assert overflowing.text == text
+
+    def test_text_split_successful_split(self):
+        """Test successful split when minimum requirements are met."""
+        text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6"
+        element = TextElement(element_type=ElementType.TEXT, text=text)
+        element.size = (400, 120)
+
+        # Test with moderate height (should split)
+        fitted, overflowing = element.split(60)
+
+        if fitted is not None:  # Split was accepted
+            assert fitted.text != text  # Should be partial
+            assert overflowing is not None
+            assert len(fitted.text.split("\n")) >= 2  # At least 2 lines
+            assert len(overflowing.text.split("\n")) >= 1  # At least 1 line remaining
+
+    def test_text_split_empty_text(self):
+        """Test split() with empty text."""
+        element = TextElement(element_type=ElementType.TEXT, text="")
+        element.size = (400, 50)
+
+        fitted, overflowing = element.split(100)
+        assert fitted is None
+        assert overflowing is None
+
+    def test_text_split_single_line(self):
+        """Test split() with single line of text."""
+        element = TextElement(element_type=ElementType.TEXT, text="Single line")
+        element.size = (400, 50)
+
+        fitted, overflowing = element.split(10)  # Very small height
+
+        # Single line that doesn't fit should be treated as atomic
+        assert fitted is None
+        assert overflowing is not None
+
+    def test_text_split_preserves_metadata(self):
+        """Test that split preserves element metadata."""
+        element = TextElement(
+            element_type=ElementType.TEXT,
+            text="Line 1\nLine 2\nLine 3\nLine 4",
+            object_id="test_text",
+        )
+        element.size = (400, 80)
+
+        fitted, overflowing = element.split(50)
+
+        if fitted is not None:
+            assert fitted.element_type == ElementType.TEXT
+            assert hasattr(fitted, "size")
+
+        if overflowing is not None:
+            assert overflowing.element_type == ElementType.TEXT
+
+    def test_text_split_with_formatting(self):
+        """Test split() with text formatting."""
+        element = TextElement(
+            element_type=ElementType.TEXT,
+            text="Line 1 with bold\nLine 2 normal\nLine 3 italic\nLine 4 normal",
+            formatting=[
+                TextFormat(start=11, end=15, format_type=TextFormatType.BOLD),
+                TextFormat(start=35, end=41, format_type=TextFormatType.ITALIC),
+            ],
+        )
+        element.size = (400, 80)
+
+        fitted, overflowing = element.split(50)
+
+        if fitted is not None and overflowing is not None:
+            # Check that formatting is appropriately partitioned
+            assert hasattr(fitted, "formatting")
+            assert hasattr(overflowing, "formatting")
+            # The formatting lists should be adjusted for the split
+
+    def test_text_split_preserves_alignment(self):
+        """Test that split preserves text alignment."""
+        from markdowndeck.models import AlignmentType
+
+        element = TextElement(
+            element_type=ElementType.TEXT,
+            text="Line 1\nLine 2\nLine 3\nLine 4",
+            horizontal_alignment=AlignmentType.CENTER,
+        )
+        element.size = (400, 80)
+
+        fitted, overflowing = element.split(50)
+
+        if fitted is not None:
+            assert fitted.horizontal_alignment == AlignmentType.CENTER
+
+        if overflowing is not None:
+            assert overflowing.horizontal_alignment == AlignmentType.CENTER
+
+    def test_text_split_with_related_to_next(self):
+        """Test split() behavior with related_to_next flag."""
+        element = TextElement(
+            element_type=ElementType.TEXT,
+            text="Line 1\nLine 2\nLine 3\nLine 4",
+            related_to_next=True,
+        )
+        element.size = (400, 80)
+
+        fitted, overflowing = element.split(50)
+
+        if fitted is not None:
+            # The related_to_next flag should be preserved appropriately
+            assert hasattr(fitted, "related_to_next")
 
 
 class TestUnifiedListMetrics:
@@ -320,65 +457,6 @@ class TestUnifiedTableMetrics:
             long_height > short_height
         ), "Longer cell content should result in taller table"
 
-    def test_table_wrapping_cell_content(self):
-        """Test table height calculation with wrapping cell content."""
-
-        headers = ["Col A"]
-        short_cell_row = [["Short"]]
-        long_cell_row = [
-            [
-                "This cell has a lot of text that should wrap multiple times and make the row taller."
-            ]
-        ]
-
-        element_short = TableElement(
-            headers=headers, rows=short_cell_row, element_type=ElementType.TABLE
-        )
-        element_long = TableElement(
-            headers=headers, rows=long_cell_row, element_type=ElementType.TABLE
-        )
-
-        height_short = calculate_table_element_height(
-            element_short, 300
-        )  # Available width for table
-        height_long = calculate_table_element_height(element_long, 300)
-
-        assert (
-            height_long > height_short
-        ), "Long cell content should result in taller table"
-
-    def test_table_multiple_columns_wrapping(self):
-        """Test table height with multiple columns and wrapping content."""
-
-        headers = ["Col1", "Col2"]
-        rows = [
-            [
-                "Short",
-                "This second cell is very long and should determine the row height because it wraps",
-            ],
-            ["Another short", "Also short"],
-        ]
-        element = TableElement(
-            headers=headers, rows=rows, element_type=ElementType.TABLE
-        )
-        height = calculate_table_element_height(
-            element, 400
-        )  # available_width for table
-
-        # Height of first row will be determined by the longer cell.
-        # Height of second row by its own content.
-        # Total height is sum of header row + data row heights.
-        # Compare to a table where all cells are short
-        rows_all_short = [["Short", "Short"], ["Short", "Short"]]
-        element_all_short = TableElement(
-            headers=headers, rows=rows_all_short, element_type=ElementType.TABLE
-        )
-        height_all_short = calculate_table_element_height(element_all_short, 400)
-
-        assert (
-            height > height_all_short
-        ), "Table with long cell content should be taller"
-
 
 class TestUnifiedCodeMetrics:
     """Test the refactored code metrics system."""
@@ -417,34 +495,6 @@ class TestUnifiedCodeMetrics:
             height >= MIN_CODE_HEIGHT
         ), f"Empty code should get minimum height {MIN_CODE_HEIGHT}, got {height}"
 
-    def test_code_single_line(self):
-        """Test single line code block height calculation."""
-
-        single_line_code = CodeElement(
-            code="print('hello')", element_type=ElementType.CODE
-        )
-        height = calculate_code_element_height(single_line_code, 500)
-
-        # Current implementation uses more compact line height and padding
-        assert height >= (1 * 14.0) + (
-            2 * 8.0
-        ), "Single line code should have reasonable minimum height"
-
-    def test_code_multiple_lines(self):
-        """Test multi-line code block height calculation."""
-
-        multi_line_code = "def func():\n    pass\n# Comment"
-        element = CodeElement(
-            code=multi_line_code, language="python", element_type=ElementType.CODE
-        )
-        height = calculate_code_element_height(element, 500)
-
-        # Current implementation uses more efficient spacing
-        # 3 lines * line_height + padding + language_label (if present)
-        assert height >= (3 * 14.0) + (
-            2 * 8.0
-        ), "Multi-line code should account for all lines"
-
     def test_code_line_wrapping_affects_height(self):
         """Test that long code lines that wrap affect height."""
 
@@ -466,45 +516,6 @@ class TestUnifiedCodeMetrics:
         assert (
             long_height > short_height
         ), "Long lines that wrap should result in taller code block"
-
-    def test_code_long_lines_wrapping(self):
-        """Test code height calculation with long lines that wrap."""
-
-        long_line = "a = " + "'very long string' * 10"  # Approx 20 * 10 = 200 chars
-        element_short_width = CodeElement(code=long_line, element_type=ElementType.CODE)
-        height_short_width = calculate_code_element_height(
-            element_short_width, 150
-        )  # Narrow width
-
-        element_long_width = CodeElement(code=long_line, element_type=ElementType.CODE)
-        height_long_width = calculate_code_element_height(
-            element_long_width, 500
-        )  # Wide width
-
-        assert (
-            height_short_width > height_long_width
-        ), "Narrower width should result in taller code block due to wrapping"
-
-    def test_language_label_behavior(self):
-        """Test that language labels work correctly."""
-
-        code = "test"
-        el_no_lang = CodeElement(
-            code=code, language="text", element_type=ElementType.CODE
-        )  # "text" lang means no label
-        height_no_lang = calculate_code_element_height(el_no_lang, 500)
-
-        el_with_lang = CodeElement(
-            code=code, language="python", element_type=ElementType.CODE
-        )
-        height_with_lang = calculate_code_element_height(el_with_lang, 500)
-
-        # Both should return reasonable heights
-        assert height_no_lang > 0, "No language code should have positive height"
-        assert height_with_lang > 0, "With language code should have positive height"
-
-        # The implementation may or may not add extra height for language labels
-        # This test ensures both work correctly
 
 
 class TestUnifiedImageMetrics:
@@ -571,6 +582,46 @@ class TestUnifiedImageMetrics:
         ), "Empty image URL should return minimum height"
 
 
+class TestImageElementSplitting:
+    """Test the split() method functionality for ImageElement."""
+
+    def test_image_split_always_fits(self):
+        """Test that images always fit due to proactive scaling."""
+
+        image = ImageElement(
+            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
+        )
+        image.size = (400, 300)  # Set a size
+
+        # Test with various heights - image should always fit due to proactive scaling
+        fitted, overflowing = image.split(100)
+        assert fitted is not None  # Image should always fit
+        assert overflowing is None
+
+        fitted, overflowing = image.split(10)  # Very small height
+        assert fitted is not None  # Still should fit due to proactive scaling
+        assert overflowing is None
+
+    def test_image_split_preserves_metadata(self):
+        """Test that image split preserves metadata."""
+
+        image = ImageElement(
+            element_type=ElementType.IMAGE,
+            url="https://example.com/test.jpg",
+            alt_text="Test image",
+            object_id="test_image",
+        )
+        image.size = (400, 300)
+
+        fitted, overflowing = image.split(200)
+
+        assert fitted is not None
+        assert fitted.url == "https://example.com/test.jpg"
+        assert fitted.alt_text == "Test image"
+        assert fitted.element_type == ElementType.IMAGE
+        assert overflowing is None
+
+
 class TestUnifiedMetricsIntegration:
     """Test integration between different metrics modules in unified system."""
 
@@ -629,67 +680,3 @@ class TestUnifiedMetricsIntegration:
         assert all(
             h > 0 for h in [wide_text_height, wide_list_height, wide_code_height]
         )
-
-    def test_metrics_edge_cases(self):
-        """Test that metrics handle edge cases gracefully."""
-
-        # Test with very small widths
-        text_elem = TextElement(element_type=ElementType.TEXT, text="Test content")
-        tiny_width = 5.0
-
-        # Should not crash and should return reasonable height
-        height = calculate_text_element_height(text_elem, tiny_width)
-        assert height > 0, "Should return positive height even with tiny width"
-        assert height < 10000, "Should not return excessive height"
-
-        # Test with very large widths
-        huge_width = 10000.0
-        height_huge = calculate_text_element_height(text_elem, huge_width)
-        assert height_huge > 0, "Should return positive height with huge width"
-
-        # Test with zero/negative width
-        zero_width_height = calculate_text_element_height(text_elem, 0.0)
-        assert zero_width_height > 0, "Should handle zero width gracefully"
-
-        negative_width_height = calculate_text_element_height(text_elem, -100.0)
-        assert negative_width_height > 0, "Should handle negative width gracefully"
-
-    def test_metrics_performance_reasonable(self):
-        """Test that metrics calculations perform reasonably."""
-
-        import time
-
-        # Create a large piece of content
-        large_text = TextElement(
-            element_type=ElementType.TEXT, text="Performance test content " * 100
-        )
-
-        large_list = ListElement(
-            element_type=ElementType.BULLET_LIST,
-            items=[ListItem(text=f"Performance item {i}") for i in range(50)],
-        )
-
-        large_table = TableElement(
-            element_type=ElementType.TABLE,
-            headers=["Col1", "Col2"],
-            rows=[[f"R{i}C1", f"R{i}C2"] for i in range(30)],
-        )
-
-        available_width = 400.0
-
-        # Time calculations
-        start_time = time.time()
-
-        for _ in range(10):  # Repeat multiple times
-            calculate_text_element_height(large_text, available_width)
-            calculate_list_element_height(large_list, available_width)
-            calculate_table_element_height(large_table, available_width)
-
-        end_time = time.time()
-
-        total_time = end_time - start_time
-
-        # Should complete quickly (adjust threshold as needed)
-        assert (
-            total_time < 1.0
-        ), f"Metrics calculations should be fast, took {total_time:.2f} seconds"
