@@ -37,9 +37,24 @@ pythonpath = [
     "packages/markdowndeck/src",
 ]
 markers = [
-    "integration: integration tests (slow, may require credentials)",
-    "unit: unit tests"
+    "unit: marks tests as unit tests (fast, isolated)",
+    "integration: marks tests as integration tests (components working together)",
+    "end_to_end: marks tests as end-to-end tests (full pipeline validation)",
+    "stress: marks tests as stress or performance tests (slow, resource-intensive)",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["packages/markdowndeck/src"]
+omit = ["**/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 85
+
+[tool.coverage.html]
+directory = "coverage_html"
 
 [tool.uv.workspace]
 # List all workspace packages
