@@ -5,56 +5,55 @@
 [![License][license-shield]][license-url]
 [![Build Status][build-shield]][build-url]
 
+<div align="center">
+
 **Transform Markdown into professional Google Slides presentations with programmatic control, intelligent layout, and precise styling.**
 
-MarkdownDeck is an enterprise-grade Python library that bridges the gap between content generation and the creation of structured, visually appealing Google Slides presentations. It converts an enhanced Markdown dialect into Google Slides, managing complex API interactions and layout calculations.
+</div>
+
+MarkdownDeck is an enterprise-grade Python library that bridges the gap between simple content generation and the creation of structured, visually appealing Google Slides presentations. It converts an enhanced Markdown dialect into Google Slides, transparently managing complex API interactions, layout calculations, and content overflow.
 
 ## Why MarkdownDeck?
 
-Generating presentations through direct API calls is challenging, especially for automated systems and LLMs:
+Generating presentations through direct API calls is notoriously difficult, especially for automated systems and Large Language Models (LLMs):
 
-- **API Complexity Barrier:** The Google Slides API requires verbose, nested JSON with precise coordinates, object IDs, styling objects, and carefully sequenced requests—difficult even for developers, nearly impossible for LLMs to generate reliably.
-- **Context Window Limitations:** Large JSON payloads for slide creation consume valuable context window space when using LLMs.
-- **Debugging Challenges:** Troubleshooting API-level JSON errors is significantly more complex than validating Markdown syntax.
+- **API Complexity Barrier:** The Google Slides API requires verbose, nested JSON with precise coordinates, object IDs, and carefully sequenced requests. This is difficult for developers and nearly impossible for LLMs to generate reliably.
+- **The Layout Problem:** Content must be manually positioned. Calculating the space required for wrapped text, lists, or tables and then distributing that content across multiple slides is a significant engineering challenge.
+- **Context Window Limitations:** Large, raw JSON payloads for slide creation consume valuable context window space when interacting with LLMs, limiting their ability to handle complex presentations.
 
-**MarkdownDeck solves these challenges** by providing a robust abstraction layer that enables developers, AI agents, and LLMs to define presentations using intuitive Markdown syntax while handling the complexity:
-
-- **Intuitive Content Definition:** Define slides, layouts, and styling using familiar Markdown with simple directives.
-- **Intelligent Layout Management:** Automatically calculate optimal element positioning, handle content overflow, and manage multi-column layouts.
-- **Enterprise-Grade API Integration:** Generate precise, validated Google Slides API requests that work reliably at scale.
+**MarkdownDeck solves these challenges** by providing a robust abstraction layer that enables developers and AI agents to define presentations using an intuitive Markdown dialect, while it handles all the underlying complexity.
 
 ## Key Features
 
-- **Enhanced Markdown-to-Slides Conversion:** Transform a specialized Markdown dialect directly into Google Slides presentations.
-- **Sophisticated Layout Control:**
-  - Multi-column and nested section layouts with automatic space distribution
-  - Precise positioning with granular alignment and spacing controls
-  - Intelligent overflow handling across slides for content-rich presentations
+- **Enhanced Markdown-to-Slides Conversion:** Transform a specialized Markdown dialect directly into fully-formed Google Slides presentations.
+- **Sophisticated Layout Engine:**
+  - Multi-column and nested section layouts with automatic space distribution.
+  - Intelligent overflow handling that automatically splits content across multiple, well-formatted slides.
+  - Precise positioning with granular alignment and spacing controls.
 - **Complete Content Element Support:**
-  - Titles, subtitles, and text with rich formatting
-  - Bulleted and ordered lists with nesting support
-  - Tables with header formatting and cell styling
-  - Images with alt text and positioning
-  - Code blocks with language-specific styling
-  - Blockquotes and styled text
+  - Titles, subtitles, and text with rich formatting.
+  - Bulleted and ordered lists with nesting support.
+  - Tables with automatic header styling and formatting.
+  - Images with alt text and flexible positioning.
+  - Code blocks with language-specific styling.
 - **Comprehensive Styling Directives:**
-  - Element dimensions: `[width]`, `[height]`
-  - Alignment: `[align]`, `[valign]`
-  - Visual styling: `[background]`, `[color]`, `[border]`
-  - Typography: `[fontsize]`, `[font-family]`, `[line-spacing]`
-  - Spacing: `[padding]`, `[margin]`, `[indent-start]`
+  - **Sizing:** `[width]`, `[height]` (supports fractions, percentages, and absolute points).
+  - **Alignment:** `[align]`, `[valign]` for horizontal and vertical control.
+  - **Visuals:** `[background]`, `[color]`, `[border]` for sections and elements.
+  - **Typography:** `[fontsize]`, `[font-family]`, `[line-spacing]`.
+  - **Spacing:** `[padding]`, `[margin]`, `[indent-start]`.
 - **Presentation Enhancements:**
-  - Speaker notes for presenter view
-  - Custom slide backgrounds (colors or images)
-  - Footers with automatic page numbering
-  - Google Slides theme integration
-- **Flexible API Options:**
-  - Direct presentation creation with `create_presentation()`
-  - Request generation without execution via `markdown_to_requests()`
-- **Complete Authentication Support:**
-  - Service accounts for automated workflows
-  - User credentials with OAuth flow
-  - Environment variable configuration
+  - Speaker notes for presenter view.
+  - Custom slide backgrounds (colors or images).
+  - Slide footers.
+  - Google Slides theme integration.
+- **Flexible API:**
+  - Direct presentation creation with `create_presentation()`.
+  - Pure request generation without execution via `markdown_to_requests()` for custom workflows.
+- **Full Authentication Support:**
+  - Service accounts for automated, server-side workflows.
+  - User credentials with a built-in OAuth flow.
+  - Secure configuration via environment variables.
 
 ## Installation
 
@@ -62,64 +61,49 @@ Generating presentations through direct API calls is challenging, especially for
 pip install markdowndeck
 ```
 
-## MarkdownDeck Format
+## Architecture Overview
 
-Define presentations using standard Markdown with special separators and layout directives:
+MarkdownDeck uses a robust, four-stage pipeline to convert Markdown into a final presentation. This separation of concerns ensures predictability and stability.
 
-### Slide Structure
+1.  **Parse (`Parser`)**: The initial Markdown text is parsed into a structured `Deck` object. This stage identifies slides, sections, and content elements, converting them into internal data models.
 
-- **`===`:** Slide separator
-- **`---`:** Vertical section separator (stacked sections)
-- **`\***`:\*\* Horizontal section separator (columns within a vertical section)
-- **`@@@`:** Footer separator
-- **`# Heading`:** First H1 becomes the slide title
-- **`<!-- notes: ... -->`:** Speaker notes
+2.  **Layout (`LayoutCalculator`)**: This is a pure, "overflow-blind" spatial planner. Its sole responsibility is to calculate the ideal position and size for every element and section based on layout rules. It correctly signals overflow by placing content beyond slide boundaries but does not attempt to solve it.
 
-### Layout Directives
+3.  **Overflow (`OverflowHandler`)**: This is a dedicated, recursive content distribution engine. It takes the potentially overflowing output from the calculator and intelligently partitions it across one or more well-formatted, non-overflowing slides.
 
-Directives use square brackets at the beginning of sections: `[directive=value]`.
+4.  **Generate (`ApiRequestGenerator`)**: The final list of clean, non-overflowing `Slide` objects is consumed to generate the precise, validated JSON payloads required for the Google Slides API.
 
-**Common Directives:**
+This architecture ensures that layout logic is completely decoupled from overflow handling, creating a highly predictable and maintainable system.
 
-```
-[width=1/2]                   # Half width (fraction)
-[width=75%]                   # Percentage width
-[width=300]                   # Absolute width (points)
-[height=1/3]                  # Fractional height
-[align=center]                # Horizontal alignment
-[valign=middle]               # Vertical alignment
-[background=#f5f5f5]          # Background color
-[background=url(image.jpg)]   # Background image
-[padding=10]                  # Inner padding
-[color=#333333]               # Text color
-[fontsize=18]                 # Font size (points)
-[border=1pt solid #cccccc]    # Border style
-```
+## Quick Usage
 
-**Example:**
+```python
+from markdowndeck import create_presentation
+# Make sure to configure authentication (see below)
 
-```markdown
+# Define markdown content
+markdown_text = """
 # Monthly Sales Report
+[align=center]
+A summary of our performance in Q1 FY2025.
+
+===
+
+# Q1 Performance
 
 [width=1/2][background=#f0f0f0][padding=10]
-
-## First Quarter Results
-
+## Key Results
 - Exceeded targets by 15%
 - New client acquisition up 22%
 - APAC region leading growth
-
----
-
+***
 [width=1/2][valign=middle]
-![Quarterly Chart](https://example.com/chart.png)
+![Quarterly Chart](https://www.gstatic.com/charts/images/google-default-bar-chart.png)
 
 ---
 
 [background=#f8f8f8]
-
 ### Regional Breakdown
-
 | Region        | Sales | YOY Change |
 | ------------- | ----- | ---------- |
 | North America | $3.2M | +12%       |
@@ -127,148 +111,53 @@ Directives use square brackets at the beginning of sections: `[directive=value]`
 | Asia Pacific  | $1.9M | +28%       |
 
 @@@
-Confidential | Q1 FY2025 | Page %p
+Confidential | Q1 FY2025
 
 <!-- notes: Highlight APAC performance during presentation -->
-```
-
-## Usage
-
-### Python API
-
-```python
-from markdowndeck import create_presentation
-
-# Define markdown content
-markdown_text = """
-# My First Slide
-- Point 1 with **bold** text
-- Point 2 with *italic* text
-
-===
-
-# Second Slide
-[width=1/2]
-## Left Column
-Content here.
-***
-[width=1/2]
-## Right Column
-More content here.
 """
 
-# Create presentation
+# Create the presentation
+# This example assumes you have credentials configured via environment variables
 result = create_presentation(
     markdown=markdown_text,
-    title="My Presentation",
-    # theme_id="THEME_ID"  # Optional
+    title="Q1 Sales Report"
 )
 
 print(f"Presentation created: {result.get('presentationUrl')}")
 ```
 
-### Command-Line Interface
-
-```bash
-# Convert markdown file to Google Slides
-markdowndeck create presentation.md --title "My Presentation"
-
-# With additional options
-markdowndeck create presentation.md --theme THEME_ID -o output.json
-
-# Read from stdin
-cat presentation.md | markdowndeck create -
-```
+For detailed syntax and examples, please refer to the **[Full Usage Guide](docs/MD_USAGE.md)**.
 
 ## Authentication
 
-MarkdownDeck supports multiple authentication methods:
+MarkdownDeck supports multiple authentication methods, loaded in this order:
 
-1. **Direct Credentials:**
+1.  **Service Account:** Set the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to the path of your service account JSON file. Ideal for automated, server-side workflows.
+2.  **OAuth Environment Variables:** Set the following variables for user-based authentication without a local file flow:
+    - `SLIDES_CLIENT_ID`
+    - `SLIDES_CLIENT_SECRET`
+    - `SLIDES_REFRESH_TOKEN`
+3.  **Local Token Files (OAuth Flow):** If no environment variables are found, MarkdownDeck will attempt to use:
+    - `~/.markdowndeck/credentials.json`: Your client secrets file.
+    - `~/.markdowndeck/token.json`: Your token, which is saved here after the first successful interactive OAuth flow.
 
-   ```python
-   from google.oauth2.credentials import Credentials
+## Relationship to Other Packages
 
-   credentials = Credentials(...)
-   result = create_presentation(markdown=markdown, credentials=credentials)
-   ```
+MarkdownDeck is a foundational library within the `arclio-mcp-tooling` monorepo. It serves as the core engine for presentation generation and is designed to be used by other packages.
 
-2. **Service Account:**
+For example, the `google-workspace-mcp` package depends on MarkdownDeck to provide its `create_presentation_from_markdown` tool, exposing this capability to AI models through the Model Context Protocol.
 
-   ```bash
-   export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-   ```
+## Future Work
 
-3. **OAuth Environment Variables:**
-
-   ```bash
-   export SLIDES_CLIENT_ID=your_client_id
-   export SLIDES_CLIENT_SECRET=your_client_secret
-   export SLIDES_REFRESH_TOKEN=your_refresh_token
-   ```
-
-4. **Local Token Files:**
-   - `~/.markdowndeck/token.json`: Stores credentials after OAuth flow
-   - `~/.markdowndeck/credentials.json`: Client ID file for OAuth
-
-## Architecture Overview
-
-MarkdownDeck uses a modular pipeline architecture:
-
-1. **Parsing:** Converts Markdown into a structured representation
-
-   - `SlideExtractor`: Splits content into slides
-   - `SectionParser`: Handles layout sections
-   - `DirectiveParser`: Processes layout directives
-   - `ContentParser`: Creates element models
-
-2. **Layout:** Calculates precise element positioning
-
-   - `LayoutManager`: Orchestrates layout calculation
-   - `PositionCalculator`: Determines element positions
-   - `OverflowHandler`: Manages content across slides
-
-3. **API Integration:** Generates and executes API requests
-   - `ApiRequestGenerator`: Converts elements to API requests
-   - `ApiClient`: Handles API communication
-
-## Current Limitations
-
-- **Single Large Element Overflow:** While content is distributed across slides, a single element too large for one slide may still visually overflow.
-- **Layout Heuristics:** Text height calculation uses heuristics that may require adjustments for unusual content.
-- **Dynamic Theme Discovery:** Theme listing provides a predefined set rather than dynamically discovering available themes.
-
-## Future Development
-
-**Planned Enhancements:**
-
-- **Additional Slide Operations:**
-
-  - Insert slides at specific positions
-  - Update existing slides
-  - Delete slides by ID
-
-- **Advanced Styling:**
-
-  - More granular list and text styling options
-  - Enhanced shape and border controls
-
-- **Other Presentation Platforms:**
-
-  - Microsoft PowerPoint support
-  - HTML slide deck export
-
-- **Chart Integration:**
-  - Simple, declarative chart creation syntax
-  - Data-driven visualization options
+- **Partial Slide Updates:** The current version of MarkdownDeck is optimized for creating complete presentations in a single operation. A key planned enhancement is to support partial updates, such as modifying or replacing a single slide within an existing presentation without regenerating the entire deck.
+- **Advanced Styling:** Introduce more granular styling options for lists, text, and shapes.
+- **Chart Integration:** Add a simple, declarative syntax for creating data-driven charts.
 
 ## License
 
 MarkdownDeck is licensed under the MIT License.
 
 ---
-
-_MarkdownDeck: Enterprise-grade presentation generation for developers and AI systems._
 
 [python-shield]: https://img.shields.io/badge/python-3.10+-blue.svg
 [python-url]: https://www.python.org/downloads/release/python-3100/
