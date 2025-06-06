@@ -65,15 +65,11 @@ class OverflowDetector:
             logger.debug("No sections in slide - no overflow possible")
             return None
 
-        logger.debug(
-            f"Checking {len(slide.sections)} top-level sections for EXTERNAL overflow"
-        )
+        logger.debug(f"Checking {len(slide.sections)} top-level sections for EXTERNAL overflow")
 
         for i, section in enumerate(slide.sections):
             if not section.position or not section.size:
-                logger.warning(
-                    f"Section {i} missing position or size - skipping overflow check"
-                )
+                logger.warning(f"Section {i} missing position or size - skipping overflow check")
                 continue
 
             # Calculate section's external bounding box
@@ -90,14 +86,10 @@ class OverflowDetector:
             if section_bottom > self.body_end_y:
                 # Before declaring overflow, check if this is acceptable
                 if self._is_overflow_acceptable(section):
-                    logger.info(
-                        f"Section {i} external overflow is ACCEPTABLE - skipping"
-                    )
+                    logger.info(f"Section {i} external overflow is ACCEPTABLE - skipping")
                     continue
 
-                logger.info(
-                    f"Found EXTERNAL overflowing section {i}: bottom={section_bottom} > body_end_y={self.body_end_y}"
-                )
+                logger.info(f"Found EXTERNAL overflowing section {i}: bottom={section_bottom} > body_end_y={self.body_end_y}")
                 return section
 
         logger.debug("No externally overflowing sections found")
@@ -119,9 +111,7 @@ class OverflowDetector:
         """
         # Rule 1: Section has an explicit height directive
         if section.directives and section.directives.get("height"):
-            logger.debug(
-                f"Section {section.id} overflow is acceptable: explicit [height] directive"
-            )
+            logger.debug(f"Section {section.id} overflow is acceptable: explicit [height] directive")
             return True
 
         # Rule 2: Single unsplittable element causing overflow
@@ -134,9 +124,7 @@ class OverflowDetector:
                 from markdowndeck.models import ElementType
 
                 if element.element_type == ElementType.IMAGE:
-                    logger.debug(
-                        f"Section {section.id} overflow is acceptable: single pre-scaled image"
-                    )
+                    logger.debug(f"Section {section.id} overflow is acceptable: single pre-scaled image")
                     return True
 
                 # For other single elements, we could test their split behavior
@@ -193,14 +181,9 @@ class OverflowDetector:
                 section_info["overflows"] = section_bottom > self.body_end_y
 
                 if section_info["overflows"]:
-                    section_info["is_acceptable"] = self._is_overflow_acceptable(
-                        section
-                    )
+                    section_info["is_acceptable"] = self._is_overflow_acceptable(section)
 
-                    if (
-                        not section_info["is_acceptable"]
-                        and not summary["has_overflow"]
-                    ):
+                    if not section_info["is_acceptable"] and not summary["has_overflow"]:
                         summary["has_overflow"] = True
                         summary["overflowing_section_index"] = i
 

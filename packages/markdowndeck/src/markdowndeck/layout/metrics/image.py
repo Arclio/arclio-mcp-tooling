@@ -37,11 +37,7 @@ def calculate_image_element_height(
     Returns:
         The calculated height that ensures the image fits within constraints
     """
-    image_element = (
-        cast(ImageElement, element)
-        if isinstance(element, ImageElement)
-        else ImageElement(**element)
-    )
+    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
 
     # Check for explicit height directive first
     if hasattr(image_element, "directives") and image_element.directives:
@@ -78,9 +74,7 @@ def calculate_image_element_height(
         # Scale down if necessary to fit height constraint
         if scaled_height > max_allowed_height:
             scaled_height = max_allowed_height
-            logger.debug(
-                f"Image height constrained by available space: {scaled_height:.1f}"
-            )
+            logger.debug(f"Image height constrained by available space: {scaled_height:.1f}")
 
     logger.debug(
         f"Image proactively scaled: url={image_url[:50]}..., "
@@ -114,9 +108,7 @@ def _get_image_aspect_ratio(url: str) -> float:
     if aspect_ratio is None:
         # Use default aspect ratio
         aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
-        logger.debug(
-            f"Using default aspect ratio {aspect_ratio:.2f} for image: {url[:50]}..."
-        )
+        logger.debug(f"Using default aspect ratio {aspect_ratio:.2f} for image: {url[:50]}...")
 
     # Cache the result
     _image_dimensions_cache[url] = aspect_ratio
@@ -223,11 +215,7 @@ def calculate_image_display_size(
     Returns:
         (display_width, display_height) tuple that fits within constraints
     """
-    image_element = (
-        cast(ImageElement, element)
-        if isinstance(element, ImageElement)
-        else ImageElement(**element)
-    )
+    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
 
     # Check for explicit width directive
     display_width = available_width
@@ -243,9 +231,7 @@ def calculate_image_display_size(
                 pass
 
     # Calculate height based on the display width with proactive scaling
-    display_height = calculate_image_element_height(
-        image_element, display_width, available_height
-    )
+    display_height = calculate_image_element_height(image_element, display_width, available_height)
 
     return (display_width, display_height)
 

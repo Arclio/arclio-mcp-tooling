@@ -19,9 +19,7 @@ class TestImageMetricsProactiveScaling:
     def test_proactive_scaling_fits_container_width(self):
         """Test that images are proactively scaled to fit container width."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         container_width = 400.0
         calculated_height = calculate_image_element_height(image, container_width)
@@ -30,9 +28,9 @@ class TestImageMetricsProactiveScaling:
         expected_height = container_width / DEFAULT_IMAGE_ASPECT_RATIO
         expected_height = max(expected_height, MIN_IMAGE_HEIGHT)
 
-        assert (
-            abs(calculated_height - expected_height) < 1.0
-        ), f"Proactively scaled height should match expected: {expected_height}, got {calculated_height}"
+        assert abs(calculated_height - expected_height) < 1.0, (
+            f"Proactively scaled height should match expected: {expected_height}, got {calculated_height}"
+        )
 
     def test_proactive_scaling_with_width_directive(self):
         """Test proactive scaling respects width directives through display size calculation."""
@@ -45,45 +43,35 @@ class TestImageMetricsProactiveScaling:
 
         container_width = 400.0
         # Width directives are handled by calculate_image_display_size, not calculate_image_element_height
-        display_width, calculated_height = calculate_image_display_size(
-            image, container_width
-        )
+        display_width, calculated_height = calculate_image_display_size(image, container_width)
 
         # Should scale based on 50% of container width
         effective_width = container_width * 0.5
         expected_height = effective_width / DEFAULT_IMAGE_ASPECT_RATIO
         expected_height = max(expected_height, MIN_IMAGE_HEIGHT)
 
-        assert (
-            abs(display_width - effective_width) < 1.0
-        ), f"Width should be 50% of container: expected {effective_width}, got {display_width}"
-        assert (
-            abs(calculated_height - expected_height) < 1.0
-        ), f"Height should match expected: {expected_height}, got {calculated_height}"
+        assert abs(display_width - effective_width) < 1.0, (
+            f"Width should be 50% of container: expected {effective_width}, got {display_width}"
+        )
+        assert abs(calculated_height - expected_height) < 1.0, (
+            f"Height should match expected: {expected_height}, got {calculated_height}"
+        )
 
     def test_proactive_scaling_with_height_constraint(self):
         """Test proactive scaling with height constraints."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         container_width = 800.0
         available_height = 200.0  # Constraint
 
-        calculated_height = calculate_image_element_height(
-            image, container_width, available_height
-        )
+        calculated_height = calculate_image_element_height(image, container_width, available_height)
 
         # Should be constrained by available height
         max_allowed_height = available_height * IMAGE_HEIGHT_FRACTION
         unconstrained_height = container_width / DEFAULT_IMAGE_ASPECT_RATIO
 
-        expected_height = (
-            max_allowed_height
-            if unconstrained_height > max_allowed_height
-            else unconstrained_height
-        )
+        expected_height = max_allowed_height if unconstrained_height > max_allowed_height else unconstrained_height
 
         assert abs(calculated_height - expected_height) < 1.0
 
@@ -94,19 +82,13 @@ class TestImageMetricsProactiveScaling:
         huge_container_width = 2000.0
         available_height = 300.0
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
-        calculated_height = calculate_image_element_height(
-            image, huge_container_width, available_height
-        )
+        calculated_height = calculate_image_element_height(image, huge_container_width, available_height)
 
         # Should be constrained to prevent overflow
         max_allowed = available_height * IMAGE_HEIGHT_FRACTION
-        assert (
-            calculated_height <= max_allowed + 1.0
-        ), "Proactive scaling should prevent overflow"
+        assert calculated_height <= max_allowed + 1.0, "Proactive scaling should prevent overflow"
 
     def test_explicit_height_overrides_proactive_scaling(self):
         """Test that explicit height directives override proactive scaling."""
@@ -121,41 +103,33 @@ class TestImageMetricsProactiveScaling:
         container_width = 1000.0
         calculated_height = calculate_image_element_height(image, container_width)
 
-        assert (
-            calculated_height == 150.0
-        ), "Explicit height directive should override proactive scaling"
+        assert calculated_height == 150.0, "Explicit height directive should override proactive scaling"
 
     def test_minimum_height_enforced_in_proactive_scaling(self):
         """Test that minimum height is enforced even with proactive scaling."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         # Very small container that would normally result in tiny image
         tiny_container_width = 5.0
         calculated_height = calculate_image_element_height(image, tiny_container_width)
 
-        assert (
-            calculated_height >= MIN_IMAGE_HEIGHT
-        ), f"Should enforce minimum height {MIN_IMAGE_HEIGHT}, got {calculated_height}"
+        assert calculated_height >= MIN_IMAGE_HEIGHT, (
+            f"Should enforce minimum height {MIN_IMAGE_HEIGHT}, got {calculated_height}"
+        )
 
     def test_aspect_ratio_detection_from_url(self):
         """Test aspect ratio detection from URL patterns."""
 
         # Test URL with dimensions in path
-        image_800x600 = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/800x600/test.jpg"
-        )
+        image_800x600 = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/800x600/test.jpg")
 
         # Should detect 4:3 aspect ratio (800/600 = 1.333)
         container_width = 400.0
         height_800x600 = calculate_image_element_height(image_800x600, container_width)
         expected_height_4_3 = container_width / (800 / 600)
 
-        assert (
-            abs(height_800x600 - expected_height_4_3) < 2.0
-        ), "Should detect aspect ratio from URL"
+        assert abs(height_800x600 - expected_height_4_3) < 2.0, "Should detect aspect ratio from URL"
 
         # Test URL with query parameters
         image_with_params = ImageElement(
@@ -166,31 +140,23 @@ class TestImageMetricsProactiveScaling:
         height_16_9 = calculate_image_element_height(image_with_params, container_width)
         expected_height_16_9 = container_width / (1920 / 1080)
 
-        assert (
-            abs(height_16_9 - expected_height_16_9) < 2.0
-        ), "Should detect aspect ratio from query parameters"
+        assert abs(height_16_9 - expected_height_16_9) < 2.0, "Should detect aspect ratio from query parameters"
 
     def test_calculate_image_display_size_proactive(self):
         """Test calculate_image_display_size with proactive scaling."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         available_width = 400.0
         available_height = 300.0
 
-        display_width, display_height = calculate_image_display_size(
-            image, available_width, available_height
-        )
+        display_width, display_height = calculate_image_display_size(image, available_width, available_height)
 
         # Width should match available width (or directive if present)
         assert display_width == available_width
 
         # Height should be scaled appropriately
-        expected_height = calculate_image_element_height(
-            image, available_width, available_height
-        )
+        expected_height = calculate_image_element_height(image, available_width, available_height)
         assert abs(display_height - expected_height) < 1.0
 
     def test_proactive_scaling_with_width_directive_display_size(self):
@@ -205,17 +171,13 @@ class TestImageMetricsProactiveScaling:
         available_width = 500.0
         available_height = 400.0
 
-        display_width, display_height = calculate_image_display_size(
-            image, available_width, available_height
-        )
+        display_width, display_height = calculate_image_display_size(image, available_width, available_height)
 
         expected_width = available_width * 0.6
         assert abs(display_width - expected_width) < 1.0
 
         # Height should be scaled for the actual display width
-        expected_height = calculate_image_element_height(
-            image, expected_width, available_height
-        )
+        expected_height = calculate_image_element_height(image, expected_width, available_height)
         assert abs(display_height - expected_height) < 1.0
 
 
@@ -234,9 +196,9 @@ class TestImageAspectRatioDetection:
 
         for url, expected_ratio in test_cases:
             detected_ratio = _get_image_aspect_ratio(url)
-            assert (
-                abs(detected_ratio - expected_ratio) < 0.01
-            ), f"Should detect ratio {expected_ratio} from {url}, got {detected_ratio}"
+            assert abs(detected_ratio - expected_ratio) < 0.01, (
+                f"Should detect ratio {expected_ratio} from {url}, got {detected_ratio}"
+            )
 
     def test_aspect_ratio_from_query_params(self):
         """Test aspect ratio detection from query parameters."""
@@ -248,9 +210,9 @@ class TestImageAspectRatioDetection:
 
         for url, expected_ratio in test_cases:
             detected_ratio = _get_image_aspect_ratio(url)
-            assert (
-                abs(detected_ratio - expected_ratio) < 0.01
-            ), f"Should detect ratio {expected_ratio} from {url}, got {detected_ratio}"
+            assert abs(detected_ratio - expected_ratio) < 0.01, (
+                f"Should detect ratio {expected_ratio} from {url}, got {detected_ratio}"
+            )
 
     def test_aspect_ratio_from_filename(self):
         """Test aspect ratio detection from filename patterns."""
@@ -277,9 +239,7 @@ class TestImageAspectRatioDetection:
 
         for url in urls_without_dimensions:
             detected_ratio = _get_image_aspect_ratio(url)
-            assert (
-                detected_ratio == DEFAULT_IMAGE_ASPECT_RATIO
-            ), f"Should fallback to default ratio for {url}"
+            assert detected_ratio == DEFAULT_IMAGE_ASPECT_RATIO, f"Should fallback to default ratio for {url}"
 
     def test_aspect_ratio_caching(self):
         """Test that aspect ratio detection uses caching."""
@@ -323,9 +283,7 @@ class TestImageMetricsErrorHandling:
     def test_extreme_dimensions_handling(self):
         """Test handling of extreme dimension values."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         # Very small width
         height_tiny = calculate_image_element_height(image, 1.0)
@@ -339,9 +297,7 @@ class TestImageMetricsErrorHandling:
     def test_zero_or_negative_dimensions(self):
         """Test handling of zero or negative dimensions."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         # Zero width
         height_zero = calculate_image_element_height(image, 0.0)
@@ -359,9 +315,7 @@ class TestImageElementSplittingProactive:
         """Test that images always fit due to proactive scaling (Rule #5)."""
 
         # Create a large image that would normally overflow
-        large_image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/huge_image.jpg"
-        )
+        large_image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/huge_image.jpg")
         # Set size as if calculated by layout system
         large_image.size = (400, 300)  # Already proactively scaled
 

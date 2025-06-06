@@ -39,9 +39,7 @@ class TextElement(Element):
         """Check if this element has any formatting applied."""
         return bool(self.formatting)
 
-    def add_formatting(
-        self, format_type: TextFormatType, start: int, end: int, value: Any = None
-    ) -> None:
+    def add_formatting(self, format_type: TextFormatType, start: int, end: int, value: Any = None) -> None:
         """Add formatting to a portion of the text."""
         if start >= end or start < 0 or end > len(self.text):
             return
@@ -49,17 +47,13 @@ class TextElement(Element):
         if value is None:
             value = True
 
-        self.formatting.append(
-            TextFormat(start=start, end=end, format_type=format_type, value=value)
-        )
+        self.formatting.append(TextFormat(start=start, end=end, format_type=format_type, value=value))
 
     def count_newlines(self) -> int:
         """Count the number of explicit newlines in the text."""
         return self.text.count("\n")
 
-    def split(
-        self, available_height: float
-    ) -> tuple["TextElement | None", "TextElement | None"]:
+    def split(self, available_height: float) -> tuple["TextElement | None", "TextElement | None"]:
         """
         Split this TextElement using simple minimum requirements.
 
@@ -112,9 +106,7 @@ class TextElement(Element):
         fitted_line_count = max_lines_that_fit
 
         if fitted_line_count < minimum_lines_required:
-            logger.info(
-                f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}"
-            )
+            logger.info(f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}")
             return None, deepcopy(self)
 
         # Minimum met - proceed with split
@@ -136,9 +128,7 @@ class TextElement(Element):
             split_index += 1  # Account for the newline we'll be skipping
 
         # Partition formatting
-        fitted_part.formatting = [
-            fmt for fmt in self.formatting if fmt.start < split_index
-        ]
+        fitted_part.formatting = [fmt for fmt in self.formatting if fmt.start < split_index]
         for fmt in fitted_part.formatting:
             fmt.end = min(fmt.end, split_index)
 
@@ -161,7 +151,5 @@ class TextElement(Element):
             calculate_text_element_height(overflowing_part, element_width),
         )
 
-        logger.info(
-            f"Text split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing"
-        )
+        logger.info(f"Text split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing")
         return fitted_part, overflowing_part

@@ -40,15 +40,11 @@ class TestLayoutCalculatorStress:
         end_time = time.time()
 
         processing_time = end_time - start_time
-        print(
-            f"Layout with {num_elements} elements took {processing_time:.4f} seconds."
-        )
+        print(f"Layout with {num_elements} elements took {processing_time:.4f} seconds.")
 
         assert processing_time < 5.0, "Layout for many elements should be performant."
         assert len(result_slide.sections) == 1, "Should create a single root section."
-        assert (
-            len(result_slide.sections[0].elements) == num_elements
-        ), "All elements should be in the root section."
+        assert len(result_slide.sections[0].elements) == num_elements, "All elements should be in the root section."
         for el in result_slide.sections[0].elements:
             assert el.position is not None
             assert el.size is not None
@@ -56,17 +52,13 @@ class TestLayoutCalculatorStress:
     def test_layout_with_deeply_nested_sections(self, layout_manager: LayoutManager):
         """Tests layout calculation with deeply nested section structures."""
         depth = 25
-        content_element = TextElement(
-            element_type=ElementType.TEXT, text="Deep Content", object_id="deep_content"
-        )
+        content_element = TextElement(element_type=ElementType.TEXT, text="Deep Content", object_id="deep_content")
 
         # Build a deeply nested structure
         deepest_section = Section(id=f"sec_{depth}", elements=[content_element])
         current_section = deepest_section
         for i in range(depth - 1, 0, -1):
-            parent_section = Section(
-                id=f"sec_{i}", type="section", subsections=[current_section]
-            )
+            parent_section = Section(id=f"sec_{i}", type="section", subsections=[current_section])
             current_section = parent_section
 
         slide = Slide(
@@ -81,9 +73,7 @@ class TestLayoutCalculatorStress:
         end_time = time.time()
 
         processing_time = end_time - start_time
-        print(
-            f"Layout with {depth} nested sections took {processing_time:.4f} seconds."
-        )
+        print(f"Layout with {depth} nested sections took {processing_time:.4f} seconds.")
 
         assert processing_time < 2.0, "Deeply nested layout should be performant."
 
@@ -129,21 +119,9 @@ class TestLayoutCalculatorStress:
 
         assert processing_time < 5.0, "Layout for huge content should be performant."
 
-        positioned_text = next(
-            el
-            for el in result_slide.sections[0].elements
-            if el.object_id == "huge_text"
-        )
-        positioned_list = next(
-            el
-            for el in result_slide.sections[0].elements
-            if el.object_id == "huge_list"
-        )
+        positioned_text = next(el for el in result_slide.sections[0].elements if el.object_id == "huge_text")
+        positioned_list = next(el for el in result_slide.sections[0].elements if el.object_id == "huge_list")
 
         # The height should be very large, indicating the content was fully measured
-        assert (
-            positioned_text.size[1] > 5000
-        ), "Height of huge text should be very large."
-        assert (
-            positioned_list.size[1] > 2000
-        ), "Height of huge list should be very large."
+        assert positioned_text.size[1] > 5000, "Height of huge text should be very large."
+        assert positioned_list.size[1] > 2000, "Height of huge list should be very large."

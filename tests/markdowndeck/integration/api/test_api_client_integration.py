@@ -20,9 +20,7 @@ def mock_google_service() -> MagicMock:
         "slides": [{"objectId": "default_slide_id"}],
     }
     # Mock the presentations().batchUpdate().execute() chain
-    service.presentations.return_value.batchUpdate.return_value.execute.return_value = {
-        "replies": []
-    }
+    service.presentations.return_value.batchUpdate.return_value.execute.return_value = {"replies": []}
     # Mock the presentations().get().execute() chain for fetching notes IDs
     service.presentations.return_value.get.return_value.execute.return_value = {
         "slides": [
@@ -55,9 +53,7 @@ class TestApiClientIntegration:
     Tests the integration of ApiClient with ApiRequestGenerator and the (mocked) Google Slides API.
     """
 
-    def test_create_presentation_from_deck_flow(
-        self, api_client: ApiClient, mock_google_service: MagicMock
-    ):
+    def test_create_presentation_from_deck_flow(self, api_client: ApiClient, mock_google_service: MagicMock):
         """
         Tests the entire `create_presentation_from_deck` flow, verifying orchestration.
         """
@@ -82,37 +78,24 @@ class TestApiClientIntegration:
         result = api_client.create_presentation_from_deck(deck)
 
         # 1. Verify presentation creation
-        mock_google_service.presentations.return_value.create.assert_called_once_with(
-            body={"title": "Integration Test Deck"}
-        )
+        mock_google_service.presentations.return_value.create.assert_called_once_with(body={"title": "Integration Test Deck"})
 
         # 2. Verify default slide deletion
-        batch_update_calls = (
-            mock_google_service.presentations.return_value.batchUpdate.call_args_list
-        )
+        batch_update_calls = mock_google_service.presentations.return_value.batchUpdate.call_args_list
         delete_call = next(
             (c for c in batch_update_calls if "deleteObject" in str(c.kwargs["body"])),
             None,
         )
-        assert (
-            delete_call is not None
-        ), "A batchUpdate call to delete the default slide was not made."
-        assert (
-            delete_call.kwargs["body"]["requests"][0]["deleteObject"]["objectId"]
-            == "default_slide_id"
-        )
+        assert delete_call is not None, "A batchUpdate call to delete the default slide was not made."
+        assert delete_call.kwargs["body"]["requests"][0]["deleteObject"]["objectId"] == "default_slide_id"
 
         # 3. Verify content batch update
         content_call = next(
             (c for c in batch_update_calls if "createSlide" in str(c.kwargs["body"])),
             None,
         )
-        assert (
-            content_call is not None
-        ), "A batchUpdate call to create content was not made."
-        assert any(
-            "createImage" in req for req in content_call.kwargs["body"]["requests"]
-        ), "Image creation request missing."
+        assert content_call is not None, "A batchUpdate call to create content was not made."
+        assert any("createImage" in req for req in content_call.kwargs["body"]["requests"]), "Image creation request missing."
 
         # 4. Verify notes batch update
         notes_call = next(
@@ -120,24 +103,18 @@ class TestApiClientIntegration:
                 c
                 for c in batch_update_calls
                 if "insertText" in str(c.kwargs["body"])
-                and "notes_shape_1"
-                in str(c.kwargs["body"]["requests"][0].get("insertText", {}))
+                and "notes_shape_1" in str(c.kwargs["body"]["requests"][0].get("insertText", {}))
             ),
             None,
         )
         assert notes_call is not None, "A batchUpdate call to add notes was not made."
-        assert (
-            notes_call.kwargs["body"]["requests"][0]["insertText"]["text"]
-            == "Slide 1 notes."
-        )
+        assert notes_call.kwargs["body"]["requests"][0]["insertText"]["text"] == "Slide 1 notes."
 
         # 5. Verify final result
         assert result["presentationId"] == "pres_id_123"
         assert result["title"] == "Integration Test Deck"
 
-    def test_single_batch_for_default_slide_deletion(
-        self, api_client: ApiClient, mock_google_service: MagicMock
-    ):
+    def test_single_batch_for_default_slide_deletion(self, api_client: ApiClient, mock_google_service: MagicMock):
         """Tests that multiple default slides are deleted in a single API call."""
         # Mock a presentation with multiple default slides
         presentation_data = {

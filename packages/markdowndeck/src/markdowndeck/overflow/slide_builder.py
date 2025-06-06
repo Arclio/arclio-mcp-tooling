@@ -36,13 +36,9 @@ class SlideBuilder:
             original_slide: The slide to use as a template for continuation slides
         """
         self.original_slide = original_slide
-        logger.debug(
-            f"SlideBuilder initialized with original slide: {original_slide.object_id}"
-        )
+        logger.debug(f"SlideBuilder initialized with original slide: {original_slide.object_id}")
 
-    def create_continuation_slide(
-        self, new_sections: list["Section"], slide_number: int
-    ) -> "Slide":
+    def create_continuation_slide(self, new_sections: list["Section"], slide_number: int) -> "Slide":
         """
         Create a continuation slide with the specified sections.
 
@@ -57,9 +53,7 @@ class SlideBuilder:
         Returns:
             A new Slide object configured as a continuation slide
         """
-        logger.debug(
-            f"Creating continuation slide {slide_number} with {len(new_sections)} sections"
-        )
+        logger.debug(f"Creating continuation slide {slide_number} with {len(new_sections)} sections")
 
         # Generate unique ID for the continuation slide
         continuation_id = f"{self.original_slide.object_id}_cont_{slide_number}_{uuid.uuid4().hex[:6]}"
@@ -72,11 +66,7 @@ class SlideBuilder:
             layout=SlideLayout.TITLE_AND_BODY,  # Use standard layout for continuations
             sections=deepcopy(new_sections),
             elements=[],  # Will be populated from sections and metadata
-            background=(
-                deepcopy(self.original_slide.background)
-                if self.original_slide.background
-                else None
-            ),
+            background=(deepcopy(self.original_slide.background) if self.original_slide.background else None),
             notes=self.original_slide.notes,  # Keep original notes for reference
         )
 
@@ -97,14 +87,10 @@ class SlideBuilder:
         # Extract all elements from sections and add to slide
         self._extract_elements_from_sections_with_reset(continuation_slide)
 
-        logger.info(
-            f"Created continuation slide {continuation_id} with {len(continuation_slide.elements)} elements"
-        )
+        logger.info(f"Created continuation slide {continuation_id} with {len(continuation_slide.elements)} elements")
         return continuation_slide
 
-    def _reset_section_positions_recursively(
-        self, sections: list["Section"], visited: set[str] = None
-    ) -> None:
+    def _reset_section_positions_recursively(self, sections: list["Section"], visited: set[str] = None) -> None:
         """
         Recursively reset positions and sizes for all sections and their subsections.
 
@@ -121,9 +107,7 @@ class SlideBuilder:
         for section in sections:
             # Check for circular reference
             if section.id in visited:
-                logger.warning(
-                    f"Circular reference detected for section {section.id}, skipping"
-                )
+                logger.warning(f"Circular reference detected for section {section.id}, skipping")
                 continue
 
             visited.add(section.id)
@@ -142,9 +126,7 @@ class SlideBuilder:
 
             # Recursively reset subsections
             if hasattr(section, "subsections") and section.subsections:
-                self._reset_section_positions_recursively(
-                    section.subsections, visited.copy()
-                )
+                self._reset_section_positions_recursively(section.subsections, visited.copy())
 
     def _create_continuation_title(self, slide_number: int) -> "TextElement | None":
         """
@@ -165,9 +147,7 @@ class SlideBuilder:
 
         # Append new, correct continuation marker
         if slide_number > 1:
-            continuation_text = (
-                f"{base_title} {CONTINUED_TITLE_SUFFIX} ({slide_number})"
-            )
+            continuation_text = f"{base_title} {CONTINUED_TITLE_SUFFIX} ({slide_number})"
         else:
             continuation_text = f"{base_title} {CONTINUED_TITLE_SUFFIX}"
 
@@ -208,9 +188,7 @@ class SlideBuilder:
 
         # Create continuation footer text
         if CONTINUED_FOOTER_SUFFIX not in original_footer_text:
-            continuation_footer_text = (
-                f"{original_footer_text} {CONTINUED_FOOTER_SUFFIX}"
-            )
+            continuation_footer_text = f"{original_footer_text} {CONTINUED_FOOTER_SUFFIX}"
         else:
             continuation_footer_text = original_footer_text
 
@@ -221,9 +199,7 @@ class SlideBuilder:
             element_type=ElementType.FOOTER,
             text=continuation_footer_text,
             object_id=f"footer_{uuid.uuid4().hex[:8]}",
-            horizontal_alignment=getattr(
-                original_footer_element, "horizontal_alignment", "left"
-            ),
+            horizontal_alignment=getattr(original_footer_element, "horizontal_alignment", "left"),
             directives=deepcopy(getattr(original_footer_element, "directives", {})),
             position=None,  # Reset position for recalculation
             size=None,  # Reset size for recalculation
@@ -282,9 +258,7 @@ class SlideBuilder:
             for section in sections:
                 # Check for circular reference
                 if section.id in visited:
-                    logger.warning(
-                        f"Circular reference detected for section {section.id} during element extraction, skipping"
-                    )
+                    logger.warning(f"Circular reference detected for section {section.id} during element extraction, skipping")
                     continue
 
                 visited.add(section.id)
@@ -294,9 +268,7 @@ class SlideBuilder:
                     for element in section.elements:
                         # Generate unique object ID for each element to avoid conflicts
                         if hasattr(element, "object_id"):
-                            element.object_id = (
-                                f"{element.element_type}_{uuid.uuid4().hex[:8]}"
-                            )
+                            element.object_id = f"{element.element_type}_{uuid.uuid4().hex[:8]}"
 
                         # CRITICAL: Reset element positions for continuation slides
                         # Elements in continuation slides must start with fresh positioning
@@ -332,16 +304,11 @@ class SlideBuilder:
             "original_title": original_title,
             "continuation_number": slide_number,
             "has_original_footer": self._find_original_footer_element() is not None,
-            "original_layout": (
-                str(self.original_slide.layout)
-                if hasattr(self.original_slide, "layout")
-                else "unknown"
-            ),
+            "original_layout": (str(self.original_slide.layout) if hasattr(self.original_slide, "layout") else "unknown"),
             "original_element_count": len(self.original_slide.elements),
             "original_section_count": (
                 len(self.original_slide.sections)
-                if hasattr(self.original_slide, "sections")
-                and self.original_slide.sections
+                if hasattr(self.original_slide, "sections") and self.original_slide.sections
                 else 0
             ),
         }
@@ -361,13 +328,9 @@ class SlideBuilder:
         # Check that positions are properly reset
         for i, element in enumerate(continuation_slide.elements):
             if hasattr(element, "position") and element.position is not None:
-                warnings.append(
-                    f"Element {i} still has position set - should be None for layout recalculation"
-                )
+                warnings.append(f"Element {i} still has position set - should be None for layout recalculation")
             if hasattr(element, "size") and element.size is not None:
-                warnings.append(
-                    f"Element {i} still has size set - should be None for layout recalculation"
-                )
+                warnings.append(f"Element {i} still has size set - should be None for layout recalculation")
 
         # Check sections
         if hasattr(continuation_slide, "sections") and continuation_slide.sections:
@@ -386,9 +349,7 @@ class SlideBuilder:
 
         return warnings
 
-    def _validate_section_reset(
-        self, sections: list["Section"], level: int = 0
-    ) -> list[str]:
+    def _validate_section_reset(self, sections: list["Section"], level: int = 0) -> list[str]:
         """
         Validate that sections have their positions properly reset.
 
@@ -409,9 +370,7 @@ class SlideBuilder:
 
             # Check subsections recursively
             if hasattr(section, "subsections") and section.subsections:
-                subsection_warnings = self._validate_section_reset(
-                    section.subsections, level + 1
-                )
+                subsection_warnings = self._validate_section_reset(section.subsections, level + 1)
                 warnings.extend(subsection_warnings)
 
         return warnings

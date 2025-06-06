@@ -26,24 +26,16 @@ class TestListMetrics:
             ListItem(text="Item 3"),
         ]
         element = ListElement(items=items, element_type=ElementType.ORDERED_LIST)
-        height1 = calculate_list_element_height(
-            ListElement(items=[items[0]], element_type=ElementType.ORDERED_LIST), 500
-        )
+        height1 = calculate_list_element_height(ListElement(items=[items[0]], element_type=ElementType.ORDERED_LIST), 500)
         height3 = calculate_list_element_height(element, 500)
         assert height3 > height1  # More items should lead to more height
 
     def test_calculate_list_height_wrapping_text(self):
         item_short = ListItem(text="Short")
-        item_long = ListItem(
-            text="This is a very long list item that will definitely wrap several times to test height."
-        )
+        item_long = ListItem(text="This is a very long list item that will definitely wrap several times to test height.")
 
-        element_short = ListElement(
-            items=[item_short], element_type=ElementType.BULLET_LIST
-        )
-        element_long = ListElement(
-            items=[item_long], element_type=ElementType.BULLET_LIST
-        )
+        element_short = ListElement(items=[item_short], element_type=ElementType.BULLET_LIST)
+        element_long = ListElement(items=[item_long], element_type=ElementType.BULLET_LIST)
 
         height_short = calculate_list_element_height(element_short, 200)
         height_long = calculate_list_element_height(element_long, 200)  # Same width
@@ -53,9 +45,7 @@ class TestListMetrics:
         l3 = ListItem(text="Level 3")
         l2 = ListItem(text="Level 2", children=[l3])
         l1 = ListItem(text="Level 1", children=[l2])
-        element = ListElement(
-            items=[l1, ListItem("Another L1")], element_type=ElementType.BULLET_LIST
-        )
+        element = ListElement(items=[l1, ListItem("Another L1")], element_type=ElementType.BULLET_LIST)
 
         height = calculate_list_element_height(element, 500)
 
@@ -76,9 +66,7 @@ class TestListMetrics:
             text="Item with **bold** text",
             formatting=[TextFormat(start=10, end=14, format_type=TextFormatType.BOLD)],
         )
-        element = ListElement(
-            items=[item_formatted], element_type=ElementType.BULLET_LIST
-        )
+        element = ListElement(items=[item_formatted], element_type=ElementType.BULLET_LIST)
         height = calculate_list_element_height(element, 500)
         assert height > 0
 
@@ -155,9 +143,7 @@ class TestListElementSplitting:
 
     def test_list_split_single_item(self):
         """Test split() with single item."""
-        element = ListElement(
-            items=[ListItem(text="Single item")], element_type=ElementType.BULLET_LIST
-        )
+        element = ListElement(items=[ListItem(text="Single item")], element_type=ElementType.BULLET_LIST)
         element.size = (400, 50)
 
         fitted, overflowing = element.split(20)  # Very small height
@@ -169,9 +155,7 @@ class TestListElementSplitting:
     def test_list_split_preserves_metadata(self):
         """Test that split preserves element metadata."""
         items = [ListItem(text=f"Item {i}") for i in range(4)]
-        element = ListElement(
-            items=items, element_type=ElementType.BULLET_LIST, object_id="test_list"
-        )
+        element = ListElement(items=items, element_type=ElementType.BULLET_LIST, object_id="test_list")
         element.size = (400, 80)
 
         fitted, overflowing = element.split(50)
@@ -186,9 +170,7 @@ class TestListElementSplitting:
     def test_list_split_with_related_to_prev(self):
         """Test split() behavior with related_to_prev flag."""
         items = [ListItem(text=f"Item {i}") for i in range(4)]
-        element = ListElement(
-            items=items, element_type=ElementType.BULLET_LIST, related_to_prev=True
-        )
+        element = ListElement(items=items, element_type=ElementType.BULLET_LIST, related_to_prev=True)
         element.size = (400, 80)
         element.set_preceding_title("Section Heading")  # Set preceding title
 
@@ -196,9 +178,7 @@ class TestListElementSplitting:
 
         if overflowing is not None:
             # Should have continuation title when related_to_prev is True
-            assert hasattr(overflowing, "_continuation_title") or hasattr(
-                overflowing, "_preceding_title_text"
-            )
+            assert hasattr(overflowing, "_continuation_title") or hasattr(overflowing, "_preceding_title_text")
 
     def test_list_split_nested_items(self):
         """Test split() with nested list items."""

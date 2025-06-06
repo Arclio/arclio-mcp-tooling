@@ -39,26 +39,17 @@ class TestListRequestBuilderStyling:
         assert len(requests) >= 4
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and "foregroundColor" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
-        assert style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
-            "rgbColor"
-        ] == builder._hex_to_rgb("#123456")
-        assert (
-            style_req["updateTextStyle"]["fields"] == "foregroundColor"
-        )  # Correct field mask
+        assert style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"]["rgbColor"] == builder._hex_to_rgb(
+            "#123456"
+        )
+        assert style_req["updateTextStyle"]["fields"] == "foregroundColor"  # Correct field mask
         assert style_req["updateTextStyle"]["textRange"]["type"] == "ALL"
 
-    def test_generate_list_with_color_directive_theme(
-        self, builder: ListRequestBuilder
-    ):
+    def test_generate_list_with_color_directive_theme(self, builder: ListRequestBuilder):
         element = ListElement(
             element_type=ElementType.BULLET_LIST,
             items=[ListItem(text="Theme Colored Item")],
@@ -68,24 +59,12 @@ class TestListRequestBuilderStyling:
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and "foregroundColor" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "foregroundColor" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
-        assert (
-            style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
-                "themeColor"
-            ]
-            == "ACCENT2"
-        )
-        assert (
-            style_req["updateTextStyle"]["fields"] == "foregroundColor"
-        )  # Correct field mask
+        assert style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"]["themeColor"] == "ACCENT2"
+        assert style_req["updateTextStyle"]["fields"] == "foregroundColor"  # Correct field mask
         assert style_req["updateTextStyle"]["textRange"]["type"] == "ALL"
 
     def test_generate_list_with_fontsize_directive(self, builder: ListRequestBuilder):
@@ -95,17 +74,10 @@ class TestListRequestBuilderStyling:
             object_id="list_fontsize",
             directives={"fontsize": 18},
         )
-        requests = builder.generate_list_element_requests(
-            element, "slide1", "NUMBERED_DIGIT_ALPHA_ROMAN"
-        )
+        requests = builder.generate_list_element_requests(element, "slide1", "NUMBERED_DIGIT_ALPHA_ROMAN")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and "fontSize" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "fontSize" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
@@ -124,12 +96,7 @@ class TestListRequestBuilderStyling:
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and "fontFamily" in r["updateTextStyle"]["style"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "fontFamily" in r["updateTextStyle"]["style"]),
             None,
         )
         assert style_req is not None
@@ -142,9 +109,7 @@ class TestListRequestBuilderStyling:
             items=[
                 ListItem(
                     text="Hello bold world",
-                    formatting=[
-                        TextFormat(start=6, end=10, format_type=TextFormatType.BOLD)
-                    ],
+                    formatting=[TextFormat(start=6, end=10, format_type=TextFormatType.BOLD)],
                 )
             ],
             object_id="list_item_fmt",
@@ -152,12 +117,7 @@ class TestListRequestBuilderStyling:
         requests = builder.generate_bullet_list_element_requests(element, "slide1")
 
         bold_style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and r["updateTextStyle"]["style"].get("bold") is True
-            ),
+            (r for r in requests if "updateTextStyle" in r and r["updateTextStyle"]["style"].get("bold") is True),
             None,
         )
 
@@ -172,26 +132,17 @@ class TestListRequestBuilderStyling:
         text_to_find = "bold"
         text_start_index = full_text.find(text_to_find)
 
-        assert (
-            text_start_index != -1
-        ), "Formatted text 'bold' not found in insert request"
+        assert text_start_index != -1, "Formatted text 'bold' not found in insert request"
 
         # The formatting range should now match the found text's position
         expected_start = text_start_index
         expected_end = text_start_index + len(text_to_find)
 
-        assert (
-            bold_style_req["updateTextStyle"]["textRange"]["startIndex"]
-            == expected_start
-        )
-        assert (
-            bold_style_req["updateTextStyle"]["textRange"]["endIndex"] == expected_end
-        )
+        assert bold_style_req["updateTextStyle"]["textRange"]["startIndex"] == expected_start
+        assert bold_style_req["updateTextStyle"]["textRange"]["endIndex"] == expected_end
         assert bold_style_req["updateTextStyle"]["fields"] == "bold"
 
-    def test_themed_list_with_subheading_clears_placeholder(
-        self, builder: ListRequestBuilder
-    ):
+    def test_themed_list_with_subheading_clears_placeholder(self, builder: ListRequestBuilder):
         """Test that a themed list with subheading generates a deleteText request."""
         subheading = {"text": "My Subheading", "placeholder_id": "ph_body"}
         list_element = ListElement(
@@ -201,9 +152,7 @@ class TestListRequestBuilderStyling:
         )
         theme_placeholders = {ElementType.BULLET_LIST: "ph_body"}
 
-        requests = builder.generate_bullet_list_element_requests(
-            list_element, "slide1", theme_placeholders, subheading
-        )
+        requests = builder.generate_bullet_list_element_requests(list_element, "slide1", theme_placeholders, subheading)
 
         # Check for deleteText request
         delete_req = next(

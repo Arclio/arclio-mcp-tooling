@@ -30,9 +30,7 @@ class ImageElement(Element):
         """
         return self.url.startswith(("http://", "https://"))
 
-    def split(
-        self, available_height: float
-    ) -> tuple["ImageElement | None", "ImageElement | None"]:
+    def split(self, available_height: float) -> tuple["ImageElement | None", "ImageElement | None"]:
         """
         Image elements are proactively scaled by the Layout Calculator to fit their containers.
         Since they are pre-scaled, they will always fit and never need to be split.

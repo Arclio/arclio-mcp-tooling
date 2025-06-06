@@ -25,9 +25,7 @@ class TestStandardOverflowHandler:
         """Create handler with standard body height."""
         return StandardOverflowHandler(body_height=255.0)
 
-    def test_rule_a_standard_element_partitioning_with_minimum_requirements(
-        self, handler
-    ):
+    def test_rule_a_standard_element_partitioning_with_minimum_requirements(self, handler):
         """Test Rule A: standard section partitioning with elements using minimum requirements."""
 
         # Create section with multiple text elements that follow minimum requirements
@@ -68,37 +66,25 @@ class TestStandardOverflowHandler:
             title="Rule A Test",
         )
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, overflowing_section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, overflowing_section)
 
         # Verify fitted slide has content that meets minimum requirements
         assert len(fitted_slide.sections) == 1, "Fitted slide should have one section"
         fitted_section = fitted_slide.sections[0]
 
         # Should contain elements that fit and meet minimum requirements
-        assert (
-            len(fitted_section.elements) >= 1
-        ), "Fitted section should have elements that fit"
+        assert len(fitted_section.elements) >= 1, "Fitted section should have elements that fit"
 
         # Verify continuation slide
-        assert (
-            len(continuation_slide.sections) == 1
-        ), "Continuation slide should have one section"
+        assert len(continuation_slide.sections) == 1, "Continuation slide should have one section"
         continuation_section = continuation_slide.sections[0]
 
         # Should contain overflowing elements
-        assert (
-            len(continuation_section.elements) >= 1
-        ), "Continuation section should have overflowing elements"
+        assert len(continuation_section.elements) >= 1, "Continuation section should have overflowing elements"
 
         # Verify position reset in continuation
-        assert (
-            continuation_section.position is None
-        ), "Continuation section position should be reset"
-        assert (
-            continuation_section.size is None
-        ), "Continuation section size should be reset"
+        assert continuation_section.position is None, "Continuation section position should be reset"
+        assert continuation_section.size is None, "Continuation section size should be reset"
 
     def test_rule_b_unanimous_consent_model_success(self, handler):
         """Test Rule B: unanimous consent model when all elements can split."""
@@ -195,29 +181,21 @@ class TestStandardOverflowHandler:
             title="Unanimous Consent Success",
         )
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, row_section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, row_section)
 
         # Should successfully split with unanimous consent
         assert len(fitted_slide.sections) == 1, "Fitted slide should have one section"
         fitted_row = fitted_slide.sections[0]
 
         if fitted_row.type == "row":
-            assert (
-                len(fitted_row.subsections) == 2
-            ), "Fitted row should have both columns"
+            assert len(fitted_row.subsections) == 2, "Fitted row should have both columns"
 
         # Verify continuation slide maintains row structure
-        assert (
-            len(continuation_slide.sections) == 1
-        ), "Continuation should have one section"
+        assert len(continuation_slide.sections) == 1, "Continuation should have one section"
         continuation_row = continuation_slide.sections[0]
 
         if continuation_row.type == "row":
-            assert (
-                len(continuation_row.subsections) == 2
-            ), "Continuation row should have both columns"
+            assert len(continuation_row.subsections) == 2, "Continuation row should have both columns"
 
     def test_rule_b_unanimous_consent_model_failure(self, handler):
         """Test Rule B: unanimous consent model when one element rejects split."""
@@ -298,9 +276,7 @@ class TestStandardOverflowHandler:
         # Set a very limited body height to ensure overflow occurs
         handler.body_height = 100  # Much smaller than row size (200)
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, row_section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, row_section)
 
         # Should promote entire row due to failed unanimous consent
         # Fitted slide should have empty or minimal content
@@ -311,9 +287,7 @@ class TestStandardOverflowHandler:
             # Continuation slide should have the entire row
             continuation_section = continuation_slide.sections[0]
             assert continuation_section.type == "row", "Entire row should be promoted"
-            assert (
-                len(continuation_section.subsections) == 2
-            ), "Both columns should be promoted"
+            assert len(continuation_section.subsections) == 2, "Both columns should be promoted"
         else:
             # If no sections in continuation, the entire row should be in fitted slide
             fitted_section = fitted_slide.sections[0]
@@ -371,9 +345,7 @@ class TestStandardOverflowHandler:
         )
 
         # Test with element choosing to split
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, section)
 
         assert split_called, "Element split method should have been called"
         assert split_height is not None, "Element should have received available height"
@@ -382,9 +354,7 @@ class TestStandardOverflowHandler:
         split_called = False
         split_decision = False  # Element rejects split
 
-        fitted_slide2, continuation_slide2 = handler.handle_overflow(
-            original_slide, section
-        )
+        fitted_slide2, continuation_slide2 = handler.handle_overflow(original_slide, section)
 
         assert split_called, "Element split method should still be called"
 
@@ -427,9 +397,7 @@ class TestStandardOverflowHandler:
             sections=[section],
         )
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, section)
 
         # Verify that elements were split according to their minimum requirements
         fitted_section = fitted_slide.sections[0]
@@ -437,9 +405,7 @@ class TestStandardOverflowHandler:
 
         # Both fitted and continuation should have content that meets minimum requirements
         assert len(fitted_section.elements) >= 1, "Fitted section should have elements"
-        assert (
-            len(continuation_section.elements) >= 1
-        ), "Continuation should have elements"
+        assert len(continuation_section.elements) >= 1, "Continuation should have elements"
 
     def test_proactive_image_scaling_contract(self, handler):
         """Test that proactively scaled images are handled correctly."""
@@ -473,9 +439,7 @@ class TestStandardOverflowHandler:
             sections=[section],
         )
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, section)
 
         # Image should be included in fitted slide (since it's pre-scaled)
         fitted_elements = fitted_slide.sections[0].elements
@@ -528,24 +492,16 @@ class TestStandardOverflowHandler:
 
         handler.body_height = 200  # Creates overflow
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, original_section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, original_section)
 
         # Continuation section should have reset position and size
         continuation_section = continuation_slide.sections[0]
-        assert (
-            continuation_section.position is None
-        ), "Continuation section position should be reset"
-        assert (
-            continuation_section.size is None
-        ), "Continuation section size should be reset"
+        assert continuation_section.position is None, "Continuation section position should be reset"
+        assert continuation_section.size is None, "Continuation section size should be reset"
 
         # Elements within continuation section should also have reset positions
         for element in continuation_section.elements:
-            assert (
-                element.position is None
-            ), "Continuation element positions should be reset"
+            assert element.position is None, "Continuation element positions should be reset"
             assert element.size is None, "Continuation element sizes should be reset"
 
     def test_nested_subsection_partitioning(self, handler):
@@ -584,9 +540,7 @@ class TestStandardOverflowHandler:
             sections=[parent_section],
         )
 
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, parent_section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, parent_section)
 
         # Should handle nested structure appropriately
         assert len(fitted_slide.sections) == 1, "Should have fitted section"
@@ -595,12 +549,8 @@ class TestStandardOverflowHandler:
         # Verify position reset in nested structures
         def check_reset_recursive(sections):
             for section in sections:
-                assert (
-                    section.position is None
-                ), f"Section {section.id} position should be reset"
-                assert (
-                    section.size is None
-                ), f"Section {section.id} size should be reset"
+                assert section.position is None, f"Section {section.id} position should be reset"
+                assert section.size is None, f"Section {section.id} size should be reset"
                 if section.subsections:
                     check_reset_recursive(section.subsections)
 
@@ -652,9 +602,7 @@ class TestStandardOverflowHandler:
 
         # Should handle gracefully without infinite recursion
         try:
-            fitted_slide, continuation_slide = handler.handle_overflow(
-                original_slide, section_a
-            )
+            fitted_slide, continuation_slide = handler.handle_overflow(original_slide, section_a)
             # If it completes, circular reference protection worked
             assert True, "Should handle circular references without infinite recursion"
         except RecursionError:
@@ -700,17 +648,11 @@ class TestStandardOverflowHandler:
         )
 
         # Should handle invalid elements gracefully
-        fitted_slide, continuation_slide = handler.handle_overflow(
-            original_slide, section
-        )
+        fitted_slide, continuation_slide = handler.handle_overflow(original_slide, section)
 
         # Should still produce valid slides despite invalid elements
-        assert (
-            fitted_slide is not None
-        ), "Should produce fitted slide despite invalid elements"
-        assert (
-            continuation_slide is not None
-        ), "Should produce continuation slide despite invalid elements"
+        assert fitted_slide is not None, "Should produce fitted slide despite invalid elements"
+        assert continuation_slide is not None, "Should produce continuation slide despite invalid elements"
 
     def test_handler_with_extreme_dimensions(self, handler):
         """Test handler behavior with extreme dimensional values."""
@@ -747,12 +689,8 @@ class TestStandardOverflowHandler:
             elements=[tiny_text],
         )
 
-        huge_slide = Slide(
-            object_id="huge_slide", elements=[huge_text], sections=[huge_section]
-        )
-        tiny_slide = Slide(
-            object_id="tiny_slide", elements=[tiny_text], sections=[tiny_section]
-        )
+        huge_slide = Slide(object_id="huge_slide", elements=[huge_text], sections=[huge_section])
+        tiny_slide = Slide(object_id="tiny_slide", elements=[tiny_text], sections=[tiny_section])
 
         # Should handle extreme dimensions gracefully
         fitted_huge, cont_huge = handler.handle_overflow(huge_slide, huge_section)

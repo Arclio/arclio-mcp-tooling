@@ -60,9 +60,7 @@ class TestCliEndToEnd:
         if input_data:
             monkeypatch.setattr("sys.stdin", MagicMock(read=lambda: input_data))
 
-    def test_cli_create_from_file(
-        self, tmp_path, mock_creds, mock_create_presentation, monkeypatch, capsys
-    ):
+    def test_cli_create_from_file(self, tmp_path, mock_creds, mock_create_presentation, monkeypatch, capsys):
         md_file = tmp_path / "test.md"
         md_content = "# Test\nContent."
         md_file.write_text(md_content)
@@ -80,9 +78,7 @@ class TestCliEndToEnd:
         captured = capsys.readouterr()
         assert "ID: cli_pres_id_123" in captured.out
 
-    def test_cli_create_from_stdin(
-        self, mock_creds, mock_create_presentation, monkeypatch, capsys
-    ):
+    def test_cli_create_from_stdin(self, mock_creds, mock_create_presentation, monkeypatch, capsys):
         md_content = "# Stdin\nInput."
         self.run_cli(monkeypatch, ["create", "-"], input_data=md_content)
         cli_main()

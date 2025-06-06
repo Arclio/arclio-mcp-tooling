@@ -66,12 +66,8 @@ class OverflowManager:
         )
 
         # Initialize components
-        self.detector = OverflowDetector(
-            body_height=self.body_height, top_margin=self.margins["top"]
-        )
-        self.handler = StandardOverflowHandler(
-            body_height=self.body_height, top_margin=self.margins["top"]
-        )
+        self.detector = OverflowDetector(body_height=self.body_height, top_margin=self.margins["top"])
+        self.handler = StandardOverflowHandler(body_height=self.body_height, top_margin=self.margins["top"])
 
         # Layout manager for repositioning continuation slides
         from markdowndeck.layout import LayoutManager
@@ -111,17 +107,13 @@ class OverflowManager:
             # Check for infinite recursion protection
             iteration_count += 1
             if iteration_count > MAX_OVERFLOW_ITERATIONS:
-                logger.error(
-                    f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}"
-                )
+                logger.error(f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}")
                 # Force-add remaining slides to prevent infinite loop
                 final_slides.extend(slides_to_process)
                 break
 
             if len(final_slides) > MAX_CONTINUATION_SLIDES:
-                logger.error(
-                    f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}"
-                )
+                logger.error(f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}")
                 # Force-add remaining slides to prevent infinite slides
                 final_slides.extend(slides_to_process)
                 break
@@ -129,48 +121,32 @@ class OverflowManager:
             # Dequeue current slide
             current_slide = slides_to_process.pop(0)
 
-            logger.debug(
-                f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})"
-            )
+            logger.debug(f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})")
 
             # Step 1: Detect EXTERNAL overflow only
-            overflowing_section = self.detector.find_first_overflowing_section(
-                current_slide
-            )
+            overflowing_section = self.detector.find_first_overflowing_section(current_slide)
 
             if overflowing_section is None:
                 # No external overflow - add to final slides
                 final_slides.append(current_slide)
-                logger.debug(
-                    f"No EXTERNAL overflow detected in slide {current_slide.object_id}"
-                )
+                logger.debug(f"No EXTERNAL overflow detected in slide {current_slide.object_id}")
                 continue
 
             # Step 2: Handle external overflow
-            logger.info(
-                f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler."
-            )
+            logger.info(f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler.")
 
-            fitted_slide, continuation_slide = self.handler.handle_overflow(
-                current_slide, overflowing_section
-            )
+            fitted_slide, continuation_slide = self.handler.handle_overflow(current_slide, overflowing_section)
 
             # Step 3: Add fitted slide to final results
             final_slides.append(fitted_slide)
-            logger.debug(
-                f"Added fitted slide {fitted_slide.object_id} to final results"
-            )
+            logger.debug(f"Added fitted slide {fitted_slide.object_id} to final results")
 
             # Step 4: Enqueue continuation slide for further processing
             # Note: Continuation slides already have correct positioning from slide builder
             slides_to_process.append(continuation_slide)
-            logger.debug(
-                f"Enqueued continuation slide {continuation_slide.object_id} for processing"
-            )
+            logger.debug(f"Enqueued continuation slide {continuation_slide.object_id} for processing")
 
-        logger.info(
-            f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"
-        )
+        logger.info(f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide")
         return final_slides
 
     def get_overflow_analysis(self, slide: "Slide") -> dict:
@@ -218,9 +194,7 @@ class OverflowManager:
         warnings = []
 
         if not slide.sections:
-            warnings.append(
-                "Slide has no sections - overflow processing may be limited"
-            )
+            warnings.append("Slide has no sections - overflow processing may be limited")
 
         for i, section in enumerate(slide.sections or []):
             if not section.position:
@@ -232,9 +206,7 @@ class OverflowManager:
             if hasattr(section, "subsections") and section.subsections:
                 visited = set()
                 if self._has_circular_references(section, visited):
-                    warnings.append(
-                        f"Section {i} ({section.id}) has circular references"
-                    )
+                    warnings.append(f"Section {i} ({section.id}) has circular references")
 
         return warnings
 

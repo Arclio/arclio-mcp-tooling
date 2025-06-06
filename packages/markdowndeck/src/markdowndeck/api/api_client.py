@@ -66,9 +66,7 @@ class ApiClient:
         Returns:
             Dictionary with presentation details
         """
-        logger.info(
-            f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
-        )
+        logger.info(f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides")
 
         # Step 1: Create the presentation
         presentation = self.create_presentation(deck.title, deck.theme_id)
@@ -146,9 +144,7 @@ class ApiClient:
                 self.execute_batch_update(batch)
 
         # Step 8: Get the final presentation
-        final_presentation = self.get_presentation(
-            presentation_id, fields="presentationId,title,slides.objectId"
-        )
+        final_presentation = self.get_presentation(presentation_id, fields="presentationId,title,slides.objectId")
         result = {
             "presentationId": presentation_id,
             "presentationUrl": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
@@ -156,9 +152,7 @@ class ApiClient:
             "slideCount": len(final_presentation.get("slides", [])),
         }
 
-        logger.info(
-            f"Presentation creation complete. Slide count: {result['slideCount']}"
-        )
+        logger.info(f"Presentation creation complete. Slide count: {result['slideCount']}")
         return result
 
     def _find_speaker_notes_id(self, slide: dict) -> str | None:
@@ -192,9 +186,7 @@ class ApiClient:
                     if "speakerNotes" in element_id or "notes" in element_id:
                         return element_id
 
-            logger.warning(
-                f"Could not find speaker notes ID for slide {slide.get('objectId')}"
-            )
+            logger.warning(f"Could not find speaker notes ID for slide {slide.get('objectId')}")
             return None
 
         except Exception as e:
@@ -221,9 +213,7 @@ class ApiClient:
             # Include theme ID if provided
             if theme_id:
                 logger.debug(f"Creating presentation with theme ID: {theme_id}")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
                 # Apply theme in a separate request
                 self.slides_service.presentations().batchUpdate(
@@ -240,13 +230,9 @@ class ApiClient:
                 ).execute()
             else:
                 logger.debug("Creating presentation without theme")
-                presentation = (
-                    self.slides_service.presentations().create(body=body).execute()
-                )
+                presentation = self.slides_service.presentations().create(body=body).execute()
 
-            logger.info(
-                f"Created presentation with ID: {presentation['presentationId']}"
-            )
+            logger.info(f"Created presentation with ID: {presentation['presentationId']}")
             return presentation
         except HttpError as error:
             logger.error(f"Failed to create presentation: {error}")
@@ -275,11 +261,7 @@ class ApiClient:
                 kwargs["fields"] = fields
                 logger.debug(f"Using field mask: {fields}")
 
-            return (
-                self.slides_service.presentations()
-                .get(presentationId=presentation_id, **kwargs)
-                .execute()
-            )
+            return self.slides_service.presentations().get(presentationId=presentation_id, **kwargs).execute()
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
@@ -301,9 +283,7 @@ class ApiClient:
         # Validate and fix the batch
         batch = validate_batch_requests(batch)
 
-        logger.debug(
-            f"Executing batch update with {len(batch.get('requests', []))} requests"
-        )
+        logger.debug(f"Executing batch update with {len(batch.get('requests', []))} requests")
         retries = 0
         current_batch = batch
 
@@ -339,17 +319,11 @@ class ApiClient:
                 try:
                     # Pretty-print the failing batch for easier debugging
                     failing_batch_str = json.dumps(current_batch, indent=2)
-                    logger.error(
-                        f"Unrecoverable API error. Failing batch data:\n{failing_batch_str}"
-                    )
+                    logger.error(f"Unrecoverable API error. Failing batch data:\n{failing_batch_str}")
                 except TypeError:
-                    logger.error(
-                        f"Unrecoverable API error. Failing batch data (raw):\n{current_batch}"
-                    )
+                    logger.error(f"Unrecoverable API error. Failing batch data (raw):\n{current_batch}")
 
-                logger.error(
-                    f"Batch update failed permanently with status {error.resp.status}: {error}"
-                )
+                logger.error(f"Batch update failed permanently with status {error.resp.status}: {error}")
                 raise  # Re-raise the exception to halt execution
 
         return {}  # Should never reach here but satisfies type checker
@@ -382,9 +356,7 @@ class ApiClient:
                         presentationId=presentation_id,
                         body={"requests": delete_requests},
                     ).execute()
-                    logger.debug(
-                        f"Successfully deleted {len(delete_requests)} default slides in single batch"
-                    )
+                    logger.debug(f"Successfully deleted {len(delete_requests)} default slides in single batch")
                 except HttpError as error:
                     logger.warning(f"Failed to delete default slides: {error}")
 

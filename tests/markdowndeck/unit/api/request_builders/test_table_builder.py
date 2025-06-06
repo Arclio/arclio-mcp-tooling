@@ -9,9 +9,7 @@ def builder() -> TableRequestBuilder:
 
 
 class TestTableRequestBuilderStyling:
-    def test_generate_table_with_border_directive_simple(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_border_directive_simple(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1"],
@@ -21,13 +19,9 @@ class TestTableRequestBuilderStyling:
         )
         requests = builder.generate_table_element_requests(element, "slide1")
 
-        assert (
-            len(requests) >= 6
-        ), "Expected requests for table creation, header/cell text, styling, and border"
+        assert len(requests) >= 6, "Expected requests for table creation, header/cell text, styling, and border"
 
-        border_req = next(
-            (r for r in requests if "updateTableBorderProperties" in r), None
-        )
+        border_req = next((r for r in requests if "updateTableBorderProperties" in r), None)
         assert border_req is not None
         props = border_req["updateTableBorderProperties"]["tableBorderProperties"]
         assert props["weight"]["magnitude"] == 1.0
@@ -45,9 +39,7 @@ class TestTableRequestBuilderStyling:
         assert "tableBorderFill.solidFill.color" in fields_str
         assert border_req["updateTableBorderProperties"]["borderPosition"] == "ALL"
 
-    def test_generate_table_with_border_directive_specific_position(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_border_directive_specific_position(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1"],
@@ -56,9 +48,7 @@ class TestTableRequestBuilderStyling:
             directives={"border": "2pt dashed blue", "border-position": "OUTER"},
         )
         requests = builder.generate_table_element_requests(element, "slide1")
-        border_req = next(
-            (r for r in requests if "updateTableBorderProperties" in r), None
-        )
+        border_req = next((r for r in requests if "updateTableBorderProperties" in r), None)
         assert border_req is not None
         props = border_req["updateTableBorderProperties"]["tableBorderProperties"]
         assert props["weight"]["magnitude"] == 2.0
@@ -70,9 +60,7 @@ class TestTableRequestBuilderStyling:
         }
         assert border_req["updateTableBorderProperties"]["borderPosition"] == "OUTER"
 
-    def test_generate_table_with_cell_vertical_alignment_directive(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_vertical_alignment_directive(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H"],
@@ -87,8 +75,7 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "contentAlignment"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "contentAlignment" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )
@@ -97,9 +84,7 @@ class TestTableRequestBuilderStyling:
         assert props["contentAlignment"] == "MIDDLE"
         assert valign_req["updateTableCellProperties"]["fields"] == "contentAlignment"
 
-    def test_generate_table_with_cell_background_directive(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_background_directive(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H"],
@@ -114,15 +99,12 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "tableCellBackgroundFill"
-                in r["updateTableCellProperties"]["tableCellProperties"]
+                and "tableCellBackgroundFill" in r["updateTableCellProperties"]["tableCellProperties"]
             ),
             None,
         )
         assert bg_req is not None
-        props = bg_req["updateTableCellProperties"]["tableCellProperties"][
-            "tableCellBackgroundFill"
-        ]["solidFill"]["color"]
+        props = bg_req["updateTableCellProperties"]["tableCellProperties"]["tableCellBackgroundFill"]["solidFill"]["color"]
         assert "rgbColor" in props
         rgb = props["rgbColor"]
         assert "red" in rgb
@@ -130,14 +112,9 @@ class TestTableRequestBuilderStyling:
         assert "blue" in rgb
 
         # Correct field path for cell background
-        assert (
-            bg_req["updateTableCellProperties"]["fields"]
-            == "tableCellBackgroundFill.solidFill.color"
-        )
+        assert bg_req["updateTableCellProperties"]["fields"] == "tableCellBackgroundFill.solidFill.color"
 
-    def test_generate_table_with_cell_range_for_directives(
-        self, builder: TableRequestBuilder
-    ):
+    def test_generate_table_with_cell_range_for_directives(self, builder: TableRequestBuilder):
         element = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1", "H2", "H3"],
@@ -157,20 +134,13 @@ class TestTableRequestBuilderStyling:
                 r
                 for r in requests
                 if "updateTableCellProperties" in r
-                and "tableCellBackgroundFill"
-                in r["updateTableCellProperties"]["tableCellProperties"]
-                and r["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"]
-                == 1
-                and r["updateTableCellProperties"]["tableRange"]["location"][
-                    "columnIndex"
-                ]
-                == 1
+                and "tableCellBackgroundFill" in r["updateTableCellProperties"]["tableCellProperties"]
+                and r["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"] == 1
+                and r["updateTableCellProperties"]["tableRange"]["location"]["columnIndex"] == 1
             ),
             None,
         )
-        assert (
-            bg_req is not None
-        ), "Should find background request for cell range 1,1:2,2"
+        assert bg_req is not None, "Should find background request for cell range 1,1:2,2"
         table_range = bg_req["updateTableCellProperties"]["tableRange"]
 
         assert table_range["location"]["rowIndex"] == 1

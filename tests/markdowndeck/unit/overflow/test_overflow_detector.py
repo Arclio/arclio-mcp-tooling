@@ -62,18 +62,14 @@ class TestOverflowDetector:
 
         overflowing_section = detector.find_first_overflowing_section(slide)
 
-        assert (
-            overflowing_section is None
-        ), "Should not detect overflow for fitting content"
+        assert overflowing_section is None, "Should not detect overflow for fitting content"
 
         # Verify analysis methods
         assert not detector.has_any_overflow(slide), "Should report no overflow"
 
         summary = detector.get_overflow_summary(slide)
         assert not summary["has_overflow"], "Summary should show no overflow"
-        assert (
-            summary["overflowing_section_index"] is None
-        ), "Should have no overflowing section index"
+        assert summary["overflowing_section_index"] is None, "Should have no overflowing section index"
 
     def test_external_section_overflow_detection(self, detector):
         """Test detection of external section boundary overflow."""
@@ -111,18 +107,14 @@ class TestOverflowDetector:
         detected = detector.find_first_overflowing_section(slide)
 
         assert detected is not None, "Should detect external section overflow"
-        assert (
-            detected.id == "external_overflow_section"
-        ), "Should detect the externally overflowing section"
+        assert detected.id == "external_overflow_section", "Should detect the externally overflowing section"
 
         # Verify analysis methods
         assert detector.has_any_overflow(slide), "Should report overflow exists"
 
         summary = detector.get_overflow_summary(slide)
         assert summary["has_overflow"], "Summary should show overflow"
-        assert (
-            summary["overflowing_section_index"] == 1
-        ), "Should identify correct overflowing section index"
+        assert summary["overflowing_section_index"] == 1, "Should identify correct overflowing section index"
 
     def test_internal_content_overflow_ignored(self, detector):
         """Test that internal content overflow within fixed-size sections is ignored (jurisdictional boundary)."""
@@ -141,32 +133,22 @@ class TestOverflowDetector:
             type="section",
             position=(50, 250),
             size=(620, 60),  # Section bottom at 310, fits within body_end_y 315
-            directives={
-                "height": 60
-            },  # Explicit height directive makes overflow acceptable
+            directives={"height": 60},  # Explicit height directive makes overflow acceptable
             elements=[large_content],
         )
 
-        slide = Slide(
-            object_id="internal_overflow_slide", sections=[internal_overflow_section]
-        )
+        slide = Slide(object_id="internal_overflow_slide", sections=[internal_overflow_section])
 
         detected = detector.find_first_overflowing_section(slide)
 
         # Should NOT detect overflow - internal content overflow is ignored
-        assert (
-            detected is None
-        ), "Should ignore internal content overflow within fixed-size sections"
+        assert detected is None, "Should ignore internal content overflow within fixed-size sections"
 
         # Verify analysis methods
-        assert not detector.has_any_overflow(
-            slide
-        ), "Should not report internal overflow"
+        assert not detector.has_any_overflow(slide), "Should not report internal overflow"
 
         summary = detector.get_overflow_summary(slide)
-        assert not summary[
-            "has_overflow"
-        ], "Summary should show no overflow for internal content"
+        assert not summary["has_overflow"], "Summary should show no overflow for internal content"
 
     def test_acceptable_overflow_detection(self, detector):
         """Test detection of acceptable overflow conditions."""
@@ -188,9 +170,7 @@ class TestOverflowDetector:
             elements=[explicit_height_content],
         )
 
-        slide1 = Slide(
-            object_id="explicit_height_slide", sections=[explicit_height_section]
-        )
+        slide1 = Slide(object_id="explicit_height_slide", sections=[explicit_height_section])
 
         # Should not detect overflow due to explicit height directive
         detected1 = detector.find_first_overflowing_section(slide1)
@@ -258,9 +238,7 @@ class TestOverflowDetector:
         detected = detector.find_first_overflowing_section(slide)
 
         assert detected is not None, "Should detect overflow"
-        assert (
-            detected.id == "first_external_overflow"
-        ), "Should detect the first externally overflowing section"
+        assert detected.id == "first_external_overflow", "Should detect the first externally overflowing section"
 
     def test_missing_position_size_handling(self, detector):
         """Test handling of sections missing position or size data."""
@@ -305,9 +283,7 @@ class TestOverflowDetector:
         detected = detector.find_first_overflowing_section(slide)
 
         assert detected is not None, "Should find valid overflowing section"
-        assert (
-            detected.id == "valid_external_overflow"
-        ), "Should skip sections with missing data"
+        assert detected.id == "valid_external_overflow", "Should skip sections with missing data"
 
         # Verify summary handles missing data gracefully
         summary = detector.get_overflow_summary(slide)
@@ -331,18 +307,12 @@ class TestOverflowDetector:
         assert detected is None, "Should handle empty slide gracefully"
 
         # Verify analysis methods handle empty slides
-        assert not detector.has_any_overflow(
-            empty_slide
-        ), "Empty slide should have no overflow"
+        assert not detector.has_any_overflow(empty_slide), "Empty slide should have no overflow"
 
         summary = detector.get_overflow_summary(empty_slide)
-        assert not summary[
-            "has_overflow"
-        ], "Empty slide summary should show no overflow"
+        assert not summary["has_overflow"], "Empty slide summary should show no overflow"
         assert summary["total_sections"] == 0, "Should show zero sections"
-        assert (
-            summary["overflowing_section_index"] is None
-        ), "Should have no overflowing index"
+        assert summary["overflowing_section_index"] is None, "Should have no overflowing index"
 
     def test_boundary_condition_detection(self, detector):
         """Test overflow detection at exact external boundary conditions."""
@@ -385,18 +355,12 @@ class TestOverflowDetector:
 
         # Exact fit should not overflow
         exact_detected = detector.find_first_overflowing_section(exact_slide)
-        assert (
-            exact_detected is None
-        ), "Exact external fit should not be detected as overflow"
+        assert exact_detected is None, "Exact external fit should not be detected as overflow"
 
         # One point over should overflow
         over_detected = detector.find_first_overflowing_section(over_slide)
-        assert (
-            over_detected is not None
-        ), "One point external overflow should be detected"
-        assert (
-            over_detected.id == "one_point_external_over"
-        ), "Should detect the correct section"
+        assert over_detected is not None, "One point external overflow should be detected"
+        assert over_detected.id == "one_point_external_over", "Should detect the correct section"
 
     def test_floating_point_precision_boundaries(self, detector):
         """Test overflow detection with floating point precision edge cases."""
@@ -489,9 +453,7 @@ class TestOverflowDetector:
         # Verify detailed analysis
         assert summary["total_sections"] == 3, "Should count all sections"
         assert summary["has_overflow"], "Should detect overflow"
-        assert (
-            summary["overflowing_section_index"] == 2
-        ), "Should identify correct first unacceptable overflow"
+        assert summary["overflowing_section_index"] == 2, "Should identify correct first unacceptable overflow"
         assert summary["body_height"] == 165.0, "Should include body height"
 
         # Check individual section analysis
@@ -499,21 +461,15 @@ class TestOverflowDetector:
         assert len(sections_analysis) == 3, "Should analyze all sections"
 
         # First section - fits
-        assert not sections_analysis[0][
-            "overflows"
-        ], "First section should not overflow"
+        assert not sections_analysis[0]["overflows"], "First section should not overflow"
 
         # Second section - overflows but acceptable
         assert sections_analysis[1]["overflows"], "Second section should overflow"
-        assert sections_analysis[1][
-            "is_acceptable"
-        ], "Second section overflow should be acceptable"
+        assert sections_analysis[1]["is_acceptable"], "Second section overflow should be acceptable"
 
         # Third section - overflows and not acceptable
         assert sections_analysis[2]["overflows"], "Third section should overflow"
-        assert not sections_analysis[2][
-            "is_acceptable"
-        ], "Third section overflow should not be acceptable"
+        assert not sections_analysis[2]["is_acceptable"], "Third section overflow should not be acceptable"
 
     def test_detector_initialization_and_configuration(self):
         """Test detector initialization with different configurations."""
@@ -536,15 +492,11 @@ class TestOverflowDetector:
 
         # Small detector should detect overflow
         small_result = small_detector.find_first_overflowing_section(slide)
-        assert (
-            small_result is not None
-        ), "Small detector should detect overflow at 250 > 100"
+        assert small_result is not None, "Small detector should detect overflow at 250 > 100"
 
         # Large detector should not detect overflow
         large_result = large_detector.find_first_overflowing_section(slide)
-        assert (
-            large_result is None
-        ), "Large detector should not detect overflow at 250 < 500"
+        assert large_result is None, "Large detector should not detect overflow at 250 < 500"
 
     def test_section_type_handling(self, detector):
         """Test overflow detection for different section types."""

@@ -188,9 +188,7 @@ def validate_slide_for_overflow(
     validation_result["structure_analysis"] = {
         "has_sections": hasattr(slide, "sections") and bool(slide.sections),
         "element_count": len(slide.elements) if hasattr(slide, "elements") else 0,
-        "section_count": (
-            len(slide.sections) if hasattr(slide, "sections") and slide.sections else 0
-        ),
+        "section_count": (len(slide.sections) if hasattr(slide, "sections") and slide.sections else 0),
     }
 
     # Check for circular references
@@ -198,16 +196,12 @@ def validate_slide_for_overflow(
         try:
             has_circular = manager._has_circular_references(slide.sections[0], set())
             if has_circular:
-                validation_result["warnings"].append(
-                    "Slide has circular section references"
-                )
+                validation_result["warnings"].append("Slide has circular section references")
                 validation_result["is_valid"] = False
         except Exception:
             pass  # Skip if structure checking fails
 
-    validation_result["is_valid"] = (
-        len([w for w in validation_result["warnings"] if "circular" in w.lower()]) == 0
-    )
+    validation_result["is_valid"] = len([w for w in validation_result["warnings"] if "circular" in w.lower()]) == 0
 
     return validation_result
 
@@ -263,9 +257,7 @@ SUPPORTED_SPLITTING_ELEMENTS = [
 ]
 ATOMIC_ELEMENTS = ["ImageElement"]  # Proactively scaled, so effectively atomic
 
-logger.debug(
-    f"MarkdownDeck overflow package initialized with specification v{SPECIFICATION_VERSION}"
-)
+logger.debug(f"MarkdownDeck overflow package initialized with specification v{SPECIFICATION_VERSION}")
 
 
 def get_specification_info() -> dict:

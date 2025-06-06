@@ -27,9 +27,7 @@ class TestOverflowEdgeCases:
             margins={"top": 50, "right": 50, "bottom": 50, "left": 50},
         )
 
-    def test_deeply_nested_section_structures_with_circular_protection(
-        self, overflow_manager
-    ):
+    def test_deeply_nested_section_structures_with_circular_protection(self, overflow_manager):
         """Test handling of deeply nested section hierarchies with circular reference protection."""
 
         title = TextElement(
@@ -76,20 +74,14 @@ class TestOverflowEdgeCases:
         # Should handle deep nesting without stack overflow or infinite loops
         result_slides = overflow_manager.process_slide(slide)
 
-        assert (
-            len(result_slides) >= 2
-        ), "Should handle deep nesting and create continuations"
+        assert len(result_slides) >= 2, "Should handle deep nesting and create continuations"
 
         # Verify no infinite recursion occurred
-        assert (
-            len(result_slides) < 50
-        ), "Should not create excessive slides from deep nesting"
+        assert len(result_slides) < 50, "Should not create excessive slides from deep nesting"
 
         # Verify circular reference protection worked
         for result_slide in result_slides:
-            assert (
-                result_slide.object_id is not None
-            ), "All slides should have valid IDs"
+            assert result_slide.object_id is not None, "All slides should have valid IDs"
 
     def test_circular_reference_prevention_with_detection(self, overflow_manager):
         """Test prevention of circular references in section structures."""
@@ -108,9 +100,7 @@ class TestOverflowEdgeCases:
             position=(50, 150),
             size=(620, 300),  # Overflows
         )
-        section_b = Section(
-            id="section_b", type="section", position=(50, 150), size=(620, 200)
-        )
+        section_b = Section(id="section_b", type="section", position=(50, 150), size=(620, 200))
 
         # Set up potential circular reference
         section_a.subsections = [section_b]
@@ -188,12 +178,8 @@ class TestOverflowEdgeCases:
         processing_time = end_time - start_time
 
         # Should complete in reasonable time even with massive content
-        assert (
-            processing_time < 5.0
-        ), f"Should handle massive content efficiently, took {processing_time:.2f}s"
-        assert (
-            len(result_slides) >= 2
-        ), "Should create multiple slides for massive content"
+        assert processing_time < 5.0, f"Should handle massive content efficiently, took {processing_time:.2f}s"
+        assert len(result_slides) >= 2, "Should create multiple slides for massive content"
 
     def test_zero_height_available_space_with_external_boundary(self, overflow_manager):
         """Test handling when section external boundary is at the limit."""
@@ -239,9 +225,7 @@ class TestOverflowEdgeCases:
         result_slides[0].sections[0]
         # Continuation should have the content
         continuation_section = result_slides[1].sections[0]
-        assert (
-            len(continuation_section.elements) > 0
-        ), "Content should be in continuation"
+        assert len(continuation_section.elements) > 0, "Content should be in continuation"
 
     def test_negative_dimensions_handling_with_validation(self, overflow_manager):
         """Test handling of sections with negative or invalid dimensions."""
@@ -437,9 +421,7 @@ class TestOverflowEdgeCases:
                     text="Left content\nLine 2",
                     size=(300, 40),
                 )
-                overflowing = TextElement(
-                    element_type=ElementType.TEXT, text="Line 3\nLine 4", size=(300, 40)
-                )
+                overflowing = TextElement(element_type=ElementType.TEXT, text="Line 3\nLine 4", size=(300, 40))
                 return fitted, overflowing
             return None, left_text
 
@@ -563,12 +545,8 @@ class TestOverflowEdgeCases:
             text="Line 1 with overlapping formatting\nLine 2 continues\nLine 3 more\nLine 4 final",
             formatting=[
                 TextFormat(start=0, end=20, format_type=TextFormatType.BOLD),
-                TextFormat(
-                    start=10, end=30, format_type=TextFormatType.ITALIC
-                ),  # Overlaps with bold
-                TextFormat(
-                    start=25, end=40, format_type=TextFormatType.UNDERLINE
-                ),  # Overlaps with italic
+                TextFormat(start=10, end=30, format_type=TextFormatType.ITALIC),  # Overlaps with bold
+                TextFormat(start=25, end=40, format_type=TextFormatType.UNDERLINE),  # Overlaps with italic
             ],
             size=(400, 80),
         )
@@ -580,15 +558,11 @@ class TestOverflowEdgeCases:
             # Verify formatting integrity
             for fmt in fitted.formatting:
                 assert fmt.start >= 0, "Fitted formatting start should be valid"
-                assert fmt.end <= len(
-                    fitted.text
-                ), "Fitted formatting end should be within text"
+                assert fmt.end <= len(fitted.text), "Fitted formatting end should be within text"
 
             for fmt in overflowing.formatting:
                 assert fmt.start >= 0, "Overflowing formatting start should be valid"
-                assert fmt.end <= len(
-                    overflowing.text
-                ), "Overflowing formatting end should be within text"
+                assert fmt.end <= len(overflowing.text), "Overflowing formatting end should be within text"
 
             # Verify minimum requirements met
             fitted_lines = fitted.text.count("\n") + 1
@@ -598,9 +572,7 @@ class TestOverflowEdgeCases:
         """Test list splitting with complex nested item structures and minimum requirements."""
 
         # Create deeply nested list items
-        level_3_items = [
-            ListItem(text=f"Level 3 item {i}", level=3) for i in range(1, 4)
-        ]
+        level_3_items = [ListItem(text=f"Level 3 item {i}", level=3) for i in range(1, 4)]
         level_2_items = [
             ListItem(text="Level 2 item 1", level=2, children=level_3_items[:2]),
             ListItem(text="Level 2 item 2", level=2, children=level_3_items[2:]),
@@ -615,9 +587,7 @@ class TestOverflowEdgeCases:
             ListItem(text="Top item 3", level=0),
         ]
 
-        nested_list = ListElement(
-            element_type=ElementType.BULLET_LIST, items=top_items, size=(400, 300)
-        )
+        nested_list = ListElement(element_type=ElementType.BULLET_LIST, items=top_items, size=(400, 300))
 
         fitted, overflowing = nested_list.split(150.0)
 
@@ -630,9 +600,7 @@ class TestOverflowEdgeCases:
             for item in fitted.items:
                 if item.children:
                     for child in item.children:
-                        assert (
-                            child.level > item.level
-                        ), "Child levels should be correct"
+                        assert child.level > item.level, "Child levels should be correct"
 
     def test_table_split_with_minimum_requirements_validation(self):
         """Test table splitting with minimum header + 2 rows requirement."""
@@ -655,26 +623,18 @@ class TestOverflowEdgeCases:
 
         if fitted and overflowing:
             # Both parts should maintain table structure
-            assert len(fitted.headers) == len(
-                headers
-            ), "Fitted table should have all headers"
-            assert len(overflowing.headers) == len(
-                headers
-            ), "Overflowing table should have all headers"
+            assert len(fitted.headers) == len(headers), "Fitted table should have all headers"
+            assert len(overflowing.headers) == len(headers), "Overflowing table should have all headers"
 
             # Verify minimum requirements
             assert len(fitted.rows) >= 2, "Fitted table should meet minimum 2 rows"
 
             # Verify column consistency
             for row in fitted.rows:
-                assert len(row) == len(
-                    headers
-                ), "Fitted rows should have correct column count"
+                assert len(row) == len(headers), "Fitted rows should have correct column count"
 
             for row in overflowing.rows:
-                assert len(row) == len(
-                    headers
-                ), "Overflowing rows should have correct column count"
+                assert len(row) == len(headers), "Overflowing rows should have correct column count"
 
     def test_specification_compliance_edge_cases(self, overflow_manager):
         """Test edge cases that verify specification compliance."""
@@ -736,6 +696,4 @@ class TestOverflowEdgeCases:
         # Test 3: Jurisdictional boundary compliance
         analysis = overflow_manager.get_overflow_analysis(position_slide)
         assert "has_overflow" in analysis, "Analysis should include overflow detection"
-        assert (
-            "sections_analysis" in analysis
-        ), "Analysis should include section details"
+        assert "sections_analysis" in analysis, "Analysis should include section details"

@@ -69,12 +69,8 @@ class PositionCalculator:
         }
 
         # Calculate content area dimensions
-        self.max_content_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
-        self.max_content_height = (
-            self.slide_height - self.margins["top"] - self.margins["bottom"]
-        )
+        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
+        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
 
         # Define fixed slide zones with clear spacing
         self._define_slide_zones()
@@ -144,9 +140,7 @@ class PositionCalculator:
         sections_to_process = self._ensure_section_based_layout(updated_slide)
 
         # Apply section-based layout to all slides
-        logger.debug(
-            f"Using unified section-based layout for slide {updated_slide.object_id}"
-        )
+        logger.debug(f"Using unified section-based layout for slide {updated_slide.object_id}")
         from markdowndeck.layout.calculator.section_layout import (
             calculate_section_based_positions,
         )
@@ -171,18 +165,14 @@ class PositionCalculator:
         """
         if slide.sections:
             # Slide already has sections, use them as-is
-            logger.debug(
-                f"Slide {slide.object_id} has {len(slide.sections)} existing sections"
-            )
+            logger.debug(f"Slide {slide.object_id} has {len(slide.sections)} existing sections")
             return slide.sections
 
         # Create a root section for body elements
         body_elements = self.get_body_elements(slide)
 
         if not body_elements:
-            logger.debug(
-                f"Slide {slide.object_id} has no body elements, creating empty root section"
-            )
+            logger.debug(f"Slide {slide.object_id} has no body elements, creating empty root section")
             # Still create a root section for consistency
             root_section = Section(
                 id="root",
@@ -204,20 +194,14 @@ class PositionCalculator:
             directives={"height": self.body_height},
         )
 
-        logger.debug(
-            f"Created root section for slide {slide.object_id} with {len(body_elements)} elements"
-        )
+        logger.debug(f"Created root section for slide {slide.object_id} with {len(body_elements)} elements")
 
         return [root_section]
 
     def _position_header_elements(self, slide: Slide):
         """Position title and subtitle elements within the fixed header zone."""
-        title_elements = [
-            e for e in slide.elements if e.element_type == ElementType.TITLE
-        ]
-        subtitle_elements = [
-            e for e in slide.elements if e.element_type == ElementType.SUBTITLE
-        ]
+        title_elements = [e for e in slide.elements if e.element_type == ElementType.TITLE]
+        subtitle_elements = [e for e in slide.elements if e.element_type == ElementType.SUBTITLE]
 
         current_y = self.header_top
 
@@ -239,9 +223,7 @@ class PositionCalculator:
 
             current_y += title_height + 8  # Small spacing between title and subtitle
 
-            logger.debug(
-                f"Positioned title at ({title_x:.1f}, {title.position[1]:.1f}) with size {title.size}"
-            )
+            logger.debug(f"Positioned title at ({title_x:.1f}, {title.position[1]:.1f}) with size {title.size}")
 
         # Position subtitle
         if subtitle_elements:
@@ -259,15 +241,11 @@ class PositionCalculator:
             subtitle_x = self.header_left + (self.header_width - subtitle_width) / 2
             subtitle.position = (subtitle_x, current_y)
 
-            logger.debug(
-                f"Positioned subtitle at ({subtitle_x:.1f}, {subtitle.position[1]:.1f}) with size {subtitle.size}"
-            )
+            logger.debug(f"Positioned subtitle at ({subtitle_x:.1f}, {subtitle.position[1]:.1f}) with size {subtitle.size}")
 
     def _position_footer_elements(self, slide: Slide):
         """Position footer elements within the fixed footer zone."""
-        footer_elements = [
-            e for e in slide.elements if e.element_type == ElementType.FOOTER
-        ]
+        footer_elements = [e for e in slide.elements if e.element_type == ElementType.FOOTER]
 
         if footer_elements:
             footer = footer_elements[0]
@@ -283,9 +261,7 @@ class PositionCalculator:
             # Position at bottom of footer zone
             footer.position = (self.footer_left, self.footer_top)
 
-            logger.debug(
-                f"Positioned footer at {footer.position} with size {footer.size}"
-            )
+            logger.debug(f"Positioned footer at {footer.position} with size {footer.size}")
 
     def _calculate_element_width(self, element, container_width: float) -> float:
         """
@@ -320,24 +296,16 @@ class PositionCalculator:
                 width_directive = element.directives.get("width")
                 if width_directive is not None:
                     try:
-                        if (
-                            isinstance(width_directive, float)
-                            and 0 < width_directive <= 1
-                        ):
+                        if isinstance(width_directive, float) and 0 < width_directive <= 1:
                             base_width = container_width * width_directive
-                        elif (
-                            isinstance(width_directive, int | float)
-                            and width_directive > 1
-                        ):
+                        elif isinstance(width_directive, int | float) and width_directive > 1:
                             base_width = min(float(width_directive), container_width)
                     except (ValueError, TypeError):
                         pass
 
             # Ensure image width never exceeds container
             image_width = min(base_width, container_width)
-            logger.debug(
-                f"Proactively scaled image width: {image_width:.1f} (container: {container_width:.1f})"
-            )
+            logger.debug(f"Proactively scaled image width: {image_width:.1f} (container: {container_width:.1f})")
             return image_width
 
         # Use default width fractions based on element type
@@ -351,9 +319,7 @@ class PositionCalculator:
             ElementType.ORDERED_LIST: LIST_WIDTH_FRACTION,
         }
 
-        fraction = width_fractions.get(
-            element.element_type, 1.0
-        )  # Default to full width
+        fraction = width_fractions.get(element.element_type, 1.0)  # Default to full width
         return container_width * fraction
 
     def calculate_element_height_with_proactive_scaling(
@@ -377,9 +343,7 @@ class PositionCalculator:
             # For images, use the proactive scaling image metrics
             from markdowndeck.layout.metrics.image import calculate_image_element_height
 
-            return calculate_image_element_height(
-                element, available_width, available_height
-            )
+            return calculate_image_element_height(element, available_width, available_height)
         # For other elements, use standard metrics
         from markdowndeck.layout.metrics import calculate_element_height
 
@@ -398,8 +362,7 @@ class PositionCalculator:
         return [
             element
             for element in slide.elements
-            if element.element_type
-            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
     def get_body_zone_area(self) -> tuple[float, float, float, float]:

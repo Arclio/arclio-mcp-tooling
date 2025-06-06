@@ -36,9 +36,7 @@ from markdowndeck.models import ElementType, TextElement
 logger = logging.getLogger(__name__)
 
 
-def calculate_text_element_height(
-    element: TextElement | dict, available_width: float
-) -> float:
+def calculate_text_element_height(element: TextElement | dict, available_width: float) -> float:
     """
     Calculate the pure intrinsic height needed for a text element based on its content.
 
@@ -59,9 +57,7 @@ def calculate_text_element_height(
         "element_type",
         element.get("element_type") if isinstance(element, dict) else ElementType.TEXT,
     )
-    text_content = getattr(
-        element, "text", element.get("text") if isinstance(element, dict) else ""
-    )
+    text_content = getattr(element, "text", element.get("text") if isinstance(element, dict) else "")
     directives = getattr(
         element,
         "directives",
@@ -80,9 +76,7 @@ def calculate_text_element_height(
             return _get_minimum_height_for_type(element_type)
 
     # Get typography parameters for this element type
-    font_size, line_height_multiplier, char_width, padding, min_height = (
-        _get_typography_params(element_type)
-    )
+    font_size, line_height_multiplier, char_width, padding, min_height = _get_typography_params(element_type)
 
     # Apply font size directive if present
     if directives and "fontsize" in directives:

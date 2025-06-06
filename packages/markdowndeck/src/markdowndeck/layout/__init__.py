@@ -57,12 +57,8 @@ class LayoutManager:
         }
 
         # Calculate derived dimensions
-        self.max_content_width = (
-            self.slide_width - self.margins["left"] - self.margins["right"]
-        )
-        self.max_content_height = (
-            self.slide_height - self.margins["top"] - self.margins["bottom"]
-        )
+        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
+        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
 
         # Initialize the position calculator with proactive scaling capabilities
         self.position_calculator = PositionCalculator(
@@ -97,9 +93,7 @@ class LayoutManager:
         Returns:
             The slide with all elements and sections positioned, images proactively scaled
         """
-        logger.debug(
-            f"LayoutManager calculating positions with proactive scaling for slide: {slide.object_id}"
-        )
+        logger.debug(f"LayoutManager calculating positions with proactive scaling for slide: {slide.object_id}")
 
         # Validate input
         if not slide:
@@ -123,9 +117,7 @@ class LayoutManager:
             return positioned_slide
 
         except Exception as e:
-            logger.error(
-                f"Error calculating positions for slide {slide.object_id}: {e}"
-            )
+            logger.error(f"Error calculating positions for slide {slide.object_id}: {e}")
             raise
 
     def _analyze_images_for_scaling(self, slide: Slide) -> None:
@@ -140,16 +132,10 @@ class LayoutManager:
         """
         from markdowndeck.models import ElementType
 
-        image_elements = [
-            element
-            for element in slide.elements
-            if element.element_type == ElementType.IMAGE
-        ]
+        image_elements = [element for element in slide.elements if element.element_type == ElementType.IMAGE]
 
         if image_elements:
-            logger.debug(
-                f"Found {len(image_elements)} images for proactive scaling in slide {slide.object_id}"
-            )
+            logger.debug(f"Found {len(image_elements)} images for proactive scaling in slide {slide.object_id}")
 
             for i, image in enumerate(image_elements):
                 image_url = getattr(image, "url", "unknown")
@@ -170,30 +156,16 @@ class LayoutManager:
         from markdowndeck.models import ElementType
 
         element_count = len(slide.elements)
-        positioned_count = sum(
-            1 for e in slide.elements if hasattr(e, "position") and e.position
-        )
+        positioned_count = sum(1 for e in slide.elements if hasattr(e, "position") and e.position)
         sized_count = sum(1 for e in slide.elements if hasattr(e, "size") and e.size)
 
         # Count images that were proactively scaled
-        image_elements = [
-            e for e in slide.elements if e.element_type == ElementType.IMAGE
-        ]
-        scaled_images = sum(
-            1 for img in image_elements if hasattr(img, "size") and img.size
-        )
+        image_elements = [e for e in slide.elements if e.element_type == ElementType.IMAGE]
+        scaled_images = sum(1 for img in image_elements if hasattr(img, "size") and img.size)
 
-        section_count = (
-            len(slide.sections) if hasattr(slide, "sections") and slide.sections else 0
-        )
+        section_count = len(slide.sections) if hasattr(slide, "sections") and slide.sections else 0
         positioned_sections = (
-            sum(
-                1
-                for s in (slide.sections or [])
-                if hasattr(s, "position") and s.position
-            )
-            if slide.sections
-            else 0
+            sum(1 for s in (slide.sections or []) if hasattr(s, "position") and s.position) if slide.sections else 0
         )
 
         logger.debug(
@@ -221,12 +193,7 @@ class LayoutManager:
         from markdowndeck.models import ElementType
 
         for section in sections:
-            if not (
-                hasattr(section, "position")
-                and section.position
-                and hasattr(section, "size")
-                and section.size
-            ):
+            if not (hasattr(section, "position") and section.position and hasattr(section, "size") and section.size):
                 continue
 
             section_left, section_top = section.position
@@ -236,12 +203,7 @@ class LayoutManager:
 
             if hasattr(section, "elements") and section.elements:
                 for element in section.elements:
-                    if not (
-                        hasattr(element, "position")
-                        and element.position
-                        and hasattr(element, "size")
-                        and element.size
-                    ):
+                    if not (hasattr(element, "position") and element.position and hasattr(element, "size") and element.size):
                         continue
 
                     elem_left, elem_top = element.position
@@ -365,9 +327,7 @@ class LayoutManager:
                                 )
 
         if image_count > 0:
-            logger.debug(
-                f"Slide has {image_count} images that will be proactively scaled"
-            )
+            logger.debug(f"Slide has {image_count} images that will be proactively scaled")
 
         # Check section structure if present
         if hasattr(slide, "sections") and slide.sections:
@@ -398,9 +358,7 @@ class LayoutManager:
             has_subsections = hasattr(section, "subsections") and section.subsections
 
             if has_elements and has_subsections:
-                warnings.append(
-                    f"Section {getattr(section, 'id', 'unknown')} has both elements and subsections"
-                )
+                warnings.append(f"Section {getattr(section, 'id', 'unknown')} has both elements and subsections")
 
             if not has_elements and not has_subsections:
                 warnings.append(f"Section {getattr(section, 'id', 'unknown')} is empty")
@@ -413,9 +371,7 @@ class LayoutManager:
                     from markdowndeck.models import ElementType
 
                     has_images = any(
-                        e.element_type == ElementType.IMAGE
-                        for e in (section.elements or [])
-                        if hasattr(e, "element_type")
+                        e.element_type == ElementType.IMAGE for e in (section.elements or []) if hasattr(e, "element_type")
                     )
 
                     if has_images:
@@ -426,9 +382,7 @@ class LayoutManager:
 
             # Recursively validate subsections
             if has_subsections:
-                subsection_warnings = self._validate_section_structure(
-                    section.subsections, level + 1
-                )
+                subsection_warnings = self._validate_section_structure(section.subsections, level + 1)
                 warnings.extend(subsection_warnings)
 
         return warnings
@@ -462,11 +416,7 @@ class LayoutManager:
                 image_info = {
                     "index": i,
                     "has_url": bool(getattr(element, "url", "")),
-                    "url_preview": (
-                        (getattr(element, "url", "")[:50] + "...")
-                        if getattr(element, "url", "")
-                        else ""
-                    ),
+                    "url_preview": ((getattr(element, "url", "")[:50] + "...") if getattr(element, "url", "") else ""),
                     "has_directives": bool(getattr(element, "directives", {})),
                     "directives": getattr(element, "directives", {}),
                     "has_scaling_conflict": False,

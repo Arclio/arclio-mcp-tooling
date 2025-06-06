@@ -47,10 +47,7 @@ This is a paragraph.
 
         create_slide_req = next((r for r in requests if "createSlide" in r), None)
         assert create_slide_req is not None
-        assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            is not None
-        )
+        assert create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] is not None
 
         insert_text_reqs = [r for r in requests if "insertText" in r]
         assert len(insert_text_reqs) > 0, "No insert text requests found"
@@ -61,9 +58,7 @@ This is a paragraph.
         assert "Item 1" in all_text
         assert "Item 2" in all_text
 
-        list_bullets_req = next(
-            (r for r in requests if "createParagraphBullets" in r), None
-        )
+        list_bullets_req = next((r for r in requests if "createParagraphBullets" in r), None)
         assert list_bullets_req is not None, "No createParagraphBullets request found"
 
     def test_markdown_to_requests_complex_layout_slide(self):
@@ -99,36 +94,25 @@ My Complex Footer
             None,
         )
         assert bg_req is not None
-        assert (
-            "pageBackgroundFill.solidFill.color"
-            in bg_req["updatePageProperties"]["fields"]
-        )
-        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"][
-            "solidFill"
-        ]["color"]["rgbColor"] == BaseRequestBuilder()._hex_to_rgb("#112233")
+        assert "pageBackgroundFill.solidFill.color" in bg_req["updatePageProperties"]["fields"]
+        assert bg_req["updatePageProperties"]["pageProperties"]["pageBackgroundFill"]["solidFill"]["color"][
+            "rgbColor"
+        ] == BaseRequestBuilder()._hex_to_rgb("#112233")
 
-        all_texts = " ".join(
-            [r["insertText"]["text"] for r in requests if "insertText" in r]
-        )
+        all_texts = " ".join([r["insertText"]["text"] for r in requests if "insertText" in r])
         assert "My Complex Footer" in all_texts
 
         code_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and 'print("Hello Left")' in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and 'print("Hello Left")' in r["insertText"]["text"]
         ]
         assert len(code_texts) > 0
 
         left_col_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and "Left Column" in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and "Left Column" in r["insertText"]["text"]
         ]
         assert len(left_col_texts) > 0
         right_col_texts = [
-            r["insertText"]["text"]
-            for r in requests
-            if "insertText" in r and "Right Column" in r["insertText"]["text"]
+            r["insertText"]["text"] for r in requests if "insertText" in r and "Right Column" in r["insertText"]["text"]
         ]
         assert len(right_col_texts) > 0
 
@@ -151,37 +135,21 @@ My Complex Footer
 
     def test_notes_included_in_api_requests(self, deck_with_notes):
         api_generator = ApiRequestGenerator()
-        batches = api_generator.generate_batch_requests(
-            deck_with_notes, "presentation_id"
-        )
+        batches = api_generator.generate_batch_requests(deck_with_notes, "presentation_id")
         assert len(batches) == 1
         all_requests = batches[0]["requests"]
         expected_notes_id = "fixed_notes_id_for_test"
 
         delete_notes_req = next(
-            (
-                r
-                for r in all_requests
-                if "deleteText" in r
-                and r["deleteText"]["objectId"] == expected_notes_id
-            ),
+            (r for r in all_requests if "deleteText" in r and r["deleteText"]["objectId"] == expected_notes_id),
             None,
         )
         insert_notes_req = next(
-            (
-                r
-                for r in all_requests
-                if "insertText" in r
-                and r["insertText"]["objectId"] == expected_notes_id
-            ),
+            (r for r in all_requests if "insertText" in r and r["insertText"]["objectId"] == expected_notes_id),
             None,
         )
-        assert (
-            delete_notes_req is not None
-        ), "deleteText request for notes shape not found."
-        assert (
-            insert_notes_req is not None
-        ), "insertText request for notes shape not found."
+        assert delete_notes_req is not None, "deleteText request for notes shape not found."
+        assert insert_notes_req is not None, "insertText request for notes shape not found."
         assert insert_notes_req["insertText"]["text"] == "These are my notes"
 
     # --- Tests for create_presentation and get_themes ---
@@ -235,9 +203,7 @@ My Complex Footer
 
         # 3. Assert the orchestration flow
         mock_parser.assert_called_once_with()
-        mock_parser_instance.parse.assert_called_once_with(
-            markdown_input, title_input, theme_id_input
-        )
+        mock_parser_instance.parse.assert_called_once_with(markdown_input, title_input, theme_id_input)
 
         mock_layout_manager.assert_called_once_with()
         mock_layout_instance.calculate_positions.assert_called_once_with(mock_slide)
@@ -246,9 +212,7 @@ My Complex Footer
         mock_overflow_instance.process_slide.assert_called_once_with(mock_slide)
 
         mock_api_client.assert_called_once_with(mock_credentials, None)
-        passed_deck_to_api = (
-            mock_api_client_instance.create_presentation_from_deck.call_args[0][0]
-        )
+        passed_deck_to_api = mock_api_client_instance.create_presentation_from_deck.call_args[0][0]
         assert passed_deck_to_api.title == "Test Deck"
         assert passed_deck_to_api.slides == [mock_slide]
 

@@ -32,8 +32,7 @@ class TestTextMetrics:
         short_element = TextElement(element_type=ElementType.TEXT, text="Short")
         long_element = TextElement(
             element_type=ElementType.TEXT,
-            text="This is a much longer text that will definitely require multiple lines when wrapped "
-            * 5,
+            text="This is a much longer text that will definitely require multiple lines when wrapped " * 5,
         )
 
         available_width = 300.0
@@ -55,9 +54,7 @@ class TestTextMetrics:
         wide_height = calculate_text_element_height(element, 500.0)
         narrow_height = calculate_text_element_height(element, 150.0)
 
-        assert (
-            narrow_height > wide_height
-        ), "Narrower width should result in taller text"
+        assert narrow_height > wide_height, "Narrower width should result in taller text"
 
     def test_title_vs_text_sizing(self):
         """Test that titles and regular text use different sizing parameters."""
@@ -96,9 +93,7 @@ class TestTextMetrics:
         normal_height = calculate_text_element_height(normal_element, available_width)
         large_height = calculate_text_element_height(large_element, available_width)
 
-        assert (
-            large_height > normal_height
-        ), "Larger font size should result in taller element"
+        assert large_height > normal_height, "Larger font size should result in taller element"
 
     def test_footer_html_comment_stripping(self):
         """Test that footer elements strip HTML comments (speaker notes)."""
@@ -115,17 +110,13 @@ class TestTextMetrics:
 
         available_width = 400.0
 
-        height_with_comments = calculate_text_element_height(
-            footer_with_comments, available_width
-        )
-        height_without_comments = calculate_text_element_height(
-            footer_without_comments, available_width
-        )
+        height_with_comments = calculate_text_element_height(footer_with_comments, available_width)
+        height_without_comments = calculate_text_element_height(footer_without_comments, available_width)
 
         # Heights should be similar since comments should be stripped
-        assert (
-            abs(height_with_comments - height_without_comments) < 5
-        ), "Footer heights should be similar regardless of HTML comments"
+        assert abs(height_with_comments - height_without_comments) < 5, (
+            "Footer heights should be similar regardless of HTML comments"
+        )
 
     def test_no_longer_caps_height(self):
         """Test that text height is no longer artificially capped."""
@@ -137,9 +128,7 @@ class TestTextMetrics:
         height = calculate_text_element_height(element, 600)
 
         # The old cap was around 30-50pt. This should now be much larger.
-        assert (
-            height > 60
-        ), "Title height should be based on content and not capped at a low value."
+        assert height > 60, "Title height should be based on content and not capped at a low value."
 
 
 class TestTextElementSplitting:
@@ -309,9 +298,7 @@ class TestUnifiedListMetrics:
         empty_list = ListElement(element_type=ElementType.BULLET_LIST, items=[])
         height = calculate_list_element_height(empty_list, 400.0)
 
-        assert (
-            height >= MIN_LIST_HEIGHT
-        ), f"Empty list should get minimum height {MIN_LIST_HEIGHT}, got {height}"
+        assert height >= MIN_LIST_HEIGHT, f"Empty list should get minimum height {MIN_LIST_HEIGHT}, got {height}"
 
     def test_nested_list_height(self):
         """Test that nested lists are taller than flat lists."""
@@ -330,34 +317,23 @@ class TestUnifiedListMetrics:
         ]
 
         flat_list = ListElement(element_type=ElementType.BULLET_LIST, items=flat_items)
-        nested_list = ListElement(
-            element_type=ElementType.BULLET_LIST, items=nested_items
-        )
+        nested_list = ListElement(element_type=ElementType.BULLET_LIST, items=nested_items)
 
         available_width = 400.0
 
         flat_height = calculate_list_element_height(flat_list, available_width)
         nested_height = calculate_list_element_height(nested_list, available_width)
 
-        assert (
-            nested_height > flat_height
-        ), "Nested list should be taller than flat list"
+        assert nested_height > flat_height, "Nested list should be taller than flat list"
 
     def test_list_item_text_wrapping(self):
         """Test that long list item text affects list height."""
 
-        short_item_list = ListElement(
-            element_type=ElementType.BULLET_LIST, items=[ListItem(text="Short")]
-        )
+        short_item_list = ListElement(element_type=ElementType.BULLET_LIST, items=[ListItem(text="Short")])
 
         long_item_list = ListElement(
             element_type=ElementType.BULLET_LIST,
-            items=[
-                ListItem(
-                    text="This is a very long list item that will definitely wrap multiple times "
-                    * 3
-                )
-            ],
+            items=[ListItem(text="This is a very long list item that will definitely wrap multiple times " * 3)],
         )
 
         available_width = 200.0  # Narrow to force wrapping
@@ -374,9 +350,7 @@ class TestUnifiedListMetrics:
             text="Item with **bold** text",
             formatting=[TextFormat(start=10, end=14, format_type=TextFormatType.BOLD)],
         )
-        element = ListElement(
-            items=[item_formatted], element_type=ElementType.BULLET_LIST
-        )
+        element = ListElement(items=[item_formatted], element_type=ElementType.BULLET_LIST)
 
         # The height difference due to mild formatting might be negligible or absorbed by line height
         # but the test ensures it doesn't crash and uses the text_height_calculator.
@@ -414,29 +388,21 @@ class TestUnifiedTableMetrics:
 
         empty_table = TableElement(headers=[], rows=[], element_type=ElementType.TABLE)
         height = calculate_table_element_height(empty_table, 500)
-        assert (
-            height >= 30
-        ), f"Empty table should get minimum height, got {height}"  # Using relaxed minimum
+        assert height >= 30, f"Empty table should get minimum height, got {height}"  # Using relaxed minimum
 
     def test_table_header_only(self):
         """Test tables with only headers."""
 
-        header_only_table = TableElement(
-            headers=["H1", "H2"], rows=[], element_type=ElementType.TABLE
-        )
+        header_only_table = TableElement(headers=["H1", "H2"], rows=[], element_type=ElementType.TABLE)
         height = calculate_table_element_height(header_only_table, 500)
 
         # Current implementation uses more compact spacing
-        assert (
-            height > 20
-        ), f"Header-only table should have reasonable height, got {height}"
+        assert height > 20, f"Header-only table should have reasonable height, got {height}"
 
     def test_table_cell_content_affects_height(self):
         """Test that cell content length affects table height."""
 
-        short_content_table = TableElement(
-            element_type=ElementType.TABLE, headers=["A", "B"], rows=[["X", "Y"]]
-        )
+        short_content_table = TableElement(element_type=ElementType.TABLE, headers=["A", "B"], rows=[["X", "Y"]])
 
         long_content_table = TableElement(
             element_type=ElementType.TABLE,
@@ -446,16 +412,10 @@ class TestUnifiedTableMetrics:
 
         available_width = 300.0
 
-        short_height = calculate_table_element_height(
-            short_content_table, available_width
-        )
-        long_height = calculate_table_element_height(
-            long_content_table, available_width
-        )
+        short_height = calculate_table_element_height(short_content_table, available_width)
+        long_height = calculate_table_element_height(long_content_table, available_width)
 
-        assert (
-            long_height > short_height
-        ), "Longer cell content should result in taller table"
+        assert long_height > short_height, "Longer cell content should result in taller table"
 
 
 class TestUnifiedCodeMetrics:
@@ -464,9 +424,7 @@ class TestUnifiedCodeMetrics:
     def test_code_height_increases_with_lines(self):
         """Test that more code lines result in taller code blocks."""
 
-        short_code = CodeElement(
-            element_type=ElementType.CODE, code="print('hello')", language="python"
-        )
+        short_code = CodeElement(element_type=ElementType.CODE, code="print('hello')", language="python")
 
         long_code = CodeElement(
             element_type=ElementType.CODE,
@@ -479,28 +437,20 @@ class TestUnifiedCodeMetrics:
         short_height = calculate_code_element_height(short_code, available_width)
         long_height = calculate_code_element_height(long_code, available_width)
 
-        assert (
-            long_height > short_height
-        ), "More code lines should result in taller code block"
+        assert long_height > short_height, "More code lines should result in taller code block"
         assert short_height >= MIN_CODE_HEIGHT, "Should respect minimum height"
 
     def test_empty_code_minimum_height(self):
         """Test that empty code blocks return minimum height."""
 
-        empty_code = CodeElement(
-            code="", language="python", element_type=ElementType.CODE
-        )
+        empty_code = CodeElement(code="", language="python", element_type=ElementType.CODE)
         height = calculate_code_element_height(empty_code, 500)
-        assert (
-            height >= MIN_CODE_HEIGHT
-        ), f"Empty code should get minimum height {MIN_CODE_HEIGHT}, got {height}"
+        assert height >= MIN_CODE_HEIGHT, f"Empty code should get minimum height {MIN_CODE_HEIGHT}, got {height}"
 
     def test_code_line_wrapping_affects_height(self):
         """Test that long code lines that wrap affect height."""
 
-        short_line_code = CodeElement(
-            element_type=ElementType.CODE, code="x = 1", language="python"
-        )
+        short_line_code = CodeElement(element_type=ElementType.CODE, code="x = 1", language="python")
 
         long_line_code = CodeElement(
             element_type=ElementType.CODE,
@@ -513,9 +463,7 @@ class TestUnifiedCodeMetrics:
         short_height = calculate_code_element_height(short_line_code, narrow_width)
         long_height = calculate_code_element_height(long_line_code, narrow_width)
 
-        assert (
-            long_height > short_height
-        ), "Long lines that wrap should result in taller code block"
+        assert long_height > short_height, "Long lines that wrap should result in taller code block"
 
 
 class TestUnifiedImageMetrics:
@@ -557,9 +505,7 @@ class TestUnifiedImageMetrics:
         """Test that images respect minimum height constraints."""
 
         # Create an image that would calculate to very small height
-        tiny_image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        tiny_image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
 
         very_small_width = 10.0
         height = calculate_image_element_height(tiny_image, very_small_width)
@@ -577,9 +523,7 @@ class TestUnifiedImageMetrics:
 
         from markdowndeck.layout.constants import MIN_IMAGE_HEIGHT
 
-        assert (
-            height >= MIN_IMAGE_HEIGHT
-        ), "Empty image URL should return minimum height"
+        assert height >= MIN_IMAGE_HEIGHT, "Empty image URL should return minimum height"
 
 
 class TestImageElementSplitting:
@@ -588,9 +532,7 @@ class TestImageElementSplitting:
     def test_image_split_always_fits(self):
         """Test that images always fit due to proactive scaling."""
 
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="https://example.com/test.jpg"
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="https://example.com/test.jpg")
         image.size = (400, 300)  # Set a size
 
         # Test with various heights - image should always fit due to proactive scaling
@@ -651,9 +593,7 @@ class TestUnifiedMetricsIntegration:
         content = "Test content that should work across all element types"
 
         text_elem = TextElement(element_type=ElementType.TEXT, text=content)
-        list_elem = ListElement(
-            element_type=ElementType.BULLET_LIST, items=[ListItem(text=content)]
-        )
+        list_elem = ListElement(element_type=ElementType.BULLET_LIST, items=[ListItem(text=content)])
         code_elem = CodeElement(element_type=ElementType.CODE, code=content)
 
         narrow_width = 100.0
@@ -674,9 +614,5 @@ class TestUnifiedMetricsIntegration:
         assert narrow_code_height >= wide_code_height
 
         # All heights should be positive
-        assert all(
-            h > 0 for h in [narrow_text_height, narrow_list_height, narrow_code_height]
-        )
-        assert all(
-            h > 0 for h in [wide_text_height, wide_list_height, wide_code_height]
-        )
+        assert all(h > 0 for h in [narrow_text_height, narrow_list_height, narrow_code_height])
+        assert all(h > 0 for h in [wide_text_height, wide_list_height, wide_code_height])

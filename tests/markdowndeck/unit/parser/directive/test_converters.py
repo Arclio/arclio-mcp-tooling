@@ -67,9 +67,7 @@ class TestDirectiveConverters:
             ("1/0", "division by zero"),
         ],
     )
-    def test_convert_dimension_invalid_format(
-        self, invalid_value: str, error_message_match: str
-    ):
+    def test_convert_dimension_invalid_format(self, invalid_value: str, error_message_match: str):
         """Test invalid dimension formats raise appropriate errors."""
         with pytest.raises(ValueError, match=error_message_match):
             convert_dimension(invalid_value)
@@ -138,9 +136,7 @@ class TestDirectiveConverters:
             ("custom_value", "value", "custom_value"),
         ],
     )
-    def test_convert_style_basic_values(
-        self, value: str, expected_type: str, expected_properties: Any
-    ):
+    def test_convert_style_basic_values(self, value: str, expected_type: str, expected_properties: Any):
         """Test basic style value conversions."""
         result_type, result_value = convert_style(value)
         assert result_type == expected_type
@@ -220,9 +216,7 @@ class TestDirectiveConverters:
                 "expected": {
                     "width": "3px",
                     "style": "dotted",
-                    "color": {
-                        "type": "rgba"
-                    },  # Just check type, rgba details tested elsewhere
+                    "color": {"type": "rgba"},  # Just check type, rgba details tested elsewhere
                 },
             },
         ]

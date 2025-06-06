@@ -112,44 +112,28 @@ class TestOverflowHandlerIntegration:
         result_slides = overflow_manager.process_slide(slide)
 
         # Should create 2 slides due to external overflow
-        assert (
-            len(result_slides) == 2
-        ), f"Should create 2 slides for external overflow, got {len(result_slides)}"
+        assert len(result_slides) == 2, f"Should create 2 slides for external overflow, got {len(result_slides)}"
 
         result_slides[0]
         continuation_slide = result_slides[1]
 
         # Verify continuation slide structure
         continuation_title = next(
-            (
-                e
-                for e in continuation_slide.elements
-                if e.element_type == ElementType.TITLE
-            ),
+            (e for e in continuation_slide.elements if e.element_type == ElementType.TITLE),
             None,
         )
         assert continuation_title is not None, "Continuation slide should have title"
-        assert (
-            CONTINUED_TITLE_SUFFIX in continuation_title.text
-        ), "Title should indicate continuation"
-        assert (
-            "Original Title" in continuation_title.text
-        ), "Should preserve original title text"
+        assert CONTINUED_TITLE_SUFFIX in continuation_title.text, "Title should indicate continuation"
+        assert "Original Title" in continuation_title.text, "Should preserve original title text"
 
         # Verify positions are reset in continuation slide (per specification)
         for section in continuation_slide.sections:
-            assert (
-                section.position is None
-            ), "Continuation section positions should be reset"
+            assert section.position is None, "Continuation section positions should be reset"
             assert section.size is None, "Continuation section sizes should be reset"
 
             for element in section.elements:
-                assert (
-                    element.position is None
-                ), "Continuation element positions should be reset"
-                assert (
-                    element.size is None
-                ), "Continuation element sizes should be reset"
+                assert element.position is None, "Continuation element positions should be reset"
+                assert element.size is None, "Continuation element sizes should be reset"
 
     def test_internal_content_overflow_ignored(self, overflow_manager):
         """Test that internal content overflow within fixed-size sections is ignored (per specification)."""
@@ -231,9 +215,7 @@ class TestOverflowHandlerIntegration:
         result_slides = overflow_manager.process_slide(slide)
 
         # Should NOT create continuation slide - images are pre-scaled
-        assert (
-            len(result_slides) == 1
-        ), "Proactively scaled images should not cause overflow"
+        assert len(result_slides) == 1, "Proactively scaled images should not cause overflow"
 
         # Test image split behavior returns (self, None)
         fitted, overflowing = large_image.split(50.0)
@@ -423,15 +405,9 @@ class TestOverflowHandlerIntegration:
         if len(result_slides) > 1:
             for result_slide in result_slides:
                 for section in result_slide.sections:
-                    table_elements = [
-                        e
-                        for e in section.elements
-                        if e.element_type == ElementType.TABLE
-                    ]
+                    table_elements = [e for e in section.elements if e.element_type == ElementType.TABLE]
                     for table_elem in table_elements:
-                        assert (
-                            len(table_elem.headers) == 3
-                        ), "All table parts should have headers"
+                        assert len(table_elem.headers) == 3, "All table parts should have headers"
 
     def test_list_minimum_requirements_two_items(self, overflow_manager):
         """Test that lists follow minimum 2 items requirement."""
@@ -446,9 +422,7 @@ class TestOverflowHandlerIntegration:
         # Create list with multiple items
         list_element = ListElement(
             element_type=ElementType.BULLET_LIST,
-            items=[
-                ListItem(text=f"Important item {i} with content") for i in range(1, 8)
-            ],
+            items=[ListItem(text=f"Important item {i} with content") for i in range(1, 8)],
             position=(50, 150),
             size=(620, 200),
         )
@@ -511,21 +485,13 @@ class TestOverflowHandlerIntegration:
         for i, result_slide in enumerate(result_slides[1:], 1):
             # Check section position reset
             for section in result_slide.sections:
-                assert (
-                    section.position is None
-                ), f"Continuation slide {i} section position should be None"
-                assert (
-                    section.size is None
-                ), f"Continuation slide {i} section size should be None"
+                assert section.position is None, f"Continuation slide {i} section position should be None"
+                assert section.size is None, f"Continuation slide {i} section size should be None"
 
                 # Check element position reset (except meta elements like title/footer)
                 for element in section.elements:
-                    assert (
-                        element.position is None
-                    ), f"Continuation slide {i} element position should be None"
-                    assert (
-                        element.size is None
-                    ), f"Continuation slide {i} element size should be None"
+                    assert element.position is None, f"Continuation slide {i} element position should be None"
+                    assert element.size is None, f"Continuation slide {i} element size should be None"
 
     def test_overflow_validation_and_analysis(self, overflow_manager):
         """Test overflow validation and analysis tools."""
@@ -564,17 +530,13 @@ class TestOverflowHandlerIntegration:
 
         analysis = overflow_manager.get_overflow_analysis(slide)
         assert analysis["has_overflow"], "Analysis should show overflow"
-        assert (
-            analysis["overflowing_section_index"] is not None
-        ), "Should identify overflowing section"
+        assert analysis["overflowing_section_index"] is not None, "Should identify overflowing section"
 
         warnings = overflow_manager.validate_slide_structure(slide)
         # Should not have critical warnings for this simple structure
         assert isinstance(warnings, list), "Should return warnings list"
 
-    def test_edge_case_empty_and_minimal_content_with_specification(
-        self, overflow_manager
-    ):
+    def test_edge_case_empty_and_minimal_content_with_specification(self, overflow_manager):
         """Test edge cases with specification-compliant behavior."""
 
         # Test 1: Empty slide

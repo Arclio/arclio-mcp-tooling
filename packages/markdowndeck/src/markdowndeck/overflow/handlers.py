@@ -52,9 +52,7 @@ class StandardOverflowHandler:
             f"top_margin={actual_top_margin}, body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
         )
 
-    def handle_overflow(
-        self, slide: "Slide", overflowing_section: "Section"
-    ) -> tuple["Slide", "Slide"]:
+    def handle_overflow(self, slide: "Slide", overflowing_section: "Section") -> tuple["Slide", "Slide"]:
         """
         Handle overflow by partitioning the overflowing section and creating a continuation slide.
 
@@ -65,33 +63,24 @@ class StandardOverflowHandler:
         Returns:
             Tuple of (modified_original_slide, continuation_slide)
         """
-        logger.info(
-            f"Handling overflow for section {overflowing_section.id} at position {overflowing_section.position}"
-        )
+        logger.info(f"Handling overflow for section {overflowing_section.id} at position {overflowing_section.position}")
 
         # Store original non-body elements to preserve them
         from markdowndeck.models import ElementType
 
         original_meta_elements = [
-            e
-            for e in slide.elements
-            if e.element_type
-            in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            e for e in slide.elements if e.element_type in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
         # Calculate available height before the overflowing section
-        section_top = (
-            overflowing_section.position[1] if overflowing_section.position else 0
-        )
+        section_top = overflowing_section.position[1] if overflowing_section.position else 0
         available_height = self.body_end_y - section_top
         logger.debug(
             f"Available height for overflow section: {available_height} (body_end_y={self.body_end_y} - section_top={section_top})"
         )
 
         # Partition the overflowing section using the specification algorithm
-        fitted_part, overflowing_part = self._partition_section(
-            overflowing_section, available_height, visited=set()
-        )
+        fitted_part, overflowing_part = self._partition_section(overflowing_section, available_height, visited=set())
 
         # Find the index of the overflowing section in the original slide
         section_index = -1
@@ -115,9 +104,7 @@ class StandardOverflowHandler:
 
         # Create continuation slide
         slide_builder = SlideBuilder(slide)
-        continuation_slide = slide_builder.create_continuation_slide(
-            continuation_sections, 1
-        )
+        continuation_slide = slide_builder.create_continuation_slide(continuation_sections, 1)
 
         # Modify original slide
         modified_original = deepcopy(slide)
@@ -140,9 +127,7 @@ class StandardOverflowHandler:
         # Update elements list to match the modified sections
         self._rebuild_elements_from_sections(modified_original, original_meta_elements)
 
-        logger.info(
-            f"Created continuation slide with {len(continuation_sections)} sections"
-        )
+        logger.info(f"Created continuation slide with {len(continuation_sections)} sections")
         return modified_original, continuation_slide
 
     def _partition_section(
@@ -163,16 +148,12 @@ class StandardOverflowHandler:
             visited = set()
 
         if section.id in visited:
-            logger.warning(
-                f"Circular reference detected for section {section.id}. Stopping partition."
-            )
+            logger.warning(f"Circular reference detected for section {section.id}. Stopping partition.")
             return None, None
 
         visited.add(section.id)
 
-        logger.debug(
-            f"Partitioning section {section.id} with available_height={available_height}"
-        )
+        logger.debug(f"Partitioning section {section.id} with available_height={available_height}")
 
         if section.elements:
             # Rule A: Section has elements - standard partitioning
@@ -182,17 +163,11 @@ class StandardOverflowHandler:
         if section.subsections:
             if section.type == "row":
                 # Rule B: Coordinated row of columns partitioning
-                logger.debug(
-                    f"Section {section.id}: Applying Rule B (row with subsections)"
-                )
-                return self._apply_rule_b_unanimous_consent(
-                    section, available_height, visited
-                )
+                logger.debug(f"Section {section.id}: Applying Rule B (row with subsections)")
+                return self._apply_rule_b_unanimous_consent(section, available_height, visited)
             # Standard subsection partitioning
             logger.debug(f"Section {section.id}: Standard subsection partitioning")
-            return self._partition_section_with_subsections(
-                section, available_height, visited
-            )
+            return self._partition_section_with_subsections(section, available_height, visited)
 
         # Empty section
         logger.warning(f"Empty section {section.id} encountered during partitioning")
@@ -215,9 +190,7 @@ class StandardOverflowHandler:
         Returns:
             Tuple of (fitted_part, overflowing_part)
         """
-        logger.debug(
-            f"Applying Rule A to section {section.id} with {len(section.elements)} elements"
-        )
+        logger.debug(f"Applying Rule A to section {section.id} with {len(section.elements)} elements")
 
         if not section.elements:
             return None, None
@@ -244,9 +217,7 @@ class StandardOverflowHandler:
                 # Element crosses the boundary - delegate splitting decision to element
                 remaining_height = available_height - current_height
 
-                logger.debug(
-                    f"Element overflow: {element.element_type}, remaining_height={remaining_height}"
-                )
+                logger.debug(f"Element overflow: {element.element_type}, remaining_height={remaining_height}")
 
                 # Check if element is splittable and delegate split decision
                 if self._is_element_splittable(element):
@@ -261,9 +232,7 @@ class StandardOverflowHandler:
                     else:
                         # Element chose to remain atomic
                         split_element_parts = (None, element, i)
-                        logger.info(
-                            f"Element {element.element_type} chose to remain atomic"
-                        )
+                        logger.info(f"Element {element.element_type} chose to remain atomic")
                 else:
                     # Element is not splittable - treat as atomic
                     split_element_parts = (None, element, i)
@@ -327,8 +296,7 @@ class StandardOverflowHandler:
             Tuple of (fitted_row, overflowing_row)
         """
         logger.debug(
-            f"Applying Rule B (unanimous consent) to row section {row_section.id} "
-            f"with {len(row_section.subsections)} columns"
+            f"Applying Rule B (unanimous consent) to row section {row_section.id} with {len(row_section.subsections)} columns"
         )
 
         if not row_section.subsections:
@@ -338,15 +306,11 @@ class StandardOverflowHandler:
         overflowing_elements_by_column = []
 
         for i, column in enumerate(row_section.subsections):
-            overflowing_element = self._find_overflowing_element_in_column(
-                column, available_height
-            )
+            overflowing_element = self._find_overflowing_element_in_column(column, available_height)
             overflowing_elements_by_column.append((i, column, overflowing_element))
 
             if overflowing_element:
-                logger.debug(
-                    f"Column {i} has overflowing element: {overflowing_element.element_type}"
-                )
+                logger.debug(f"Column {i} has overflowing element: {overflowing_element.element_type}")
 
         # Step 2: Test unanimous consent - all overflowing elements must be splittable
         split_tests = []
@@ -354,15 +318,11 @@ class StandardOverflowHandler:
         for column_index, column, overflowing_element in overflowing_elements_by_column:
             if overflowing_element:
                 # Calculate remaining height for this element
-                remaining_height = self._calculate_remaining_height_for_element(
-                    column, overflowing_element, available_height
-                )
+                remaining_height = self._calculate_remaining_height_for_element(column, overflowing_element, available_height)
 
                 # Test if element can split with minimum requirements
                 if self._is_element_splittable(overflowing_element):
-                    fitted_part, overflowing_part = overflowing_element.split(
-                        remaining_height
-                    )
+                    fitted_part, overflowing_part = overflowing_element.split(remaining_height)
                     can_split = fitted_part is not None
                 else:
                     can_split = False
@@ -379,17 +339,11 @@ class StandardOverflowHandler:
         all_consent = all(can_split for _, _, can_split in split_tests)
 
         if not all_consent:
-            logger.info(
-                f"Unanimous consent FAILED for row section {row_section.id} - "
-                f"promoting entire row to next slide"
-            )
+            logger.info(f"Unanimous consent FAILED for row section {row_section.id} - promoting entire row to next slide")
             return None, deepcopy(row_section)
 
         # Step 4: Execute coordinated split (all columns consent)
-        logger.info(
-            f"Unanimous consent ACHIEVED for row section {row_section.id} - "
-            f"executing coordinated split"
-        )
+        logger.info(f"Unanimous consent ACHIEVED for row section {row_section.id} - executing coordinated split")
 
         fitted_columns = []
         overflowing_columns = []
@@ -397,9 +351,7 @@ class StandardOverflowHandler:
         # CRITICAL FIX: Maintain column structure in continuation row
         # We need to create placeholders for ALL columns to preserve structure
         for _i, column in enumerate(row_section.subsections):
-            fitted_col, overflowing_col = self._partition_section(
-                column, available_height, visited.copy()
-            )
+            fitted_col, overflowing_col = self._partition_section(column, available_height, visited.copy())
 
             if fitted_col:
                 fitted_columns.append(fitted_col)
@@ -446,9 +398,7 @@ class StandardOverflowHandler:
 
         return fitted_row, overflowing_row
 
-    def _find_overflowing_element_in_column(
-        self, column: "Section", available_height: float
-    ) -> "Element | None":
+    def _find_overflowing_element_in_column(self, column: "Section", available_height: float) -> "Element | None":
         """
         Find the first element in a column that causes overflow.
 
@@ -574,9 +524,7 @@ class StandardOverflowHandler:
         overflowing_section = None
 
         # Fitted part includes subsections before overflow point plus fitted part
-        fitted_subsections = deepcopy(
-            section.subsections[:overflowing_subsection_index]
-        )
+        fitted_subsections = deepcopy(section.subsections[:overflowing_subsection_index])
         if fitted_subsection:
             fitted_subsections.append(fitted_subsection)
 
@@ -588,9 +536,7 @@ class StandardOverflowHandler:
         overflowing_subsections = []
         if overflowing_subsection_part:
             overflowing_subsections.append(overflowing_subsection_part)
-        overflowing_subsections.extend(
-            deepcopy(section.subsections[overflowing_subsection_index + 1 :])
-        )
+        overflowing_subsections.extend(deepcopy(section.subsections[overflowing_subsection_index + 1 :]))
 
         if overflowing_subsections:
             overflowing_section = deepcopy(section)
@@ -613,14 +559,10 @@ class StandardOverflowHandler:
         """
         # All elements should have a split method per the new specification
         has_split_method = hasattr(element, "split") and callable(element.split)
-        logger.debug(
-            f"Element {element.element_type} splittable check: has_split={has_split_method}"
-        )
+        logger.debug(f"Element {element.element_type} splittable check: has_split={has_split_method}")
         return has_split_method
 
-    def _rebuild_elements_from_sections(
-        self, slide: "Slide", meta_elements: list
-    ) -> None:
+    def _rebuild_elements_from_sections(self, slide: "Slide", meta_elements: list) -> None:
         """
         Rebuild the slide's flat .elements list from its sections.
 
@@ -637,9 +579,7 @@ class StandardOverflowHandler:
             for section in sections:
                 # Circular reference protection
                 if section.id in visited_sections:
-                    logger.warning(
-                        f"Circular reference detected in section {section.id} during element extraction. Skipping."
-                    )
+                    logger.warning(f"Circular reference detected in section {section.id} during element extraction. Skipping.")
                     continue
 
                 visited_sections.add(section.id)

@@ -47,9 +47,7 @@ def calculate_element_height(element: Element, available_width: float) -> float:
     # breaking overflow loops. The previous width check was too brittle.
     if hasattr(element, "size") and element.size:
         _element_width, element_height = element.size
-        logger.debug(
-            f"Using pre-calculated height for {getattr(element, 'element_type', 'N/A')}: {element_height}pt"
-        )
+        logger.debug(f"Using pre-calculated height for {getattr(element, 'element_type', 'N/A')}: {element_height}pt")
         return element_height
 
     # Dispatch to specific optimized metric functions based on element type
@@ -90,14 +88,9 @@ def calculate_element_height(element: Element, available_width: float) -> float:
         # For images, apply proactive scaling to fit within available width
         # Available height is not typically known at this level, so we pass 0
         # The image metrics will scale based on width and aspect ratio
-        proactive_height = calculate_image_element_height(
-            element, available_width, available_height=0
-        )
+        proactive_height = calculate_image_element_height(element, available_width, available_height=0)
 
-        logger.debug(
-            f"Image element proactively scaled to height: {proactive_height:.1f} "
-            f"for width: {available_width:.1f}"
-        )
+        logger.debug(f"Image element proactively scaled to height: {proactive_height:.1f} for width: {available_width:.1f}")
 
         return proactive_height
 
@@ -105,9 +98,7 @@ def calculate_element_height(element: Element, available_width: float) -> float:
     return 60
 
 
-def calculate_element_height_with_constraints(
-    element: Element, available_width: float, available_height: float = 0
-) -> float:
+def calculate_element_height_with_constraints(element: Element, available_width: float, available_height: float = 0) -> float:
     """
     Calculate element height with both width and height constraints (for images).
 
@@ -126,9 +117,7 @@ def calculate_element_height_with_constraints(
         # For images, use proactive scaling with both constraints
         from markdowndeck.layout.metrics.image import calculate_image_element_height
 
-        return calculate_image_element_height(
-            element, available_width, available_height
-        )
+        return calculate_image_element_height(element, available_width, available_height)
     # For other elements, height constraint doesn't apply
     return calculate_element_height(element, available_width)
 
@@ -136,9 +125,7 @@ def calculate_element_height_with_constraints(
 # Fallback implementations for when specialized metric modules are not available
 
 
-def calculate_text_element_height(
-    element: TextElement | Element, available_width: float
-) -> float:
+def calculate_text_element_height(element: TextElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a text element.
 
@@ -218,9 +205,7 @@ def calculate_text_element_height(
     return max(min_height, calculated_height)
 
 
-def calculate_list_element_height(
-    element: ListElement | Element, available_width: float
-) -> float:
+def calculate_list_element_height(element: ListElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a list element.
 
@@ -268,9 +253,7 @@ def calculate_list_element_height(
                 child_text_length = len(child.text)
                 child_width = available_width - 16  # indent
                 child_chars_per_line = max(1, int(child_width / 5.0))
-                child_lines = (
-                    child_text_length + child_chars_per_line - 1
-                ) // child_chars_per_line
+                child_lines = (child_text_length + child_chars_per_line - 1) // child_chars_per_line
                 child_height = 22 + ((child_lines - 1) * 14)
                 item_height += child_height + (item_spacing / 2)
 
@@ -286,9 +269,7 @@ def calculate_list_element_height(
     return max(total_height, 30.0)
 
 
-def calculate_table_element_height(
-    element: TableElement | Element, available_width: float
-) -> float:
+def calculate_table_element_height(element: TableElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a table element.
 
@@ -318,9 +299,7 @@ def calculate_table_element_height(
 
     # Calculate table dimensions
     row_count = len(rows)
-    col_count = max(
-        len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0
-    )
+    col_count = max(len(headers) if headers else 0, max(len(row) for row in rows) if rows else 0)
 
     if col_count == 0:
         return 35
@@ -333,9 +312,7 @@ def calculate_table_element_height(
     return max(total_height, 35.0)
 
 
-def calculate_code_element_height(
-    element: CodeElement | Element, available_width: float
-) -> float:
+def calculate_code_element_height(element: CodeElement | Element, available_width: float) -> float:
     """
     Calculate height needed for a code element.
 
@@ -367,11 +344,7 @@ def calculate_code_element_height(
     avg_char_width_pt = 7.5
     line_height_pt = 14.0
     padding_pt = 8.0
-    language_height = (
-        12.0
-        if language and language.lower() not in ("text", "plaintext", "plain")
-        else 0
-    )
+    language_height = 12.0 if language and language.lower() not in ("text", "plaintext", "plain") else 0
 
     # Calculate lines of code
     effective_width = max(1.0, available_width - 12.0)
@@ -405,9 +378,7 @@ def get_element_scaling_info(element: Element, available_width: float) -> dict:
         Dictionary with scaling analysis
     """
     info = {
-        "element_type": (
-            str(element.element_type) if hasattr(element, "element_type") else "unknown"
-        ),
+        "element_type": (str(element.element_type) if hasattr(element, "element_type") else "unknown"),
         "available_width": available_width,
         "calculated_height": 0.0,
         "is_image": False,

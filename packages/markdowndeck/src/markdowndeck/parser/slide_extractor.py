@@ -22,17 +22,13 @@ class SlideExtractor:
         normalized_content = markdown.replace("\r\n", "\n").replace("\r", "\n")
 
         # Split content into slides using code-block-aware splitter
-        slide_parts = self._split_content_with_code_block_awareness(
-            normalized_content, r"^\s*===\s*$"
-        )
+        slide_parts = self._split_content_with_code_block_awareness(normalized_content, r"^\s*===\s*$")
 
         logger.debug(f"Initial slide part count: {len(slide_parts)}")
 
         slides = []
         for i, slide_content_part in enumerate(slide_parts):
-            processed_slide = self._process_slide_content(
-                slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}"
-            )
+            processed_slide = self._process_slide_content(slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}")
 
             # Only add slides with meaningful content
             if (
@@ -49,9 +45,7 @@ class SlideExtractor:
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
 
-    def _split_content_with_code_block_awareness(
-        self, content: str, pattern: str
-    ) -> list[str]:
+    def _split_content_with_code_block_awareness(self, content: str, pattern: str) -> list[str]:
         """
         Split content by pattern while respecting code block boundaries.
 
@@ -90,15 +84,11 @@ class SlideExtractor:
                 if not in_code_block:
                     in_code_block = True
                     current_fence = potential_fence
-                    logger.debug(
-                        f"Opening code block with {potential_fence} at line {line_idx + 1}"
-                    )
+                    logger.debug(f"Opening code block with {potential_fence} at line {line_idx + 1}")
                 elif potential_fence == current_fence:
                     in_code_block = False
                     current_fence = None
-                    logger.debug(
-                        f"Closing code block with {potential_fence} at line {line_idx + 1}"
-                    )
+                    logger.debug(f"Closing code block with {potential_fence} at line {line_idx + 1}")
 
             # Check for slide separator (only outside code blocks)
             if separator_re.match(line) and not in_code_block:
@@ -107,9 +97,7 @@ class SlideExtractor:
                 current_part_lines = []
                 continue
             if separator_re.match(line) and in_code_block:
-                logger.debug(
-                    f"Slide separator inside code block at line {line_idx + 1}"
-                )
+                logger.debug(f"Slide separator inside code block at line {line_idx + 1}")
 
             current_part_lines.append(line)
 
@@ -119,9 +107,7 @@ class SlideExtractor:
 
         return parts
 
-    def _process_slide_content(
-        self, content: str, index: int, slide_object_id: str
-    ) -> dict:
+    def _process_slide_content(self, content: str, index: int, slide_object_id: str) -> dict:
         """
         Process slide content with improved title handling.
 
@@ -133,16 +119,12 @@ class SlideExtractor:
         original_content = content
 
         # Split by footer separator
-        footer_parts = re.split(
-            r"^\s*@@@\s*$", original_content, maxsplit=1, flags=re.MULTILINE
-        )
+        footer_parts = re.split(r"^\s*@@@\s*$", original_content, maxsplit=1, flags=re.MULTILINE)
         main_content_segment = footer_parts[0]
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
 
         # CRITICAL FIX P3: Enhanced title extraction with indentation support
-        title, content_after_title, title_directives = (
-            self._extract_title_with_directives(main_content_segment)
-        )
+        title, content_after_title, title_directives = self._extract_title_with_directives(main_content_segment)
 
         # Extract notes
         notes_from_content = self._extract_notes(content_after_title)
@@ -154,9 +136,7 @@ class SlideExtractor:
             if notes_from_footer:
                 final_notes = notes_from_footer
                 # Remove notes from footer
-                footer = re.sub(
-                    r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
-                ).strip()
+                footer = re.sub(r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL).strip()
 
         # CRITICAL FIX: Remove special background extraction - let it be processed as normal directive
         # This allows background directives to work alongside other directives like [background=black][color=lime]
@@ -171,9 +151,7 @@ class SlideExtractor:
         #     )
 
         # Remove all notes from content
-        content_after_title = re.sub(
-            r"<!--\s*notes:\s*.*?\s*-->", "", content_after_title, flags=re.DOTALL
-        )
+        content_after_title = re.sub(r"<!--\s*notes:\s*.*?\s*-->", "", content_after_title, flags=re.DOTALL)
 
         final_slide_content = content_after_title.strip()
 
@@ -185,9 +163,7 @@ class SlideExtractor:
             "background": None,  # Let background be handled as regular directive
             "index": index,
             "object_id": slide_object_id,
-            "speaker_notes_object_id": (
-                f"{slide_object_id}_notesShape" if final_notes else None
-            ),
+            "speaker_notes_object_id": (f"{slide_object_id}_notesShape" if final_notes else None),
             "title_directives": title_directives,
         }
 
@@ -197,9 +173,7 @@ class SlideExtractor:
         )
         return slide
 
-    def _extract_title_with_directives(
-        self, content: str
-    ) -> tuple[str | None, str, dict]:
+    def _extract_title_with_directives(self, content: str) -> tuple[str | None, str, dict]:
         """
         Extract title and directives with improved indentation support.
 
@@ -226,9 +200,7 @@ class SlideExtractor:
             clean_title = full_title_text[len(directive_text) :].strip()
 
             # Parse directives with proper structure
-            directive_matches = re.findall(
-                r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
-            )
+            directive_matches = re.findall(r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text)
             for key, value in directive_matches:
                 key = key.strip().lower()
                 value = value.strip()
@@ -253,15 +225,11 @@ class SlideExtractor:
             escaped_title = re.escape(full_title_text)
             title_removal_pattern = rf"^\s*#\s+{escaped_title}\s*(\n|$)"
 
-            content_after_title = re.sub(
-                title_removal_pattern, "", content, count=1, flags=re.MULTILINE
-            )
+            content_after_title = re.sub(title_removal_pattern, "", content, count=1, flags=re.MULTILINE)
 
             # Verify removal worked
             if content_after_title == content:
-                logger.warning(
-                    f"Title removal may have failed for: {full_title_text[:50]}"
-                )
+                logger.warning(f"Title removal may have failed for: {full_title_text[:50]}")
 
             return clean_title, content_after_title, title_directives
 

@@ -17,25 +17,17 @@ from markdowndeck.models import ElementType, ListElement, ListItem, TextElement
 logger = logging.getLogger(__name__)
 
 
-def calculate_list_element_height(
-    element: ListElement | dict, available_width: float
-) -> float:
+def calculate_list_element_height(element: ListElement | dict, available_width: float) -> float:
     """
     Calculate the pure intrinsic height for a list, with performance caps.
     """
-    list_element = (
-        cast(ListElement, element)
-        if isinstance(element, ListElement)
-        else ListElement(**element)
-    )
+    list_element = cast(ListElement, element) if isinstance(element, ListElement) else ListElement(**element)
 
     if not list_element.items:
         return MIN_LIST_HEIGHT
 
     # Use a recursive helper with depth limiting
-    total_height = _calculate_items_height_recursive(
-        list_element.items, available_width, current_level=0, max_depth=10
-    )
+    total_height = _calculate_items_height_recursive(list_element.items, available_width, current_level=0, max_depth=10)
 
     # Add top and bottom padding for the entire list
     total_height += LIST_PADDING * 2
@@ -50,9 +42,7 @@ def _calculate_items_height_recursive(
 ) -> float:
     """Recursively calculates item heights with a hard depth limit."""
     if current_level >= max_depth:
-        logger.warning(
-            f"List nesting exceeds max_depth of {max_depth}, capping height calculation."
-        )
+        logger.warning(f"List nesting exceeds max_depth of {max_depth}, capping height calculation.")
         return 0  # Stop calculating height at max depth
 
     total_height = 0.0
@@ -62,9 +52,7 @@ def _calculate_items_height_recursive(
     for i, item in enumerate(items_to_process):
         item_text_width = max(
             10.0,
-            available_width
-            - (current_level * LIST_INDENT_PER_LEVEL)
-            - LIST_BULLET_WIDTH,
+            available_width - (current_level * LIST_INDENT_PER_LEVEL) - LIST_BULLET_WIDTH,
         )
 
         temp_text_element = TextElement(
@@ -75,9 +63,7 @@ def _calculate_items_height_recursive(
         item_height = calculate_text_element_height(temp_text_element, item_text_width)
 
         if item.children:
-            child_height = _calculate_items_height_recursive(
-                item.children, available_width, current_level + 1, max_depth
-            )
+            child_height = _calculate_items_height_recursive(item.children, available_width, current_level + 1, max_depth)
             item_height += child_height
 
         total_height += item_height
