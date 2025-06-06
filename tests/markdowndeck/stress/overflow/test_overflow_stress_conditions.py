@@ -7,8 +7,6 @@ from concurrent.futures import ThreadPoolExecutor
 import pytest
 from markdowndeck.models import (
     ElementType,
-    ListElement,
-    ListItem,
     Section,
     Slide,
     TableElement,

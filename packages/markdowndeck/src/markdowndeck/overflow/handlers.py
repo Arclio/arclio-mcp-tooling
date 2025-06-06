@@ -52,13 +52,25 @@ class StandardOverflowHandler:
             f"Handling overflow for section at position {overflowing_section.position}"
         )
 
+        # --- START MODIFICATION ---
+        # Store original non-body elements to preserve them
+        from markdowndeck.models import ElementType
+
+        original_meta_elements = [
+            e
+            for e in slide.elements
+            if e.element_type
+            in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+        ]
+        # --- END MODIFICATION ---
+
         # Calculate available height before the overflowing section
         available_height = self.body_height - overflowing_section.position[1]
         logger.debug(f"Available height for overflow section: {available_height}")
 
         # Partition the overflowing section
         fitted_part, overflowing_part = self._partition_section(
-            overflowing_section, available_height
+            overflowing_section, available_height, visited=set()
         )
 
         # Find the index of the overflowing section in the original slide
@@ -90,20 +102,23 @@ class StandardOverflowHandler:
         # Modify original slide
         modified_original = deepcopy(slide)
 
-        # Replace overflowing section with fitted part (if any)
+        # Handle section modification based on fitted part
         if fitted_part:
+            # Replace overflowing section with fitted part
             modified_original.sections[section_index] = fitted_part
+            # Keep sections up to and including the fitted section
+            modified_original.sections = modified_original.sections[: section_index + 1]
         else:
-            # Remove the section entirely if nothing fits
-            modified_original.sections.pop(section_index)
-
-        # Remove all subsequent sections from original slide
-        modified_original.sections = modified_original.sections[
-            : section_index + (1 if fitted_part else 0)
-        ]
+            # Create empty version of the section to preserve structure
+            empty_section = deepcopy(overflowing_section)
+            empty_section.elements = []
+            empty_section.subsections = []
+            modified_original.sections[section_index] = empty_section
+            # Keep sections up to and including the empty section
+            modified_original.sections = modified_original.sections[: section_index + 1]
 
         # Update elements list to match the modified sections
-        self._rebuild_elements_from_sections(modified_original)
+        self._rebuild_elements_from_sections(modified_original, original_meta_elements)
 
         logger.info(
             f"Created continuation slide with {len(continuation_sections)} sections"
@@ -111,7 +126,7 @@ class StandardOverflowHandler:
         return modified_original, continuation_slide
 
     def _partition_section(
-        self, section: "Section", available_height: float
+        self, section: "Section", available_height: float, visited: set[str] = None
     ) -> tuple["Section | None", "Section | None"]:
         """
         Recursively partition a section to fit within available height.
@@ -119,32 +134,48 @@ class StandardOverflowHandler:
         Args:
             section: The section to partition
             available_height: The height available for this section
+            visited: Set of section IDs already visited to prevent circular references
 
         Returns:
             Tuple of (fitted_part, overflowing_part). Either can be None.
         """
+        # --- START MODIFICATION ---
+        if visited is None:
+            visited = set()
+
+        if section.id in visited:
+            logger.warning(
+                f"Circular reference detected for section {section.id}. Stopping partition."
+            )
+            return None, None  # Break the cycle
+
+        visited.add(section.id)
+        # --- END MODIFICATION ---
+
         logger.debug(
             f"Partitioning section {section.id} with available_height={available_height}"
         )
 
         if section.elements:
             # Base case: Section has elements - apply Rule A
-            return self._apply_rule_a(section, available_height)
+            return self._apply_rule_a(section, available_height, visited)
 
         if section.subsections:
             # Recursive case: Section has subsections
             if section.type == "row":
                 # Rule B: Row of columns partitioning
-                return self._apply_rule_b(section, available_height)
+                return self._apply_rule_b(section, available_height, visited)
             # Standard subsection partitioning
-            return self._partition_section_with_subsections(section, available_height)
+            return self._partition_section_with_subsections(
+                section, available_height, visited
+            )
 
         # Empty section
         logger.warning(f"Empty section {section.id} encountered during partitioning")
         return None, None
 
     def _apply_rule_a(
-        self, section: "Section", available_height: float
+        self, section: "Section", available_height: float, visited: set[str]
     ) -> tuple["Section | None", "Section | None"]:
         """
         Rule A: Standard section partitioning with elements.
@@ -152,6 +183,7 @@ class StandardOverflowHandler:
         Args:
             section: Section containing elements
             available_height: Available height for this section
+            visited: Set of section IDs already visited to prevent circular references
 
         Returns:
             Tuple of (fitted_part, overflowing_part)
@@ -246,7 +278,7 @@ class StandardOverflowHandler:
         return fitted_section, overflowing_section
 
     def _apply_rule_b(
-        self, row_section: "Section", available_height: float
+        self, row_section: "Section", available_height: float, visited: set[str]
     ) -> tuple["Section | None", "Section | None"]:
         """
         Rule B: Row of columns partitioning.
@@ -254,6 +286,7 @@ class StandardOverflowHandler:
         Args:
             row_section: Section of type "row" containing column subsections
             available_height: Available height for this row
+            visited: Set of section IDs already visited to prevent circular references
 
         Returns:
             Tuple of (fitted_row, overflowing_row)
@@ -309,7 +342,9 @@ class StandardOverflowHandler:
         overflowing_columns = []
 
         for column in row_section.subsections:
-            fitted_col, overflowing_col = self._partition_section(column, split_y)
+            fitted_col, overflowing_col = self._partition_section(
+                column, split_y, visited.copy()
+            )
 
             if fitted_col:
                 fitted_columns.append(fitted_col)
@@ -339,7 +374,7 @@ class StandardOverflowHandler:
         return fitted_row, overflowing_row
 
     def _partition_section_with_subsections(
-        self, section: "Section", available_height: float
+        self, section: "Section", available_height: float, visited: set[str]
     ) -> tuple["Section | None", "Section | None"]:
         """
         Partition a section containing subsections (non-row).
@@ -347,6 +382,7 @@ class StandardOverflowHandler:
         Args:
             section: Section containing subsections
             available_height: Available height for this section
+            visited: Set of section IDs already visited to prevent circular references
 
         Returns:
             Tuple of (fitted_part, overflowing_part)
@@ -372,7 +408,7 @@ class StandardOverflowHandler:
         )
 
         fitted_subsection, overflowing_subsection_part = self._partition_section(
-            overflowing_subsection, subsection_available_height
+            overflowing_subsection, subsection_available_height, visited.copy()
         )
 
         # Build result sections
@@ -456,35 +492,39 @@ class StandardOverflowHandler:
 
         return meets_threshold
 
-    def _rebuild_elements_from_sections(self, slide: "Slide") -> None:
+    def _rebuild_elements_from_sections(
+        self, slide: "Slide", meta_elements: list
+    ) -> None:
         """
-        Rebuild the slide's elements list from its sections.
+        Rebuild the slide's flat .elements list from its sections,
+        prepending the original title/footer meta elements.
 
         Args:
-            slide: The slide to rebuild elements for
+            slide: The slide to rebuild elements for.
+            meta_elements: The original title, subtitle, and footer elements to preserve.
         """
-        slide.elements = []
+        new_elements = deepcopy(meta_elements)
 
-        # Keep title and footer elements
-        original_elements = []
-        original_elements = (
-            slide._original_elements
-            if hasattr(slide, "_original_elements")
-            else deepcopy(slide.elements)
-        )
+        # Recursively extract elements from the modified sections with circular reference protection
+        visited_sections = set()
 
-        for element in original_elements:
-            from markdowndeck.models import ElementType
-
-            if element.element_type in (ElementType.TITLE, ElementType.FOOTER):
-                slide.elements.append(element)
-
-        # Extract elements from sections
         def extract_elements(sections):
             for section in sections:
+                # Circular reference protection
+                if section.id in visited_sections:
+                    logger.warning(
+                        f"Circular reference detected in section {section.id} during element extraction. Skipping."
+                    )
+                    continue
+
+                visited_sections.add(section.id)
+
                 if section.elements:
-                    slide.elements.extend(deepcopy(section.elements))
+                    new_elements.extend(deepcopy(section.elements))
                 if section.subsections:
                     extract_elements(section.subsections)
 
+                visited_sections.remove(section.id)
+
         extract_elements(slide.sections)
+        slide.elements = new_elements

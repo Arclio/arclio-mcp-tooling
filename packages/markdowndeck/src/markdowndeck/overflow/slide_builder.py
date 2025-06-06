@@ -1,6 +1,7 @@
 """Slide builder for creating continuation slides with proper formatting."""
 
 import logging
+import re
 import uuid
 from copy import deepcopy
 from typing import TYPE_CHECKING
@@ -95,41 +96,37 @@ class SlideBuilder:
 
     def _create_continuation_title(self, slide_number: int) -> "TextElement | None":
         """
-        Create a title element for the continuation slide.
-
-        Args:
-            slide_number: The sequence number of this continuation slide
-
-        Returns:
-            A TextElement for the continuation title, or None if original had no title
+        Create a title element for the continuation slide with correct numbering.
         """
-        original_title = self._extract_original_title_text()
-
-        if not original_title:
-            # If no original title, create a generic continuation title
-            original_title = "Content"
-
-        # Create continuation title text
-        if slide_number == 1:
-            continuation_text = f"{original_title} {CONTINUED_TITLE_SUFFIX}"
-        else:
-            continuation_text = (
-                f"{original_title} {CONTINUED_TITLE_SUFFIX} ({slide_number})"
-            )
-
-        # Create title element with original styling if available
         from markdowndeck.models import ElementType, TextElement
+
+        original_title_text = self._extract_original_title_text()
+        base_title = original_title_text
+
+        # Find and remove existing continuation markers for a clean base title
+        match = re.search(r"\s*\(continued(?:\s\d+)?\)$", base_title)
+        if match:
+            base_title = base_title[: match.start()].strip()
+
+        if not base_title:
+            base_title = "Content"
+
+        # Append new, correct continuation marker
+        if slide_number > 1:
+            continuation_text = (
+                f"{base_title} {CONTINUED_TITLE_SUFFIX} ({slide_number})"
+            )
+        else:
+            continuation_text = f"{base_title} {CONTINUED_TITLE_SUFFIX}"
 
         title_element = TextElement(
             element_type=ElementType.TITLE,
             text=continuation_text,
             object_id=f"title_{uuid.uuid4().hex[:8]}",
-            horizontal_alignment="center",  # Titles are typically centered
         )
 
-        # Copy title directives from original if available
         original_title_element = self._find_original_title_element()
-        if original_title_element and hasattr(original_title_element, "directives"):
+        if original_title_element:
             title_element.directives = deepcopy(original_title_element.directives)
 
         logger.debug(f"Created continuation title: '{continuation_text}'")

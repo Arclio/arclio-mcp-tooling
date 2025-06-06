@@ -75,19 +75,17 @@ class TableElement(Element):
         # Calculate current element width to determine row heights
         element_width = self.size[0] if self.size else 400.0  # fallback width
 
-        # Create temporary table with just headers to measure header height
-        header_height = 0.0
-        if self.headers:
-            temp_header_table = deepcopy(self)
-            temp_header_table.rows = []
-            # Local import to avoid circular dependency
-            from markdowndeck.layout.metrics import calculate_element_height
+        # --- REPLACE THIS ENTIRE LOGIC BLOCK ---
+        from markdowndeck.layout.metrics import calculate_element_height
 
-            header_height = calculate_element_height(temp_header_table, element_width)
+        header_table_for_calc = deepcopy(self)
+        header_table_for_calc.rows = []
+        header_height = calculate_element_height(header_table_for_calc, element_width)
 
-        # Check if even headers don't fit
-        if header_height > available_height:
+        if available_height < header_height:
+            # Not even the headers fit. The entire table must be promoted.
             return None, deepcopy(self)
+        # --- END REPLACEMENT ---
 
         # Find how many rows fit within available height (after accounting for headers)
         available_for_rows = available_height - header_height

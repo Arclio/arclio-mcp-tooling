@@ -66,104 +66,82 @@ class TextElement(Element):
     ) -> tuple["TextElement | None", "TextElement | None"]:
         """
         Split this TextElement to fit within available_height.
-
-        Args:
-            available_height: The vertical space available for this element
-
-        Returns:
-            Tuple of (fitted_part, overflowing_part). Either can be None.
-            fitted_part: Contains text that fits within available_height
-            overflowing_part: Contains text that doesn't fit
+        Splits at line boundaries to preserve line structure.
         """
-        if not self.text or not self.text.strip():
+        from markdowndeck.layout.metrics.text import calculate_text_element_height
+
+        # Handle empty text case
+        if not self.text.strip():
             return None, None
 
-        # Calculate current element width to determine line heights
-        element_width = self.size[0] if self.size else 400.0  # fallback width
-
-        # Split text into lines
-        lines = self.text.split("\n")
-
-        if not lines:
-            return None, None
-
-        # Find how many lines fit within available height
-        fitted_lines = []
-        current_height = 0.0
-
-        for _i, line in enumerate(lines):
-            # Create temporary element with current lines to measure height
-            temp_text = "\n".join(fitted_lines + [line])
-            temp_element = deepcopy(self)
-            temp_element.text = temp_text
-
-            # Calculate height this would require (local import to avoid circular dependency)
-            from markdowndeck.layout.metrics import calculate_element_height
-
-            required_height = calculate_element_height(temp_element, element_width)
-
-            if required_height <= available_height:
-                fitted_lines.append(line)
-                current_height = required_height
-            else:
-                # This line doesn't fit
-                break
-
-        # Determine split results
-        if not fitted_lines:
-            # Nothing fits
+        if available_height <= 1:
             return None, deepcopy(self)
 
-        if len(fitted_lines) == len(lines):
-            # Everything fits
+        element_width = self.size[0] if self.size and self.size[0] > 0 else 400.0
+        full_height = calculate_text_element_height(self, element_width)
+
+        if full_height <= available_height:
             return deepcopy(self), None
 
+        # Split at line boundaries to preserve line count integrity
+        lines = self.text.split("\n")
+        if len(lines) <= 1:
+            # Single line that doesn't fit - promote entire element
+            return None, deepcopy(self)
+
+        # Calculate height per line estimate
+        height_per_line = full_height / len(lines)
+        max_lines_that_fit = int(available_height / height_per_line)
+
+        if max_lines_that_fit <= 0:
+            # Nothing fits - promote entire element
+            return None, deepcopy(self)
+
+        if max_lines_that_fit >= len(lines):
+            # Everything fits (shouldn't happen due to earlier check, but safety)
+            return deepcopy(self), None
+
+        # Split the lines
+        fitted_lines = lines[:max_lines_that_fit]
+        overflowing_lines = lines[max_lines_that_fit:]
+
         # Create fitted part
-        fitted_text = "\n".join(fitted_lines)
         fitted_part = deepcopy(self)
-        fitted_part.text = fitted_text
-        fitted_part.size = (element_width, current_height)
-
-        # Adjust formatting for fitted part
-        fitted_formatting = []
-        fitted_text_len = len(fitted_text)
-
-        for fmt in self.formatting:
-            if fmt.end <= fitted_text_len:
-                # Formatting entirely within fitted part
-                fitted_formatting.append(deepcopy(fmt))
-            elif fmt.start < fitted_text_len:
-                # Formatting partially within fitted part - truncate
-                truncated_fmt = deepcopy(fmt)
-                truncated_fmt.end = fitted_text_len
-                fitted_formatting.append(truncated_fmt)
-
-        fitted_part.formatting = fitted_formatting
+        fitted_part.text = "\n".join(fitted_lines)
 
         # Create overflowing part
-        overflowing_lines = lines[len(fitted_lines) :]
-        overflowing_text = "\n".join(overflowing_lines)
         overflowing_part = deepcopy(self)
-        overflowing_part.text = overflowing_text
+        overflowing_part.text = "\n".join(overflowing_lines)
 
-        # Adjust formatting for overflowing part
+        # Calculate split point for formatting
+        split_index = len(fitted_part.text)
+        if fitted_part.text:
+            split_index += 1  # Account for the newline we'll be skipping
+
+        # Partition formatting
+        fitted_part.formatting = [
+            fmt for fmt in self.formatting if fmt.start < split_index
+        ]
+        for fmt in fitted_part.formatting:
+            fmt.end = min(fmt.end, split_index)
+
         overflowing_formatting = []
-        text_offset = fitted_text_len + 1  # +1 for the newline
-
         for fmt in self.formatting:
-            if fmt.start >= text_offset:
-                # Formatting entirely within overflowing part
-                adjusted_fmt = deepcopy(fmt)
-                adjusted_fmt.start -= text_offset
-                adjusted_fmt.end -= text_offset
-                overflowing_formatting.append(adjusted_fmt)
-            elif fmt.end > text_offset:
-                # Formatting partially within overflowing part
-                adjusted_fmt = deepcopy(fmt)
-                adjusted_fmt.start = max(0, fmt.start - text_offset)
-                adjusted_fmt.end = fmt.end - text_offset
-                overflowing_formatting.append(adjusted_fmt)
-
+            if fmt.end > split_index:
+                new_fmt = deepcopy(fmt)
+                new_fmt.start = max(0, fmt.start - split_index)
+                new_fmt.end = fmt.end - split_index
+                overflowing_formatting.append(new_fmt)
         overflowing_part.formatting = overflowing_formatting
+
+        # Recalculate sizes
+        fitted_part.size = (
+            element_width,
+            calculate_text_element_height(fitted_part, element_width),
+        )
+        overflowing_part.size = (
+            element_width,
+            calculate_text_element_height(overflowing_part, element_width),
+        )
 
         return fitted_part, overflowing_part

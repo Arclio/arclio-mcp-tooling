@@ -11,6 +11,10 @@ from markdowndeck.overflow.handlers import StandardOverflowHandler
 
 logger = logging.getLogger(__name__)
 
+# Constants for preventing infinite recursion
+MAX_OVERFLOW_ITERATIONS = 50  # Maximum number of overflow processing iterations
+MAX_CONTINUATION_SLIDES = 25  # Maximum number of continuation slides per original slide
+
 
 class OverflowManager:
     """
@@ -59,6 +63,11 @@ class OverflowManager:
         self.detector = OverflowDetector(body_height=self.body_height)
         self.handler = StandardOverflowHandler(body_height=self.body_height)
 
+        # Add this line (local import to avoid circular dependency)
+        from markdowndeck.layout import LayoutManager
+
+        self.layout_manager = LayoutManager(slide_width, slide_height, margins)
+
         logger.debug(
             f"OverflowManager initialized with body_height={self.body_height}, "
             f"slide_dimensions={slide_width}x{slide_height}, margins={self.margins}"
@@ -80,11 +89,35 @@ class OverflowManager:
         final_slides = []
         slides_to_process = [slide]
 
+        # Add safeguards against infinite recursion
+        iteration_count = 0
+        original_slide_id = slide.object_id
+
         while slides_to_process:
+            # Check for infinite recursion protection
+            iteration_count += 1
+            if iteration_count > MAX_OVERFLOW_ITERATIONS:
+                logger.error(
+                    f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}"
+                )
+                # Force-add remaining slides to prevent infinite loop
+                final_slides.extend(slides_to_process)
+                break
+
+            if len(final_slides) > MAX_CONTINUATION_SLIDES:
+                logger.error(
+                    f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}"
+                )
+                # Force-add remaining slides to prevent infinite slides
+                final_slides.extend(slides_to_process)
+                break
+
             # Dequeue current slide
             current_slide = slides_to_process.pop(0)
 
-            logger.debug(f"Processing slide {current_slide.object_id} from queue")
+            logger.debug(
+                f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})"
+            )
 
             # Step 1: Detect overflow
             overflowing_section = self.detector.find_first_overflowing_section(
@@ -111,7 +144,13 @@ class OverflowManager:
             )
 
             # Step 4: Enqueue continuation slide for further processing
-            slides_to_process.append(continuation_slide)
+            # --- START MODIFICATION ---
+            # Reposition the new continuation slide before queueing it
+            repositioned_continuation_slide = self.layout_manager.calculate_positions(
+                continuation_slide
+            )
+            slides_to_process.append(repositioned_continuation_slide)
+            # --- END MODIFICATION ---
             logger.debug(
                 f"Enqueued continuation slide {continuation_slide.object_id} for processing"
             )
