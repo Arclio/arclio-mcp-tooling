@@ -11,12 +11,12 @@ from markdowndeck.models import (
     TextElement,
 )
 
-# Correct paths for mocking components within the top-level functions
-MOCK_API_CLIENT_PATH = "markdowndeck._process_markdown_to_deck.ApiClient"
-MOCK_PARSER_PATH = "markdowndeck._process_markdown_to_deck.Parser"
-MOCK_LAYOUT_MANAGER_PATH = "markdowndeck._process_markdown_to_deck.LayoutManager"
-MOCK_OVERFLOW_MANAGER_PATH = "markdowndeck._process_markdown_to_deck.OverflowManager"
-MOCK_GET_THEMES_API_CLIENT_PATH = "markdowndeck.get_themes.ApiClient"
+# Correct paths for mocking components in the markdowndeck module namespace
+MOCK_API_CLIENT_PATH = "markdowndeck.ApiClient"
+MOCK_PARSER_PATH = "markdowndeck.Parser"
+MOCK_LAYOUT_MANAGER_PATH = "markdowndeck.LayoutManager"
+MOCK_OVERFLOW_MANAGER_PATH = "markdowndeck.OverflowManager"
+MOCK_GET_THEMES_API_CLIENT_PATH = "markdowndeck.ApiClient"
 
 
 class TestEndToEnd:

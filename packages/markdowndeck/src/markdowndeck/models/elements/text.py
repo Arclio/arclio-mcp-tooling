@@ -128,6 +128,7 @@ class TextElement(Element):
         # Create overflowing part
         overflowing_part = deepcopy(self)
         overflowing_part.text = "\n".join(overflowing_lines)
+        overflowing_part.position = None  # Reset position for continuation slide
 
         # Calculate split point for formatting
         split_index = len(fitted_part.text)

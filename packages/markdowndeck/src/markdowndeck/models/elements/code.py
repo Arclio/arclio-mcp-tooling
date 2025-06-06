@@ -136,6 +136,7 @@ class CodeElement(Element):
         # Create overflowing part
         overflowing_part = deepcopy(self)
         overflowing_part.code = "\n".join(overflowing_lines)
+        overflowing_part.position = None  # Reset position for continuation slide
 
         # Recalculate sizes
         fitted_part.size = (

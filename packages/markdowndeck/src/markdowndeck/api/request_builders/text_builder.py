@@ -31,7 +31,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                 element, theme_placeholders[element.element_type]
             )
         position = getattr(element, "position", (100, 100))
-        size = getattr(element, "size", (300, 200))
+        size = getattr(element, "size", None) or (300, 200)
         if not element.object_id:
             element.object_id = self._generate_id(f"text_{slide_id}")
             logger.debug(

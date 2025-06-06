@@ -1,5 +1,6 @@
 """Updated unit tests for list element metrics with split() method support."""
 
+from markdowndeck.layout.constants import MIN_LIST_HEIGHT
 from markdowndeck.layout.metrics.list import calculate_list_element_height
 from markdowndeck.models import ElementType, ListElement, ListItem
 
@@ -10,13 +11,13 @@ class TestListMetrics:
     def test_calculate_list_height_empty(self):
         element = ListElement(items=[], element_type=ElementType.BULLET_LIST)
         height = calculate_list_element_height(element, 500)
-        assert height >= 30  # MIN_LIST_HEIGHT
+        assert height >= MIN_LIST_HEIGHT  # Use actual constant
 
     def test_calculate_list_height_single_item(self):
         item = ListItem(text="Simple item")
         element = ListElement(items=[item], element_type=ElementType.BULLET_LIST)
         height = calculate_list_element_height(element, 500)
-        assert height >= 30  # Should be at least minimum height
+        assert height >= MIN_LIST_HEIGHT  # Should be at least minimum height
 
     def test_calculate_list_height_multiple_items(self):
         items = [

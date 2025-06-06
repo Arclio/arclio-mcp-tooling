@@ -126,6 +126,7 @@ class ListElement(Element):
         overflowing_items = self.items[len(fitted_items) :]
         overflowing_part = deepcopy(self)
         overflowing_part.items = overflowing_items
+        overflowing_part.position = None  # Reset position for continuation slide
 
         # Handle context-aware title for overflowing part
         if hasattr(self, "related_to_prev") and self.related_to_prev:

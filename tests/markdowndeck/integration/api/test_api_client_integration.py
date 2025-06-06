@@ -82,13 +82,13 @@ class TestApiClientIntegration:
         result = api_client.create_presentation_from_deck(deck)
 
         # 1. Verify presentation creation
-        mock_google_service.presentations().create.assert_called_once_with(
+        mock_google_service.presentations.return_value.create.assert_called_once_with(
             body={"title": "Integration Test Deck"}
         )
 
         # 2. Verify default slide deletion
         batch_update_calls = (
-            mock_google_service.presentations().return_value.batchUpdate.call_args_list
+            mock_google_service.presentations.return_value.batchUpdate.call_args_list
         )
         delete_call = next(
             (c for c in batch_update_calls if "deleteObject" in str(c.kwargs["body"])),
@@ -152,12 +152,10 @@ class TestApiClientIntegration:
         api_client._delete_default_slides("pres_id_multi_slide", presentation_data)
 
         # Should be exactly ONE batchUpdate call
-        mock_google_service.presentations().batchUpdate.assert_called_once()
+        mock_google_service.presentations.return_value.batchUpdate.assert_called_once()
 
         # The body of that call should contain 3 deleteObject requests
-        call_args = (
-            mock_google_service.presentations().return_value.batchUpdate.call_args
-        )
+        call_args = mock_google_service.presentations.return_value.batchUpdate.call_args
         requests_list = call_args.kwargs["body"]["requests"]
 
         assert len(requests_list) == 3

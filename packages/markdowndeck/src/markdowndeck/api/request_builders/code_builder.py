@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 class CodeRequestBuilder(BaseRequestBuilder):
     """Builder for code-related Google Slides API requests."""
 
-    def generate_code_element_requests(self, element: CodeElement, slide_id: str) -> list[dict]:
+    def generate_code_element_requests(
+        self, element: CodeElement, slide_id: str
+    ) -> list[dict]:
         """
         Generate requests for a code element.
 
@@ -26,12 +28,14 @@ class CodeRequestBuilder(BaseRequestBuilder):
 
         # Calculate position and size
         position = getattr(element, "position", (100, 100))
-        size = getattr(element, "size", (400, 200))
+        size = getattr(element, "size", None) or (400, 200)
 
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"code_{slide_id}")
-            logger.debug(f"Generated missing object_id for code element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for code element: {element.object_id}"
+            )
 
         # Create shape
         create_shape_request = {
@@ -78,7 +82,11 @@ class CodeRequestBuilder(BaseRequestBuilder):
             element_id=element.object_id,
             style={
                 "fontFamily": "Courier New",
-                "backgroundColor": {"opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}},
+                "backgroundColor": {
+                    "opaqueColor": {
+                        "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                    }
+                },
             },
             fields="fontFamily,backgroundColor",
             range_type="ALL",
@@ -108,7 +116,13 @@ class CodeRequestBuilder(BaseRequestBuilder):
                 "objectId": element.object_id,
                 "fields": "shapeBackgroundFill.solidFill.color",  # Correct field path
                 "shapeProperties": {
-                    "shapeBackgroundFill": {"solidFill": {"color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}}}
+                    "shapeBackgroundFill": {
+                        "solidFill": {
+                            "color": {
+                                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -156,7 +170,11 @@ class CodeRequestBuilder(BaseRequestBuilder):
                 style={
                     "fontFamily": "Arial",
                     "fontSize": {"magnitude": 10, "unit": "PT"},
-                    "foregroundColor": {"opaqueColor": {"rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}}},
+                    "foregroundColor": {
+                        "opaqueColor": {
+                            "rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}
+                        }
+                    },
                 },
                 fields="fontFamily,fontSize,foregroundColor",
                 range_type="ALL",

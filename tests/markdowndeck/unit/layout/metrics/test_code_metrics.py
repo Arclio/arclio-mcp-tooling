@@ -1,5 +1,6 @@
 """Updated unit tests for code element metrics with split() method support."""
 
+from markdowndeck.layout.constants import MIN_CODE_HEIGHT
 from markdowndeck.layout.metrics.code import calculate_code_element_height
 from markdowndeck.models import CodeElement, ElementType
 
@@ -10,7 +11,7 @@ class TestCodeMetrics:
     def test_calculate_code_height_empty(self):
         element = CodeElement(code="", language="python", element_type=ElementType.CODE)
         height = calculate_code_element_height(element, 500)
-        assert height >= 35  # MIN_CODE_HEIGHT from constants
+        assert height >= MIN_CODE_HEIGHT  # Use actual constant
 
     def test_calculate_code_height_single_line(self):
         element = CodeElement(code="print('hello')", element_type=ElementType.CODE)

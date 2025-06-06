@@ -117,6 +117,7 @@ class TableElement(Element):
         overflowing_rows = self.rows[len(fitted_rows) :]
         overflowing_part = deepcopy(self)
         overflowing_part.rows = overflowing_rows
+        overflowing_part.position = None  # Reset position for continuation slide
         if self.headers:
             overflowing_part.headers = deepcopy(self.headers)
 

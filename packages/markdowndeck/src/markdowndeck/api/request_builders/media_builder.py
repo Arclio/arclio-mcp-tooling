@@ -28,7 +28,7 @@ class MediaRequestBuilder(BaseRequestBuilder):
 
         # Calculate position and size
         position = getattr(element, "position", (100, 100))
-        size = getattr(element, "size", (300, 200))
+        size = getattr(element, "size", None) or (300, 200)
 
         # Ensure element has a valid object_id
         if not element.object_id:
