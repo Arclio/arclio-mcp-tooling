@@ -318,9 +318,8 @@ class TestOverflowDetector:
         analysis = summary["sections_analysis"]
         assert not analysis[0]["has_position"], "Should mark missing position"
         assert not analysis[1]["has_size"], "Should mark missing size"
-        assert (
-            analysis[2]["has_position"] and analysis[2]["has_size"]
-        ), "Valid section should have both"
+        assert analysis[2]["has_position"], "Valid section should have position"
+        assert analysis[2]["has_size"], "Valid section should have size"
 
     def test_empty_slide_handling(self, detector):
         """Test handling of slides with no sections."""

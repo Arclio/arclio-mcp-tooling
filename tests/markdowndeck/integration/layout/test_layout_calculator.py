@@ -104,8 +104,11 @@ class TestLayoutCalculatorIntegration:
                 element.size is not None
             ), f"Header/footer element {element.object_id} missing size"
             assert (
-                element.size[0] > 0 and element.size[1] > 0
-            ), f"Header/footer element {element.object_id} has invalid size"
+                element.size[0] > 0
+            ), f"Header/footer element {element.object_id} has invalid width"
+            assert (
+                element.size[1] > 0
+            ), f"Header/footer element {element.object_id} has invalid height"
 
         # Verify body elements (in sections) have positions and sizes
         for section in result_slide.sections:
@@ -117,8 +120,11 @@ class TestLayoutCalculatorIntegration:
                     element.size is not None
                 ), f"Section element {element.object_id} missing size"
                 assert (
-                    element.size[0] > 0 and element.size[1] > 0
-                ), f"Section element {element.object_id} has invalid size"
+                    element.size[0] > 0
+                ), f"Section element {element.object_id} has invalid width"
+                assert (
+                    element.size[1] > 0
+                ), f"Section element {element.object_id} has invalid height"
 
         # Get positioned elements from the root section
         section_elements = root_section.elements

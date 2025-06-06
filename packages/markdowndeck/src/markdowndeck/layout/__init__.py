@@ -322,8 +322,6 @@ class LayoutManager:
         Returns:
             List of warning messages (empty if no issues)
         """
-        from markdowndeck.models import ElementType
-
         warnings = []
 
         if not slide.elements:

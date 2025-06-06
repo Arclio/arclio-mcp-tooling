@@ -155,7 +155,7 @@ class TestTextFormatter:
     # Enhanced Paragraph Processing Tests (P0, P4 Fixes)
     # ========================================================================
 
-    def test_process_paragraph_with_inline_directives_P4(
+    def test_process_paragraph_with_inline_directives_p4(
         self, formatter: TextFormatter, md_parser: MarkdownIt
     ):
         """Test processing paragraphs with inline directives (P4 fix)."""
@@ -175,7 +175,7 @@ class TestTextFormatter:
         assert element.directives["color"]["value"] == "red"
         assert element.directives["fontsize"] == 14
 
-    def test_process_paragraph_directive_separate_line_P0(
+    def test_process_paragraph_directive_separate_line_p0(
         self, formatter: TextFormatter, md_parser: MarkdownIt
     ):
         """Test paragraph with directives on separate line (P0 fix)."""
@@ -282,7 +282,7 @@ Second line with different alignment."""
         assert "First line of content." in cleaned_text
         assert "Second line with different alignment." in cleaned_text
 
-    def test_extract_line_start_directives_P4(self, formatter: TextFormatter):
+    def test_extract_line_start_directives_p4(self, formatter: TextFormatter):
         """Test extraction of directives from start of content lines (P4 enhancement)."""
         # Test same-line directive extraction
         directives, cleaned = formatter._extract_line_start_directives(

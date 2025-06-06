@@ -99,12 +99,12 @@ class TableElement(Element):
             return deepcopy(self), None
 
         # SIMPLE CHECK: Do we meet minimum requirement?
-        MINIMUM_ROWS_REQUIRED = 2
+        minimum_rows_required = 2
         fitted_row_count = len(fitted_rows)
 
-        if fitted_row_count < MINIMUM_ROWS_REQUIRED:
+        if fitted_row_count < minimum_rows_required:
             logger.info(
-                f"Table split rejected: Only {fitted_row_count} rows fit, need minimum {MINIMUM_ROWS_REQUIRED}"
+                f"Table split rejected: Only {fitted_row_count} rows fit, need minimum {minimum_rows_required}"
             )
             return None, deepcopy(self)
 

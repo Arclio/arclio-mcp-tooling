@@ -108,12 +108,12 @@ class TextElement(Element):
             return deepcopy(self), None
 
         # SIMPLE CHECK: Do we meet minimum requirement?
-        MINIMUM_LINES_REQUIRED = 2
+        minimum_lines_required = 2
         fitted_line_count = max_lines_that_fit
 
-        if fitted_line_count < MINIMUM_LINES_REQUIRED:
+        if fitted_line_count < minimum_lines_required:
             logger.info(
-                f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {MINIMUM_LINES_REQUIRED}"
+                f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}"
             )
             return None, deepcopy(self)
 

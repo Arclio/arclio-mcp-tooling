@@ -108,12 +108,12 @@ class ListElement(Element):
             return deepcopy(self), None
 
         # SIMPLE CHECK: Do we meet minimum requirement?
-        MINIMUM_ITEMS_REQUIRED = 2
+        minimum_items_required = 2
         fitted_item_count = len(fitted_items)
 
-        if fitted_item_count < MINIMUM_ITEMS_REQUIRED:
+        if fitted_item_count < minimum_items_required:
             logger.info(
-                f"List split rejected: Only {fitted_item_count} items fit, need minimum {MINIMUM_ITEMS_REQUIRED}"
+                f"List split rejected: Only {fitted_item_count} items fit, need minimum {minimum_items_required}"
             )
             return None, deepcopy(self)
 

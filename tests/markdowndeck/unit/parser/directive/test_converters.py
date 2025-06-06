@@ -67,7 +67,9 @@ class TestDirectiveConverters:
             ("1/0", "division by zero"),
         ],
     )
-    def test_convert_dimension_invalid_format(self, invalid_value: str, error_message_match: str):
+    def test_convert_dimension_invalid_format(
+        self, invalid_value: str, error_message_match: str
+    ):
         """Test invalid dimension formats raise appropriate errors."""
         with pytest.raises(ValueError, match=error_message_match):
             convert_dimension(invalid_value)
@@ -136,7 +138,9 @@ class TestDirectiveConverters:
             ("custom_value", "value", "custom_value"),
         ],
     )
-    def test_convert_style_basic_values(self, value: str, expected_type: str, expected_properties: Any):
+    def test_convert_style_basic_values(
+        self, value: str, expected_type: str, expected_properties: Any
+    ):
         """Test basic style value conversions."""
         result_type, result_value = convert_style(value)
         assert result_type == expected_type
@@ -216,7 +220,9 @@ class TestDirectiveConverters:
                 "expected": {
                     "width": "3px",
                     "style": "dotted",
-                    "color": {"type": "rgba"},  # Just check type, rgba details tested elsewhere
+                    "color": {
+                        "type": "rgba"
+                    },  # Just check type, rgba details tested elsewhere
                 },
             },
         ]
@@ -421,11 +427,11 @@ class TestDirectiveConverters:
 
     def test_converter_error_recovery(self):
         """Test that converters handle errors gracefully."""
+        import contextlib
+
         # Dimension converter with extreme values
-        try:
+        with contextlib.suppress(ValueError, OverflowError):
             convert_dimension("1e100/1e-100")  # May cause overflow
-        except (ValueError, OverflowError):
-            pass  # Expected to handle gracefully
 
         # Style converter with very long inputs
         very_long_input = "a" * 10000

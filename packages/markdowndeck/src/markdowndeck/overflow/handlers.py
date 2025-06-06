@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from markdowndeck.models import Slide
+    from markdowndeck.models.elements.base import Element
     from markdowndeck.models.slide import Section
 
 from markdowndeck.layout.constants import VERTICAL_SPACING
@@ -395,7 +396,7 @@ class StandardOverflowHandler:
 
         # CRITICAL FIX: Maintain column structure in continuation row
         # We need to create placeholders for ALL columns to preserve structure
-        for i, column in enumerate(row_section.subsections):
+        for _i, column in enumerate(row_section.subsections):
             fitted_col, overflowing_col = self._partition_section(
                 column, available_height, visited.copy()
             )

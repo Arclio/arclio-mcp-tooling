@@ -440,9 +440,8 @@ class TestMetricsSystemIntegration:
         assert (
             narrow_text.size[0] < wide_text.size[0]
         ), "Narrow section text should be narrower"
-        assert (
-            narrow_text.size[1] > 0 and wide_text.size[1] > 0
-        ), "Both should have positive heights"
+        assert narrow_text.size[1] > 0, "Narrow text should have positive height"
+        assert wide_text.size[1] > 0, "Wide text should have positive height"
 
     def test_metrics_error_handling_and_edge_cases(self, layout_manager):
         """Test that metrics handle error cases and edge conditions gracefully."""

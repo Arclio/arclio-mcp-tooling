@@ -472,7 +472,9 @@ class TestSlideBuilder:
         # Verify unique IDs
         ids = [e.object_id for e in text_elements]
         assert len(set(ids)) == len(ids), "All element IDs should be unique"
-        assert all(id is not None for id in ids), "All elements should have IDs"
+        assert all(
+            element_id is not None for element_id in ids
+        ), "All elements should have IDs"
 
         # Verify IDs are different from originals
         original_ids = {"text_123"}
@@ -606,16 +608,9 @@ class TestSlideBuilder:
     def test_slide_builder_error_handling(self, slide_builder):
         """Test error handling in slide builder operations."""
 
-        # Test with None sections
-        try:
-            continuation = slide_builder.create_continuation_slide(None, 1)
-            # Should handle gracefully
-            assert continuation is not None, "Should handle None sections gracefully"
-        except Exception as e:
-            # If it raises an exception, it should be a reasonable one
-            assert isinstance(
-                e, TypeError | AttributeError
-            ), f"Should raise reasonable exception, got {type(e)}"
+        # Test with None sections - should raise TypeError or AttributeError
+        with pytest.raises((TypeError, AttributeError)):
+            slide_builder.create_continuation_slide(None, 1)
 
         # Test with empty sections
         continuation_empty = slide_builder.create_continuation_slide([], 1)
