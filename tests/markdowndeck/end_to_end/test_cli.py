@@ -125,9 +125,14 @@ class TestCliEndToEnd:
 
         mock_root_logger.setLevel.assert_called_with(logging.DEBUG)
 
-    def test_cli_auth_failure_exits(self, monkeypatch, caplog):
+    def test_cli_auth_failure_exits(self, tmp_path, monkeypatch, caplog):
+        # Create a temporary markdown file so the CLI doesn't fail on file I/O
+        md_file = tmp_path / "test_auth.md"
+        md_file.write_text("# Test\nAuth failure test.")
+
+        # Mock get_credentials to return None (authentication failure)
         monkeypatch.setattr(MOCK_GET_CREDENTIALS_PATH, lambda: None)
-        self.run_cli(monkeypatch, ["create", "dummy.md"])
+        self.run_cli(monkeypatch, ["create", str(md_file)])
         with pytest.raises(SystemExit) as excinfo:
             cli_main()
         assert excinfo.value.code == 1

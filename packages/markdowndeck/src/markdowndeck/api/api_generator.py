@@ -72,10 +72,14 @@ class ApiRequestGenerator:
         slide_request = self.slide_builder.create_slide_request(slide)
         requests.append(slide_request)
 
-        # Set slide background if present
+        # Check for background directives in sections and promote to slide level
+        self._promote_section_background_to_slide(slide)
+
+        # Set slide background if present (either from slide property or promoted from sections)
         if slide.background:
             background_request = self.slide_builder.create_background_request(slide)
-            requests.append(background_request)
+            if background_request:  # Only add if request was successfully created
+                requests.append(background_request)
 
         # Process elements with awareness of related elements
         i = 0
@@ -333,3 +337,65 @@ class ApiRequestGenerator:
             )
 
         return requests  # Always return the list, even if empty
+
+    def _promote_section_background_to_slide(self, slide: Slide) -> None:
+        """
+        Check sections for background directives and promote to slide level.
+
+        Background directives found in sections are moved to the slide.background
+        property so they can be handled by the SlideRequestBuilder.
+
+        Args:
+            slide: The slide to check and modify
+        """
+        if slide.background:
+            # Slide already has a background set, don't override
+            return
+
+        # Check all sections for background directives
+        for section in slide.sections:
+            if "background" in section.directives:
+                background_directive = section.directives["background"]
+
+                # Convert from directive format to slide.background format
+                if isinstance(background_directive, dict):
+                    # Handle parsed directive format: {'type': 'hex', 'value': '#112233'}
+                    directive_type = background_directive.get("type")
+                    directive_value = background_directive.get("value")
+
+                    # Map directive types to slide background types
+                    if directive_type == "hex":
+                        slide.background = {"type": "color", "value": directive_value}
+                    elif directive_type == "image":
+                        slide.background = {"type": "image", "value": directive_value}
+                    elif directive_type == "theme":
+                        slide.background = {"type": "color", "value": directive_value}
+                    else:
+                        logger.warning(
+                            f"Unknown background directive type: {directive_type}"
+                        )
+                        continue
+
+                elif isinstance(background_directive, str):
+                    # Handle string directive format (fallback)
+                    if background_directive.startswith("#"):
+                        slide.background = {
+                            "type": "color",
+                            "value": background_directive,
+                        }
+                    elif background_directive.startswith(("http://", "https://")):
+                        slide.background = {
+                            "type": "image",
+                            "value": background_directive,
+                        }
+                    else:
+                        slide.background = {
+                            "type": "color",
+                            "value": background_directive,
+                        }
+
+                logger.debug(
+                    f"Promoted section background directive to slide: {slide.background}"
+                )
+                # Use the first background directive found and stop
+                break

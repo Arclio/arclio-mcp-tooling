@@ -89,15 +89,36 @@ class TestLayoutCalculatorIntegration:
             len(root_section.elements) == body_element_count
         ), "Root section should contain all body elements"
 
-        # Verify all elements have positions and sizes
-        for element in result_slide.elements:
+        # Verify header/footer elements (in top-level elements) have positions and sizes
+        header_footer_elements = [
+            e
+            for e in result_slide.elements
+            if e.element_type
+            in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+        ]
+        for element in header_footer_elements:
             assert (
                 element.position is not None
-            ), f"Element {element.object_id} missing position"
-            assert element.size is not None, f"Element {element.object_id} missing size"
+            ), f"Header/footer element {element.object_id} missing position"
+            assert (
+                element.size is not None
+            ), f"Header/footer element {element.object_id} missing size"
             assert (
                 element.size[0] > 0 and element.size[1] > 0
-            ), f"Element {element.object_id} has invalid size"
+            ), f"Header/footer element {element.object_id} has invalid size"
+
+        # Verify body elements (in sections) have positions and sizes
+        for section in result_slide.sections:
+            for element in section.elements:
+                assert (
+                    element.position is not None
+                ), f"Section element {element.object_id} missing position"
+                assert (
+                    element.size is not None
+                ), f"Section element {element.object_id} missing size"
+                assert (
+                    element.size[0] > 0 and element.size[1] > 0
+                ), f"Section element {element.object_id} has invalid size"
 
         # Get positioned elements from the root section
         section_elements = root_section.elements
