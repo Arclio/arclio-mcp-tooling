@@ -27,7 +27,21 @@ class OverflowDetector:
             body_height: The available height in the slide's body zone
         """
         self.body_height = body_height
-        logger.debug(f"OverflowDetector initialized with body_height={body_height}")
+
+        # Calculate the actual Y coordinate where content area ends
+        from markdowndeck.layout.constants import (
+            DEFAULT_MARGIN_TOP,
+            HEADER_HEIGHT,
+            HEADER_TO_BODY_SPACING,
+        )
+
+        self.body_start_y = DEFAULT_MARGIN_TOP + HEADER_HEIGHT + HEADER_TO_BODY_SPACING
+        self.body_end_y = self.body_start_y + body_height
+
+        logger.debug(
+            f"OverflowDetector initialized with body_height={body_height}, "
+            f"body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
+        )
 
     def find_first_overflowing_section(self, slide: "Slide") -> "Section | None":
         """
@@ -65,11 +79,11 @@ class OverflowDetector:
 
             logger.debug(
                 f"Section {i}: external_top={section_top}, height={section_height}, "
-                f"external_bottom={section_bottom}, body_height={self.body_height}"
+                f"external_bottom={section_bottom}, body_end_y={self.body_end_y}"
             )
 
             # Check if section's EXTERNAL bounding box overflows
-            if section_bottom > self.body_height:
+            if section_bottom > self.body_end_y:
                 # Before declaring overflow, check if this is acceptable
                 if self._is_overflow_acceptable(section):
                     logger.info(
@@ -78,7 +92,7 @@ class OverflowDetector:
                     continue
 
                 logger.info(
-                    f"Found EXTERNAL overflowing section {i}: bottom={section_bottom} > body_height={self.body_height}"
+                    f"Found EXTERNAL overflowing section {i}: bottom={section_bottom} > body_end_y={self.body_end_y}"
                 )
                 return section
 
@@ -172,7 +186,7 @@ class OverflowDetector:
             if section.position and section.size:
                 section_bottom = section.position[1] + section.size[1]
                 section_info["bottom"] = section_bottom
-                section_info["overflows"] = section_bottom > self.body_height
+                section_info["overflows"] = section_bottom > self.body_end_y
 
                 if section_info["overflows"]:
                     section_info["is_acceptable"] = self._is_overflow_acceptable(

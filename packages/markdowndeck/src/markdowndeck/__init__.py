@@ -70,6 +70,13 @@ def _process_markdown_to_deck(markdown: str, title: str, theme_id: str | None) -
         # Add the resulting slide(s) to our list
         processed_slides.extend(final_slides)
 
+    # Ensure all continuation slides are properly positioned
+    for i, slide in enumerate(processed_slides):
+        if "_cont_" in slide.object_id:
+            # This is a continuation slide that needs positioning
+            logger.info(f"Positioning continuation slide {slide.object_id}")
+            processed_slides[i] = layout_manager.calculate_positions(slide)
+
     deck.slides = processed_slides
     logger.info(
         f"Layout and overflow processing completed for {len(deck.slides)} final slides"

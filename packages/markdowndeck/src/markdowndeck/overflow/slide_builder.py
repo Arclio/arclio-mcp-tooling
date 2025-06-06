@@ -102,7 +102,9 @@ class SlideBuilder:
         )
         return continuation_slide
 
-    def _reset_section_positions_recursively(self, sections: list["Section"]) -> None:
+    def _reset_section_positions_recursively(
+        self, sections: list["Section"], visited: set[str] = None
+    ) -> None:
         """
         Recursively reset positions and sizes for all sections and their subsections.
 
@@ -111,8 +113,21 @@ class SlideBuilder:
 
         Args:
             sections: List of sections to reset
+            visited: Set of visited section IDs to prevent circular references
         """
+        if visited is None:
+            visited = set()
+
         for section in sections:
+            # Check for circular reference
+            if section.id in visited:
+                logger.warning(
+                    f"Circular reference detected for section {section.id}, skipping"
+                )
+                continue
+
+            visited.add(section.id)
+
             # Reset section position and size
             section.position = None
             section.size = None
@@ -127,7 +142,9 @@ class SlideBuilder:
 
             # Recursively reset subsections
             if hasattr(section, "subsections") and section.subsections:
-                self._reset_section_positions_recursively(section.subsections)
+                self._reset_section_positions_recursively(
+                    section.subsections, visited.copy()
+                )
 
     def _create_continuation_title(self, slide_number: int) -> "TextElement | None":
         """
@@ -259,8 +276,19 @@ class SlideBuilder:
         """
         from markdowndeck.models.slide import Section
 
+        visited = set()
+
         def extract_from_section_list(sections: list[Section]):
             for section in sections:
+                # Check for circular reference
+                if section.id in visited:
+                    logger.warning(
+                        f"Circular reference detected for section {section.id} during element extraction, skipping"
+                    )
+                    continue
+
+                visited.add(section.id)
+
                 if section.elements:
                     # Add elements from this section
                     for element in section.elements:
