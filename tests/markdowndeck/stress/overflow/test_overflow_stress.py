@@ -205,19 +205,21 @@ class TestOverflowEdgeCases:
             size=(620, 40),
         )
 
+        # FIXED: Use correct overflow boundary calculation
+        # body_end_y = top_margin(50) + HEADER_HEIGHT(90) + HEADER_TO_BODY_SPACING(10) + body_height(165) = 315
         content = TextElement(
             element_type=ElementType.TEXT,
             text="Content at boundary",
-            position=(50, 255),  # At the body height limit
+            position=(50, 315),  # At the actual body boundary limit
             size=(620, 50),
         )
 
-        # Section positioned exactly at body height limit
+        # Section positioned exactly at body boundary limit
         section = Section(
             id="boundary_section",
             type="section",
-            position=(50, 255),  # At body_height limit
-            size=(620, 1),  # Even 1 point overflows
+            position=(50, 315),  # At actual body_end_y boundary
+            size=(620, 1),  # Even 1 point overflows (bottom = 316 > 315)
             elements=[content],
         )
 
@@ -395,7 +397,7 @@ class TestOverflowEdgeCases:
             id="external_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, overflows body_height ~255
+            size=(620, 200),  # Section bottom at 350, overflows body_height ~315
             elements=[normal_content],
         )
 

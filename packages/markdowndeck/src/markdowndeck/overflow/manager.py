@@ -66,8 +66,12 @@ class OverflowManager:
         )
 
         # Initialize components
-        self.detector = OverflowDetector(body_height=self.body_height)
-        self.handler = StandardOverflowHandler(body_height=self.body_height)
+        self.detector = OverflowDetector(
+            body_height=self.body_height, top_margin=self.margins["top"]
+        )
+        self.handler = StandardOverflowHandler(
+            body_height=self.body_height, top_margin=self.margins["top"]
+        )
 
         # Layout manager for repositioning continuation slides
         from markdowndeck.layout import LayoutManager

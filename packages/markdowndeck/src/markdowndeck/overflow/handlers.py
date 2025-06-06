@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from markdowndeck.models import Slide
     from markdowndeck.models.slide import Section
 
+from markdowndeck.layout.constants import VERTICAL_SPACING
 from markdowndeck.overflow.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -22,16 +23,32 @@ class StandardOverflowHandler:
     columnar sections before proceeding with a split.
     """
 
-    def __init__(self, body_height: float):
+    def __init__(self, body_height: float, top_margin: float = None):
         """
         Initialize the overflow handler.
 
         Args:
             body_height: The available height in the slide's body zone
+            top_margin: The actual top margin used by the slide configuration.
+                       If None, defaults to DEFAULT_MARGIN_TOP for backward compatibility.
         """
         self.body_height = body_height
+
+        # CRITICAL FIX: Calculate the absolute body_end_y coordinate
+        # This is needed for correct available_height calculations
+        from markdowndeck.layout.constants import (
+            DEFAULT_MARGIN_TOP,
+            HEADER_HEIGHT,
+            HEADER_TO_BODY_SPACING,
+        )
+
+        actual_top_margin = top_margin if top_margin is not None else DEFAULT_MARGIN_TOP
+        self.body_start_y = actual_top_margin + HEADER_HEIGHT + HEADER_TO_BODY_SPACING
+        self.body_end_y = self.body_start_y + body_height
+
         logger.debug(
-            f"StandardOverflowHandler initialized with body_height={body_height}"
+            f"StandardOverflowHandler initialized with body_height={body_height}, "
+            f"top_margin={actual_top_margin}, body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
         )
 
     def handle_overflow(
@@ -65,8 +82,10 @@ class StandardOverflowHandler:
         section_top = (
             overflowing_section.position[1] if overflowing_section.position else 0
         )
-        available_height = self.body_height - section_top
-        logger.debug(f"Available height for overflow section: {available_height}")
+        available_height = self.body_end_y - section_top
+        logger.debug(
+            f"Available height for overflow section: {available_height} (body_end_y={self.body_end_y} - section_top={section_top})"
+        )
 
         # Partition the overflowing section using the specification algorithm
         fitted_part, overflowing_part = self._partition_section(
@@ -374,15 +393,34 @@ class StandardOverflowHandler:
         fitted_columns = []
         overflowing_columns = []
 
-        for column in row_section.subsections:
+        # CRITICAL FIX: Maintain column structure in continuation row
+        # We need to create placeholders for ALL columns to preserve structure
+        for i, column in enumerate(row_section.subsections):
             fitted_col, overflowing_col = self._partition_section(
                 column, available_height, visited.copy()
             )
 
             if fitted_col:
                 fitted_columns.append(fitted_col)
+            else:
+                # Create empty version of the column to preserve structure
+                empty_fitted_col = deepcopy(column)
+                empty_fitted_col.elements = []
+                empty_fitted_col.subsections = []
+                fitted_columns.append(empty_fitted_col)
+
             if overflowing_col:
                 overflowing_columns.append(overflowing_col)
+            else:
+                # CRITICAL: Create empty version of the column to preserve row structure
+                # This ensures continuation row maintains the same number of columns
+                empty_overflowing_col = deepcopy(column)
+                empty_overflowing_col.elements = []
+                empty_overflowing_col.subsections = []
+                # Reset position for continuation slide
+                empty_overflowing_col.position = None
+                empty_overflowing_col.size = None
+                overflowing_columns.append(empty_overflowing_col)
 
         # Construct result rows
         fitted_row = None
@@ -392,6 +430,7 @@ class StandardOverflowHandler:
             fitted_row = deepcopy(row_section)
             fitted_row.subsections = fitted_columns
 
+        # Always create continuation row with all columns (some may be empty)
         if overflowing_columns:
             overflowing_row = deepcopy(row_section)
             overflowing_row.subsections = overflowing_columns
@@ -412,6 +451,8 @@ class StandardOverflowHandler:
         """
         Find the first element in a column that causes overflow.
 
+        FIXED: Now accounts for VERTICAL_SPACING between elements.
+
         Args:
             column: The column section to analyze
             available_height: Available height boundary
@@ -425,10 +466,15 @@ class StandardOverflowHandler:
         column_width = column.size[0] if column.size else 400.0
         current_y = 0.0
 
-        for element in column.elements:
+        for i, element in enumerate(column.elements):
             from markdowndeck.layout.metrics import calculate_element_height
 
             element_height = calculate_element_height(element, column_width)
+
+            # Add vertical spacing before this element (except for the first element)
+            if i > 0:
+                current_y += VERTICAL_SPACING
+
             if current_y + element_height > available_height:
                 return element
             current_y += element_height
@@ -440,6 +486,8 @@ class StandardOverflowHandler:
     ) -> float:
         """
         Calculate how much height remains for a specific element in a column.
+
+        FIXED: Now accounts for VERTICAL_SPACING between elements.
 
         Args:
             column: The column containing the element
@@ -455,14 +503,30 @@ class StandardOverflowHandler:
         column_width = column.size[0] if column.size else 400.0
         used_height = 0.0
 
-        for element in column.elements:
+        for i, element in enumerate(column.elements):
             if element is target_element:
                 break
 
             from markdowndeck.layout.metrics import calculate_element_height
 
             element_height = calculate_element_height(element, column_width)
+
+            # Add vertical spacing before this element (except for the first element)
+            if i > 0:
+                used_height += VERTICAL_SPACING
+
             used_height += element_height
+
+        # If we found the target element and it's not the first element,
+        # add the spacing that would come before it
+        target_index = -1
+        for i, element in enumerate(column.elements):
+            if element is target_element:
+                target_index = i
+                break
+
+        if target_index > 0:
+            used_height += VERTICAL_SPACING
 
         return max(0.0, available_height - used_height)
 

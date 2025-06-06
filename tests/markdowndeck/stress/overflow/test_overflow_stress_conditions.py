@@ -526,7 +526,7 @@ class TestOverflowStressConditions:
             id="internal_extreme_section",
             type="section",
             position=(50, 150),
-            size=(620, 100),  # Section fits within slide (bottom at 250 < 255)
+            size=(620, 100),  # Section fits within slide (bottom at 250 < 315)
             directives={
                 "height": 100
             },  # Explicit height makes internal overflow acceptable
@@ -538,7 +538,7 @@ class TestOverflowStressConditions:
             id="external_extreme_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, overflows body_height ~255
+            size=(620, 200),  # Section bottom at 350, overflows body_height ~315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
@@ -765,12 +765,14 @@ class TestOverflowStressConditions:
             )
             large_images.append(image)
 
-        # Section that fits within slide (no external overflow due to pre-scaling)
+        # FIXED: Section that actually fits within slide boundary
+        # body_end_y = 315, so section bottom must be ≤ 315
+        # With position=(50, 150), max size = 315 - 150 = 165
         image_section = Section(
             id="image_performance_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section fits within slide
+            size=(620, 160),  # Section fits: bottom = 150 + 160 = 310 < 315
             elements=large_images,
         )
 
@@ -792,10 +794,11 @@ class TestOverflowStressConditions:
             processing_time < 1.0
         ), f"Pre-scaled images should process quickly, took {processing_time:.2f}s"
 
-        # Should not create excessive slides due to pre-scaling
+        # FIXED: Should not create overflow when section explicitly fits within boundary
+        # Proactive scaling prevents images from expanding section beyond calculated dimensions
         assert (
             len(result_slides) == 1
-        ), f"Pre-scaled images should not cause overflow, got {len(result_slides)} slides"
+        ), f"Section that fits within boundary should not overflow, got {len(result_slides)} slides"
 
         # Verify image split behavior
         for image in large_images:
@@ -818,7 +821,7 @@ class TestOverflowStressConditions:
             id="internal_stress",
             type="section",
             position=(50, 150),
-            size=(620, 100),  # Section fits (bottom at 250 < 255)
+            size=(620, 100),  # Section fits (bottom at 250 < 315)
             directives={"height": 100},  # Explicit sizing
             elements=[large_internal_content],
         )
@@ -929,8 +932,9 @@ class TestOverflowStressConditions:
             size=(620, 40),
         )
 
-        # Test with floating point precision edge cases
-        precise_positions = [254.999999999, 255.000000001, 254.5, 255.5]
+        # FIXED: Test with floating point precision edge cases around CORRECT boundary (315.0)
+        # body_end_y = top_margin(50) + HEADER_HEIGHT(90) + HEADER_TO_BODY_SPACING(10) + body_height(165) = 315
+        precise_positions = [314.999999999, 315.000000001, 314.5, 315.5]
 
         for i, precise_pos in enumerate(precise_positions):
             content = TextElement(
@@ -957,8 +961,8 @@ class TestOverflowStressConditions:
 
             result_slides = overflow_manager.process_slide(slide)
 
-            # Should handle floating point precision consistently
-            expected_overflow = (150 + (precise_pos - 150)) > 255.0
+            # FIXED: Should handle floating point precision consistently against CORRECT boundary (315.0)
+            expected_overflow = (150 + (precise_pos - 150)) > 315.0
             if expected_overflow:
                 assert (
                     len(result_slides) >= 2

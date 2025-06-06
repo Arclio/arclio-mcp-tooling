@@ -19,12 +19,14 @@ class OverflowDetector:
     content overflow within a section whose bounding box fits on the slide.
     """
 
-    def __init__(self, body_height: float):
+    def __init__(self, body_height: float, top_margin: float = None):
         """
         Initialize the overflow detector.
 
         Args:
             body_height: The available height in the slide's body zone
+            top_margin: The actual top margin used by the slide configuration.
+                       If None, defaults to DEFAULT_MARGIN_TOP for backward compatibility.
         """
         self.body_height = body_height
 
@@ -35,12 +37,14 @@ class OverflowDetector:
             HEADER_TO_BODY_SPACING,
         )
 
-        self.body_start_y = DEFAULT_MARGIN_TOP + HEADER_HEIGHT + HEADER_TO_BODY_SPACING
+        # FIXED: Use actual top margin instead of hardcoded default
+        actual_top_margin = top_margin if top_margin is not None else DEFAULT_MARGIN_TOP
+        self.body_start_y = actual_top_margin + HEADER_HEIGHT + HEADER_TO_BODY_SPACING
         self.body_end_y = self.body_start_y + body_height
 
         logger.debug(
             f"OverflowDetector initialized with body_height={body_height}, "
-            f"body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
+            f"top_margin={actual_top_margin}, body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
         )
 
     def find_first_overflowing_section(self, slide: "Slide") -> "Section | None":

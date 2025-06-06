@@ -322,12 +322,13 @@ class TestStandardOverflowHandler:
     def test_element_driven_splitting_delegation(self, handler):
         """Test that splitting decisions are delegated entirely to elements."""
 
-        # Create elements with custom split behavior
-        custom_text = TextElement(
+        # FIXED: Create a single element that's definitely larger than available space
+        # Handler provides ~255 pixels, so element with 300px height will require splitting
+        oversized_text = TextElement(
             element_type=ElementType.TEXT,
-            text="Custom split behavior content " * 20,
+            text="Oversized text that definitely requires splitting " * 50,
             position=(50, 150),
-            size=(620, 100),
+            size=(620, 300),  # Larger than available space (~255px)
         )
 
         split_called = False
@@ -348,23 +349,25 @@ class TestStandardOverflowHandler:
                 overflowing = TextElement(
                     element_type=ElementType.TEXT,
                     text="Custom overflowing part",
-                    size=(620, 100 - available_height),
+                    size=(620, 300 - available_height),
                 )
                 return fitted, overflowing
-            return None, deepcopy(custom_text)
+            return None, deepcopy(oversized_text)
 
-        custom_text.split = custom_split
+        oversized_text.split = custom_split
 
         section = Section(
             id="custom_split_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section overflows
-            elements=[custom_text],
+            size=(620, 350),  # Section definitely overflows body_end_y
+            elements=[oversized_text],
         )
 
         original_slide = Slide(
-            object_id="element_driven_slide", elements=[custom_text], sections=[section]
+            object_id="element_driven_slide",
+            elements=[oversized_text],
+            sections=[section],
         )
 
         # Test with element choosing to split
@@ -546,7 +549,7 @@ class TestStandardOverflowHandler:
             assert element.size is None, "Continuation element sizes should be reset"
 
     def test_nested_subsection_partitioning(self, handler):
-        """Test partitioning of sections with nested subsections."""
+        """Test partitioning of sections with nested subsections (no elements in parent)."""
 
         # Create nested section structure
         nested_text = TextElement(
@@ -564,25 +567,20 @@ class TestStandardOverflowHandler:
             elements=[nested_text],
         )
 
-        parent_text = TextElement(
-            element_type=ElementType.TEXT,
-            text="Parent content",
-            position=(50, 150),
-            size=(620, 30),
-        )
-
+        # FIXED: Parent section has only subsections, no elements
+        # Per specification, a section has either elements OR subsections, not both
         parent_section = Section(
             id="parent_section",
             type="section",
             position=(50, 150),
             size=(620, 200),  # Parent section overflows
-            elements=[parent_text],
+            elements=[],  # Empty elements list
             subsections=[nested_section],
         )
 
         original_slide = Slide(
             object_id="nested_slide",
-            elements=[parent_text, nested_text],
+            elements=[nested_text],  # Only the nested element
             sections=[parent_section],
         )
 
