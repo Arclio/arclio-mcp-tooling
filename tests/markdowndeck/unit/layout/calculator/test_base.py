@@ -167,14 +167,29 @@ class TestBasePositionCalculator:
             body_zone[3],
         ), "Root section should span the entire body zone"
 
-        # Verify all elements have positions and sizes
-        for element in result_slide.elements:
+        # Verify header/footer elements (in top-level elements) have positions and sizes
+        header_footer_elements = [
+            e
+            for e in result_slide.elements
+            if e.element_type
+            in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+        ]
+        for element in header_footer_elements:
             assert (
                 element.position is not None
-            ), f"Element {getattr(element, 'object_id', 'unknown')} not positioned"
+            ), f"Header/footer element {getattr(element, 'object_id', 'unknown')} not positioned"
             assert (
                 element.size is not None
-            ), f"Element {getattr(element, 'object_id', 'unknown')} not sized"
+            ), f"Header/footer element {getattr(element, 'object_id', 'unknown')} not sized"
+
+        # Verify body elements (in root section) have positions and sizes
+        for element in root_section.elements:
+            assert (
+                element.position is not None
+            ), f"Body element {getattr(element, 'object_id', 'unknown')} not positioned"
+            assert (
+                element.size is not None
+            ), f"Body element {getattr(element, 'object_id', 'unknown')} not sized"
 
         # Get positioned elements from root section
         positioned_short = next(

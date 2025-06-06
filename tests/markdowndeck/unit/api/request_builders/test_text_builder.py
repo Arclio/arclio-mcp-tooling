@@ -81,10 +81,21 @@ class TestTextRequestBuilderDirectivesAndTheme:
         )
         requests = builder.generate_text_element_requests(element, "slide1")
 
+        # Find the paragraph style request that contains the directive-based styling
+        # (not the alignment-based request which may have default values)
         update_para_req = next(
-            (r for r in requests if "updateParagraphStyle" in r), None
+            (
+                r
+                for r in requests
+                if "updateParagraphStyle" in r
+                and "spaceAbove" in r["updateParagraphStyle"]["style"]
+                and r["updateParagraphStyle"]["style"]["spaceAbove"]["magnitude"] > 0
+            ),
+            None,
         )
-        assert update_para_req is not None
+        assert (
+            update_para_req is not None
+        ), "Should find paragraph style request with directive-based spacing"
         style = update_para_req["updateParagraphStyle"]["style"]
         fields = update_para_req["updateParagraphStyle"]["fields"].split(",")
 

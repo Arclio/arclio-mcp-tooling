@@ -1,6 +1,15 @@
 """Unit tests for OverflowDetector with strict jurisdictional boundaries."""
 
 import pytest
+from markdowndeck.layout.constants import (
+    BODY_TO_FOOTER_SPACING,
+    DEFAULT_MARGIN_BOTTOM,
+    DEFAULT_MARGIN_TOP,
+    DEFAULT_SLIDE_HEIGHT,
+    FOOTER_HEIGHT,
+    HEADER_HEIGHT,
+    HEADER_TO_BODY_SPACING,
+)
 from markdowndeck.models import (
     ElementType,
     ImageElement,
@@ -16,23 +25,34 @@ class TestOverflowDetector:
 
     @pytest.fixture
     def detector(self) -> OverflowDetector:
-        """Create detector with standard body height."""
-        return OverflowDetector(body_height=255.0)  # 405 - 90 - 30 - 30 (margins)
+        """Create detector with correct body height calculated from layout constants."""
+        # Calculate correct body height: slide_height - margins - header - footer - spacing
+        body_height = (
+            DEFAULT_SLIDE_HEIGHT
+            - DEFAULT_MARGIN_TOP
+            - DEFAULT_MARGIN_BOTTOM
+            - HEADER_HEIGHT
+            - FOOTER_HEIGHT
+            - HEADER_TO_BODY_SPACING
+            - BODY_TO_FOOTER_SPACING
+        )
+        return OverflowDetector(body_height=body_height)
 
     def test_no_overflow_detection_with_fitting_sections(self, detector):
         """Test that slides without external overflow are correctly identified."""
 
         # Create slide with content that fits within external section boundaries
+        # Body area: Y=150 to Y=315
         fitting_section = Section(
             id="fitting_section",
             type="section",
-            position=(50, 150),
-            size=(620, 100),  # Section bottom at 250, fits within body height 255
+            position=(50, 200),
+            size=(620, 100),  # Section bottom at 300, fits within body_end_y 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Content that fits",
-                    position=(50, 150),
+                    position=(50, 200),
                     size=(620, 80),
                 )
             ],
@@ -59,17 +79,18 @@ class TestOverflowDetector:
         """Test detection of external section boundary overflow."""
 
         # Create section whose external boundary overflows slide body height
+        # Body area starts at Y=150 and has height 165, so ends at Y=315
         overflowing_section = Section(
             id="external_overflow_section",
             type="section",
-            position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, exceeds body_height of 255
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, exceeds body_end_y of 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Normal content within section",
-                    position=(50, 150),
-                    size=(620, 100),  # Content fits within section
+                    position=(50, 280),
+                    size=(620, 40),  # Content fits within section
                 )
             ],
         )
@@ -77,8 +98,8 @@ class TestOverflowDetector:
         fitting_section = Section(
             id="fitting_section",
             type="section",
-            position=(50, 100),
-            size=(620, 50),  # Section bottom at 150, fits
+            position=(50, 200),
+            size=(620, 50),  # Section bottom at 250, fits within body area
             elements=[],
         )
 
@@ -118,10 +139,10 @@ class TestOverflowDetector:
         internal_overflow_section = Section(
             id="internal_overflow_section",
             type="section",
-            position=(50, 150),
-            size=(620, 100),  # Section bottom at 250, fits within body_height 255
+            position=(50, 250),
+            size=(620, 60),  # Section bottom at 310, fits within body_end_y 315
             directives={
-                "height": 100
+                "height": 60
             },  # Explicit height directive makes overflow acceptable
             elements=[large_content],
         )
@@ -161,9 +182,9 @@ class TestOverflowDetector:
         explicit_height_section = Section(
             id="explicit_height_section",
             type="section",
-            position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, overflows body_height
-            directives={"height": 200},  # Explicit height makes overflow acceptable
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, overflows body_end_y 315
+            directives={"height": 50},  # Explicit height makes overflow acceptable
             elements=[explicit_height_content],
         )
 
@@ -186,8 +207,8 @@ class TestOverflowDetector:
         image_section = Section(
             id="image_section",
             type="section",
-            position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, technically overflows
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, technically overflows
             elements=[large_image],
         )
 
@@ -205,14 +226,14 @@ class TestOverflowDetector:
         section1 = Section(
             id="first_external_overflow",
             type="section",
-            position=(50, 200),
-            size=(620, 100),  # Section bottom at 300, overflows body_height 255
+            position=(50, 300),
+            size=(620, 20),  # Section bottom at 320, overflows body_end_y 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="First overflowing content",
-                    position=(50, 200),
-                    size=(620, 80),
+                    position=(50, 300),
+                    size=(620, 15),
                 )
             ],
         )
@@ -220,14 +241,14 @@ class TestOverflowDetector:
         section2 = Section(
             id="second_external_overflow",
             type="section",
-            position=(50, 250),
-            size=(620, 100),  # Section bottom at 350, also overflows
+            position=(50, 310),
+            size=(620, 20),  # Section bottom at 330, also overflows
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Second overflowing content",
-                    position=(50, 250),
-                    size=(620, 80),
+                    position=(50, 310),
+                    size=(620, 15),
                 )
             ],
         )
@@ -264,14 +285,14 @@ class TestOverflowDetector:
         valid_overflowing_section = Section(
             id="valid_external_overflow",
             type="section",
-            position=(50, 200),
-            size=(620, 100),  # Section bottom at 300, overflows body_height 255
+            position=(50, 300),
+            size=(620, 20),  # Section bottom at 320, overflows body_end_y 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Valid overflowing content",
-                    position=(50, 200),
-                    size=(620, 80),
+                    position=(50, 300),
+                    size=(620, 15),
                 )
             ],
         )
@@ -328,17 +349,18 @@ class TestOverflowDetector:
         """Test overflow detection at exact external boundary conditions."""
 
         # Create section that exactly matches body height (boundary case)
+        # Body area: Y=150 to Y=315
         exact_fit_section = Section(
             id="exact_external_fit",
             type="section",
-            position=(50, 0),
-            size=(620, 255),  # Section bottom exactly at body_height 255
+            position=(50, 150),
+            size=(620, 165),  # Section bottom exactly at body_end_y 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Content that exactly fits",
-                    position=(50, 0),
-                    size=(620, 200),
+                    position=(50, 150),
+                    size=(620, 150),
                 )
             ],
         )
@@ -347,14 +369,14 @@ class TestOverflowDetector:
         one_point_over_section = Section(
             id="one_point_external_over",
             type="section",
-            position=(50, 0),
-            size=(620, 256),  # Section bottom at 256, exceeds by 1 point
+            position=(50, 150),
+            size=(620, 166),  # Section bottom at 316, exceeds by 1 point
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Content that exceeds by one point",
-                    position=(50, 0),
-                    size=(620, 200),
+                    position=(50, 150),
+                    size=(620, 150),
                 )
             ],
         )
@@ -384,14 +406,14 @@ class TestOverflowDetector:
         floating_boundary_section = Section(
             id="floating_boundary",
             type="section",
-            position=(50, 0),
-            size=(620, 255.000000001),  # Exceeds by minimal floating point amount
+            position=(50, 150),
+            size=(620, 165.000000001),  # Exceeds by minimal floating point amount
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Floating point precision content",
-                    position=(50, 0),
-                    size=(620, 200),
+                    position=(50, 150),
+                    size=(620, 150),
                 )
             ],
         )
@@ -407,17 +429,18 @@ class TestOverflowDetector:
         """Test detailed overflow summary analysis functionality."""
 
         # Create mixed scenario with fitting and overflowing sections
+        # Body area: Y=150 to Y=315
         fitting_section = Section(
             id="fitting_section",
             type="section",
-            position=(50, 100),
-            size=(620, 50),  # Section bottom at 150, fits
+            position=(50, 200),
+            size=(620, 100),  # Section bottom at 300, fits
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Fitting content",
-                    position=(50, 100),
-                    size=(620, 40),
+                    position=(50, 200),
+                    size=(620, 80),
                 )
             ],
         )
@@ -425,14 +448,14 @@ class TestOverflowDetector:
         overflowing_section = Section(
             id="overflowing_section",
             type="section",
-            position=(50, 200),
-            size=(620, 100),  # Section bottom at 300, overflows
+            position=(50, 300),
+            size=(620, 20),  # Section bottom at 320, overflows
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Overflowing content",
-                    position=(50, 200),
-                    size=(620, 80),
+                    position=(50, 300),
+                    size=(620, 15),
                 )
             ],
         )
@@ -440,15 +463,15 @@ class TestOverflowDetector:
         acceptable_overflow_section = Section(
             id="acceptable_overflow",
             type="section",
-            position=(50, 150),
-            size=(620, 200),  # Section bottom at 350, overflows
-            directives={"height": 200},  # Explicit height makes it acceptable
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, overflows
+            directives={"height": 50},  # Explicit height makes it acceptable
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Acceptable overflow content",
-                    position=(50, 150),
-                    size=(620, 300),  # Content larger than section
+                    position=(50, 280),
+                    size=(620, 80),  # Content larger than section
                 )
             ],
         )
@@ -470,7 +493,7 @@ class TestOverflowDetector:
         assert (
             summary["overflowing_section_index"] == 2
         ), "Should identify correct first unacceptable overflow"
-        assert summary["body_height"] == 255.0, "Should include body height"
+        assert summary["body_height"] == 165.0, "Should include body height"
 
         # Check individual section analysis
         sections_analysis = summary["sections_analysis"]
@@ -501,11 +524,12 @@ class TestOverflowDetector:
         large_detector = OverflowDetector(body_height=500.0)
 
         # Create same section for both detectors
+        # Body area starts at Y=150, so this section will be in the body area
         test_section = Section(
             id="test_section",
             type="section",
-            position=(50, 50),
-            size=(620, 200),  # Section bottom at 250
+            position=(50, 200),
+            size=(620, 200),  # Section bottom at 400
             elements=[],
         )
 
@@ -530,14 +554,14 @@ class TestOverflowDetector:
         regular_section = Section(
             id="regular_section",
             type="section",
-            position=(50, 200),
-            size=(620, 100),  # Overflows
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, overflows body_end_y 315
             elements=[
                 TextElement(
                     element_type=ElementType.TEXT,
                     text="Regular section content",
-                    position=(50, 200),
-                    size=(620, 80),
+                    position=(50, 280),
+                    size=(620, 40),
                 )
             ],
         )
@@ -546,34 +570,34 @@ class TestOverflowDetector:
         row_section = Section(
             id="row_section",
             type="row",
-            position=(50, 200),
-            size=(620, 100),  # Overflows
+            position=(50, 280),
+            size=(620, 50),  # Section bottom at 330, overflows body_end_y 315
             subsections=[
                 Section(
                     id="column1",
                     type="section",
-                    position=(50, 200),
-                    size=(310, 100),
+                    position=(50, 280),
+                    size=(310, 50),
                     elements=[
                         TextElement(
                             element_type=ElementType.TEXT,
                             text="Column 1",
-                            position=(50, 200),
-                            size=(310, 80),
+                            position=(50, 280),
+                            size=(310, 40),
                         )
                     ],
                 ),
                 Section(
                     id="column2",
                     type="section",
-                    position=(360, 200),
-                    size=(310, 100),
+                    position=(360, 280),
+                    size=(310, 50),
                     elements=[
                         TextElement(
                             element_type=ElementType.TEXT,
                             text="Column 2",
-                            position=(360, 200),
-                            size=(310, 80),
+                            position=(360, 280),
+                            size=(310, 40),
                         )
                     ],
                 ),

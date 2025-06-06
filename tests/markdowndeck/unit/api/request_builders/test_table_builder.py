@@ -150,6 +150,8 @@ class TestTableRequestBuilderStyling:
         )
         requests = builder.generate_table_element_requests(element, "slide1")
 
+        # Find the background request that applies to the specified cell range
+        # (not the header background requests)
         bg_req = next(
             (
                 r
@@ -157,10 +159,18 @@ class TestTableRequestBuilderStyling:
                 if "updateTableCellProperties" in r
                 and "tableCellBackgroundFill"
                 in r["updateTableCellProperties"]["tableCellProperties"]
+                and r["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"]
+                == 1
+                and r["updateTableCellProperties"]["tableRange"]["location"][
+                    "columnIndex"
+                ]
+                == 1
             ),
             None,
         )
-        assert bg_req is not None
+        assert (
+            bg_req is not None
+        ), "Should find background request for cell range 1,1:2,2"
         table_range = bg_req["updateTableCellProperties"]["tableRange"]
 
         assert table_range["location"]["rowIndex"] == 1

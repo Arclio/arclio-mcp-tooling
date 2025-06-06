@@ -35,7 +35,7 @@ class TestImageMetricsProactiveScaling:
         ), f"Proactively scaled height should match expected: {expected_height}, got {calculated_height}"
 
     def test_proactive_scaling_with_width_directive(self):
-        """Test proactive scaling respects width directives."""
+        """Test proactive scaling respects width directives through display size calculation."""
 
         image = ImageElement(
             element_type=ElementType.IMAGE,
@@ -44,14 +44,22 @@ class TestImageMetricsProactiveScaling:
         )
 
         container_width = 400.0
-        calculated_height = calculate_image_element_height(image, container_width)
+        # Width directives are handled by calculate_image_display_size, not calculate_image_element_height
+        display_width, calculated_height = calculate_image_display_size(
+            image, container_width
+        )
 
         # Should scale based on 50% of container width
         effective_width = container_width * 0.5
         expected_height = effective_width / DEFAULT_IMAGE_ASPECT_RATIO
         expected_height = max(expected_height, MIN_IMAGE_HEIGHT)
 
-        assert abs(calculated_height - expected_height) < 1.0
+        assert (
+            abs(display_width - effective_width) < 1.0
+        ), f"Width should be 50% of container: expected {effective_width}, got {display_width}"
+        assert (
+            abs(calculated_height - expected_height) < 1.0
+        ), f"Height should match expected: {expected_height}, got {calculated_height}"
 
     def test_proactive_scaling_with_height_constraint(self):
         """Test proactive scaling with height constraints."""

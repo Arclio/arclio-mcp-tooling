@@ -359,29 +359,59 @@ class TestElementSplitMethods:
         assert fitted is None, "Empty list should return None"
         assert overflowing is None, "Empty list should return None"
 
-        # Test 3: Single line text (can't meet minimum 2 lines)
+        # Test 3: Single line text that doesn't fit (can't meet minimum 2 lines)
         single_line = TextElement(
             element_type=ElementType.TEXT,
-            text="Single line that won't split",
-            size=(400, 20),
+            text="This is a very long single line of text that definitely won't fit in the available space because it contains so much content that it will exceed the height limit and force the element to be treated as atomic and promoted to the next slide rather than being split",
+            size=(400, 100),  # Large size but actual height will be calculated
         )
 
-        fitted, overflowing = single_line.split(50.0)
-        # Should not split single line even with available space
-        assert fitted is None, "Single line should not split"
+        fitted, overflowing = single_line.split(15.0)  # Very small available space
+        # Should not split single line when it doesn't fit (atomic behavior)
+        assert fitted is None, "Single line that doesn't fit should not split"
         assert overflowing is not None, "Should return as overflowing"
 
-        # Test 4: Single item list (can't meet minimum 2 items)
+        # Test 3b: Single line text that DOES fit should return as fitted
+        single_line_fits = TextElement(
+            element_type=ElementType.TEXT,
+            text="Single line that fits",
+            size=(400, 20),  # Height smaller than available space
+        )
+
+        fitted, overflowing = single_line_fits.split(50.0)  # More space than needed
+        # Should return as fitted when single line fits completely
+        assert fitted is not None, "Single line that fits should be returned as fitted"
+        assert overflowing is None, "No overflow when single line fits"
+        assert fitted.text == single_line_fits.text, "Fitted text should match original"
+
+        # Test 4: Single item list that doesn't fit (can't meet minimum 2 items)
         single_item_list = ListElement(
             element_type=ElementType.BULLET_LIST,
-            items=[ListItem(text="Only item")],
+            items=[
+                ListItem(
+                    text="Only item with very long text content that will make the list too tall to fit in the small available space"
+                )
+            ],
+            size=(400, 100),
+        )
+
+        fitted, overflowing = single_item_list.split(15.0)  # Very small available space
+        # Should not split single item when it doesn't fit (atomic behavior)
+        assert fitted is None, "Single item list that doesn't fit should not split"
+        assert overflowing is not None, "Should return as overflowing"
+
+        # Test 4b: Single item list that DOES fit should return as fitted
+        single_item_fits = ListElement(
+            element_type=ElementType.BULLET_LIST,
+            items=[ListItem(text="Short item")],
             size=(400, 20),
         )
 
-        fitted, overflowing = single_item_list.split(50.0)
-        # Should not split single item even with available space
-        assert fitted is None, "Single item list should not split"
-        assert overflowing is not None, "Should return as overflowing"
+        fitted, overflowing = single_item_fits.split(50.0)  # More space than needed
+        # Should return as fitted when single item fits completely
+        assert fitted is not None, "Single item that fits should be returned as fitted"
+        assert overflowing is None, "No overflow when single item fits"
+        assert len(fitted.items) == 1, "Fitted list should have the single item"
 
         # Test 5: Empty code (should return None, None)
         empty_code = CodeElement(

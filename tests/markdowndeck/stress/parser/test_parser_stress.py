@@ -96,10 +96,26 @@ This is the actual content.
         slide = deck.slides[0]
         assert len(slide.sections) == 2
 
-        # Check that directives were parsed, not just treated as content
-        # The parser logic will have the directives in the content for the next stage.
-        # This test ensures it doesn't crash or take forever.
-        assert directives_str in slide.sections[0].content
+        # Check that directives were parsed correctly and removed from content
+        # The DirectiveParser should parse directives into the section.directives dict
+        # and remove them from section.content, leaving only the actual content
+        assert "This is the actual content." in slide.sections[0].content
         assert (
-            "key=val" in slide.sections[1].content
-        )  # Table formatter might clean up text
+            directives_str not in slide.sections[0].content
+        ), "Directives should be removed from content after parsing"
+
+        # Check that directives were actually parsed (stored in directives dict)
+        assert (
+            "key" in slide.sections[0].directives
+        ), "Directives should be parsed into section.directives"
+        assert (
+            slide.sections[0].directives["key"] == "val"
+        ), "Directive value should be correctly parsed"
+
+        # Check second section (table) has directives parsed too
+        assert (
+            "key" in slide.sections[1].directives
+        ), "Second section should also have parsed directives"
+        assert (
+            "|" in slide.sections[1].content
+        ), "Table content should remain in section content"
