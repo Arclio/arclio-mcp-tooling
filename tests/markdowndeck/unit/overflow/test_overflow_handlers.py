@@ -46,15 +46,15 @@ class TestStandardOverflowHandler:
         text3 = TextElement(
             element_type=ElementType.TEXT,
             text="Third text element\nShould be promoted to continuation",
-            position=(50, 310),
-            size=(620, 40),
+            position=(50, 380),  # FIXED: Positioned to exceed body_end_y (405.0)
+            size=(620, 40),  # bottom = 380 + 40 = 420 > 405.0 (overflow!)
         )
 
         overflowing_section = Section(
             id="rule_a_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section overflows body_height
+            size=(620, 270),  # FIXED: Adjusted section size to match content
             elements=[text1, text2, text3],
         )
 
@@ -370,7 +370,7 @@ class TestStandardOverflowHandler:
             size=(620, 80),
         )
 
-        # Test with ListElement (minimum 2 items)
+        # Test with ListElement (minimum 2 items) - positioned to overflow
         list_element = ListElement(
             element_type=ElementType.BULLET_LIST,
             items=[
@@ -379,15 +379,15 @@ class TestStandardOverflowHandler:
                 ListItem(text="Item 3"),
                 ListItem(text="Item 4"),
             ],
-            position=(50, 240),
-            size=(620, 80),
+            position=(50, 380),  # FIXED: Positioned to exceed body_end_y (405.0)
+            size=(620, 80),  # bottom = 380 + 80 = 460 > 405.0 (overflow!)
         )
 
         section = Section(
             id="minimum_req_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Section overflows
+            size=(620, 310),  # FIXED: Adjusted section size to match content
             elements=[code_element, list_element],
         )
 
@@ -456,8 +456,8 @@ class TestStandardOverflowHandler:
         text_element = TextElement(
             element_type=ElementType.TEXT,
             text="Content that will overflow " * 20,
-            position=(50, 150),
-            size=(620, 200),
+            position=(50, 350),  # FIXED: Positioned to exceed body_end_y (405.0)
+            size=(620, 200),  # bottom = 350 + 200 = 550 > 405.0 (overflow!)
         )
 
         # Mock split method to ensure overflow
@@ -511,14 +511,14 @@ class TestStandardOverflowHandler:
         nested_text = TextElement(
             element_type=ElementType.TEXT,
             text="Nested content " * 10,
-            position=(50, 180),
-            size=(620, 80),
+            position=(50, 380),  # FIXED: Positioned to exceed body_end_y (405.0)
+            size=(620, 80),  # bottom = 380 + 80 = 460 > 405.0 (overflow!)
         )
 
         nested_section = Section(
             id="nested_section",
             type="section",
-            position=(50, 180),
+            position=(50, 380),  # FIXED: Match the text element position
             size=(620, 100),
             elements=[nested_text],
         )
@@ -529,7 +529,7 @@ class TestStandardOverflowHandler:
             id="parent_section",
             type="section",
             position=(50, 150),
-            size=(620, 200),  # Parent section overflows
+            size=(620, 330),  # FIXED: Adjusted section size to contain nested section
             elements=[],  # Empty elements list
             subsections=[nested_section],
         )
