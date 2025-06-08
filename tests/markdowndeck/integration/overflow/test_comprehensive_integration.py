@@ -140,16 +140,22 @@ class TestComprehensiveOverflowIntegration:
         result_slides = overflow_manager.process_slide(slide)
 
         # Verify multiple slides created due to external overflow
-        assert len(result_slides) >= 2, f"Should create multiple slides, got {len(result_slides)}"
+        assert (
+            len(result_slides) >= 2
+        ), f"Should create multiple slides, got {len(result_slides)}"
 
         # Verify first slide (fitted content)
         first_slide = result_slides[0]
-        assert first_slide.object_id == "comprehensive_test_slide", "First slide should keep original ID"
+        assert (
+            first_slide.object_id == "comprehensive_test_slide"
+        ), "First slide should keep original ID"
 
         # Verify continuation slides have proper structure
         for i, continuation_slide in enumerate(result_slides[1:], 1):
             # Check continuation slide ID format
-            assert "comprehensive_test_slide_cont" in continuation_slide.object_id, f"Continuation {i} should have proper ID"
+            assert (
+                "comprehensive_test_slide_cont" in continuation_slide.object_id
+            ), f"Continuation {i} should have proper ID"
 
             # Check continuation title
             continuation_title = None
@@ -159,10 +165,12 @@ class TestComprehensiveOverflowIntegration:
                     break
 
             assert continuation_title is not None, f"Continuation {i} should have title"
-            assert CONTINUED_TITLE_SUFFIX in continuation_title.text, f"Continuation {i} title should have suffix"
-            assert "Comprehensive Overflow Specification Test" in continuation_title.text, (
-                f"Continuation {i} should preserve original title"
-            )
+            assert (
+                CONTINUED_TITLE_SUFFIX in continuation_title.text
+            ), f"Continuation {i} title should have suffix"
+            assert (
+                "Comprehensive Overflow Specification Test" in continuation_title.text
+            ), f"Continuation {i} should preserve original title"
 
             # Check continuation footer
             continuation_footer = None
@@ -172,16 +180,26 @@ class TestComprehensiveOverflowIntegration:
                     break
 
             if continuation_footer:  # May not have footer if original didn't
-                assert CONTINUED_FOOTER_SUFFIX in continuation_footer.text, f"Continuation {i} footer should have suffix"
+                assert (
+                    CONTINUED_FOOTER_SUFFIX in continuation_footer.text
+                ), f"Continuation {i} footer should have suffix"
 
-            # Verify position reset in continuation slides
+            # Verify continuation slides have proper positioning for rendering
             for section in continuation_slide.sections:
-                assert section.position is None, f"Continuation {i} section position should be reset"
-                assert section.size is None, f"Continuation {i} section size should be reset"
+                assert (
+                    section.position is not None
+                ), f"Continuation {i} section position should be set for rendering"
+                assert (
+                    section.size is not None
+                ), f"Continuation {i} section size should be set for rendering"
 
                 for element in section.elements:
-                    assert element.position is None, f"Continuation {i} element position should be reset"
-                    assert element.size is None, f"Continuation {i} element size should be reset"
+                    assert (
+                        element.position is not None
+                    ), f"Continuation {i} element position should be set for rendering"
+                    assert (
+                        element.size is not None
+                    ), f"Continuation {i} element size should be set for rendering"
 
         # Verify content preservation across slides
         all_content_elements = []
@@ -203,7 +221,9 @@ class TestComprehensiveOverflowIntegration:
             ElementType.TABLE,
             ElementType.IMAGE,
         }
-        assert expected_types.issubset(content_types), "Should preserve all content element types"
+        assert expected_types.issubset(
+            content_types
+        ), "Should preserve all content element types"
 
     def test_unanimous_consent_model_comprehensive_scenarios(self, overflow_manager):
         """Test the unanimous consent model with comprehensive columnar scenarios."""
@@ -265,13 +285,17 @@ class TestComprehensiveOverflowIntegration:
         result_unanimous = overflow_manager.process_slide(unanimous_slide)
 
         # Should successfully split with unanimous consent
-        assert len(result_unanimous) >= 2, "Should create continuation with unanimous consent"
+        assert (
+            len(result_unanimous) >= 2
+        ), "Should create continuation with unanimous consent"
 
         # Verify row structure is preserved
         for slide in result_unanimous:
             for section in slide.sections:
                 if section.type == "row":
-                    assert len(section.subsections) >= 1, "Row structure should be preserved"
+                    assert (
+                        len(section.subsections) >= 1
+                    ), "Row structure should be preserved"
 
     def test_jurisdictional_boundaries_comprehensive_validation(self, overflow_manager):
         """Test comprehensive validation of jurisdictional boundaries (external vs internal overflow)."""
@@ -309,7 +333,9 @@ class TestComprehensiveOverflowIntegration:
         result_internal = overflow_manager.process_slide(internal_slide)
 
         # Should NOT create continuation - internal overflow is ignored
-        assert len(result_internal) == 1, "Internal overflow should be ignored per jurisdictional boundaries"
+        assert (
+            len(result_internal) == 1
+        ), "Internal overflow should be ignored per jurisdictional boundaries"
 
         # Test Case 2: External overflow (should be handled)
         normal_content = TextElement(
@@ -336,7 +362,9 @@ class TestComprehensiveOverflowIntegration:
         result_external = overflow_manager.process_slide(external_slide)
 
         # Should create continuation - external overflow is handled
-        assert len(result_external) >= 2, "External overflow should be handled per jurisdictional boundaries"
+        assert (
+            len(result_external) >= 2
+        ), "External overflow should be handled per jurisdictional boundaries"
 
     def test_proactive_image_scaling_comprehensive_validation(self, overflow_manager):
         """Test comprehensive validation of proactive image scaling contract."""
@@ -369,17 +397,23 @@ Some text content after image."""
         assert len(result_slides) >= 1, "Should produce at least one slide"
 
         # Most importantly: verify that the LayoutManager properly positioned elements
-        assert len(positioned_slide.sections) > 0, "Should have sections with positioned content"
+        assert (
+            len(positioned_slide.sections) > 0
+        ), "Should have sections with positioned content"
 
         for section in positioned_slide.sections:
             # Section should have position and size calculated by LayoutManager
-            assert section.position is not None, "LayoutManager should set section position"
+            assert (
+                section.position is not None
+            ), "LayoutManager should set section position"
             assert section.size is not None, "LayoutManager should set section size"
 
             for element in section.elements:
                 if element.element_type == ElementType.IMAGE:
                     # Images should have size calculated by LayoutManager (proactive scaling)
-                    assert element.size is not None, "Image should have size calculated by LayoutManager"
+                    assert (
+                        element.size is not None
+                    ), "Image should have size calculated by LayoutManager"
                     assert element.size[0] > 0, "Image should have positive width"
                     assert element.size[1] > 0, "Image should have positive height"
 
@@ -467,26 +501,26 @@ Some text content after image."""
                 for element in section.elements:
                     if element.element_type == ElementType.TEXT:
                         lines = element.text.count("\n") + 1
-                        assert lines >= 2 or lines == element.text.count("\n") + 1, (
-                            "Text should meet minimum lines or be complete"
-                        )
+                        assert (
+                            lines >= 2 or lines == element.text.count("\n") + 1
+                        ), "Text should meet minimum lines or be complete"
                     elif element.element_type == ElementType.CODE:
                         lines = element.code.count("\n") + 1
-                        assert lines >= 2 or lines == element.code.count("\n") + 1, (
-                            "Code should meet minimum lines or be complete"
-                        )
+                        assert (
+                            lines >= 2 or lines == element.code.count("\n") + 1
+                        ), "Code should meet minimum lines or be complete"
                     elif element.element_type == ElementType.BULLET_LIST:
-                        assert len(element.items) >= 2 or len(element.items) == len(element.items), (
-                            "List should meet minimum items or be complete"
-                        )
+                        assert len(element.items) >= 2 or len(element.items) == len(
+                            element.items
+                        ), "List should meet minimum items or be complete"
                     elif element.element_type == ElementType.TABLE:
                         if element.rows:  # If has data rows
-                            assert len(element.rows) >= 2 or len(element.rows) == len(element.rows), (
-                                "Table should meet minimum rows or be complete"
-                            )
+                            assert len(element.rows) >= 2 or len(element.rows) == len(
+                                element.rows
+                            ), "Table should meet minimum rows or be complete"
 
     def test_position_reset_comprehensive_validation(self, overflow_manager):
-        """Test comprehensive validation of position reset in continuation slides."""
+        """Test comprehensive validation of proper positioning in continuation slides."""
 
         title = TextElement(
             element_type=ElementType.TITLE,
@@ -574,26 +608,45 @@ Some text content after image."""
         # Should create continuation slides
         assert len(result_position) >= 2, "Should create continuation slides"
 
-        # Verify comprehensive position reset
+        # Verify comprehensive positioning in continuation slides
         for slide in result_position[1:]:  # Check continuation slides only
 
-            def validate_reset_recursive(sections, path=""):
+            def validate_positioning_recursive(sections, path=""):
                 for i, section in enumerate(sections):
                     section_path = f"{path}section[{i}]({section.id})"
-                    assert section.position is None, f"{section_path} position should be reset"
-                    assert section.size is None, f"{section_path} size should be reset"
+                    assert (
+                        section.position is not None
+                    ), f"{section_path} position should be set for rendering"
+                    assert (
+                        section.size is not None
+                    ), f"{section_path} size should be set for rendering"
 
                     # Check all elements in this section
                     for j, element in enumerate(section.elements):
-                        element_path = f"{section_path}.element[{j}]({element.element_type})"
-                        assert element.position is None, f"{element_path} position should be reset"
-                        assert element.size is None, f"{element_path} size should be reset"
+                        element_path = (
+                            f"{section_path}.element[{j}]({element.element_type})"
+                        )
+                        assert (
+                            element.position is not None
+                        ), f"{element_path} position should be set for rendering"
+                        assert (
+                            element.size is not None
+                        ), f"{element_path} size should be set for rendering"
+
+                        # Verify positions are not at default fallback values
+                        x, y = element.position
+                        assert not (x == 100 and y == 100), (
+                            f"{element_path} has default fallback position (100, 100) - "
+                            f"layout calculation failed"
+                        )
 
                     # Recursively check subsections
                     if section.subsections:
-                        validate_reset_recursive(section.subsections, f"{section_path}.")
+                        validate_positioning_recursive(
+                            section.subsections, f"{section_path}."
+                        )
 
-            validate_reset_recursive(slide.sections)
+            validate_positioning_recursive(slide.sections)
 
     def test_overflow_analysis_comprehensive_reporting(self, overflow_manager):
         """Test comprehensive overflow analysis and reporting functionality."""
@@ -659,7 +712,9 @@ Some text content after image."""
             object_id="analysis_test_slide",
             elements=[
                 title,
-                TextElement(element_type=ElementType.TEXT, text="Perfectly fitting content"),
+                TextElement(
+                    element_type=ElementType.TEXT, text="Perfectly fitting content"
+                ),
                 internal_overflow_content,
                 TextElement(
                     element_type=ElementType.TEXT,
@@ -678,33 +733,49 @@ Some text content after image."""
 
         # Verify analysis structure
         assert "has_overflow" in analysis, "Analysis should include overflow detection"
-        assert "overflowing_section_index" in analysis, "Analysis should identify overflowing section"
+        assert (
+            "overflowing_section_index" in analysis
+        ), "Analysis should identify overflowing section"
         assert "total_sections" in analysis, "Analysis should count sections"
-        assert "sections_analysis" in analysis, "Analysis should include detailed section analysis"
+        assert (
+            "sections_analysis" in analysis
+        ), "Analysis should include detailed section analysis"
         assert "body_height" in analysis, "Analysis should include body height"
 
         # Verify analysis content
         assert analysis["total_sections"] == 3, "Should count all sections"
         assert analysis["has_overflow"], "Should detect external overflow"
-        assert analysis["overflowing_section_index"] == 2, "Should identify correct first overflowing section"
+        assert (
+            analysis["overflowing_section_index"] == 2
+        ), "Should identify correct first overflowing section"
 
         # Verify detailed section analysis
         sections_analysis = analysis["sections_analysis"]
         assert len(sections_analysis) == 3, "Should analyze all sections"
 
         # Section 0: Should not overflow
-        assert not sections_analysis[0]["overflows"], "First section should not overflow"
+        assert not sections_analysis[0][
+            "overflows"
+        ], "First section should not overflow"
 
         # Section 1: Internal overflow is ignored per specification
         # The detector only reports EXTERNAL overflow, not internal overflow
-        assert not sections_analysis[1]["overflows"], "Internal overflow should be ignored per specification"
+        assert not sections_analysis[1][
+            "overflows"
+        ], "Internal overflow should be ignored per specification"
 
         # Section 2: Should overflow and not be acceptable
-        assert sections_analysis[2]["overflows"], "Third section should overflow externally"
-        assert not sections_analysis[2]["is_acceptable"], "Third section overflow should not be acceptable"
+        assert sections_analysis[2][
+            "overflows"
+        ], "Third section should overflow externally"
+        assert not sections_analysis[2][
+            "is_acceptable"
+        ], "Third section overflow should not be acceptable"
 
         # Test quick overflow check
-        assert overflow_manager.has_external_overflow(analysis_slide), "Should detect external overflow exists"
+        assert overflow_manager.has_external_overflow(
+            analysis_slide
+        ), "Should detect external overflow exists"
 
     def test_error_handling_and_edge_cases_comprehensive(self, overflow_manager):
         """Test comprehensive error handling and edge cases."""
@@ -732,8 +803,12 @@ Some text content after image."""
         assert len(result_malformed) >= 1, "Should handle malformed slides gracefully"
 
         # Test Case 3: Circular reference handling
-        circular_section_a = Section(id="circular_a", position=(50, 150), size=(620, 100))
-        circular_section_b = Section(id="circular_b", position=(50, 200), size=(620, 100))
+        circular_section_a = Section(
+            id="circular_a", position=(50, 150), size=(620, 100)
+        )
+        circular_section_b = Section(
+            id="circular_b", position=(50, 200), size=(620, 100)
+        )
 
         # Create circular reference
         circular_section_a.subsections = [circular_section_b]
@@ -748,7 +823,9 @@ Some text content after image."""
         # Should handle without infinite recursion
         try:
             result_circular = overflow_manager.process_slide(circular_slide)
-            assert len(result_circular) >= 1, "Should handle circular references gracefully"
+            assert (
+                len(result_circular) >= 1
+            ), "Should handle circular references gracefully"
         except RecursionError:
             pytest.fail("Should not cause infinite recursion with circular references")
 
@@ -834,25 +911,41 @@ Some text content after image."""
         processing_time = end_time - start_time
 
         # Should complete in reasonable time
-        assert processing_time < 5.0, f"Should process complex slide efficiently, took {processing_time:.2f}s"
+        assert (
+            processing_time < 5.0
+        ), f"Should process complex slide efficiently, took {processing_time:.2f}s"
         assert len(result_performance) >= 2, "Should create multiple slides"
 
         # Verify all content preserved
         total_content_elements = sum(
-            len([e for e in slide.elements if e.element_type not in (ElementType.TITLE, ElementType.FOOTER)])
+            len(
+                [
+                    e
+                    for e in slide.elements
+                    if e.element_type not in (ElementType.TITLE, ElementType.FOOTER)
+                ]
+            )
             for slide in result_performance
         )
-        original_content_count = len([e for e in elements if e.element_type != ElementType.TITLE])
+        original_content_count = len(
+            [e for e in elements if e.element_type != ElementType.TITLE]
+        )
 
         # Content might be split, so total could be higher due to split elements
-        assert total_content_elements >= original_content_count, "Should preserve all content through splitting"
+        assert (
+            total_content_elements >= original_content_count
+        ), "Should preserve all content through splitting"
 
         # Test edge case: Empty slide performance
-        empty_slide = Slide(object_id="empty_performance_slide", elements=[], sections=[])
+        empty_slide = Slide(
+            object_id="empty_performance_slide", elements=[], sections=[]
+        )
         start_time = time.time()
         result_empty = overflow_manager.process_slide(empty_slide)
         end_time = time.time()
 
         empty_processing_time = end_time - start_time
-        assert empty_processing_time < 0.1, f"Empty slide should process instantly, took {empty_processing_time:.2f}s"
+        assert (
+            empty_processing_time < 0.1
+        ), f"Empty slide should process instantly, took {empty_processing_time:.2f}s"
         assert len(result_empty) == 1, "Empty slide should return single slide"

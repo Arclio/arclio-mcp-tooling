@@ -66,8 +66,12 @@ class OverflowManager:
         )
 
         # Initialize components
-        self.detector = OverflowDetector(body_height=self.body_height, top_margin=self.margins["top"])
-        self.handler = StandardOverflowHandler(body_height=self.body_height, top_margin=self.margins["top"])
+        self.detector = OverflowDetector(
+            body_height=self.body_height, top_margin=self.margins["top"]
+        )
+        self.handler = StandardOverflowHandler(
+            body_height=self.body_height, top_margin=self.margins["top"]
+        )
 
         # Layout manager for repositioning continuation slides
         from markdowndeck.layout import LayoutManager
@@ -107,13 +111,17 @@ class OverflowManager:
             # Check for infinite recursion protection
             iteration_count += 1
             if iteration_count > MAX_OVERFLOW_ITERATIONS:
-                logger.error(f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}")
+                logger.error(
+                    f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}"
+                )
                 # Force-add remaining slides to prevent infinite loop
                 final_slides.extend(slides_to_process)
                 break
 
             if len(final_slides) > MAX_CONTINUATION_SLIDES:
-                logger.error(f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}")
+                logger.error(
+                    f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}"
+                )
                 # Force-add remaining slides to prevent infinite slides
                 final_slides.extend(slides_to_process)
                 break
@@ -121,32 +129,53 @@ class OverflowManager:
             # Dequeue current slide
             current_slide = slides_to_process.pop(0)
 
-            logger.debug(f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})")
+            logger.debug(
+                f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})"
+            )
 
             # Step 1: Detect EXTERNAL overflow only
-            overflowing_section = self.detector.find_first_overflowing_section(current_slide)
+            overflowing_section = self.detector.find_first_overflowing_section(
+                current_slide
+            )
 
             if overflowing_section is None:
-                # No external overflow - add to final slides
+                # No external overflow - but we MUST flatten elements from sections
+                # CRITICAL FIX: Always create final flat elements list for rendering
+                self._flatten_elements_from_sections(current_slide)
                 final_slides.append(current_slide)
-                logger.debug(f"No EXTERNAL overflow detected in slide {current_slide.object_id}")
+                logger.debug(
+                    f"No EXTERNAL overflow detected in slide {current_slide.object_id} - elements flattened"
+                )
                 continue
 
             # Step 2: Handle external overflow
-            logger.info(f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler.")
+            logger.info(
+                f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler."
+            )
 
-            fitted_slide, continuation_slide = self.handler.handle_overflow(current_slide, overflowing_section)
+            fitted_slide, continuation_slide = self.handler.handle_overflow(
+                current_slide, overflowing_section
+            )
 
             # Step 3: Add fitted slide to final results
             final_slides.append(fitted_slide)
-            logger.debug(f"Added fitted slide {fitted_slide.object_id} to final results")
+            logger.debug(
+                f"Added fitted slide {fitted_slide.object_id} to final results"
+            )
 
-            # Step 4: Enqueue continuation slide for further processing
-            # Note: Continuation slides already have correct positioning from slide builder
-            slides_to_process.append(continuation_slide)
-            logger.debug(f"Enqueued continuation slide {continuation_slide.object_id} for processing")
+            # Step 4: Calculate positions for continuation slide and enqueue for processing
+            # NOTE: Continuation slides need positions for overflow detection in next iteration
+            repositioned_continuation = self.layout_manager.calculate_positions(
+                continuation_slide
+            )
+            slides_to_process.append(repositioned_continuation)
+            logger.debug(
+                f"Repositioned and enqueued continuation slide {continuation_slide.object_id} for processing"
+            )
 
-        logger.info(f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide")
+        logger.info(
+            f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"
+        )
         return final_slides
 
     def get_overflow_analysis(self, slide: "Slide") -> dict:
@@ -194,7 +223,9 @@ class OverflowManager:
         warnings = []
 
         if not slide.sections:
-            warnings.append("Slide has no sections - overflow processing may be limited")
+            warnings.append(
+                "Slide has no sections - overflow processing may be limited"
+            )
 
         for i, section in enumerate(slide.sections or []):
             if not section.position:
@@ -206,7 +237,9 @@ class OverflowManager:
             if hasattr(section, "subsections") and section.subsections:
                 visited = set()
                 if self._has_circular_references(section, visited):
-                    warnings.append(f"Section {i} ({section.id}) has circular references")
+                    warnings.append(
+                        f"Section {i} ({section.id}) has circular references"
+                    )
 
         return warnings
 
@@ -232,3 +265,121 @@ class OverflowManager:
                     return True
 
         return False
+
+    def _flatten_elements_from_sections(self, slide: "Slide") -> None:
+        """
+        Flatten positioned elements from sections hierarchy into the main slide.elements list.
+
+        CRITICAL FIX: This method ensures that the positioned body elements from
+        slide.sections are properly included in the final slide.elements list
+        that the visualizer and other components expect.
+
+        Args:
+            slide: The slide to flatten elements for
+        """
+        from markdowndeck.models import ElementType
+
+        logger.debug(
+            f"=== FLATTENING DEBUG: Starting element flattening for slide {slide.object_id} ==="
+        )
+        logger.debug(f"Initial slide.elements count: {len(slide.elements)}")
+        logger.debug(f"Slide.sections count: {len(slide.sections)}")
+
+        # Collect ALL positioned elements (ignore any unpositioned elements)
+        positioned_elements = []
+
+        # First, get title/footer elements from slide.elements IF they have positions
+        logger.debug("Checking slide.elements for positioned title/footer elements...")
+        for i, element in enumerate(slide.elements):
+            logger.debug(
+                f"  Element {i}: {element.element_type}, position={element.position}, size={element.size}"
+            )
+            if element.element_type in (
+                ElementType.TITLE,
+                ElementType.SUBTITLE,
+                ElementType.FOOTER,
+            ):
+                if element.position is not None and element.size is not None:
+                    positioned_elements.append(element)
+                    logger.debug(
+                        f"    -> Added positioned meta element {element.element_type}"
+                    )
+                else:
+                    logger.warning(
+                        f"Meta element {element.element_type} in slide.elements missing position/size data - skipping"
+                    )
+
+        # Recursively extract positioned elements from sections
+        visited_sections = set()
+
+        def extract_positioned_elements(sections, depth=0):
+            indent = "  " * depth
+            logger.debug(
+                f"{indent}Extracting from {len(sections)} sections at depth {depth}"
+            )
+
+            for section_idx, section in enumerate(sections):
+                logger.debug(
+                    f"{indent}Section {section_idx}: {section.id}, elements_count={len(section.elements) if section.elements else 0}"
+                )
+                logger.debug(
+                    f"{indent}  Section position={section.position}, size={section.size}"
+                )
+
+                # Circular reference protection
+                if section.id in visited_sections:
+                    logger.warning(
+                        f"Circular reference detected in section {section.id} during element flattening. Skipping."
+                    )
+                    continue
+
+                visited_sections.add(section.id)
+
+                if section.elements:
+                    logger.debug(
+                        f"{indent}  Processing {len(section.elements)} elements in section {section.id}"
+                    )
+                    # Only include elements that have proper position/size data
+                    for elem_idx, element in enumerate(section.elements):
+                        logger.debug(
+                            f"{indent}    Element {elem_idx}: {element.element_type}, position={element.position}, size={element.size}"
+                        )
+
+                        if element.position is not None and element.size is not None:
+                            positioned_elements.append(element)
+                            logger.debug(
+                                f"{indent}      -> Added positioned element {element.element_type}"
+                            )
+                        else:
+                            logger.warning(
+                                f"Section element {element.element_type} in section {section.id} missing position/size data - skipping"
+                            )
+                else:
+                    logger.debug(f"{indent}  Section {section.id} has no elements")
+
+                if section.subsections:
+                    logger.debug(
+                        f"{indent}  Processing {len(section.subsections)} subsections in section {section.id}"
+                    )
+                    extract_positioned_elements(section.subsections, depth + 1)
+                else:
+                    logger.debug(f"{indent}  Section {section.id} has no subsections")
+
+                visited_sections.remove(section.id)
+
+        extract_positioned_elements(slide.sections)
+
+        # Update slide with only positioned elements
+        slide.elements = positioned_elements
+
+        logger.debug(
+            f"=== FLATTENING DEBUG: Completed. Final positioned_elements count: {len(positioned_elements)} ==="
+        )
+        for i, elem in enumerate(positioned_elements):
+            logger.debug(
+                f"  Final element {i}: {elem.element_type} at {elem.position} size {elem.size}"
+            )
+
+        logger.debug(
+            f"Flattened {len(positioned_elements)} positioned elements for slide {slide.object_id}"
+        )

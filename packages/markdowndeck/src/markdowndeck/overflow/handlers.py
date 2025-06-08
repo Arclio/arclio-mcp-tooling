@@ -603,11 +603,15 @@ class StandardOverflowHandler:
         """
         Rebuild the slide's flat .elements list from its sections.
 
+        CRITICAL FIX: Removed deepcopy of section.elements to preserve position/size data
+        that was set by the LayoutManager. The elements in the fitted/overflowing sections
+        are already copies from the partitioning process.
+
         Args:
             slide: The slide to rebuild elements for
             meta_elements: The original title, subtitle, and footer elements to preserve
         """
-        new_elements = deepcopy(meta_elements)
+        new_elements = list(meta_elements)  # Direct reference instead of deepcopy
 
         # Recursively extract elements from the modified sections
         visited_sections = set()
@@ -624,7 +628,8 @@ class StandardOverflowHandler:
                 visited_sections.add(section.id)
 
                 if section.elements:
-                    new_elements.extend(deepcopy(section.elements))
+                    # CRITICAL: Use direct references to preserve position/size data
+                    new_elements.extend(section.elements)
                 if section.subsections:
                     extract_elements(section.subsections)
 

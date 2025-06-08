@@ -31,7 +31,9 @@ class TestOverflowStressConditions:
             margins={"top": 50, "right": 50, "bottom": 50, "left": 50},
         )
 
-    def test_exponential_content_growth_performance_with_minimum_requirements(self, overflow_manager):
+    def test_exponential_content_growth_performance_with_minimum_requirements(
+        self, overflow_manager
+    ):
         """Test performance with exponentially growing content sizes following minimum requirements."""
 
         performance_results = []
@@ -46,7 +48,9 @@ class TestOverflowStressConditions:
 
             # Create table with exponentially growing content that can be split
             headers = ["Column 1", "Column 2", "Column 3"]
-            rows = [[f"Row {i} Cell {j}" for j in range(1, 4)] for i in range(1, scale + 1)]
+            rows = [
+                [f"Row {i} Cell {j}" for j in range(1, 4)] for i in range(1, scale + 1)
+            ]
 
             large_table = TableElement(
                 element_type=ElementType.TABLE,
@@ -83,15 +87,19 @@ class TestOverflowStressConditions:
                     "scale": scale,
                     "time": processing_time,
                     "slides_created": len(result_slides),
-                    "time_per_slide": (processing_time / len(result_slides) if result_slides else 0),
+                    "time_per_slide": (
+                        processing_time / len(result_slides) if result_slides else 0
+                    ),
                 }
             )
 
             # Performance should scale reasonably with minimum requirements
-            assert processing_time < scale * 0.02, (
-                f"Processing time {processing_time:.3f}s should scale reasonably for {scale} rows"
-            )
-            assert len(result_slides) >= 2, f"Should create multiple slides for scale {scale} due to external overflow"
+            assert (
+                processing_time < scale * 0.02
+            ), f"Processing time {processing_time:.3f}s should scale reasonably for {scale} rows"
+            assert (
+                len(result_slides) >= 2
+            ), f"Should create multiple slides for scale {scale} due to external overflow"
 
         # Verify performance doesn't degrade exponentially
         for i in range(1, len(performance_results)):
@@ -99,12 +107,20 @@ class TestOverflowStressConditions:
             curr_result = performance_results[i]
 
             scale_factor = curr_result["scale"] / prev_result["scale"]
-            time_factor = curr_result["time"] / prev_result["time"] if prev_result["time"] > 0 else 1
+            time_factor = (
+                curr_result["time"] / prev_result["time"]
+                if prev_result["time"] > 0
+                else 1
+            )
 
             # Time increase should be sub-quadratic relative to scale increase
-            assert time_factor < scale_factor**1.8, f"Performance degradation too severe: {time_factor} vs {scale_factor}"
+            assert (
+                time_factor < scale_factor**1.8
+            ), f"Performance degradation too severe: {time_factor} vs {scale_factor}"
 
-    def test_maximum_recursion_depth_handling_with_circular_protection(self, overflow_manager):
+    def test_maximum_recursion_depth_handling_with_circular_protection(
+        self, overflow_manager
+    ):
         """Test handling of maximum recursion depth scenarios with circular reference protection."""
 
         title = TextElement(
@@ -156,7 +172,9 @@ class TestOverflowStressConditions:
         except RecursionError:
             pytest.fail("Should not hit recursion limit with deep section nesting")
 
-    def test_memory_leak_detection_repeated_processing_with_element_splitting(self, overflow_manager):
+    def test_memory_leak_detection_repeated_processing_with_element_splitting(
+        self, overflow_manager
+    ):
         """Test for memory leaks during repeated processing with element splitting."""
 
         import os
@@ -232,9 +250,9 @@ class TestOverflowStressConditions:
 
                 # Memory growth should be bounded (increased limit for element splitting)
                 max_acceptable_growth = 100 * 1024 * 1024  # 100MB
-                assert memory_growth < max_acceptable_growth, (
-                    f"Potential memory leak detected: {memory_growth} bytes after {iteration} iterations"
-                )
+                assert (
+                    memory_growth < max_acceptable_growth
+                ), f"Potential memory leak detected: {memory_growth} bytes after {iteration} iterations"
 
     def test_concurrent_processing_thread_safety_with_splitting(self, overflow_manager):
         """Test thread safety with concurrent overflow processing including element splitting."""
@@ -253,7 +271,8 @@ class TestOverflowStressConditions:
                 # Text element
                 content = TextElement(
                     element_type=ElementType.TEXT,
-                    text=f"Concurrent text content {slide_id}\n" + "Line content\n" * 20,
+                    text=f"Concurrent text content {slide_id}\n"
+                    + "Line content\n" * 20,
                     position=(50, 150),
                     size=(620, 300),
                 )
@@ -261,7 +280,9 @@ class TestOverflowStressConditions:
                 # Code element
                 content = CodeElement(
                     element_type=ElementType.CODE,
-                    code="\n".join([f"function_{slide_id}_line_{i}();" for i in range(15)]),
+                    code="\n".join(
+                        [f"function_{slide_id}_line_{i}();" for i in range(15)]
+                    ),
                     language="javascript",
                     position=(50, 150),
                     size=(620, 300),
@@ -270,7 +291,10 @@ class TestOverflowStressConditions:
                 # List element
                 content = ListElement(
                     element_type=ElementType.BULLET_LIST,
-                    items=[ListItem(text=f"Concurrent item {slide_id}_{i}") for i in range(15)],
+                    items=[
+                        ListItem(text=f"Concurrent item {slide_id}_{i}")
+                        for i in range(15)
+                    ],
                     position=(50, 150),
                     size=(620, 300),
                 )
@@ -295,13 +319,17 @@ class TestOverflowStressConditions:
             return len(result_slides)
 
         # Test concurrent processing with multiple threads
-        with ThreadPoolExecutor(max_workers=4) as executor:  # Reduced workers for stability
+        with ThreadPoolExecutor(
+            max_workers=4
+        ) as executor:  # Reduced workers for stability
             futures = [executor.submit(process_slide_task, i) for i in range(12)]
             results = [future.result() for future in futures]
 
         # All tasks should complete successfully
         assert len(results) == 12, "All concurrent tasks should complete"
-        assert all(result >= 2 for result in results), "All slides should create continuations due to external overflow"
+        assert all(
+            result >= 2 for result in results
+        ), "All slides should create continuations due to external overflow"
 
     def test_unanimous_consent_stress_with_complex_columns(self, overflow_manager):
         """Test unanimous consent model stress with complex columnar content."""
@@ -384,16 +412,22 @@ class TestOverflowStressConditions:
         processing_time = end_time - start_time
 
         # Should handle complex unanimous consent efficiently
-        assert processing_time < 3.0, f"Should handle complex unanimous consent efficiently, took {processing_time:.2f}s"
+        assert (
+            processing_time < 3.0
+        ), f"Should handle complex unanimous consent efficiently, took {processing_time:.2f}s"
         assert len(result_slides) >= 2, "Should create continuation slides"
 
         # Verify coordinated splitting maintained column structure
         for slide in result_slides:
             for section in slide.sections:
                 if section.type == "row":
-                    assert len(section.subsections) == 2, "Row structure should be maintained"
+                    assert (
+                        len(section.subsections) == 2
+                    ), "Row structure should be maintained"
 
-    def test_pathological_split_scenarios_with_minimum_requirements(self, overflow_manager):
+    def test_pathological_split_scenarios_with_minimum_requirements(
+        self, overflow_manager
+    ):
         """Test pathological cases where minimum requirements prevent excessive splitting."""
 
         title = TextElement(
@@ -460,10 +494,16 @@ class TestOverflowStressConditions:
         processing_time = end_time - start_time
 
         # Should handle pathological cases efficiently due to minimum requirements
-        assert processing_time < 2.0, f"Should handle pathological splitting efficiently, took {processing_time:.2f}s"
-        assert len(result_slides) < 20, f"Minimum requirements should prevent excessive splitting, got {len(result_slides)}"
+        assert (
+            processing_time < 2.0
+        ), f"Should handle pathological splitting efficiently, took {processing_time:.2f}s"
+        assert (
+            len(result_slides) < 20
+        ), f"Minimum requirements should prevent excessive splitting, got {len(result_slides)}"
 
-    def test_extreme_dimension_edge_cases_with_specification_compliance(self, overflow_manager):
+    def test_extreme_dimension_edge_cases_with_specification_compliance(
+        self, overflow_manager
+    ):
         """Test with extreme dimension values that respect specification boundaries."""
 
         title = TextElement(
@@ -487,7 +527,9 @@ class TestOverflowStressConditions:
             type="section",
             position=(50, 150),
             size=(620, 100),  # Section fits within slide (bottom at 250 < 315)
-            directives={"height": 100},  # Explicit height makes internal overflow acceptable
+            directives={
+                "height": 100
+            },  # Explicit height makes internal overflow acceptable
             elements=[massive_content],
         )
 
@@ -516,7 +558,9 @@ class TestOverflowStressConditions:
         )
 
         result_internal = overflow_manager.process_slide(internal_slide)
-        assert len(result_internal) == 1, "Internal overflow should be ignored per specification"
+        assert (
+            len(result_internal) == 1
+        ), "Internal overflow should be ignored per specification"
 
         # Test external overflow (should be handled)
         external_slide = Slide(
@@ -535,7 +579,9 @@ class TestOverflowStressConditions:
         )
 
         result_external = overflow_manager.process_slide(external_slide)
-        assert len(result_external) >= 2, "External overflow should be handled per specification"
+        assert (
+            len(result_external) >= 2
+        ), "External overflow should be handled per specification"
 
     def test_overflow_manager_configuration_stress_with_edge_cases(self):
         """Test overflow manager with extreme configuration values and edge cases."""
@@ -596,7 +642,9 @@ class TestOverflowStressConditions:
         result_slides = extreme_margins_manager.process_slide(slide)
         assert len(result_slides) >= 1, "Should handle extreme margins gracefully"
 
-    def test_algorithmic_complexity_validation_with_element_splitting(self, overflow_manager):
+    def test_algorithmic_complexity_validation_with_element_splitting(
+        self, overflow_manager
+    ):
         """Validate algorithm complexity with element splitting is reasonable for various input sizes."""
 
         complexity_data = []
@@ -627,7 +675,9 @@ class TestOverflowStressConditions:
                 elif i % 3 == 1:
                     content = CodeElement(
                         element_type=ElementType.CODE,
-                        code="\n".join([f"section_{i}_line_{j} = {j}" for j in range(10)]),
+                        code="\n".join(
+                            [f"section_{i}_line_{j} = {j}" for j in range(10)]
+                        ),
                         language="python",
                         position=(50, 150 + i * 20),
                         size=(620, 100),
@@ -635,7 +685,9 @@ class TestOverflowStressConditions:
                 else:
                     content = ListElement(
                         element_type=ElementType.BULLET_LIST,
-                        items=[ListItem(text=f"Section {i} item {j}") for j in range(10)],
+                        items=[
+                            ListItem(text=f"Section {i} item {j}") for j in range(10)
+                        ],
                         position=(50, 150 + i * 20),
                         size=(620, 100),
                     )
@@ -677,13 +729,19 @@ class TestOverflowStressConditions:
             curr_data = complexity_data[i]
 
             section_ratio = curr_data["section_count"] / prev_data["section_count"]
-            time_ratio = curr_data["processing_time"] / prev_data["processing_time"] if prev_data["processing_time"] > 0 else 1
+            time_ratio = (
+                curr_data["processing_time"] / prev_data["processing_time"]
+                if prev_data["processing_time"] > 0
+                else 1
+            )
 
             # Time complexity should not exceed quadratic with element splitting
-            max_acceptable_ratio = section_ratio**2.5  # Allow for element splitting complexity
-            assert time_ratio <= max_acceptable_ratio, (
-                f"Algorithmic complexity too high: time ratio {time_ratio} vs section ratio {section_ratio}"
-            )
+            max_acceptable_ratio = (
+                section_ratio**2.5
+            )  # Allow for element splitting complexity
+            assert (
+                time_ratio <= max_acceptable_ratio
+            ), f"Algorithmic complexity too high: time ratio {time_ratio} vs section ratio {section_ratio}"
 
     def test_proactive_image_scaling_performance_validation(self, overflow_manager):
         """Test that proactive image scaling prevents performance issues."""
@@ -732,13 +790,15 @@ class TestOverflowStressConditions:
         processing_time = end_time - start_time
 
         # Should process quickly due to proactive image scaling
-        assert processing_time < 1.0, f"Pre-scaled images should process quickly, took {processing_time:.2f}s"
+        assert (
+            processing_time < 1.0
+        ), f"Pre-scaled images should process quickly, took {processing_time:.2f}s"
 
         # FIXED: Should not create overflow when section explicitly fits within boundary
         # Proactive scaling prevents images from expanding section beyond calculated dimensions
-        assert len(result_slides) == 1, (
-            f"Section that fits within boundary should not overflow, got {len(result_slides)} slides"
-        )
+        assert (
+            len(result_slides) == 1
+        ), f"Section that fits within boundary should not overflow, got {len(result_slides)} slides"
 
         # Verify image split behavior
         for image in large_images:
@@ -830,27 +890,48 @@ class TestOverflowStressConditions:
 
         splitting_time = end_time - start_time
 
-        assert splitting_time < 5.0, f"Element-driven splitting should be efficient, took {splitting_time:.2f}s"
+        assert (
+            splitting_time < 5.0
+        ), f"Element-driven splitting should be efficient, took {splitting_time:.2f}s"
         assert len(result_splitting) >= 2, "Should create continuation slides"
 
-        # Test 3: Position Reset Validation Stress
+        # Test 3: Position Validation Stress (positions must be set for rendering)
         for slide in result_splitting[1:]:  # Check continuation slides
 
-            def validate_reset_recursive(sections, path=""):
+            def validate_positioning_recursive(sections, path=""):
                 for i, section in enumerate(sections):
-                    assert section.position is None, f"Section {path}[{i}] position should be reset"
-                    assert section.size is None, f"Section {path}[{i}] size should be reset"
+                    assert (
+                        section.position is not None
+                    ), f"Section {path}[{i}] position should be set for rendering"
+                    assert (
+                        section.size is not None
+                    ), f"Section {path}[{i}] size should be set for rendering"
 
                     for j, element in enumerate(section.elements):
-                        assert element.position is None, f"Element {path}[{i}].element[{j}] position should be reset"
-                        assert element.size is None, f"Element {path}[{i}].element[{j}] size should be reset"
+                        assert (
+                            element.position is not None
+                        ), f"Element {path}[{i}].element[{j}] position should be set for rendering"
+                        assert (
+                            element.size is not None
+                        ), f"Element {path}[{i}].element[{j}] size should be set for rendering"
+
+                        # Verify positions are not at default fallback values
+                        x, y = element.position
+                        assert not (x == 100 and y == 100), (
+                            f"Element {path}[{i}].element[{j}] has default fallback position (100, 100) - "
+                            f"layout calculation failed"
+                        )
 
                     if section.subsections:
-                        validate_reset_recursive(section.subsections, f"{path}[{i}].")
+                        validate_positioning_recursive(
+                            section.subsections, f"{path}[{i}]."
+                        )
 
-            validate_reset_recursive(slide.sections)
+            validate_positioning_recursive(slide.sections)
 
-    def test_edge_case_boundary_arithmetic_with_floating_precision(self, overflow_manager):
+    def test_edge_case_boundary_arithmetic_with_floating_precision(
+        self, overflow_manager
+    ):
         """Test arithmetic edge cases with floating point precision in boundary calculations."""
 
         title = TextElement(
@@ -892,6 +973,10 @@ class TestOverflowStressConditions:
             # FIXED: Should handle floating point precision consistently against CORRECT boundary (315.0)
             expected_overflow = (150 + (precise_pos - 150)) > 315.0
             if expected_overflow:
-                assert len(result_slides) >= 2, f"Should detect overflow for position {precise_pos}"
+                assert (
+                    len(result_slides) >= 2
+                ), f"Should detect overflow for position {precise_pos}"
             else:
-                assert len(result_slides) == 1, f"Should not detect overflow for position {precise_pos}"
+                assert (
+                    len(result_slides) == 1
+                ), f"Should not detect overflow for position {precise_pos}"
