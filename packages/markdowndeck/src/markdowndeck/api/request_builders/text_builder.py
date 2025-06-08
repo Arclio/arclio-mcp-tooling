@@ -27,12 +27,20 @@ class TextRequestBuilder(BaseRequestBuilder):
         requests = []
         # Check if this element should use a theme placeholder
         if theme_placeholders and element.element_type in theme_placeholders:
-            return self._handle_themed_text_element(element, theme_placeholders[element.element_type])
+            return self._handle_themed_text_element(
+                element, theme_placeholders[element.element_type]
+            )
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", None) or (300, 200)
         if not element.object_id:
+            # Create a copy to avoid mutating the original element (make builder stateless)
+            from copy import deepcopy
+
+            element = deepcopy(element)
             element.object_id = self._generate_id(f"text_{slide_id}")
-            logger.debug(f"Generated missing object_id for text element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for text element copy: {element.object_id}"
+            )
         create_textbox_request = {
             "createShape": {
                 "objectId": element.object_id,
@@ -61,7 +69,10 @@ class TextRequestBuilder(BaseRequestBuilder):
         # --- CORRECTED SECTION FOR CONTENT ALIGNMENT ---
         # Define content alignment for text box (vertical alignment)
         content_alignment = None
-        if element.element_type == ElementType.TITLE or element.element_type == ElementType.SUBTITLE:
+        if (
+            element.element_type == ElementType.TITLE
+            or element.element_type == ElementType.SUBTITLE
+        ):
             content_alignment = "MIDDLE"
         elif hasattr(element, "directives") and "textanchor" in element.directives:
             anchor_directive = str(element.directives["textanchor"]).upper()
@@ -78,7 +89,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                 }
             }
             requests.append(content_alignment_request)
-            logger.debug(f"Added contentAlignment '{content_alignment}' to element {element.object_id}")
+            logger.debug(
+                f"Added contentAlignment '{content_alignment}' to element {element.object_id}"
+            )
         # --- END OF CORRECTED SECTION ---
 
         if not element.text:
@@ -94,7 +107,9 @@ class TextRequestBuilder(BaseRequestBuilder):
         if hasattr(element, "formatting") and element.formatting:
             for text_format in element.formatting:
                 text_length = len(element.text)
-                start_index = min(text_format.start, text_length - 1 if text_length > 0 else 0)
+                start_index = min(
+                    text_format.start, text_length - 1 if text_length > 0 else 0
+                )
                 end_index = min(text_format.end, text_length)
                 if start_index < 0:
                     start_index = 0
@@ -160,7 +175,8 @@ class TextRequestBuilder(BaseRequestBuilder):
                 "spaceBelow": {"magnitude": 0, "unit": "PT"},
                 "lineSpacing": (
                     float(element.directives["line-spacing"])
-                    if hasattr(element, "directives") and "line-spacing" in element.directives
+                    if hasattr(element, "directives")
+                    and "line-spacing" in element.directives
                     else 1.15
                 ),
             }
@@ -192,7 +208,11 @@ class TextRequestBuilder(BaseRequestBuilder):
                     }
                 }
             )
-        if hasattr(element, "directives") and element.directives and "valign" in element.directives:
+        if (
+            hasattr(element, "directives")
+            and element.directives
+            and "valign" in element.directives
+        ):
             valign_value = element.directives["valign"]
             if isinstance(valign_value, str):
                 valign_map = {"top": "TOP", "middle": "MIDDLE", "bottom": "BOTTOM"}
@@ -208,8 +228,12 @@ class TextRequestBuilder(BaseRequestBuilder):
                             }
                         }
                     )
-                    logger.debug(f"Applied contentAlignment '{api_valign}' to element {element.object_id}")
-        self._apply_paragraph_styling(element, requests)  # Handles directives like line-spacing, para-spacing, indents
+                    logger.debug(
+                        f"Applied contentAlignment '{api_valign}' to element {element.object_id}"
+                    )
+        self._apply_paragraph_styling(
+            element, requests
+        )  # Handles directives like line-spacing, para-spacing, indents
         self._apply_text_color_directive(element, requests)
         self._apply_font_size_directive(element, requests)
         self._apply_background_directive(element, requests)  # Shape background
@@ -217,8 +241,14 @@ class TextRequestBuilder(BaseRequestBuilder):
         self._apply_padding_directive(element, requests)  # Handle padding directive
         return requests
 
-    def _handle_themed_text_element(self, element: TextElement, placeholder_id: str) -> list[dict]:
+    def _handle_themed_text_element(
+        self, element: TextElement, placeholder_id: str
+    ) -> list[dict]:
         requests = []
+        # Create a copy to avoid mutating the original element (make builder stateless)
+        from copy import deepcopy
+
+        element = deepcopy(element)
         element.object_id = placeholder_id
         if element.text:
             requests.append(
@@ -233,7 +263,9 @@ class TextRequestBuilder(BaseRequestBuilder):
             if hasattr(element, "formatting") and element.formatting:
                 for text_format in element.formatting:
                     text_length = len(element.text)
-                    start_index = min(text_format.start, text_length - 1 if text_length > 0 else 0)
+                    start_index = min(
+                        text_format.start, text_length - 1 if text_length > 0 else 0
+                    )
                     end_index = min(text_format.end, text_length)
                     if start_index < 0:
                         start_index = 0
@@ -257,7 +289,10 @@ class TextRequestBuilder(BaseRequestBuilder):
                     elif (
                         text_format.start == text_format.end == 0
                         and not element.text
-                        or (text_format.start == text_format.end and text_format.start == len(element.text))
+                        or (
+                            text_format.start == text_format.end
+                            and text_format.start == len(element.text)
+                        )
                     ):
                         pass
                     else:
@@ -275,8 +310,13 @@ class TextRequestBuilder(BaseRequestBuilder):
                 "fields": "",
             }
             para_fields_list = []
-            if element.element_type == ElementType.TITLE or element.element_type == ElementType.SUBTITLE:
-                para_style_payload["style"]["alignment"] = "CENTER"  # Titles often centered
+            if (
+                element.element_type == ElementType.TITLE
+                or element.element_type == ElementType.SUBTITLE
+            ):
+                para_style_payload["style"][
+                    "alignment"
+                ] = "CENTER"  # Titles often centered
                 para_fields_list.append("alignment")
                 # Themes usually handle title spacing well, but if needed:
                 # para_style_payload["style"]["spaceBelow"] = {"magnitude": 6, "unit": "PT"}
@@ -293,7 +333,9 @@ class TextRequestBuilder(BaseRequestBuilder):
         )
         return requests
 
-    def _apply_paragraph_styling(self, element: TextElement, requests: list[dict]) -> None:
+    def _apply_paragraph_styling(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         if not hasattr(element, "directives") or not element.directives:
             return
         style_updates = {}
@@ -301,7 +343,9 @@ class TextRequestBuilder(BaseRequestBuilder):
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
             if isinstance(spacing, int | float) and spacing > 0:
-                style_updates["lineSpacing"] = float(spacing)  # API expects float (e.g., 1.15 for 115%)
+                style_updates["lineSpacing"] = float(
+                    spacing
+                )  # API expects float (e.g., 1.15 for 115%)
                 fields.append("lineSpacing")
         if "para-spacing-before" in element.directives:
             spacing = element.directives["para-spacing-before"]
@@ -347,23 +391,31 @@ class TextRequestBuilder(BaseRequestBuilder):
                 }
             )
 
-    def _apply_text_color_directive(self, element: TextElement, requests: list[dict]) -> None:
-        if not (hasattr(element, "directives") and element.directives and "color" in element.directives):
+    def _apply_text_color_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "color" in element.directives
+        ):
             return
         color_val_dir = element.directives["color"]
         actual_color_val = (
             color_val_dir[1]
-            if isinstance(color_val_dir, tuple) and len(color_val_dir) == 2 and color_val_dir[0] == "color"
-            else color_val_dir
-            if isinstance(color_val_dir, str)
-            else None
+            if isinstance(color_val_dir, tuple)
+            and len(color_val_dir) == 2
+            and color_val_dir[0] == "color"
+            else color_val_dir if isinstance(color_val_dir, str) else None
         )
         if not actual_color_val:
             return
         color_spec = None
         if actual_color_val.startswith("#"):
             try:
-                color_spec = {"opaqueColor": {"rgbColor": self._hex_to_rgb(actual_color_val)}}
+                color_spec = {
+                    "opaqueColor": {"rgbColor": self._hex_to_rgb(actual_color_val)}
+                }
             except ValueError:
                 logger.warning(f"Invalid hex color for text: {actual_color_val}")
                 return
@@ -399,15 +451,23 @@ class TextRequestBuilder(BaseRequestBuilder):
                 )
             )
 
-    def _apply_font_size_directive(self, element: TextElement, requests: list[dict]) -> None:
-        if not (hasattr(element, "directives") and element.directives and "fontsize" in element.directives):
+    def _apply_font_size_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "fontsize" in element.directives
+        ):
             return
         font_size_val = element.directives["fontsize"]
         if isinstance(font_size_val, int | float) and font_size_val > 0:
             requests.append(
                 self._apply_text_formatting(
                     element_id=element.object_id,
-                    style={"fontSize": {"magnitude": float(font_size_val), "unit": "PT"}},
+                    style={
+                        "fontSize": {"magnitude": float(font_size_val), "unit": "PT"}
+                    },
                     fields="fontSize",
                     range_type="ALL",
                 )
@@ -415,8 +475,14 @@ class TextRequestBuilder(BaseRequestBuilder):
         else:
             logger.warning(f"Invalid fontsize directive value: {font_size_val}")
 
-    def _apply_background_directive(self, element: TextElement, requests: list[dict]) -> None:
-        if not (hasattr(element, "directives") and element.directives and "background" in element.directives):
+    def _apply_background_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "background" in element.directives
+        ):
             return
         bg_dir = element.directives["background"]
         if not isinstance(bg_dir, tuple) or len(bg_dir) != 2:
@@ -427,7 +493,11 @@ class TextRequestBuilder(BaseRequestBuilder):
         if bg_type == "color":
             if bg_val_str.startswith("#"):
                 try:
-                    fill_props = {"solidFill": {"color": {"rgbColor": self._hex_to_rgb(bg_val_str)}}}
+                    fill_props = {
+                        "solidFill": {
+                            "color": {"rgbColor": self._hex_to_rgb(bg_val_str)}
+                        }
+                    }
                     fields = "shapeBackgroundFill.solidFill.color.rgbColor"
                 except ValueError:
                     logger.warning(f"Invalid hex color for background: {bg_val_str}")
@@ -448,10 +518,14 @@ class TextRequestBuilder(BaseRequestBuilder):
                     "LIGHT1",
                 ]
                 if bg_val_str.upper() in theme_colors:
-                    fill_props = {"solidFill": {"color": {"themeColor": bg_val_str.upper()}}}
+                    fill_props = {
+                        "solidFill": {"color": {"themeColor": bg_val_str.upper()}}
+                    }
                     fields = "shapeBackgroundFill.solidFill.color.themeColor"
                 else:
-                    logger.warning(f"Unknown theme color name for background: {bg_val_str}")
+                    logger.warning(
+                        f"Unknown theme color name for background: {bg_val_str}"
+                    )
                     return
         elif bg_type == "url":
             fill_props = {"stretchedPictureFill": {"contentUrl": bg_val_str}}
@@ -470,16 +544,22 @@ class TextRequestBuilder(BaseRequestBuilder):
                 }
             )
 
-    def _apply_border_directive(self, element: TextElement, requests: list[dict]) -> None:
-        if not (hasattr(element, "directives") and element.directives and "border" in element.directives):
+    def _apply_border_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "border" in element.directives
+        ):
             return
         border_val_dir = element.directives["border"]
         border_str = (
             border_val_dir[1]
-            if isinstance(border_val_dir, tuple) and len(border_val_dir) == 2 and border_val_dir[0] == "value"
-            else border_val_dir
-            if isinstance(border_val_dir, str)
-            else None
+            if isinstance(border_val_dir, tuple)
+            and len(border_val_dir) == 2
+            and border_val_dir[0] == "value"
+            else border_val_dir if isinstance(border_val_dir, str) else None
         )
         if not border_str:
             logger.warning(f"Unsupported border directive format: {border_val_dir}")
@@ -500,7 +580,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                 except ValueError:
                     pass
             elif p_low in ["solid", "dash", "dot", "dashed", "dotted"]:
-                dash_style = {"solid": "SOLID", "dash": "DASH", "dotted": "DOT"}.get(p_low, "SOLID")
+                dash_style = {"solid": "SOLID", "dash": "DASH", "dotted": "DOT"}.get(
+                    p_low, "SOLID"
+                )
                 final_fields.append("outline.dashStyle")
             elif p_low.startswith("#"):
                 hex_color_str = p_low
@@ -545,7 +627,9 @@ class TextRequestBuilder(BaseRequestBuilder):
                 }
             )
 
-    def _apply_padding_directive(self, element: TextElement, requests: list[dict]) -> None:
+    def _apply_padding_directive(
+        self, element: TextElement, requests: list[dict]
+    ) -> None:
         """
         Handle the padding directive for a text element.
 
@@ -559,7 +643,11 @@ class TextRequestBuilder(BaseRequestBuilder):
             element: The text element
             requests: List to append requests to
         """
-        if not (hasattr(element, "directives") and element.directives and "padding" in element.directives):
+        if not (
+            hasattr(element, "directives")
+            and element.directives
+            and "padding" in element.directives
+        ):
             return
 
         padding_value = element.directives["padding"]

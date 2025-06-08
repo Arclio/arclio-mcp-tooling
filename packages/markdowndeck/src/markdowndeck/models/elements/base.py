@@ -11,7 +11,7 @@ class Element:
     """Base class for slide elements."""
 
     element_type: ElementType
-    position: tuple[float, float] = field(default_factory=lambda: (100, 100))
+    position: tuple[float, float] | None = field(default=None)
     size: tuple[float, float] | None = None
     object_id: str | None = None
     directives: dict[str, Any] = field(default_factory=dict)

@@ -66,6 +66,11 @@ class ApiRequestGenerator:
         Returns:
             Dictionary with presentationId and requests
         """
+        # Create a copy of the slide to avoid modifying the original (make generator stateless)
+        from copy import deepcopy
+
+        slide = deepcopy(slide)
+
         requests = []
 
         # Create the slide
@@ -245,17 +250,24 @@ class ApiRequestGenerator:
 
         # Ensure element has a valid object_id (unless it's using a theme placeholder)
         element_type = getattr(element, "element_type", None)
+        has_explicit_object_id = bool(getattr(element, "object_id", None))
         use_theme_placeholder = (
-            theme_placeholders and element_type in theme_placeholders
+            theme_placeholders
+            and element_type in theme_placeholders
+            and not has_explicit_object_id
         )
 
         if not getattr(element, "object_id", None) and not use_theme_placeholder:
+            # Create a copy of the element to avoid modifying the original (make generator stateless)
+            from copy import deepcopy
+
+            element = deepcopy(element)
             element_type_name = getattr(element_type, "value", "unknown_element")
             element.object_id = self.slide_builder._generate_id(
                 f"{element_type_name}_{slide_id}"
             )
             logger.debug(
-                f"Generated missing object_id for element: {element.object_id}"
+                f"Generated missing object_id for element copy: {element.object_id}"
             )
 
         # Delegate to appropriate builder based on element type
@@ -267,8 +279,12 @@ class ApiRequestGenerator:
                 or element_type == ElementType.SUBTITLE
                 or element_type == ElementType.TEXT
             ):
+                # Only pass theme placeholders if element doesn't have explicit object_id
+                placeholders_to_pass = (
+                    theme_placeholders if use_theme_placeholder else None
+                )
                 builder_requests = self.text_builder.generate_text_element_requests(
-                    element, slide_id, theme_placeholders
+                    element, slide_id, placeholders_to_pass
                 )
                 if builder_requests is not None:
                     requests = builder_requests
@@ -312,16 +328,24 @@ class ApiRequestGenerator:
 
             elif element_type == ElementType.QUOTE:
                 # Quotes are handled by TextRequestBuilder with specific styling
+                # Only pass theme placeholders if element doesn't have explicit object_id
+                placeholders_to_pass = (
+                    theme_placeholders if use_theme_placeholder else None
+                )
                 builder_requests = self.text_builder.generate_text_element_requests(
-                    element, slide_id, theme_placeholders
+                    element, slide_id, placeholders_to_pass
                 )
                 if builder_requests is not None:
                     requests = builder_requests
 
             elif element_type == ElementType.FOOTER:
                 # Footers are essentially text elements; special handling is in layout/parsing
+                # Only pass theme placeholders if element doesn't have explicit object_id
+                placeholders_to_pass = (
+                    theme_placeholders if use_theme_placeholder else None
+                )
                 builder_requests = self.text_builder.generate_text_element_requests(
-                    element, slide_id, theme_placeholders
+                    element, slide_id, placeholders_to_pass
                 )
                 if builder_requests is not None:
                     requests = builder_requests

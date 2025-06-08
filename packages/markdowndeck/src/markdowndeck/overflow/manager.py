@@ -283,10 +283,11 @@ class OverflowManager:
         Finalize a slide by creating renderable_elements list and clearing sections hierarchy.
 
         Per OVERFLOW_SPEC.md Section 3: This method transforms a slide from "Positioned" state
-        to "Finalized" state by:
-        1. Traversing slide.sections hierarchy to collect all Element objects into flat list
-        2. Assigning this list to slide.renderable_elements (authoritative source of truth)
-        3. Clearing slide.sections hierarchy by setting it to []
+        to "Finalized" state by rigorously following the data flow specification:
+        1. Initialize empty renderable_elements list
+        2. First: Add positioned meta-elements (TITLE, SUBTITLE, FOOTER) from slide.elements
+        3. Then: Traverse slide.sections hierarchy to collect all positioned elements
+        4. Assign complete list to slide.renderable_elements and clear slide.sections
 
         Args:
             slide: The slide to finalize
@@ -302,12 +303,12 @@ class OverflowManager:
         )
         logger.debug(f"Slide.sections count: {len(slide.sections)}")
 
-        # Collect ALL positioned elements from sections hierarchy
+        # Initialize empty renderable_elements list
         renderable_elements = []
 
-        # First, check slide.elements for positioned title/footer elements
-        # (These may be positioned by Layout Manager at slide level)
-        logger.debug("Checking slide.elements for positioned title/footer elements...")
+        # STEP 1: First, add positioned meta-elements from slide.elements
+        # This correctly handles slide-level elements positioned by LayoutManager
+        logger.debug("STEP 1: Checking slide.elements for positioned meta-elements...")
         for i, element in enumerate(slide.elements):
             logger.debug(
                 f"  Element {i}: {element.element_type}, position={element.position}, size={element.size}"
@@ -327,7 +328,8 @@ class OverflowManager:
                         f"Meta element {element.element_type} in slide.elements missing position/size data - skipping"
                     )
 
-        # Recursively extract positioned elements from sections hierarchy
+        # STEP 2: Then, traverse slide.sections hierarchy for positioned elements
+        logger.debug("STEP 2: Traversing slide.sections hierarchy...")
         visited_sections = set()
 
         def extract_positioned_elements(sections, depth=0):
@@ -376,7 +378,7 @@ class OverflowManager:
                         if element.position is not None and element.size is not None:
                             renderable_elements.append(element)
                             logger.debug(
-                                f"{indent}      -> Added positioned element {element.element_type}"
+                                f"{indent}      -> Added positioned section element {element.element_type}"
                             )
                         else:
                             logger.warning(
@@ -399,10 +401,8 @@ class OverflowManager:
 
         extract_positioned_elements(slide.sections)
 
-        # Per OVERFLOW_SPEC.md Section 3: Set renderable_elements as authoritative source
+        # STEP 3: Assign complete list to slide.renderable_elements and clear sections
         slide.renderable_elements = renderable_elements
-
-        # Per OVERFLOW_SPEC.md Section 3: Clear sections hierarchy after processing
         slide.sections = []
 
         logger.debug(f"=== FINALIZATION COMPLETE: slide {slide.object_id} ===")

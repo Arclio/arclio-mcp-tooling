@@ -8,12 +8,10 @@ from markdowndeck.layout.calculator.element_utils import (
     mark_related_elements,
 )
 from markdowndeck.layout.constants import (
-    HORIZONTAL_SPACING,
     SECTION_PADDING,
     VALIGN_BOTTOM,
     VALIGN_MIDDLE,
     VALIGN_TOP,
-    VERTICAL_SPACING,
 )
 from markdowndeck.models import Element, ElementType, Slide
 from markdowndeck.models.slide import Section
@@ -49,8 +47,11 @@ def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
             logger.debug(
                 f"  Input section {i}: {section.id}, position={section.position}, size={section.size}"
             )
-            if hasattr(section, "elements") and section.elements:
-                logger.debug(f"    Section has {len(section.elements)} elements")
+            section_elements = [
+                c for c in section.children if not hasattr(c, "children")
+            ]
+            if section_elements:
+                logger.debug(f"    Section has {len(section_elements)} elements")
 
     if not slide.sections:
         logger.warning("No sections found for section-based layout")
@@ -99,9 +100,10 @@ def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
         logger.debug(
             f"  Final section {i}: {section.id}, position={section.position}, size={section.size}"
         )
-        if hasattr(section, "elements") and section.elements:
-            logger.debug(f"    Section has {len(section.elements)} elements:")
-            for j, elem in enumerate(section.elements):
+        section_elements = [c for c in section.children if not hasattr(c, "children")]
+        if section_elements:
+            logger.debug(f"    Section has {len(section_elements)} elements:")
+            for j, elem in enumerate(section_elements):
                 logger.debug(
                     f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                 )
@@ -264,7 +266,7 @@ def _position_vertical_sections_sequential(
                 )
 
         # Move to next position (sequential positioning)
-        current_y += section_height + VERTICAL_SPACING
+        current_y += section_height + calculator.VERTICAL_SPACING
 
 
 def _position_horizontal_sections_equal_division(
@@ -291,7 +293,7 @@ def _position_horizontal_sections_equal_division(
     """
     # Calculate section dimensions using predictable division
     section_widths = _calculate_predictable_dimensions(
-        sections, area_width, HORIZONTAL_SPACING, "width"
+        sections, area_width, calculator.HORIZONTAL_SPACING, "width"
     )
 
     # Position each section
@@ -353,7 +355,7 @@ def _position_horizontal_sections_equal_division(
                 )
 
         # Move to next position
-        current_x += section_width + HORIZONTAL_SPACING
+        current_x += section_width + calculator.HORIZONTAL_SPACING
 
 
 def _calculate_section_intrinsic_height_with_scaling(
@@ -417,12 +419,11 @@ def _calculate_section_intrinsic_height_with_scaling(
 
         total_content_height += element_height
 
-        # Add spacing to next element (if not the last one)
+        # Add vertical spacing between elements (not after the last element)
         if i < len(section_elements) - 1:
-            spacing = VERTICAL_SPACING
-            # Apply related element spacing reduction
-            spacing = adjust_vertical_spacing(element, spacing)
-            total_content_height += spacing
+            total_content_height += adjust_vertical_spacing(
+                element, calculator.VERTICAL_SPACING
+            )
 
     # Add padding to total height
     total_height = total_content_height + (2 * padding)
@@ -686,6 +687,7 @@ def _position_elements_within_section(calculator, section: Section) -> None:
 
     # Pass 2: Position elements based on vertical alignment
     _apply_vertical_alignment_and_position_unified(
+        calculator,
         section_elements,
         content_left,
         content_top,
@@ -742,6 +744,7 @@ def _calculate_element_intrinsic_height(
 
 
 def _apply_vertical_alignment_and_position_unified(
+    calculator,
     elements: list[Element],
     content_left: float,
     content_top: float,
@@ -766,7 +769,7 @@ def _apply_vertical_alignment_and_position_unified(
         if element.size:
             total_content_height += element.size[1]
             if i < len(elements) - 1:  # Add spacing except after last element
-                spacing = VERTICAL_SPACING
+                spacing = calculator.VERTICAL_SPACING
                 # Apply unified spacing logic using the consolidated function
                 spacing = adjust_vertical_spacing(element, spacing)
                 total_content_height += spacing
@@ -806,7 +809,7 @@ def _apply_vertical_alignment_and_position_unified(
         # Move to next position
         current_y += element_height
         if i < len(elements) - 1:  # Add spacing except after last element
-            spacing = VERTICAL_SPACING
+            spacing = calculator.VERTICAL_SPACING
             # Apply unified spacing logic
             spacing = adjust_vertical_spacing(element, spacing)
             current_y += spacing

@@ -139,8 +139,9 @@ def render_sections(ax, sections, level=0):
             },
         )
 
-        if hasattr(section, "subsections") and section.subsections:
-            render_sections(ax, section.subsections, level + 1)
+        child_sections = [c for c in section.children if hasattr(c, "children")]
+        if child_sections:
+            render_sections(ax, child_sections, level + 1)
 
 
 # --- Element Renderer ---

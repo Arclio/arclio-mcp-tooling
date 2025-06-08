@@ -210,11 +210,11 @@ class StandardOverflowHandler:
         """
         Rule A: Standard section partitioning with elements.
 
-        This method delegates all splitting decisions to the elements themselves
-        using the Minimum Requirements Splitting Contract.
-
-        FIXED: Now respects pre-calculated positions from LayoutManager instead of
-        re-implementing layout calculations.
+        This method implements the corrected overflow partitioning logic:
+        1. Find the overflowing element
+        2. Call .split() on that element
+        3. Construct fitted_elements and overflowing_elements lists
+        4. Create and return new Section objects
 
         Args:
             section: Section containing elements
@@ -236,74 +236,76 @@ class StandardOverflowHandler:
         if not section_elements:
             return None, None
 
-        # Find the first element that overflows the slide boundary
+        # Step 1: Find the overflowing element
         overflow_element_index = -1
         overflow_element = None
 
         for i, element in enumerate(section_elements):
             if element.position and element.size:
                 element_bottom = element.position[1] + element.size[1]
-
                 # Check if this element's bottom exceeds the slide boundary
                 if element_bottom > available_height:
                     overflow_element_index = i
                     overflow_element = element
                     break
 
-        # If no element overflows, all elements fit
+        # Special case: If no element overflows individually, but we're being called
+        # for an overflowing section, move all content to continuation slide
+        #
+        # This edge case can occur when:
+        # 1. User manually specifies section height larger than content height
+        # 2. Section has fixed directives that create artificial overflow
+        #
+        # In real-world usage, section heights are calculated by the layout manager
+        # based on their content, so this scenario is rare. When it does occur,
+        # the most logical behavior is to preserve content integrity by moving
+        # the entire section to the continuation slide rather than artificially
+        # splitting content that would otherwise fit.
+        #
+        # Design rationale: Splitting content that fits within boundaries would
+        # create poor UX and break logical content flow. It's better to maintain
+        # content coherence at the cost of some wasted space.
         if overflow_element_index == -1:
             logger.debug(
-                f"Rule A result: All {len(section_elements)} elements fit within available height"
+                "No individual element overflows, but section does. "
+                "Moving entire section content to continuation slide to preserve logical content flow. "
+                "This typically occurs when section height > content height due to manual directives."
             )
-            return deepcopy(section), None
+            # Return no fitted section, and overflowing section with all content
+            overflowing_section = deepcopy(section)
+            overflowing_section.position = None
+            overflowing_section.size = None
+            return None, overflowing_section
 
-        # Calculate remaining height for the overflowing element
-        # This is the space between the element's top position and the slide boundary
+        logger.debug(f"Found overflowing element at index {overflow_element_index}")
+
+        # Step 2: Call .split() on the overflowing element
         element_top = overflow_element.position[1] if overflow_element.position else 0
         remaining_height = max(0.0, available_height - element_top)
 
-        logger.debug(
-            f"Element overflow detected: {overflow_element.element_type} at index {overflow_element_index}, "
-            f"element_top={element_top}, available_height={available_height}, remaining_height={remaining_height}"
-        )
+        fitted_part, overflowing_part = overflow_element.split(remaining_height)
 
-        # Delegate splitting decision to the element
-        fitted_part = None
-        overflowing_part = None
+        # Set positions on split elements to preserve layout information
+        if fitted_part and overflow_element.position:
+            fitted_part.position = overflow_element.position
 
-        if self._is_element_splittable(overflow_element):
-            fitted_part, overflowing_part = overflow_element.split(remaining_height)
+        if overflowing_part and overflow_element.position:
+            # Overflowing part will be repositioned on continuation slide,
+            # but preserve original position info for now
+            overflowing_part.position = overflow_element.position
 
-            if fitted_part:
-                logger.info(f"Element {overflow_element.element_type} chose to split")
-            else:
-                logger.info(
-                    f"Element {overflow_element.element_type} chose to remain atomic"
-                )
-                # Element remains atomic - move entire element to overflow
-                overflowing_part = overflow_element
-        else:
-            logger.info(f"Element {overflow_element.element_type} is not splittable")
-            # Element is not splittable - move entire element to overflow
-            overflowing_part = overflow_element
-
-        # Construct result sections
-        fitted_section = None
-        overflowing_section = None
-
-        # Create fitted section with elements before overflow point plus fitted part (if any)
+        # Step 3: Construct fitted_elements list
         fitted_elements = []
+        # Add all elements before the overflow point
         if overflow_element_index > 0:
             fitted_elements.extend(deepcopy(section_elements[:overflow_element_index]))
+        # Add the fitted_part from the split (if any)
         if fitted_part:
             fitted_elements.append(fitted_part)
 
-        if fitted_elements:
-            fitted_section = deepcopy(section)
-            fitted_section.children = fitted_elements
-
-        # Create overflowing section with overflowing part plus subsequent elements
+        # Step 4: Construct overflowing_elements list
         overflowing_elements = []
+        # Add the overflowing_part from the split (if any)
         if overflowing_part:
             overflowing_elements.append(overflowing_part)
         # Add all elements after the overflow point
@@ -312,15 +314,24 @@ class StandardOverflowHandler:
                 deepcopy(section_elements[overflow_element_index + 1 :])
             )
 
+        # Step 5: Create and return new Section objects
+        fitted_section = None
+        overflowing_section = None
+
+        if fitted_elements:
+            fitted_section = deepcopy(section)
+            fitted_section.children = fitted_elements
+
         if overflowing_elements:
             overflowing_section = deepcopy(section)
             overflowing_section.children = overflowing_elements
-            # Reset position AND size for continuation slide (critical for layout recalculation)
+            # Reset position and size for continuation slide
             overflowing_section.position = None
             overflowing_section.size = None
 
         logger.debug(
-            f"Rule A result: fitted={len(fitted_elements)} elements, overflowing={len(overflowing_elements)} elements"
+            f"Rule A result: fitted={len(fitted_elements)} elements, "
+            f"overflowing={len(overflowing_elements)} elements"
         )
 
         return fitted_section, overflowing_section

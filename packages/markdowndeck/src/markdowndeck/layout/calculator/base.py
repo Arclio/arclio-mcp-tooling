@@ -1,7 +1,6 @@
 """Refactored base position calculator with proactive image scaling."""
 
 import logging
-from copy import deepcopy
 
 from markdowndeck.layout.constants import (
     BODY_TO_FOOTER_SPACING,
@@ -18,6 +17,7 @@ from markdowndeck.layout.constants import (
     HEADER_HEIGHT,
     # Inter-zone spacing
     HEADER_TO_BODY_SPACING,
+    HORIZONTAL_SPACING,
     IMAGE_WIDTH_FRACTION,
     LIST_WIDTH_FRACTION,
     QUOTE_WIDTH_FRACTION,
@@ -25,6 +25,7 @@ from markdowndeck.layout.constants import (
     TABLE_WIDTH_FRACTION,
     # Element proportions
     TITLE_WIDTH_FRACTION,
+    VERTICAL_SPACING,
 )
 from markdowndeck.models import ElementType, Slide
 from markdowndeck.models.slide import Section
@@ -79,6 +80,10 @@ class PositionCalculator:
         # Define fixed slide zones with clear spacing
         self._define_slide_zones()
 
+        # Make spacing constants available as attributes for other modules to access
+        self.HORIZONTAL_SPACING = HORIZONTAL_SPACING
+        self.VERTICAL_SPACING = VERTICAL_SPACING
+
         logger.debug(
             f"PositionCalculator initialized: slide={self.slide_width}x{self.slide_height}, "
             f"content_area={self.max_content_width}x{self.max_content_height}, "
@@ -131,35 +136,30 @@ class PositionCalculator:
         Returns:
             The slide with all elements and sections positioned
         """
-        # Create a deep copy to avoid modifying the original
-        updated_slide = deepcopy(slide)
-
         logger.debug(
-            f"=== POSITION CALC DEBUG: Calculating positions for slide: {updated_slide.object_id} ==="
+            f"=== POSITION CALC DEBUG: Calculating positions for slide: {slide.object_id} ==="
         )
 
         # Log initial state before any processing
+        logger.debug(f"Before processing - slide.elements: {len(slide.elements)}")
         logger.debug(
-            f"Before processing - slide.elements: {len(updated_slide.elements)}"
-        )
-        logger.debug(
-            f"Before processing - slide.sections: {len(updated_slide.sections) if hasattr(updated_slide, 'sections') and updated_slide.sections else 0}"
+            f"Before processing - slide.sections: {len(slide.sections) if hasattr(slide, 'sections') and slide.sections else 0}"
         )
 
-        if hasattr(updated_slide, "sections") and updated_slide.sections:
-            for i, section in enumerate(updated_slide.sections):
+        if hasattr(slide, "sections") and slide.sections:
+            for i, section in enumerate(slide.sections):
                 logger.debug(
                     f"  Before section {i}: {section.id}, position={section.position}, size={section.size}"
                 )
 
         # Always position header and footer elements first (they use fixed zones)
         logger.debug("=== POSITION CALC DEBUG: Positioning header/footer elements ===")
-        self._position_header_elements(updated_slide)
-        self._position_footer_elements(updated_slide)
+        self._position_header_elements(slide)
+        self._position_footer_elements(slide)
 
         # Implement Universal Section Model
         logger.debug("=== POSITION CALC DEBUG: Ensuring section-based layout ===")
-        sections_to_process = self._ensure_section_based_layout(updated_slide)
+        sections_to_process = self._ensure_section_based_layout(slide)
 
         logger.debug(
             f"After _ensure_section_based_layout - sections_to_process: {len(sections_to_process)}"
@@ -168,24 +168,27 @@ class PositionCalculator:
             logger.debug(
                 f"  Section to process {i}: {section.id}, position={section.position}, size={section.size}"
             )
-            if hasattr(section, "elements") and section.elements:
-                logger.debug(f"    Has {len(section.elements)} elements")
+            section_elements = [
+                c for c in section.children if not hasattr(c, "children")
+            ]
+            if section_elements:
+                logger.debug(f"    Has {len(section_elements)} elements")
 
         # Apply section-based layout to all slides
         logger.debug(
-            f"=== POSITION CALC DEBUG: Using unified section-based layout for slide {updated_slide.object_id} ==="
+            f"=== POSITION CALC DEBUG: Using unified section-based layout for slide {slide.object_id} ==="
         )
         from markdowndeck.layout.calculator.section_layout import (
             calculate_section_based_positions,
         )
 
         # Update the slide's sections with the processed sections
-        updated_slide.sections = sections_to_process
+        slide.sections = sections_to_process
 
         logger.debug(
             "=== POSITION CALC DEBUG: Calling calculate_section_based_positions ==="
         )
-        final_slide = calculate_section_based_positions(self, updated_slide)
+        final_slide = calculate_section_based_positions(self, slide)
         logger.debug(
             "=== POSITION CALC DEBUG: calculate_section_based_positions completed ==="
         )
@@ -203,11 +206,14 @@ class PositionCalculator:
                 logger.debug(
                     f"  After section {i}: {section.id}, position={section.position}, size={section.size}"
                 )
-                if hasattr(section, "elements") and section.elements:
+                section_elements = [
+                    c for c in section.children if not hasattr(c, "children")
+                ]
+                if section_elements:
                     logger.debug(
-                        f"    Has {len(section.elements)} elements with positions:"
+                        f"    Has {len(section_elements)} elements with positions:"
                     )
-                    for j, elem in enumerate(section.elements):
+                    for j, elem in enumerate(section_elements):
                         logger.debug(
                             f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                         )
@@ -263,7 +269,7 @@ class PositionCalculator:
         root_section = Section(
             id="root",
             content="Auto-generated root section",
-            elements=body_elements,
+            children=body_elements,
             position=(self.body_left, self.body_top),
             size=(self.body_width, self.body_height),
             directives={"height": self.body_height},

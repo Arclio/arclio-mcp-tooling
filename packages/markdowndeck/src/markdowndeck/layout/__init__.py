@@ -113,9 +113,12 @@ class LayoutManager:
                 logger.debug(
                     f"  Initial section {i}: {section.id}, position={section.position}, size={section.size}"
                 )
-                if hasattr(section, "elements") and section.elements:
-                    logger.debug(f"    Section has {len(section.elements)} elements")
-                    for j, elem in enumerate(section.elements):
+                section_elements = [
+                    c for c in section.children if not hasattr(c, "children")
+                ]
+                if section_elements:
+                    logger.debug(f"    Section has {len(section_elements)} elements")
+                    for j, elem in enumerate(section_elements):
                         logger.debug(
                             f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                         )
@@ -156,11 +159,14 @@ class LayoutManager:
                     logger.debug(
                         f"  Final section {i}: {section.id}, position={section.position}, size={section.size}"
                     )
-                    if hasattr(section, "elements") and section.elements:
+                    section_elements = [
+                        c for c in section.children if not hasattr(c, "children")
+                    ]
+                    if section_elements:
                         logger.debug(
-                            f"    Section has {len(section.elements)} elements"
+                            f"    Section has {len(section_elements)} elements"
                         )
-                        for j, elem in enumerate(section.elements):
+                        for j, elem in enumerate(section_elements):
                             logger.debug(
                                 f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                             )
@@ -283,8 +289,11 @@ class LayoutManager:
             section_right = section_left + section_width
             section_bottom = section_top + section_height
 
-            if hasattr(section, "elements") and section.elements:
-                for element in section.elements:
+            section_elements = [
+                c for c in section.children if not hasattr(c, "children")
+            ]
+            if section_elements:
+                for element in section_elements:
                     if not (
                         hasattr(element, "position")
                         and element.position
@@ -322,9 +331,10 @@ class LayoutManager:
                                 f"boundaries (this is expected for content overflow)"
                             )
 
-            # Recursively check subsections
-            if hasattr(section, "subsections") and section.subsections:
-                self._check_section_overflow_with_scaling_info(section.subsections)
+            # Recursively check child sections
+            child_sections = [c for c in section.children if hasattr(c, "children")]
+            if child_sections:
+                self._check_section_overflow_with_scaling_info(child_sections)
 
     def get_slide_dimensions(self) -> tuple[float, float]:
         """
@@ -442,9 +452,13 @@ class LayoutManager:
             if not hasattr(section, "id") or not section.id:
                 warnings.append(f"Section at level {level} missing ID")
 
-            # Check for both elements and subsections (unusual but not invalid)
-            has_elements = hasattr(section, "elements") and section.elements
-            has_subsections = hasattr(section, "subsections") and section.subsections
+            # Check for both elements and child sections (unusual but not invalid)
+            section_elements = [
+                c for c in section.children if not hasattr(c, "children")
+            ]
+            child_sections = [c for c in section.children if hasattr(c, "children")]
+            has_elements = bool(section_elements)
+            has_subsections = bool(child_sections)
 
             if has_elements and has_subsections:
                 warnings.append(
@@ -463,7 +477,7 @@ class LayoutManager:
 
                     has_images = any(
                         e.element_type == ElementType.IMAGE
-                        for e in (section.elements or [])
+                        for e in section_elements
                         if hasattr(e, "element_type")
                     )
 
@@ -473,10 +487,10 @@ class LayoutManager:
                             f"with images - images will be scaled to fit available space"
                         )
 
-            # Recursively validate subsections
+            # Recursively validate child sections
             if has_subsections:
                 subsection_warnings = self._validate_section_structure(
-                    section.subsections, level + 1
+                    child_sections, level + 1
                 )
                 warnings.extend(subsection_warnings)
 

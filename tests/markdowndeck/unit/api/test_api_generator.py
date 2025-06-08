@@ -1,176 +1,261 @@
+"""
+Unit tests for the ApiRequestGenerator, ensuring adherence to API_GEN_SPEC.md.
+
+Each test case directly corresponds to a specification in
+`docs/markdowndeck/testing/TEST_CASES_UNIT_API_GENERATOR.md`.
+"""
+
 from copy import deepcopy
-from unittest.mock import MagicMock
 
 import pytest
 from markdowndeck.api.api_generator import ApiRequestGenerator
 from markdowndeck.models import (
-    CodeElement,
     Deck,
     ElementType,
     ImageElement,
-    ListElement,
-    ListItem,
+    Section,
     Slide,
-    SlideLayout,
-    TableElement,
     TextElement,
 )
 
 
 @pytest.fixture
-def sample_slide() -> Slide:
-    """Creates a sample slide for orchestration testing."""
+def api_generator() -> ApiRequestGenerator:
+    """Provides a fresh ApiRequestGenerator instance for each test."""
+    return ApiRequestGenerator()
+
+
+@pytest.fixture
+def finalized_slide() -> Slide:
+    """
+    Provides a slide in the 'Finalized' state, which is the expected
+    input for the ApiRequestGenerator.
+    """
     return Slide(
-        object_id="test_slide_001",
-        elements=[],
-        layout=SlideLayout.BLANK,
-        title="Sample Slide",
-        placeholder_mappings={},
+        object_id="final_slide_1",
+        sections=[],  # Must be empty
+        elements=[],  # Must be empty
+        renderable_elements=[
+            TextElement(
+                element_type=ElementType.TITLE,
+                text="Finalized Title",
+                object_id="el_title",
+                position=(50, 50),
+                size=(620, 40),
+            ),
+            TextElement(
+                element_type=ElementType.TEXT,
+                text="Finalized Body",
+                object_id="el_body",
+                position=(50, 150),
+                size=(620, 100),
+            ),
+        ],
     )
 
 
 class TestApiRequestGenerator:
-    """Unit tests for the ApiRequestGenerator's orchestration role."""
+    """Tests the functionality of the ApiRequestGenerator."""
 
-    @pytest.fixture
-    def generator(self) -> ApiRequestGenerator:
-        return ApiRequestGenerator()
-
-    def test_generate_slide_batch_orchestration(self, generator: ApiRequestGenerator, sample_slide: Slide):
-        """Test that generate_slide_batch calls appropriate builder methods."""
-        sample_slide.elements = [
-            TextElement(element_type=ElementType.TITLE, text="Title", object_id="el_title"),
-            TextElement(element_type=ElementType.TEXT, text="Body", object_id="el_body"),
-            ImageElement(element_type=ElementType.IMAGE, url="test.png", object_id="el_img"),
+    def test_api_c_01(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+        """
+        Test Case: API-C-01
+        Validates the generator ONLY reads from `slide.renderable_elements`.
+        From: docs/markdowndeck/testing/TEST_CASES_API_GENERATOR.md
+        """
+        # Arrange: Add junk data to stale lists
+        finalized_slide.sections = [Section(id="junk_section")]
+        finalized_slide.elements = [
+            ImageElement(element_type=ElementType.IMAGE, url="junk.png")
         ]
-        sample_slide.background = {"type": "color", "value": "#FFFFFF"}
-        sample_slide.notes = "Test notes"
-        sample_slide.speaker_notes_object_id = "notes_obj_id"
+        deck = Deck(slides=[finalized_slide])
 
-        generator.slide_builder.create_slide_request = MagicMock(return_value={"mock_slide_req": True})
-        generator.slide_builder.create_background_request = MagicMock(return_value={"mock_bg_req": True})
-        generator.slide_builder.create_notes_request = MagicMock(return_value=[{"mock_notes_req": True}])
+        # Act
+        batches = api_generator.generate_batch_requests(deck, "pres_id")
 
-        generator.text_builder.generate_text_element_requests = MagicMock(return_value=[{"mock_text_el_req": True}])
-        generator.media_builder.generate_image_element_requests = MagicMock(return_value=[{"mock_img_el_req": True}])
+        # Assert
+        requests = batches[0]["requests"]
 
-        batch = generator.generate_slide_batch(sample_slide, "pres_id")
-
-        assert batch["presentationId"] == "pres_id"
-        generator.slide_builder.create_slide_request.assert_called_once_with(sample_slide)
-        generator.slide_builder.create_background_request.assert_called_once_with(sample_slide)
-        generator.slide_builder.create_notes_request.assert_called_once_with(sample_slide)
-
-        assert generator.text_builder.generate_text_element_requests.call_count == 2
-        generator.media_builder.generate_image_element_requests.assert_called_once_with(
-            sample_slide.elements[2],
-            sample_slide.object_id,
+        # Check that requests were generated for renderable_elements
+        title_req = next(
+            (
+                r
+                for r in requests
+                if r.get("insertText", {}).get("text") == "Finalized Title"
+            ),
+            None,
         )
+        body_req = next(
+            (
+                r
+                for r in requests
+                if r.get("insertText", {}).get("text") == "Finalized Body"
+            ),
+            None,
+        )
+        assert title_req is not None
+        assert body_req is not None
 
-        assert {"mock_slide_req": True} in batch["requests"]
-        assert {"mock_bg_req": True} in batch["requests"]
-        assert {"mock_notes_req": True} in batch["requests"]
-        assert batch["requests"].count({"mock_text_el_req": True}) == 2
-        assert {"mock_img_el_req": True} in batch["requests"]
+        # Check that junk data was ignored
+        image_req = next((r for r in requests if "createImage" in r), None)
+        assert (
+            image_req is None
+        ), "Junk data from stale 'elements' list should be ignored."
 
-    def test_subheading_and_list_combination(self, generator: ApiRequestGenerator, sample_slide: Slide):
-        """Test that a subheading followed by a related list are combined."""
-        subheading = TextElement(
+    def test_api_c_02(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+        """
+        Test Case: API-C-02
+        Validates that the generator is stateless and does not modify its input.
+        From: docs/markdowndeck/testing/TEST_CASES_API_GENERATOR.md
+        """
+        # Arrange
+        original_slide_copy = deepcopy(finalized_slide)
+        deck = Deck(slides=[finalized_slide])
+
+        # Act
+        api_generator.generate_batch_requests(deck, "pres_id")
+
+        # Assert
+        assert (
+            finalized_slide == original_slide_copy
+        ), "Generator must not modify the input slide object."
+
+    def test_api_c_03(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+        """
+        Test Case: API-C-03
+        Validates interpretation of visual styling directives.
+        From: docs/markdowndeck/testing/TEST_CASES_API_GENERATOR.md
+        """
+        # Arrange
+        styled_element = TextElement(
             element_type=ElementType.TEXT,
-            text="My List Title",
-            object_id="el_subheading",
-            related_to_next=True,
+            text="Styled Text",
+            object_id="styled_el",
+            position=(50, 200),
+            size=(200, 50),
+            directives={"color": "#FF0000", "fontsize": 18},
         )
-        list_el = ListElement(
-            element_type=ElementType.BULLET_LIST,
-            items=[ListItem(text="Item 1")],
-            object_id="el_list",
-            related_to_prev=True,
-        )
-        # Simulate a themed layout where TEXT maps to a placeholder
-        sample_slide.placeholder_mappings = {ElementType.TEXT: "body_placeholder_id"}
-        sample_slide.elements = [subheading, list_el]
+        finalized_slide.renderable_elements.append(styled_element)
+        deck = Deck(slides=[finalized_slide])
 
-        # Mock the list builder
-        generator.list_builder.generate_bullet_list_element_requests = MagicMock(return_value=[{"mock_combined_req": True}])
-        generator.text_builder.generate_text_element_requests = MagicMock()
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
-        generator.generate_slide_batch(sample_slide, "pres_id")
-
-        # The subheading should NOT be processed by the text builder
-        generator.text_builder.generate_text_element_requests.assert_not_called()
-
-        # The list builder should be called with the subheading data
-        generator.list_builder.generate_bullet_list_element_requests.assert_called_once()
-        call_args = generator.list_builder.generate_bullet_list_element_requests.call_args
-        assert call_args.args[0] == list_el  # The list element
-        subheading_data = call_args.kwargs.get("subheading_data")
-        assert subheading_data is not None
-        assert subheading_data["text"] == "My List Title"
-        assert subheading_data["placeholder_id"] == "body_placeholder_id"
-
-    def test_generate_element_requests_dispatch(self, generator: ApiRequestGenerator, sample_slide: Slide):
-        """Test that _generate_element_requests dispatches to the correct builders."""
-        elements_to_test = [
-            TextElement(element_type=ElementType.TITLE, text="T", object_id="id_title"),
-            TextElement(element_type=ElementType.TEXT, text="P", object_id="id_text"),
-            ListElement(
-                element_type=ElementType.BULLET_LIST,
-                items=[ListItem(text="L")],
-                object_id="id_list",
-            ),
-            ListElement(
-                element_type=ElementType.ORDERED_LIST,
-                items=[ListItem(text="O")],
-                object_id="id_ordered_list",
-            ),
-            ImageElement(element_type=ElementType.IMAGE, url="i.png", object_id="id_img"),
-            CodeElement(element_type=ElementType.CODE, code="c", object_id="id_code"),
-            TableElement(element_type=ElementType.TABLE, headers=["H"], object_id="id_table"),
-            TextElement(element_type=ElementType.QUOTE, text="Q", object_id="id_quote"),
-            TextElement(element_type=ElementType.FOOTER, text="F", object_id="id_footer"),
+        # Assert
+        style_reqs = [
+            r
+            for r in requests
+            if "updateTextStyle" in r
+            and r["updateTextStyle"]["objectId"] == "styled_el"
         ]
+        assert (
+            len(style_reqs) > 0
+        ), "Should generate updateTextStyle requests for directives."
 
-        generator.text_builder.generate_text_element_requests = MagicMock()
-        generator.list_builder.generate_bullet_list_element_requests = MagicMock()
-        generator.list_builder.generate_list_element_requests = MagicMock()
-        generator.media_builder.generate_image_element_requests = MagicMock()
-        generator.code_builder.generate_code_element_requests = MagicMock()
-        generator.table_builder.generate_table_element_requests = MagicMock()
-
-        for el in elements_to_test:
-            generator._generate_element_requests(el, sample_slide.object_id, sample_slide.placeholder_mappings)
-
-        assert generator.text_builder.generate_text_element_requests.call_count == 4
-        generator.list_builder.generate_bullet_list_element_requests.assert_called_once()
-        generator.list_builder.generate_list_element_requests.assert_called_once()
-        generator.media_builder.generate_image_element_requests.assert_called_once()
-        generator.code_builder.generate_code_element_requests.assert_called_once()
-        generator.table_builder.generate_table_element_requests.assert_called_once()
-
-    def test_generate_batch_requests_empty_deck(self, generator: ApiRequestGenerator):
-        deck = Deck(slides=[])
-        batches = generator.generate_batch_requests(deck, "pid")
-        assert len(batches) == 0
-
-    def test_generate_batch_requests_multiple_slides(self, generator: ApiRequestGenerator, sample_slide: Slide):
-        slide1 = deepcopy(sample_slide)
-        slide1.object_id = "s1"
-        slide2 = deepcopy(sample_slide)
-        slide2.object_id = "s2"
-        deck = Deck(slides=[slide1, slide2])
-
-        generator.generate_slide_batch = MagicMock(
-            side_effect=lambda s, p_id: {
-                "presentationId": p_id,
-                "requests": [{"createSlide": {"objectId": s.object_id}}],
-            }
+        # Find the specific style updates
+        color_update = next(
+            (
+                r
+                for r in style_reqs
+                if "foregroundColor" in r["updateTextStyle"]["style"]
+            ),
+            None,
+        )
+        font_update = next(
+            (r for r in style_reqs if "fontSize" in r["updateTextStyle"]["style"]), None
         )
 
-        batches = generator.generate_batch_requests(deck, "pid")
+        assert (
+            color_update is not None
+        ), "A request to update foregroundColor should exist."
+        assert (
+            color_update["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
+                "rgbColor"
+            ]["red"]
+            == 1.0
+        )
 
-        assert len(batches) == 2
-        generator.generate_slide_batch.assert_any_call(slide1, "pid")
-        generator.generate_slide_batch.assert_any_call(slide2, "pid")
-        assert batches[0]["requests"][0]["createSlide"]["objectId"] == "s1"
-        assert batches[1]["requests"][0]["createSlide"]["objectId"] == "s2"
+        assert font_update is not None, "A request to update fontSize should exist."
+        assert font_update["updateTextStyle"]["style"]["fontSize"]["magnitude"] == 18
+
+    def test_api_c_04(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+        """
+        Test Case: API-C-04
+        Validates correct structure for position and size in API requests.
+        From: docs/markdowndeck/testing/TEST_CASES_API_GENERATOR.md
+        """
+        # Arrange
+        deck = Deck(slides=[finalized_slide])
+
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+
+        # Assert
+        shape_req = next(
+            (
+                r
+                for r in requests
+                if "createShape" in r and r["createShape"]["objectId"] == "el_body"
+            ),
+            None,
+        )
+        assert (
+            shape_req is not None
+        ), "A createShape request for the element should exist."
+
+        props = shape_req["createShape"]["elementProperties"]
+
+        # Check size structure
+        assert "size" in props
+        assert "width" in props["size"]
+        assert "height" in props["size"]
+        assert "magnitude" in props["size"]["width"]
+        assert "unit" in props["size"]["width"]
+
+        # Check transform structure
+        assert "transform" in props
+        assert "translateX" in props["transform"]
+        assert "translateY" in props["transform"]
+        assert "unit" in props["transform"]
+
+    def test_api_c_05(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+        """
+        Test Case: API-C-05
+        Validates that generated requests use precise `fields` masks.
+        From: docs/markdowndeck/testing/TEST_CASES_API_GENERATOR.md
+        """
+        # Arrange
+        bg_element = TextElement(
+            element_type=ElementType.TEXT,
+            text="BG Text",
+            object_id="bg_el",
+            position=(50, 250),
+            size=(200, 50),
+            directives={"background": ("color", "#123456")},
+        )
+        finalized_slide.renderable_elements.append(bg_element)
+        deck = Deck(slides=[finalized_slide])
+
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+
+        # Assert
+        update_req = next(
+            (
+                r
+                for r in requests
+                if "updateShapeProperties" in r
+                and r["updateShapeProperties"]["objectId"] == "bg_el"
+            ),
+            None,
+        )
+
+        assert (
+            update_req is not None
+        ), "An updateShapeProperties request should exist for the background."
+
+        # Validate the fields mask is precise as per the gotcha
+        expected_mask = "shapeBackgroundFill.solidFill.color.rgbColor"
+        assert (
+            update_req["updateShapeProperties"]["fields"] == expected_mask
+        ), f"Field mask must be precise. Expected '{expected_mask}', got '{update_req['updateShapeProperties']['fields']}'"

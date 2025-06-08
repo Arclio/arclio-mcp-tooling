@@ -50,6 +50,9 @@ class Slide:
     sections: list[Section] = field(default_factory=list)
     background: dict[str, Any] | None = None
     title: str = ""  # Store the title text for easier reference
+    title_directives: dict[str, Any] = field(
+        default_factory=dict
+    )  # Store title directives
     speaker_notes_object_id: str | None = None
     placeholder_mappings: dict[Any, str] = field(default_factory=dict)
 
