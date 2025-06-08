@@ -140,12 +140,7 @@ class SlideExtractor:
         self, content: str, index: int, slide_object_id: str
     ) -> dict:
         """
-        Process slide content with improved title handling.
-
-        CRITICAL FIXES:
-        - P3: Proper indented title removal
-        - Enhanced title directive extraction
-        - FIXED: Remove special background extraction to allow normal directive processing
+        Process slide content with improved title and subtitle handling.
         """
         original_content = content
 
@@ -156,13 +151,13 @@ class SlideExtractor:
         main_content_segment = footer_parts[0]
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
 
-        # CRITICAL FIX P3: Enhanced title extraction with indentation support
-        title, content_after_title, title_directives = (
+        # Extract title, subtitle, and directives
+        title, subtitle, content_after_meta, title_directives = (
             self._extract_title_with_directives(main_content_segment)
         )
 
         # Extract notes
-        notes_from_content = self._extract_notes(content_after_title)
+        notes_from_content = self._extract_notes(content_after_meta)
         final_notes = notes_from_content
 
         # Check for notes in footer (override content notes)
@@ -175,31 +170,20 @@ class SlideExtractor:
                     r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
                 ).strip()
 
-        # CRITICAL FIX: Remove special background extraction - let it be processed as normal directive
-        # This allows background directives to work alongside other directives like [background=black][color=lime]
-        # background = self._extract_background(content_after_title)
-        # if background:
-        #     content_after_title = re.sub(
-        #         r"^\s*\[background=([^\]]+)\]\s*\n?",
-        #         "",
-        #         content_after_title,
-        #         count=1,
-        #         flags=re.MULTILINE,
-        #     )
-
         # Remove all notes from content
-        content_after_title = re.sub(
-            r"<!--\s*notes:\s*.*?\s*-->", "", content_after_title, flags=re.DOTALL
+        content_after_meta = re.sub(
+            r"<!--\s*notes:\s*.*?\s*-->", "", content_after_meta, flags=re.DOTALL
         )
 
-        final_slide_content = content_after_title.strip()
+        final_slide_content = content_after_meta.strip()
 
         slide = {
             "title": title,
+            "subtitle": subtitle,  # Add subtitle field
             "content": final_slide_content,
             "footer": footer,
             "notes": final_notes,
-            "background": None,  # Let background be handled as regular directive
+            "background": None,
             "index": index,
             "object_id": slide_object_id,
             "speaker_notes_object_id": (
@@ -210,90 +194,150 @@ class SlideExtractor:
 
         logger.debug(
             f"Processed slide {index + 1}: title='{title or 'None'}', "
+            f"subtitle='{subtitle or 'None'}', "
             f"content_length={len(slide['content'])}, directives={title_directives}"
         )
         return slide
 
     def _extract_title_with_directives(
         self, content: str
-    ) -> tuple[str | None, str, dict]:
+    ) -> tuple[str | None, str | None, str, dict]:
         """
-        Extract title and directives with improved indentation support.
-
-        CRITICAL FIXES:
-        - P3: Support for indented titles
-        - Enhanced title directive extraction with proper color directive structure
+        Extract title, subtitle, and directives with improved multi-line directive support.
+        This method is "block-aware" and consumes the entire metadata block including
+        directives on subsequent lines.
         """
-        # CRITICAL FIX P3: Pattern now supports leading whitespace
-        title_match = re.search(r"^\s*#\s+(.+)$", content.lstrip(), re.MULTILINE)
-
-        if not title_match:
-            return None, content, {}
-
-        full_title_text = title_match.group(1).strip()
+        lines = content.split("\n")
         title_directives = {}
+        title_text = None
+        subtitle_text = None
+        consumed_lines = 0
 
-        # Extract directives from title - check both at start and end of title
-        directive_pattern = r"(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
+        # Pattern to match directive-only lines
+        directive_only_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)\s*$"
 
-        # First check for directives at the start
-        start_directive_match = re.match(directive_pattern, full_title_text)
+        # Step 1: Find and process title
+        for i, line in enumerate(lines):
+            if not line.strip():
+                consumed_lines += 1
+                continue
 
-        # Then check for directives at the end
-        end_directive_match = re.search(directive_pattern + r"\s*$", full_title_text)
+            # Check if this is a title line
+            title_match = re.match(r"^\s*#\s+(.+)$", line)
+            if title_match:
+                full_title_text = title_match.group(1).strip()
+                consumed_lines = i + 1
 
-        clean_title = full_title_text
-        directive_text = ""
-
-        if start_directive_match:
-            directive_text = start_directive_match.group(0)
-            clean_title = full_title_text[len(directive_text) :].strip()
-        elif end_directive_match:
-            directive_text = end_directive_match.group(0)
-            clean_title = full_title_text[: end_directive_match.start()].strip()
-
-        # Parse directives with proper structure (if any were found)
-        if directive_text:
-            directive_matches = re.findall(
-                r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
-            )
-            for key, value in directive_matches:
-                key = key.strip().lower()
-                value = value.strip()
-
-                # Process common directive types with proper structure
-                if key == "align":
-                    title_directives[key] = value.lower()
-                elif key == "fontsize":
-                    try:
-                        title_directives[key] = float(value)
-                    except ValueError:
-                        logger.warning(f"Invalid fontsize in title: {value}")
-                elif key == "color":
-                    # CRITICAL FIX: Use proper color directive structure
-                    title_directives[key] = {"type": "named", "value": value}
-                else:
-                    title_directives[key] = value
-
-        # CRITICAL FIX P3: Enhanced title removal with indentation support
-        if title_match:
-            # Create pattern that matches the original title line with any indentation
-            escaped_title = re.escape(full_title_text)
-            title_removal_pattern = rf"^\s*#\s+{escaped_title}\s*(\n|$)"
-
-            content_after_title = re.sub(
-                title_removal_pattern, "", content, count=1, flags=re.MULTILINE
-            )
-
-            # Verify removal worked
-            if content_after_title == content:
-                logger.warning(
-                    f"Title removal may have failed for: {full_title_text[:50]}"
+                # Extract directives from the title line itself
+                directive_pattern = r"(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
+                start_directive_match = re.match(directive_pattern, full_title_text)
+                end_directive_match = re.search(
+                    directive_pattern + r"\s*$", full_title_text
                 )
 
-            return clean_title, content_after_title, title_directives
+                if start_directive_match:
+                    directive_text = start_directive_match.group(0)
+                    title_text = full_title_text[len(directive_text) :].strip()
+                elif end_directive_match:
+                    directive_text = end_directive_match.group(0)
+                    title_text = full_title_text[: end_directive_match.start()].strip()
+                else:
+                    title_text = full_title_text
+                    directive_text = ""
 
-        return None, content, {}
+                # Parse directives from title line
+                if directive_text:
+                    directive_matches = re.findall(
+                        r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+                    )
+                    for key, value in directive_matches:
+                        key = key.strip().lower()
+                        value = value.strip()
+                        title_directives[key] = value
+                break
+        else:
+            # No title found
+            return None, None, content, {}
+
+        # Step 2: Consume post-title directive-only lines
+        while consumed_lines < len(lines):
+            line = lines[consumed_lines]
+            if re.match(directive_only_pattern, line.strip()):
+                # Parse directives from this line
+                directive_matches = re.findall(r"\[([^=\[\]]+)=([^\[\]]*)\]", line)
+                for key, value in directive_matches:
+                    key = key.strip().lower()
+                    value = value.strip()
+                    title_directives[key] = value
+                consumed_lines += 1
+            elif not line.strip():
+                # Skip empty lines
+                consumed_lines += 1
+            else:
+                # Non-directive, non-empty line found
+                break
+
+        # Step 3: Check for subtitle
+        if consumed_lines < len(lines):
+            line = lines[consumed_lines]
+            subtitle_match = re.match(r"^\s*##\s+(.+)$", line)
+            if subtitle_match:
+                full_subtitle_text = subtitle_match.group(1).strip()
+                consumed_lines += 1
+
+                # Extract directives from subtitle line
+                directive_pattern = r"(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
+                start_directive_match = re.match(directive_pattern, full_subtitle_text)
+                end_directive_match = re.search(
+                    directive_pattern + r"\s*$", full_subtitle_text
+                )
+
+                if start_directive_match:
+                    directive_text = start_directive_match.group(0)
+                    subtitle_text = full_subtitle_text[len(directive_text) :].strip()
+                elif end_directive_match:
+                    directive_text = end_directive_match.group(0)
+                    subtitle_text = full_subtitle_text[
+                        : end_directive_match.start()
+                    ].strip()
+                else:
+                    subtitle_text = full_subtitle_text
+                    directive_text = ""
+
+                # Parse directives from subtitle line
+                if directive_text:
+                    directive_matches = re.findall(
+                        r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+                    )
+                    for key, value in directive_matches:
+                        key = key.strip().lower()
+                        value = value.strip()
+                        title_directives[key] = value
+
+                # Step 4: Consume post-subtitle directive-only lines
+                while consumed_lines < len(lines):
+                    line = lines[consumed_lines]
+                    if re.match(directive_only_pattern, line.strip()):
+                        # Parse directives from this line
+                        directive_matches = re.findall(
+                            r"\[([^=\[\]]+)=([^\[\]]*)\]", line
+                        )
+                        for key, value in directive_matches:
+                            key = key.strip().lower()
+                            value = value.strip()
+                            title_directives[key] = value
+                        consumed_lines += 1
+                    elif not line.strip():
+                        # Skip empty lines
+                        consumed_lines += 1
+                    else:
+                        # Non-directive, non-empty line found
+                        break
+
+        # Step 5: Reconstruct remaining content
+        content_after_meta = "\n".join(lines[consumed_lines:])
+
+        return title_text, subtitle_text, content_after_meta, title_directives
 
     def _extract_notes(self, content: str) -> str | None:
         """Extract speaker notes from content."""

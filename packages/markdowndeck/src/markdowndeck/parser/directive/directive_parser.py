@@ -76,80 +76,44 @@ class DirectiveParser:
     def parse_directives(self, section: Section) -> None:
         """
         Extract and parse directives from section content with enhanced validation.
-
-        TASK 1.1 FIX: Only extract directives that are truly section-level.
-        Directives immediately followed by content should be left for element-specific parsing.
+        This version correctly handles section-level directives that are not separated
+        by a blank line from the content that follows.
 
         Args:
             section: Section model instance to be modified in-place
         """
-        if not section or section.content == "":
+        if not section or not section.content:
             if section and section.directives is None:
                 section.directives = {}
             return
 
         content = section.content
-
-        # TASK 1.1 FIX: Enhanced directive detection that distinguishes between
-        # section-level and element-specific directives
-        # Pattern to match directive blocks at the start of content
+        # Pattern to match one or more directive blocks at the start of the content.
         directive_block_pattern = r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)"
-
         match = re.match(directive_block_pattern, content)
 
         if not match:
-            # Check for malformed directives and clean them up
             self._handle_malformed_directives(section, content)
             return
 
-        # Extract just the directive brackets, not the trailing whitespace
-        directive_text = match.group(
-            1
-        ).rstrip()  # Directive text without trailing whitespace
-        match_end = match.end(0)  # End of full match
-        remaining_content = content[match_end:]
+        # This logic now correctly assumes that any directives at the very start
+        # of a section's content block apply to the entire section.
+        directive_text = match.group(1).strip()
+        remaining_content = content[match.end(0) :]
 
-        # CRITICAL FIX: Check for blank line separation by looking at the original content
-        # Find where the directive text ends in the original content
-        directive_end_pos = len(directive_text)
-        content_after_directive = content[directive_end_pos:]
-
-        # Check if directives are followed by blank lines (section-level) or immediate content (element-level)
-        if content_after_directive:
-            if (
-                content_after_directive.startswith("\n\n")
-                or content_after_directive.startswith("\n\r\n")
-                or content_after_directive.startswith("\r\n\r\n")
-            ):
-                # Directives are properly separated by blank line(s) - treat as section-level
-                pass
-            elif content_after_directive.strip() == "":
-                # Only whitespace after directives - treat as section-level
-                pass
-            else:
-                # Directives are immediately followed by content without blank line separation
-                # These should be element-specific, not section-level
-                logger.debug(
-                    f"Skipping element-specific directives (no blank line separation): {directive_text!r} for section {section.id}"
-                )
-                if section.directives is None:
-                    section.directives = {}
-                return
-        else:
-            # No content after directives - treat as section-level
-            pass
-
-        # Only extract as section-level if directives are standalone (followed by blank line or end)
         logger.debug(
             f"Found section-level directives: {directive_text!r} for section {section.id}"
         )
 
         # Parse directives with enhanced error handling
         directives = self._parse_directive_text(directive_text)
-        section.directives = directives
+        # Use a temporary dict to avoid modifying the one being iterated
+        merged_directives = (section.directives or {}).copy()
+        merged_directives.update(directives)
+        section.directives = merged_directives
 
-        # Remove directive text from content with verification
-        section.content = remaining_content
+        # Remove directive text from content
+        section.content = remaining_content.lstrip()
 
         # Verify complete removal
         self._verify_directive_removal(section)

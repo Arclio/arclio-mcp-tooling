@@ -406,11 +406,11 @@ class TestParser:
         assert len(section.children) > 0, "Section should have parsed child elements."
         assert section.content == "", "Section.content must be cleared after parsing."
 
-    def test_parser_c_15_directive_scoping_no_bleeding(self, parser: Parser):
+    def test_parser_c_15_section_directives_are_inherited(self, parser: Parser):
         """
-        Test Case: PARSER-C-15 (Task 1.1)
-        Validates that directives don't "bleed" from one element to subsequent elements.
-        This test should FAIL initially, demonstrating the directive bleeding bug.
+        Test Case: PARSER-C-15 (Updated for Task 3)
+        Validates that section-level directives are correctly inherited by all child elements.
+        This test now validates the correct behavior where directives apply to all elements in a section.
         """
         # Arrange
         markdown = "[align=center]\n## Centered\n\nThis text should be left-aligned."
@@ -443,12 +443,12 @@ class TestParser:
         # The heading should have center alignment from the directive
         assert (
             heading_element.directives.get("align") == "center"
-        ), "Heading should have center alignment from directive"
+        ), "Heading should inherit center alignment from the section."
 
-        # The text element should NOT have the directive (no bleeding)
+        # The subsequent text element SHOULD ALSO inherit the directive
         assert (
-            text_element.directives.get("align") != "center"
-        ), "Text element should not inherit the heading's alignment directive"
+            text_element.directives.get("align") == "center"
+        ), "Text element SHOULD inherit the section's alignment directive."
 
     def test_parser_c_16_inline_directive_parsing_in_lists(self, parser: Parser):
         """

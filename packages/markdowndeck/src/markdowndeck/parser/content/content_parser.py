@@ -6,7 +6,7 @@ from typing import Any
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
 
-from markdowndeck.models import Element
+from markdowndeck.models import AlignmentType, Element
 from markdowndeck.models.slide import Section
 from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
@@ -64,18 +64,18 @@ class ContentParser:
     def parse_content(
         self,
         slide_title_text: str,
+        subtitle_text: str | None,
         sections: list[Section],
         slide_footer_text: str | None,
-        title_directives: dict[str, Any] = None,
     ) -> list[Element]:
         """
         Parse content into slide elements and populate section.elements.
 
         Args:
             slide_title_text: The slide title text
+            subtitle_text: Optional subtitle text
             sections: The list of Section models for the slide
             slide_footer_text: Optional footer text
-            title_directives: Optional directives from the slide title
 
         Returns:
             List of all elements for the slide
@@ -89,12 +89,35 @@ class ContentParser:
                 slide_title_text, self.md
             )
 
+            # Title directives are now part of the section's directives
+            section_for_title = sections[0] if sections else Section()
             title_element = self.element_factory.create_title_element(
-                slide_title_text, formatting, title_directives
+                slide_title_text, formatting, section_for_title.directives
             )
 
             all_elements.append(title_element)
             logger.debug(f"Added title element: {slide_title_text[:30]}")
+
+        # After the `if slide_title_text:` block, add this:
+        if subtitle_text:
+            # Subtitle formatting is simple, no need to parse complex markdown
+            subtitle_formatting = self.element_factory.extract_formatting_from_text(
+                subtitle_text, self.md
+            )
+            section_for_subtitle = sections[0] if sections else Section()
+            section_directives = section_for_subtitle.directives or {}
+            subtitle_alignment = AlignmentType(
+                section_directives.get("align", "center")
+            )
+
+            subtitle_element = self.element_factory.create_subtitle_element(
+                text=subtitle_text,
+                formatting=subtitle_formatting,
+                alignment=subtitle_alignment,
+                directives=section_directives.copy(),
+            )
+            all_elements.append(subtitle_element)
+            logger.debug(f"Added subtitle element: {subtitle_text[:30]}")
 
         # Process all sections recursively
         for section in sections:

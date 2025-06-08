@@ -76,10 +76,10 @@ class Parser:
                 # Step 4: Parse content in each section to create elements
                 # CRITICAL FIX P2: Pass title_directives to content parser
                 elements = self.content_parser.parse_content(
-                    slide_data["title"],
-                    section_models,
-                    slide_data.get("footer"),
-                    title_directives=slide_data.get("title_directives"),
+                    slide_title_text=slide_data["title"],
+                    subtitle_text=slide_data.get("subtitle"),
+                    sections=section_models,
+                    slide_footer_text=slide_data.get("footer"),
                 )
                 logger.debug(
                     f"Created {len(elements)} elements for slide {slide_index + 1}"

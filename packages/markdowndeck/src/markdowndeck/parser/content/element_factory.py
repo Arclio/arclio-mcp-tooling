@@ -142,7 +142,9 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def create_image_element(self, url: str, alt_text: str = "", directives: dict[str, Any] = None) -> ImageElement:
+    def create_image_element(
+        self, url: str, alt_text: str = "", directives: dict[str, Any] = None
+    ) -> ImageElement:
         """Create an image element."""
         return ImageElement(
             element_type=ElementType.IMAGE,
@@ -165,7 +167,9 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def create_code_element(self, code: str, language: str = "text", directives: dict[str, Any] = None) -> CodeElement:
+    def create_code_element(
+        self, code: str, language: str = "text", directives: dict[str, Any] = None
+    ) -> CodeElement:
         """Create a code element."""
         return CodeElement(
             element_type=ElementType.CODE,
@@ -174,7 +178,9 @@ class ElementFactory:
             directives=directives or {},
         )
 
-    def extract_formatting_from_text(self, text: str, md_parser: MarkdownIt) -> list[TextFormat]:
+    def extract_formatting_from_text(
+        self, text: str, md_parser: MarkdownIt
+    ) -> list[TextFormat]:
         """
         Extract formatting from text with enhanced directive handling.
 
@@ -221,7 +227,9 @@ class ElementFactory:
             directive_text = match.group(1)
             remaining_content = code_content[len(directive_text) :].strip()
 
-            logger.debug(f"Stripped directives from code: '{directive_text}' -> '{remaining_content}'")
+            logger.debug(
+                f"Stripped directives from code: '{directive_text}' -> '{remaining_content}'"
+            )
             return remaining_content
 
         return code_content
@@ -232,7 +240,11 @@ class ElementFactory:
 
         CRITICAL FIX: Always returns formatting for plain text, preserves code content as-is.
         """
-        if token.type != "inline" or not hasattr(token, "children") or not token.children:
+        if (
+            token.type != "inline"
+            or not hasattr(token, "children")
+            or not token.children
+        ):
             return []
 
         # Build plain text and track formatting in a single pass
@@ -282,7 +294,9 @@ class ElementFactory:
                     format_type_enum = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     format_type_enum = TextFormatType.LINK
-                    value = child.attrs.get("href", "") if hasattr(child, "attrs") else ""
+                    value = (
+                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
+                    )
 
                 if format_type_enum:
                     # Record the current position where the formatted content starts
