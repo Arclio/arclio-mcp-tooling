@@ -128,29 +128,39 @@ class SlideVisualizer:
         if show_sections and hasattr(slide, "sections"):
             render_sections(ax, slide.sections)
 
-        # Enhanced debugging
-        total_elements = len(getattr(slide, "elements", []))
+        # Enhanced debugging - check finalized IR state
+        total_renderable_elements = len(getattr(slide, "renderable_elements", []))
         total_sections = len(getattr(slide, "sections", []))
         logger.info(
-            f"Slide {slide_idx + 1}: {total_elements} elements in final list, {total_sections} sections"
+            f"Slide {slide_idx + 1}: {total_renderable_elements} renderable elements, {total_sections} sections"
         )
 
-        # Render all elements from the final, authoritative slide.elements list
-        # This list should contain all positioned elements after layout and overflow processing
-        all_elements = getattr(slide, "elements", [])
+        # Per TASK_005: Use renderable_elements as authoritative source after OverflowManager
+        all_elements = getattr(slide, "renderable_elements", [])
+
+        # Check for slides that haven't been processed by OverflowManager
+        if not all_elements and total_sections > 0:
+            logger.warning(
+                f"Slide {slide_idx + 1} has empty renderable_elements but {total_sections} sections. "
+                "This slide may not have been processed by the OverflowManager yet."
+            )
 
         if all_elements:
-            logger.info(f"Rendering {len(all_elements)} elements from slide.elements")
+            logger.info(
+                f"Rendering {len(all_elements)} elements from slide.renderable_elements"
+            )
 
             # Debug each element's positioning state
             for element in all_elements:
                 self._debug_element_state_detailed(element)
 
             # Render all elements with fallback handling
-            self._render_elements_with_fallbacks(ax, all_elements, "slide-elements")
+            self._render_elements_with_fallbacks(
+                ax, all_elements, "renderable-elements"
+            )
         else:
             logger.info(
-                "No elements found in slide.elements - slide may be empty or pipeline issue"
+                "No elements found in slide.renderable_elements - slide may be empty or requires OverflowManager processing"
             )
 
         if show_metadata:

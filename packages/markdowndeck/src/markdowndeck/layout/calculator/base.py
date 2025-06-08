@@ -212,6 +212,13 @@ class PositionCalculator:
                             f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                         )
 
+        # Clear the stale inventory list per LAYOUT_SPEC.md Rule #3 and DATA_FLOW.md
+        # The slide.sections hierarchy is now the authoritative source for all spatial data
+        final_slide.elements = []
+        logger.debug(
+            "Cleared slide.elements inventory list - slide.sections is now authoritative"
+        )
+
         return final_slide
 
     def _ensure_section_based_layout(self, slide: Slide) -> list[Section]:

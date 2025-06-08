@@ -130,8 +130,7 @@ class StandardOverflowHandler:
         else:
             # Create empty version of the section to preserve structure
             empty_section = deepcopy(overflowing_section)
-            empty_section.elements = []
-            empty_section.subsections = []
+            empty_section.children = []
             modified_original.sections[section_index] = empty_section
             # Keep sections up to and including the empty section
             modified_original.sections = modified_original.sections[: section_index + 1]
@@ -173,22 +172,30 @@ class StandardOverflowHandler:
             f"Partitioning section {section.id} with available_height={available_height}"
         )
 
-        if section.elements:
+        # Separate elements and child sections from unified children list
+        section_elements = [
+            child for child in section.children if not hasattr(child, "children")
+        ]
+        child_sections = [
+            child for child in section.children if hasattr(child, "children")
+        ]
+
+        if section_elements:
             # Rule A: Section has elements - standard partitioning
             logger.debug(f"Section {section.id}: Applying Rule A (has elements)")
             return self._apply_rule_a(section, available_height, visited)
 
-        if section.subsections:
+        if child_sections:
             if section.type == "row":
                 # Rule B: Coordinated row of columns partitioning
                 logger.debug(
-                    f"Section {section.id}: Applying Rule B (row with subsections)"
+                    f"Section {section.id}: Applying Rule B (row with child sections)"
                 )
                 return self._apply_rule_b_unanimous_consent(
                     section, available_height, visited
                 )
             # Standard subsection partitioning
-            logger.debug(f"Section {section.id}: Standard subsection partitioning")
+            logger.debug(f"Section {section.id}: Standard child section partitioning")
             return self._partition_section_with_subsections(
                 section, available_height, visited
             )
@@ -217,18 +224,23 @@ class StandardOverflowHandler:
         Returns:
             Tuple of (fitted_part, overflowing_part)
         """
+        # Get elements from unified children list
+        section_elements = [
+            child for child in section.children if not hasattr(child, "children")
+        ]
+
         logger.debug(
-            f"Applying Rule A to section {section.id} with {len(section.elements)} elements"
+            f"Applying Rule A to section {section.id} with {len(section_elements)} elements"
         )
 
-        if not section.elements:
+        if not section_elements:
             return None, None
 
         # Find the first element that overflows the slide boundary
         overflow_element_index = -1
         overflow_element = None
 
-        for i, element in enumerate(section.elements):
+        for i, element in enumerate(section_elements):
             if element.position and element.size:
                 element_bottom = element.position[1] + element.size[1]
 
@@ -241,7 +253,7 @@ class StandardOverflowHandler:
         # If no element overflows, all elements fit
         if overflow_element_index == -1:
             logger.debug(
-                f"Rule A result: All {len(section.elements)} elements fit within available height"
+                f"Rule A result: All {len(section_elements)} elements fit within available height"
             )
             return deepcopy(section), None
 
@@ -282,27 +294,27 @@ class StandardOverflowHandler:
         # Create fitted section with elements before overflow point plus fitted part (if any)
         fitted_elements = []
         if overflow_element_index > 0:
-            fitted_elements.extend(deepcopy(section.elements[:overflow_element_index]))
+            fitted_elements.extend(deepcopy(section_elements[:overflow_element_index]))
         if fitted_part:
             fitted_elements.append(fitted_part)
 
         if fitted_elements:
             fitted_section = deepcopy(section)
-            fitted_section.elements = fitted_elements
+            fitted_section.children = fitted_elements
 
         # Create overflowing section with overflowing part plus subsequent elements
         overflowing_elements = []
         if overflowing_part:
             overflowing_elements.append(overflowing_part)
         # Add all elements after the overflow point
-        if overflow_element_index + 1 < len(section.elements):
+        if overflow_element_index + 1 < len(section_elements):
             overflowing_elements.extend(
-                deepcopy(section.elements[overflow_element_index + 1 :])
+                deepcopy(section_elements[overflow_element_index + 1 :])
             )
 
         if overflowing_elements:
             overflowing_section = deepcopy(section)
-            overflowing_section.elements = overflowing_elements
+            overflowing_section.children = overflowing_elements
             # Reset position AND size for continuation slide (critical for layout recalculation)
             overflowing_section.position = None
             overflowing_section.size = None
@@ -332,17 +344,22 @@ class StandardOverflowHandler:
         Returns:
             Tuple of (fitted_row, overflowing_row)
         """
+        # Get child sections from unified children list
+        child_sections = [
+            child for child in row_section.children if hasattr(child, "children")
+        ]
+
         logger.debug(
-            f"Applying Rule B (unanimous consent) to row section {row_section.id} with {len(row_section.subsections)} columns"
+            f"Applying Rule B (unanimous consent) to row section {row_section.id} with {len(child_sections)} columns"
         )
 
-        if not row_section.subsections:
+        if not child_sections:
             return None, None
 
         # Step 1: Identify all overflowing elements across all columns
         overflowing_elements_by_column = []
 
-        for i, column in enumerate(row_section.subsections):
+        for i, column in enumerate(child_sections):
             overflowing_element = self._find_overflowing_element_in_column(
                 column, available_height
             )
@@ -399,7 +416,7 @@ class StandardOverflowHandler:
 
         # CRITICAL FIX: Maintain column structure in continuation row
         # We need to create placeholders for ALL columns to preserve structure
-        for _i, column in enumerate(row_section.subsections):
+        for _i, column in enumerate(child_sections):
             fitted_col, overflowing_col = self._partition_section(
                 column, available_height, visited.copy()
             )
@@ -409,8 +426,7 @@ class StandardOverflowHandler:
             else:
                 # Create empty version of the column to preserve structure
                 empty_fitted_col = deepcopy(column)
-                empty_fitted_col.elements = []
-                empty_fitted_col.subsections = []
+                empty_fitted_col.children = []
                 fitted_columns.append(empty_fitted_col)
 
             if overflowing_col:
@@ -419,8 +435,7 @@ class StandardOverflowHandler:
                 # CRITICAL: Create empty version of the column to preserve row structure
                 # This ensures continuation row maintains the same number of columns
                 empty_overflowing_col = deepcopy(column)
-                empty_overflowing_col.elements = []
-                empty_overflowing_col.subsections = []
+                empty_overflowing_col.children = []
                 # Reset position for continuation slide
                 empty_overflowing_col.position = None
                 empty_overflowing_col.size = None
@@ -432,12 +447,12 @@ class StandardOverflowHandler:
 
         if fitted_columns:
             fitted_row = deepcopy(row_section)
-            fitted_row.subsections = fitted_columns
+            fitted_row.children = fitted_columns
 
         # Always create continuation row with all columns (some may be empty)
         if overflowing_columns:
             overflowing_row = deepcopy(row_section)
-            overflowing_row.subsections = overflowing_columns
+            overflowing_row.children = overflowing_columns
             # Reset position for continuation slide
             overflowing_row.position = None
             overflowing_row.size = None
@@ -465,10 +480,15 @@ class StandardOverflowHandler:
         Returns:
             The first overflowing element, or None if no overflow
         """
-        if not column.elements:
+        # Get elements from unified children list
+        column_elements = [
+            child for child in column.children if not hasattr(child, "children")
+        ]
+
+        if not column_elements:
             return None
 
-        for element in column.elements:
+        for element in column_elements:
             if element.position and element.size:
                 element_bottom = element.position[1] + element.size[1]
 
@@ -495,11 +515,16 @@ class StandardOverflowHandler:
         Returns:
             Remaining height available for the target element
         """
-        if not column.elements:
+        # Get elements from unified children list
+        column_elements = [
+            child for child in column.children if not hasattr(child, "children")
+        ]
+
+        if not column_elements:
             return available_height
 
         # Find the target element and use its absolute position
-        for element in column.elements:
+        for element in column_elements:
             if element is target_element:
                 if element.position:
                     element_top = element.position[1]
@@ -524,10 +549,15 @@ class StandardOverflowHandler:
         Returns:
             Tuple of (fitted_part, overflowing_part)
         """
+        # Get child sections from unified children list
+        child_sections = [
+            child for child in section.children if hasattr(child, "children")
+        ]
+
         # Find first overflowing subsection
         overflowing_subsection_index = -1
 
-        for i, subsection in enumerate(section.subsections):
+        for i, subsection in enumerate(child_sections):
             if subsection.position and subsection.size:
                 subsection_bottom = subsection.position[1] + subsection.size[1]
                 if subsection_bottom > available_height:
@@ -539,7 +569,7 @@ class StandardOverflowHandler:
             return deepcopy(section), None
 
         # Recursively partition the overflowing subsection
-        overflowing_subsection = section.subsections[overflowing_subsection_index]
+        overflowing_subsection = child_sections[overflowing_subsection_index]
         subsection_available_height = available_height - (
             overflowing_subsection.position[1] if overflowing_subsection.position else 0
         )
@@ -553,27 +583,25 @@ class StandardOverflowHandler:
         overflowing_section = None
 
         # Fitted part includes subsections before overflow point plus fitted part
-        fitted_subsections = deepcopy(
-            section.subsections[:overflowing_subsection_index]
-        )
+        fitted_subsections = deepcopy(child_sections[:overflowing_subsection_index])
         if fitted_subsection:
             fitted_subsections.append(fitted_subsection)
 
         if fitted_subsections:
             fitted_section = deepcopy(section)
-            fitted_section.subsections = fitted_subsections
+            fitted_section.children = fitted_subsections
 
         # Overflowing part includes overflowing part plus subsequent subsections
         overflowing_subsections = []
         if overflowing_subsection_part:
             overflowing_subsections.append(overflowing_subsection_part)
         overflowing_subsections.extend(
-            deepcopy(section.subsections[overflowing_subsection_index + 1 :])
+            deepcopy(child_sections[overflowing_subsection_index + 1 :])
         )
 
         if overflowing_subsections:
             overflowing_section = deepcopy(section)
-            overflowing_section.subsections = overflowing_subsections
+            overflowing_section.children = overflowing_subsections
             # Reset position for continuation slide
             overflowing_section.position = None
             overflowing_section.size = None
@@ -627,11 +655,21 @@ class StandardOverflowHandler:
 
                 visited_sections.add(section.id)
 
-                if section.elements:
+                # Get elements and child sections from unified children list
+                section_elements = [
+                    child
+                    for child in section.children
+                    if not hasattr(child, "children")
+                ]
+                child_sections = [
+                    child for child in section.children if hasattr(child, "children")
+                ]
+
+                if section_elements:
                     # CRITICAL: Use direct references to preserve position/size data
-                    new_elements.extend(section.elements)
-                if section.subsections:
-                    extract_elements(section.subsections)
+                    new_elements.extend(section_elements)
+                if child_sections:
+                    extract_elements(child_sections)
 
                 visited_sections.remove(section.id)
 

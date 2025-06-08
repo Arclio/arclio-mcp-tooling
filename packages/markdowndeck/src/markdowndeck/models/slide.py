@@ -13,9 +13,8 @@ class Section:
 
     content: str = ""
     directives: dict[str, Any] = field(default_factory=dict)
-    subsections: list["Section"] = field(default_factory=list)
+    children: list["Element | Section"] = field(default_factory=list)
     type: str = "section"  # "section" or "row"
-    elements: list[Element] = field(default_factory=list)
     position: tuple[float, float] | None = None
     size: tuple[float, float] | None = None
     id: str | None = None
@@ -24,9 +23,9 @@ class Section:
         """Check if this is a row section."""
         return self.type == "row"
 
-    def has_subsections(self) -> bool:
-        """Check if this section has subsections."""
-        return bool(self.subsections)
+    def has_children(self) -> bool:
+        """Check if this section has children."""
+        return bool(self.children)
 
     def validate(self) -> bool:
         """
@@ -35,7 +34,7 @@ class Section:
         Returns:
             True if valid, False otherwise
         """
-        return not (self.is_row() and not self.has_subsections())
+        return not (self.is_row() and not self.has_children())
 
 
 @dataclass
@@ -43,6 +42,7 @@ class Slide:
     """Represents a slide in a presentation."""
 
     elements: list[Element] = field(default_factory=list)
+    renderable_elements: list[Element] = field(default_factory=list)
     layout: SlideLayout = SlideLayout.TITLE_AND_BODY
     notes: str | None = None
     object_id: str | None = None
@@ -88,9 +88,12 @@ class Slide:
         return [
             element
             for element in self.elements
-            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type
+            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
     def find_elements_by_type(self, element_type: ElementType) -> list[Element]:
         """Find all elements of a specific type."""
-        return [element for element in self.elements if element.element_type == element_type]
+        return [
+            element for element in self.elements if element.element_type == element_type
+        ]

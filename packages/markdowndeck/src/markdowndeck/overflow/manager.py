@@ -91,6 +91,9 @@ class OverflowManager:
         external section overflow and ignores internal content overflow within sections
         that have user-defined sizes.
 
+        Per OVERFLOW_SPEC.md: This method is responsible for orchestrating continuation slide
+        layout and producing final renderable_elements lists while clearing sections hierarchy.
+
         Args:
             slide: Slide with all elements positioned by layout calculator
 
@@ -114,7 +117,9 @@ class OverflowManager:
                 logger.error(
                     f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}"
                 )
-                # Force-add remaining slides to prevent infinite loop
+                # Force-add remaining slides to prevent infinite loop - but finalize them first
+                for remaining_slide in slides_to_process:
+                    self._finalize_slide(remaining_slide)
                 final_slides.extend(slides_to_process)
                 break
 
@@ -122,7 +127,9 @@ class OverflowManager:
                 logger.error(
                     f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}"
                 )
-                # Force-add remaining slides to prevent infinite slides
+                # Force-add remaining slides to prevent infinite slides - but finalize them first
+                for remaining_slide in slides_to_process:
+                    self._finalize_slide(remaining_slide)
                 final_slides.extend(slides_to_process)
                 break
 
@@ -139,12 +146,11 @@ class OverflowManager:
             )
 
             if overflowing_section is None:
-                # No external overflow - but we MUST flatten elements from sections
-                # CRITICAL FIX: Always create final flat elements list for rendering
-                self._flatten_elements_from_sections(current_slide)
+                # No external overflow - finalize the slide per OVERFLOW_SPEC.md Rule #4
+                self._finalize_slide(current_slide)
                 final_slides.append(current_slide)
                 logger.debug(
-                    f"No EXTERNAL overflow detected in slide {current_slide.object_id} - elements flattened"
+                    f"No EXTERNAL overflow detected in slide {current_slide.object_id} - slide finalized"
                 )
                 continue
 
@@ -157,14 +163,18 @@ class OverflowManager:
                 current_slide, overflowing_section
             )
 
-            # Step 3: Add fitted slide to final results
+            # Step 3: Finalize and add fitted slide to final results
+            self._finalize_slide(fitted_slide)
             final_slides.append(fitted_slide)
             logger.debug(
-                f"Added fitted slide {fitted_slide.object_id} to final results"
+                f"Added finalized fitted slide {fitted_slide.object_id} to final results"
             )
 
             # Step 4: Calculate positions for continuation slide and enqueue for processing
-            # NOTE: Continuation slides need positions for overflow detection in next iteration
+            # Per OVERFLOW_SPEC.md Rule #3: OverflowManager orchestrates continuation slide layout
+            logger.debug(
+                f"Positioning continuation slide {continuation_slide.object_id}"
+            )
             repositioned_continuation = self.layout_manager.calculate_positions(
                 continuation_slide
             )
@@ -234,7 +244,10 @@ class OverflowManager:
                 warnings.append(f"Section {i} ({section.id}) missing size")
 
             # Check for potential infinite recursion in section structure
-            if hasattr(section, "subsections") and section.subsections:
+            child_sections = [
+                child for child in section.children if hasattr(child, "id")
+            ]
+            if child_sections:
                 visited = set()
                 if self._has_circular_references(section, visited):
                     warnings.append(
@@ -259,36 +272,41 @@ class OverflowManager:
 
         visited.add(section.id)
 
-        if hasattr(section, "subsections") and section.subsections:
-            for subsection in section.subsections:
-                if self._has_circular_references(subsection, visited.copy()):
-                    return True
+        child_sections = [child for child in section.children if hasattr(child, "id")]
+        return any(
+            self._has_circular_references(subsection, visited.copy())
+            for subsection in child_sections
+        )
 
-        return False
-
-    def _flatten_elements_from_sections(self, slide: "Slide") -> None:
+    def _finalize_slide(self, slide: "Slide") -> None:
         """
-        Flatten positioned elements from sections hierarchy into the main slide.elements list.
+        Finalize a slide by creating renderable_elements list and clearing sections hierarchy.
 
-        CRITICAL FIX: This method ensures that the positioned body elements from
-        slide.sections are properly included in the final slide.elements list
-        that the visualizer and other components expect.
+        Per OVERFLOW_SPEC.md Section 3: This method transforms a slide from "Positioned" state
+        to "Finalized" state by:
+        1. Traversing slide.sections hierarchy to collect all Element objects into flat list
+        2. Assigning this list to slide.renderable_elements (authoritative source of truth)
+        3. Clearing slide.sections hierarchy by setting it to []
 
         Args:
-            slide: The slide to flatten elements for
+            slide: The slide to finalize
         """
         from markdowndeck.models import ElementType
 
         logger.debug(
-            f"=== FLATTENING DEBUG: Starting element flattening for slide {slide.object_id} ==="
+            f"=== FINALIZING SLIDE: Starting finalization for slide {slide.object_id} ==="
         )
         logger.debug(f"Initial slide.elements count: {len(slide.elements)}")
+        logger.debug(
+            f"Initial slide.renderable_elements count: {len(slide.renderable_elements)}"
+        )
         logger.debug(f"Slide.sections count: {len(slide.sections)}")
 
-        # Collect ALL positioned elements (ignore any unpositioned elements)
-        positioned_elements = []
+        # Collect ALL positioned elements from sections hierarchy
+        renderable_elements = []
 
-        # First, get title/footer elements from slide.elements IF they have positions
+        # First, check slide.elements for positioned title/footer elements
+        # (These may be positioned by Layout Manager at slide level)
         logger.debug("Checking slide.elements for positioned title/footer elements...")
         for i, element in enumerate(slide.elements):
             logger.debug(
@@ -300,7 +318,7 @@ class OverflowManager:
                 ElementType.FOOTER,
             ):
                 if element.position is not None and element.size is not None:
-                    positioned_elements.append(element)
+                    renderable_elements.append(element)
                     logger.debug(
                         f"    -> Added positioned meta element {element.element_type}"
                     )
@@ -309,7 +327,7 @@ class OverflowManager:
                         f"Meta element {element.element_type} in slide.elements missing position/size data - skipping"
                     )
 
-        # Recursively extract positioned elements from sections
+        # Recursively extract positioned elements from sections hierarchy
         visited_sections = set()
 
         def extract_positioned_elements(sections, depth=0):
@@ -319,8 +337,18 @@ class OverflowManager:
             )
 
             for section_idx, section in enumerate(sections):
+                # Separate elements and child sections from unified children list
+                section_elements = [
+                    child
+                    for child in section.children
+                    if not hasattr(child, "children")
+                ]
+                child_sections = [
+                    child for child in section.children if hasattr(child, "children")
+                ]
+
                 logger.debug(
-                    f"{indent}Section {section_idx}: {section.id}, elements_count={len(section.elements) if section.elements else 0}"
+                    f"{indent}Section {section_idx}: {section.id}, elements_count={len(section_elements)}"
                 )
                 logger.debug(
                     f"{indent}  Section position={section.position}, size={section.size}"
@@ -329,24 +357,24 @@ class OverflowManager:
                 # Circular reference protection
                 if section.id in visited_sections:
                     logger.warning(
-                        f"Circular reference detected in section {section.id} during element flattening. Skipping."
+                        f"Circular reference detected in section {section.id} during finalization. Skipping."
                     )
                     continue
 
                 visited_sections.add(section.id)
 
-                if section.elements:
+                if section_elements:
                     logger.debug(
-                        f"{indent}  Processing {len(section.elements)} elements in section {section.id}"
+                        f"{indent}  Processing {len(section_elements)} elements in section {section.id}"
                     )
                     # Only include elements that have proper position/size data
-                    for elem_idx, element in enumerate(section.elements):
+                    for elem_idx, element in enumerate(section_elements):
                         logger.debug(
                             f"{indent}    Element {elem_idx}: {element.element_type}, position={element.position}, size={element.size}"
                         )
 
                         if element.position is not None and element.size is not None:
-                            positioned_elements.append(element)
+                            renderable_elements.append(element)
                             logger.debug(
                                 f"{indent}      -> Added positioned element {element.element_type}"
                             )
@@ -357,29 +385,35 @@ class OverflowManager:
                 else:
                     logger.debug(f"{indent}  Section {section.id} has no elements")
 
-                if section.subsections:
+                if child_sections:
                     logger.debug(
-                        f"{indent}  Processing {len(section.subsections)} subsections in section {section.id}"
+                        f"{indent}  Processing {len(child_sections)} child sections in section {section.id}"
                     )
-                    extract_positioned_elements(section.subsections, depth + 1)
+                    extract_positioned_elements(child_sections, depth + 1)
                 else:
-                    logger.debug(f"{indent}  Section {section.id} has no subsections")
+                    logger.debug(
+                        f"{indent}  Section {section.id} has no child sections"
+                    )
 
                 visited_sections.remove(section.id)
 
         extract_positioned_elements(slide.sections)
 
-        # Update slide with only positioned elements
-        slide.elements = positioned_elements
+        # Per OVERFLOW_SPEC.md Section 3: Set renderable_elements as authoritative source
+        slide.renderable_elements = renderable_elements
 
-        logger.debug(
-            f"=== FLATTENING DEBUG: Completed. Final positioned_elements count: {len(positioned_elements)} ==="
-        )
-        for i, elem in enumerate(positioned_elements):
+        # Per OVERFLOW_SPEC.md Section 3: Clear sections hierarchy after processing
+        slide.sections = []
+
+        logger.debug(f"=== FINALIZATION COMPLETE: slide {slide.object_id} ===")
+        logger.debug(f"Final renderable_elements count: {len(renderable_elements)}")
+        logger.debug(f"Sections cleared: {len(slide.sections)}")
+
+        for i, elem in enumerate(renderable_elements):
             logger.debug(
-                f"  Final element {i}: {elem.element_type} at {elem.position} size {elem.size}"
+                f"  Renderable element {i}: {elem.element_type} at {elem.position} size {elem.size}"
             )
 
-        logger.debug(
-            f"Flattened {len(positioned_elements)} positioned elements for slide {slide.object_id}"
+        logger.info(
+            f"Finalized slide {slide.object_id}: {len(renderable_elements)} elements, sections cleared"
         )

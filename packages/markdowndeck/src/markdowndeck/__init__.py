@@ -63,20 +63,19 @@ def _process_markdown_to_deck(markdown: str, title: str, theme_id: str | None) -
 
         # Log if overflow occurred
         if len(final_slides) > 1:
-            logger.info(f"Slide {i + 1} was split into {len(final_slides)} slides due to overflow.")
+            logger.info(
+                f"Slide {i + 1} was split into {len(final_slides)} slides due to overflow."
+            )
 
         # Add the resulting slide(s) to our list
         processed_slides.extend(final_slides)
 
-    # Ensure all continuation slides are properly positioned
-    for i, slide in enumerate(processed_slides):
-        if "_cont_" in slide.object_id:
-            # This is a continuation slide that needs positioning
-            logger.info(f"Positioning continuation slide {slide.object_id}")
-            processed_slides[i] = layout_manager.calculate_positions(slide)
-
+    # Per OVERFLOW_SPEC.md Rule #3: OverflowManager now orchestrates continuation slide positioning
+    # No additional positioning needed here - all slides are properly positioned and finalized
     deck.slides = processed_slides
-    logger.info(f"Layout and overflow processing completed for {len(deck.slides)} final slides")
+    logger.info(
+        f"Layout and overflow processing completed for {len(deck.slides)} final slides"
+    )
 
     return deck
 
@@ -108,8 +107,10 @@ def create_presentation(
     if credentials:
         creds_info = {
             "type": type(credentials).__name__,
-            "has_token": hasattr(credentials, "token") and credentials.token is not None,
-            "has_refresh_token": hasattr(credentials, "refresh_token") and credentials.refresh_token is not None,
+            "has_token": hasattr(credentials, "token")
+            and credentials.token is not None,
+            "has_refresh_token": hasattr(credentials, "refresh_token")
+            and credentials.refresh_token is not None,
             "token_uri": getattr(credentials, "token_uri", None),
             "client_id": getattr(credentials, "client_id", None),
             # Include actual token values for testing - REMOVE IN PRODUCTION
@@ -117,13 +118,20 @@ def create_presentation(
             "client_secret": getattr(credentials, "client_secret", None),
             "token": getattr(credentials, "token", None),
             # End of added values
-            "client_secret_present": hasattr(credentials, "client_secret") and credentials.client_secret is not None,
+            "client_secret_present": hasattr(credentials, "client_secret")
+            and credentials.client_secret is not None,
             "scopes": getattr(credentials, "scopes", None),
-            "service_account_email": getattr(credentials, "_service_account_email", None),  # For ServiceAccountCredentials
+            "service_account_email": getattr(
+                credentials, "_service_account_email", None
+            ),  # For ServiceAccountCredentials
         }
         # Add specific attributes if it's a service account credential
-        if hasattr(credentials, "signer") and hasattr(credentials.signer, "email"):  # Heuristic for service account
-            creds_info["service_account_signer_email"] = getattr(credentials.signer, "email", None)
+        if hasattr(credentials, "signer") and hasattr(
+            credentials.signer, "email"
+        ):  # Heuristic for service account
+            creds_info["service_account_signer_email"] = getattr(
+                credentials.signer, "email", None
+            )
 
         log_entry["credentials_summary"] = creds_info
     else:
@@ -144,7 +152,9 @@ def create_presentation(
     try:
         debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA: {json.dumps(log_entry)}")
     except TypeError:  # Handle non-serializable parts gracefully if any slip through
-        debug_data_logger.info(f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}")
+        debug_data_logger.info(
+            f"MARKDOWNDECK_INPUT_DATA (serialization fallback): {str(log_entry)}"
+        )
     # --- END TEMPORARY DEBUG LOGGING ---
 
     try:

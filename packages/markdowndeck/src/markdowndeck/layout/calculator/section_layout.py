@@ -239,8 +239,11 @@ def _position_vertical_sections_sequential(
             f"size=({section.size[0]:.1f}, {section.size[1]:.1f})"
         )
 
-        # Handle subsections recursively
-        if hasattr(section, "subsections") and section.subsections:
+        # Handle child sections recursively
+        child_sections = [
+            child for child in section.children if hasattr(child, "children")
+        ]
+        if child_sections:
             subsection_area = (
                 section.position[0],
                 section.position[1],
@@ -251,13 +254,13 @@ def _position_vertical_sections_sequential(
             # Row sections always get horizontal distribution for their children
             if section.type == "row":
                 _distribute_and_position_sections_unified(
-                    calculator, section.subsections, subsection_area, False
+                    calculator, child_sections, subsection_area, False
                 )
             else:
                 # Regular sections: determine layout orientation based on subsection directives
-                subsection_layout = _determine_layout_orientation(section.subsections)
+                subsection_layout = _determine_layout_orientation(child_sections)
                 _distribute_and_position_sections_unified(
-                    calculator, section.subsections, subsection_area, subsection_layout
+                    calculator, child_sections, subsection_area, subsection_layout
                 )
 
         # Move to next position (sequential positioning)
@@ -325,8 +328,11 @@ def _position_horizontal_sections_equal_division(
             f"size=({section.size[0]:.1f}, {section.size[1]:.1f})"
         )
 
-        # Handle subsections recursively
-        if hasattr(section, "subsections") and section.subsections:
+        # Handle child sections recursively
+        child_sections = [
+            child for child in section.children if hasattr(child, "children")
+        ]
+        if child_sections:
             subsection_area = (
                 section.position[0],
                 section.position[1],
@@ -337,13 +343,13 @@ def _position_horizontal_sections_equal_division(
             # Row sections always get horizontal distribution for their children
             if section.type == "row":
                 _distribute_and_position_sections_unified(
-                    calculator, section.subsections, subsection_area, False
+                    calculator, child_sections, subsection_area, False
                 )
             else:
                 # Regular sections: determine layout orientation based on subsection directives
-                subsection_layout = _determine_layout_orientation(section.subsections)
+                subsection_layout = _determine_layout_orientation(child_sections)
                 _distribute_and_position_sections_unified(
-                    calculator, section.subsections, subsection_area, subsection_layout
+                    calculator, child_sections, subsection_area, subsection_layout
                 )
 
         # Move to next position
@@ -367,7 +373,12 @@ def _calculate_section_intrinsic_height_with_scaling(
     Returns:
         Intrinsic height needed for the section
     """
-    if not section.elements:
+    # Get elements from unified children list
+    section_elements = [
+        child for child in section.children if not hasattr(child, "children")
+    ]
+
+    if not section_elements:
         # Empty section gets minimal height
         return 40.0
 
@@ -380,12 +391,12 @@ def _calculate_section_intrinsic_height_with_scaling(
     content_width = max(10.0, available_width - 2 * padding)
 
     # Mark related elements for proper spacing
-    mark_related_elements(section.elements)
+    mark_related_elements(section_elements)
 
     # Calculate total height needed for all elements with proactive scaling
     total_content_height = 0.0
 
-    for i, element in enumerate(section.elements):
+    for i, element in enumerate(section_elements):
         # Calculate element width within section
         element_width = calculator._calculate_element_width(element, content_width)
 
@@ -407,7 +418,7 @@ def _calculate_section_intrinsic_height_with_scaling(
         total_content_height += element_height
 
         # Add spacing to next element (if not the last one)
-        if i < len(section.elements) - 1:
+        if i < len(section_elements) - 1:
             spacing = VERTICAL_SPACING
             # Apply related element spacing reduction
             spacing = adjust_vertical_spacing(element, spacing)
@@ -586,7 +597,10 @@ def _position_elements_in_all_sections(calculator, slide: Slide) -> None:
     logger.debug(f"Found {len(leaf_sections)} leaf sections to position elements in")
 
     for section in leaf_sections:
-        if section.elements:
+        section_elements = [
+            child for child in section.children if not hasattr(child, "children")
+        ]
+        if section_elements:
             _position_elements_within_section(calculator, section)
 
 
@@ -595,9 +609,16 @@ def _collect_leaf_sections(
 ) -> None:
     """Recursively collect all leaf sections (sections with elements)."""
     for section in sections:
-        if hasattr(section, "subsections") and section.subsections:
-            _collect_leaf_sections(section.subsections, leaf_sections)
-        elif section.elements:
+        child_sections = [
+            child for child in section.children if hasattr(child, "children")
+        ]
+        section_elements = [
+            child for child in section.children if not hasattr(child, "children")
+        ]
+
+        if child_sections:
+            _collect_leaf_sections(child_sections, leaf_sections)
+        elif section_elements:
             leaf_sections.append(section)
 
 
@@ -612,13 +633,28 @@ def _position_elements_within_section(calculator, section: Section) -> None:
         calculator: The PositionCalculator instance
         section: The section containing elements to position
     """
-    if not section.elements or not section.position or not section.size:
+    # Get elements from unified children list
+    section_elements = [
+        child for child in section.children if not hasattr(child, "children")
+    ]
+
+    if not section_elements or not section.position or not section.size:
         return
 
     # Create copies of elements to avoid conflicts when elements are shared across sections
     from copy import deepcopy
 
-    section.elements = [deepcopy(element) for element in section.elements]
+    section_elements = [deepcopy(element) for element in section_elements]
+    # Update the section's children with the copied elements
+    new_children = []
+    element_index = 0
+    for child in section.children:
+        if hasattr(child, "children"):
+            new_children.append(child)
+        else:
+            new_children.append(section_elements[element_index])
+            element_index += 1
+    section.children = new_children
 
     section_left, section_top = section.position
     section_width, section_height = section.size
@@ -636,21 +672,21 @@ def _position_elements_within_section(calculator, section: Section) -> None:
     content_height = max(10.0, section_height - 2 * padding)
 
     logger.debug(
-        f"Positioning {len(section.elements)} elements in section {section.id}: "
+        f"Positioning {len(section_elements)} elements in section {section.id}: "
         f"content_area=({content_left:.1f}, {content_top:.1f}, {content_width:.1f}, {content_height:.1f})"
     )
 
     # Mark related elements for consistent spacing
-    mark_related_elements(section.elements)
+    mark_related_elements(section_elements)
 
     # Pass 1: Calculate intrinsic sizes for all elements with proactive scaling
     _calculate_element_sizes_in_section_with_scaling(
-        calculator, section.elements, content_width, content_height
+        calculator, section_elements, content_width, content_height
     )
 
     # Pass 2: Position elements based on vertical alignment
     _apply_vertical_alignment_and_position_unified(
-        section.elements,
+        section_elements,
         content_left,
         content_top,
         content_width,
