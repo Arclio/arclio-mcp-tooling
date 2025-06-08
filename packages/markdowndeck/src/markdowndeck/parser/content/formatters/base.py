@@ -53,20 +53,24 @@ class BaseFormatter(ABC):
         section_directives: dict[str, Any],
         element_specific_directives: dict[str, Any] | None = None,
         **kwargs,
-    ) -> tuple[Element | None, int]:
+    ) -> tuple[list[Element], int]:
         """
-        Create an element from a sequence of tokens.
+        Create elements from a sequence of tokens.
+
+        TASK 3.1: Updated to support multiple elements from a single token block.
+        This enables mixed-content paragraphs like `![img](url) caption` to produce
+        multiple elements (ImageElement and TextElement).
 
         Args:
             tokens: The full list of tokens for the current parsing scope.
             start_index: The index of the token that this formatter should start processing.
-            section_directives: Directives from the current section to apply to the element.
-            element_specific_directives: Directives specific to this element that override section directives.
+            section_directives: Directives from the current section to apply to elements.
+            element_specific_directives: Directives specific to these elements that override section directives.
             **kwargs: Additional keyword arguments for specific formatters.
 
         Returns:
             A tuple containing:
-                - The created Element object (or None if no element was created).
+                - A list of created Element objects (empty list if no elements were created).
                 - The index of the last token consumed by this formatter.
         """
         raise NotImplementedError("Subclasses must implement process()")
@@ -129,7 +133,9 @@ class BaseFormatter(ABC):
                     if depth == 0:
                         return i
             # Also consider tokens that might affect depth at higher levels
-            elif current_token.level < nesting_level:  # Exited the current nesting context
+            elif (
+                current_token.level < nesting_level
+            ):  # Exited the current nesting context
                 logger.warning(
                     f"Exited nesting level {nesting_level} looking for {close_tag_type} after {open_tag_type} at index {open_token_index}. Found {current_token.type} at level {current_token.level}."
                 )
@@ -161,7 +167,9 @@ class BaseFormatter(ABC):
             elif child.type == "softbreak" or child.type == "hardbreak":
                 plain_text += "\n"
             elif child.type == "image":
-                plain_text += child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                plain_text += (
+                    child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
+                )
             elif child.type.endswith("_open") or child.type.endswith("_close"):
                 # Skip formatting markers
                 pass

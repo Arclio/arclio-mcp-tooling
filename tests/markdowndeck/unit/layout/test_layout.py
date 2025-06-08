@@ -271,3 +271,45 @@ class TestLayoutManager:
         assert abs(positioned_sections[0].size[0] - (usable_width * 0.2)) < 1
         assert abs(positioned_sections[1].size[0] - (usable_width * 0.5)) < 1
         assert abs(positioned_sections[2].size[0] - (usable_width * 0.3)) < 1
+
+    def test_layout_c_08_vertical_split_with_row(self, layout_manager: LayoutManager):
+        """
+        Test Case: LAYOUT-C-08
+        Validates that top-level sections split by '---' are always laid out vertically,
+        even when one of them contains row sections.
+        This test reproduces the layout orientation bug and should fail initially.
+        """
+        # Arrange - simulate parsing result of "Top Section\n---\nLeft\n***\nRight"
+        top_text = TextElement(element_type=ElementType.TEXT, text="Top Section")
+        left_text = TextElement(element_type=ElementType.TEXT, text="Left")
+        right_text = TextElement(element_type=ElementType.TEXT, text="Right")
+
+        # First top-level section
+        top_section = Section(id="top", children=[top_text])
+
+        # Second top-level section contains row (Left***Right)
+        row_section = Section(id="row", children=[left_text, right_text], type="row")
+
+        elements = [top_text, left_text, right_text]
+        sections = [top_section, row_section]  # Two top-level sections
+        slide = _create_unpositioned_slide(elements=elements, sections=sections)
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(slide)
+
+        # Assert - top-level sections should be laid out vertically
+        positioned_sections = positioned_slide.sections
+        assert len(positioned_sections) == 2, "Should have two top-level sections"
+
+        top_positioned = positioned_sections[0]
+        row_positioned = positioned_sections[1]
+
+        # The row section should be positioned BELOW the top section (vertical layout)
+        assert (
+            row_positioned.position[1] > top_positioned.position[1]
+        ), f"Row section Y ({row_positioned.position[1]}) should be greater than top section Y ({top_positioned.position[1]}) for vertical layout"
+
+        # The X coordinates should be approximately the same (both start at left margin)
+        assert (
+            abs(row_positioned.position[0] - top_positioned.position[0]) < 5
+        ), f"X coordinates should be similar: top={top_positioned.position[0]}, row={row_positioned.position[0]}"

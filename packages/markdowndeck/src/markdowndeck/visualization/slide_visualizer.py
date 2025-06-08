@@ -9,7 +9,6 @@ Enhanced with robust fallback handling for elements missing layout data.
 """
 
 import logging
-import math
 
 import matplotlib.pyplot as plt
 
@@ -77,10 +76,19 @@ class SlideVisualizer:
             return None
 
         num_slides = len(slides)
-        cols = int(math.ceil(math.sqrt(num_slides))) if num_slides > 1 else 1
-        rows = int(math.ceil(num_slides / cols)) if num_slides > 1 else 1
 
-        fig_width = 8 * cols
+        # TASK_003: Always use single column layout for better slide deck review
+        cols = 1
+        rows = num_slides
+
+        # Warn if visualizing many slides (may result in very large output)
+        if num_slides > 10:
+            logger.warning(
+                f"Visualizing {num_slides} slides in single column - output may be very large. "
+                f"Consider debugging a smaller subset of slides for better performance."
+            )
+
+        fig_width = 8 * cols  # Keep 8 inches width for readability
         fig_height = (fig_width / cols / self.aspect_ratio) * rows
         fig, axes = plt.subplots(
             rows, cols, figsize=(fig_width, fig_height), squeeze=False

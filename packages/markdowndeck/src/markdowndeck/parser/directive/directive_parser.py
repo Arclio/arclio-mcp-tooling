@@ -43,7 +43,7 @@ class DirectiveParser:
             "fontsize": "dimension",
             "font-size": "dimension",  # CSS alias
             "opacity": "float",
-            "border": "style",
+            "border": "string",
             "border-radius": "dimension",
             "border-position": "string",
             "line-spacing": "float",
@@ -77,6 +77,9 @@ class DirectiveParser:
         """
         Extract and parse directives from section content with enhanced validation.
 
+        TASK 1.1 FIX: Only extract directives that are truly section-level.
+        Directives immediately followed by content should be left for element-specific parsing.
+
         Args:
             section: Section model instance to be modified in-place
         """
@@ -87,25 +90,66 @@ class DirectiveParser:
 
         content = section.content
 
-        # Enhanced directive block detection with better validation
-        directive_block_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)"
+        # TASK 1.1 FIX: Enhanced directive detection that distinguishes between
+        # section-level and element-specific directives
+        # Pattern to match directive blocks at the start of content
+        directive_block_pattern = r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)"
 
         match = re.match(directive_block_pattern, content)
+
         if not match:
             # Check for malformed directives and clean them up
             self._handle_malformed_directives(section, content)
             return
 
-        directive_text = match.group(1)
-        logger.debug(f"Found directives: {directive_text!r} for section {section.id}")
+        # Extract just the directive brackets, not the trailing whitespace
+        directive_text = match.group(
+            1
+        ).rstrip()  # Directive text without trailing whitespace
+        match_end = match.end(0)  # End of full match
+        remaining_content = content[match_end:]
+
+        # CRITICAL FIX: Check for blank line separation by looking at the original content
+        # Find where the directive text ends in the original content
+        directive_end_pos = len(directive_text)
+        content_after_directive = content[directive_end_pos:]
+
+        # Check if directives are followed by blank lines (section-level) or immediate content (element-level)
+        if content_after_directive:
+            if (
+                content_after_directive.startswith("\n\n")
+                or content_after_directive.startswith("\n\r\n")
+                or content_after_directive.startswith("\r\n\r\n")
+            ):
+                # Directives are properly separated by blank line(s) - treat as section-level
+                pass
+            elif content_after_directive.strip() == "":
+                # Only whitespace after directives - treat as section-level
+                pass
+            else:
+                # Directives are immediately followed by content without blank line separation
+                # These should be element-specific, not section-level
+                logger.debug(
+                    f"Skipping element-specific directives (no blank line separation): {directive_text!r} for section {section.id}"
+                )
+                if section.directives is None:
+                    section.directives = {}
+                return
+        else:
+            # No content after directives - treat as section-level
+            pass
+
+        # Only extract as section-level if directives are standalone (followed by blank line or end)
+        logger.debug(
+            f"Found section-level directives: {directive_text!r} for section {section.id}"
+        )
 
         # Parse directives with enhanced error handling
         directives = self._parse_directive_text(directive_text)
         section.directives = directives
 
         # Remove directive text from content with verification
-        match_end = match.end(1)
-        section.content = content[match_end:].lstrip()
+        section.content = remaining_content
 
         # Verify complete removal
         self._verify_directive_removal(section)
@@ -153,8 +197,12 @@ class DirectiveParser:
                         converted_value = converter(value)
 
                         # Handle style directives with special processing
-                        if directive_type == "style" and isinstance(converted_value, tuple):
-                            processed_directives = self._process_style_directive_value(key, converted_value)
+                        if directive_type == "style" and isinstance(
+                            converted_value, tuple
+                        ):
+                            processed_directives = self._process_style_directive_value(
+                                key, converted_value
+                            )
                             directives.update(processed_directives)
                         else:
                             directives[key] = converted_value
@@ -165,7 +213,9 @@ class DirectiveParser:
                         # Store as string fallback
                         directives[key] = value
                     except Exception as e:
-                        logger.warning(f"Unexpected error processing directive {key}={value}: {e}")
+                        logger.warning(
+                            f"Unexpected error processing directive {key}={value}: {e}"
+                        )
                         directives[key] = value
                 else:
                     directives[key] = value
@@ -194,7 +244,9 @@ class DirectiveParser:
             logger.warning(f"Invalid float value: {value}, defaulting to 0.0")
             return 0.0
 
-    def _process_style_directive_value(self, key: str, style_tuple: tuple[str, Any]) -> dict[str, Any]:
+    def _process_style_directive_value(
+        self, key: str, style_tuple: tuple[str, Any]
+    ) -> dict[str, Any]:
         """Process style directive tuples into clean format."""
         style_type, style_value = style_tuple
         result = {}
@@ -211,7 +263,12 @@ class DirectiveParser:
             result[key] = style_value
         elif style_type == "border_style":
             result[key] = {"style": style_value}
-        elif style_type == "shadow" or style_type == "transform" or style_type == "animation" or style_type == "gradient":
+        elif (
+            style_type == "shadow"
+            or style_type == "transform"
+            or style_type == "animation"
+            or style_type == "gradient"
+        ):
             result[key] = style_value
         else:
             # For any other style types, just store the value
@@ -220,8 +277,13 @@ class DirectiveParser:
         return result
 
     def _handle_malformed_directives(self, section: Section, content: str) -> None:
-        """Handle and clean up malformed directive patterns."""
-        malformed_pattern = r"^\s*(\[[^\[\]]*\]\s*)"
+        """Handle and clean up malformed directive patterns.
+
+        TASK 2.1 FIX: Only clean up content that actually looks like intended directives,
+        not markdown links or other bracket content.
+        """
+        # Only look for patterns that contain '=' which suggests they were intended as directives
+        malformed_pattern = r"^\s*(\[[^\[\]]*=[^\[\]]*\]\s*)"
         malformed_match = re.match(malformed_pattern, content)
 
         if malformed_match:
@@ -238,6 +300,10 @@ class DirectiveParser:
     def _verify_directive_removal(self, section: Section) -> None:
         """Verify that all directives have been properly removed from content."""
         if re.match(r"^\s*\[[\w\-]+=", section.content):
-            logger.warning(f"Potential directives remain in content: {section.content[:50]}")
+            logger.warning(
+                f"Potential directives remain in content: {section.content[:50]}"
+            )
             # Aggressive cleanup
-            section.content = re.sub(r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content).lstrip()
+            section.content = re.sub(
+                r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content
+            ).lstrip()

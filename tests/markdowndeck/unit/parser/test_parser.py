@@ -256,7 +256,7 @@ class TestParser:
 
         # Assert
         assert list_element is not None
-        assert list_element.directives.get("border") == {"style": "solid"}
+        assert list_element.directives.get("border") == "solid"
 
         # Check for spurious text element
         spurious_text = [
@@ -360,3 +360,400 @@ class TestParser:
         assert len(section.children) == 0
         assert section.directives.get("width") == 1.0
         assert section.directives.get("height") == 1.0
+
+    def test_parser_c_13_image_and_text_in_paragraph(self, parser: Parser):
+        """
+        Test Case: PARSER-C-13 (Custom)
+        Validates that an image and text in the same paragraph are parsed into two separate elements.
+        """
+        # Arrange
+        markdown = "![alt text](image.png) This is the caption."
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        section = slide.sections[0]
+
+        # Assert
+        # The parser should create two elements for the single paragraph
+        assert (
+            len(section.children) == 2
+        ), "Should create an ImageElement and a TextElement"
+
+        image_element = section.children[0]
+        text_element = section.children[1]
+
+        assert image_element.element_type == ElementType.IMAGE
+        assert getattr(image_element, "url", "") == "image.png"
+
+        assert text_element.element_type == ElementType.TEXT
+        assert getattr(text_element, "text", "").strip() == "This is the caption."
+
+    def test_parser_c_14_stale_content_is_cleared(self, parser: Parser):
+        """
+        Test Case: PARSER-C-14 (Custom)
+        Validates that Section.content is cleared after its content is parsed into child elements.
+        """
+        # Arrange
+        markdown = "[align=center]\nSome content here."
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        section = slide.sections[0]
+
+        # Assert
+        assert len(section.children) > 0, "Section should have parsed child elements."
+        assert section.content == "", "Section.content must be cleared after parsing."
+
+    def test_parser_c_15_directive_scoping_no_bleeding(self, parser: Parser):
+        """
+        Test Case: PARSER-C-15 (Task 1.1)
+        Validates that directives don't "bleed" from one element to subsequent elements.
+        This test should FAIL initially, demonstrating the directive bleeding bug.
+        """
+        # Arrange
+        markdown = "[align=center]\n## Centered\n\nThis text should be left-aligned."
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        # Find the heading and text elements (note: headings are parsed as TEXT with heading-like content)
+        # Look at section children for elements
+        section = slide.sections[0]
+        elements = section.children
+
+        # Find heading and text elements
+        heading_element = None
+        text_elements = []
+
+        for element in elements:
+            if element.element_type == ElementType.TEXT:
+                if "Centered" in element.text:
+                    heading_element = element
+                elif "left-aligned" in element.text:
+                    text_elements.append(element)
+
+        assert heading_element is not None, "Should have a heading element"
+        assert len(text_elements) > 0, "Should have at least one text element"
+        text_element = text_elements[0]
+
+        # The heading should have center alignment from the directive
+        assert (
+            heading_element.directives.get("align") == "center"
+        ), "Heading should have center alignment from directive"
+
+        # The text element should NOT have the directive (no bleeding)
+        assert (
+            text_element.directives.get("align") != "center"
+        ), "Text element should not inherit the heading's alignment directive"
+
+    def test_parser_c_16_inline_directive_parsing_in_lists(self, parser: Parser):
+        """
+        Test Case: PARSER-C-16 (Task 1.2)
+        Validates that directives inside list items are properly parsed.
+        This test should FAIL initially, demonstrating missing inline directive support.
+        """
+        # Arrange - based on the problematic markdown from Slide 5
+        markdown = """- Context provision
+[border=2pt solid TEXT1]
+- GET endpoints equivalent"""
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        # Find the list element (using correct ElementType)
+        list_element = next(
+            (e for e in slide.elements if e.element_type == ElementType.BULLET_LIST),
+            None,
+        )
+
+        assert list_element is not None, "Should have a list element"
+
+        # The list text should NOT contain the raw directive string
+        # Check all list item text for the directive string
+        list_text = " ".join(item.text for item in list_element.items)
+        assert (
+            "[border=2pt solid TEXT1]" not in list_text
+        ), "Raw directive string should be parsed out of list text"
+
+        # The list element should have the parsed border directive
+        assert (
+            "border" in list_element.directives
+        ), "List element should have parsed border directive"
+        assert (
+            list_element.directives["border"] == "2pt solid TEXT1"
+        ), "Border directive should be correctly parsed"
+
+    def test_parser_c_17_post_image_directive_parsing(self, parser: Parser):
+        """
+        Test Case: PARSER-C-17 (Task 1.3)
+        Validates that directives immediately following images are correctly associated.
+        This test should FAIL initially, demonstrating missing post-image directive support.
+        """
+        # Arrange
+        markdown = "![Alt text](http://example.com/image.jpg) [padding=10]"
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        # Find the image element
+        image_element = next(
+            (e for e in slide.elements if e.element_type == ElementType.IMAGE), None
+        )
+
+        assert image_element is not None, "Should have an image element"
+
+        # The image should have the padding directive
+        assert (
+            "padding" in image_element.directives
+        ), "Image element should have parsed padding directive"
+        assert (
+            image_element.directives["padding"] == 10.0
+        ), "Padding directive should be correctly parsed as float"
+
+    def test_parser_c_18_textformat_instantiation(self, parser: Parser):
+        """
+        Test Case: PARSER-C-18 (Task 2.1)
+        Validates that TextFormat objects are properly instantiated with correct types.
+        This test should FAIL initially, demonstrating broken TextFormat instantiation.
+        """
+        # Arrange
+        markdown = "A **bold** link: [text](url)"
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        # Find the text element
+        text_element = next(
+            (e for e in slide.elements if e.element_type == ElementType.TEXT), None
+        )
+
+        assert text_element is not None, "Should have a text element"
+        assert hasattr(
+            text_element, "formatting"
+        ), "Text element should have formatting attribute"
+
+        # The formatting should be a list of TextFormat objects, not booleans or strings
+        formatting = text_element.formatting
+        assert isinstance(formatting, list), "Formatting should be a list"
+        assert (
+            len(formatting) == 2
+        ), "Should have exactly two TextFormat objects (bold and link)"
+
+        # Check that all formatting entries are TextFormat objects
+        from markdowndeck.models.constants import TextFormatType
+        from markdowndeck.models.elements.text import TextFormat
+
+        for fmt in formatting:
+            assert isinstance(
+                fmt, TextFormat
+            ), f"Formatting entry should be TextFormat object, got {type(fmt)}: {fmt}"
+            assert isinstance(
+                fmt.start, int
+            ), f"TextFormat.start should be int, got {type(fmt.start)}: {fmt.start}"
+            assert isinstance(
+                fmt.end, int
+            ), f"TextFormat.end should be int, got {type(fmt.end)}: {fmt.end}"
+            assert isinstance(
+                fmt.format_type, TextFormatType
+            ), f"TextFormat.format_type should be TextFormatType, got {type(fmt.format_type)}: {fmt.format_type}"
+
+        # Find bold and link formatting
+        bold_format = next(
+            (f for f in formatting if f.format_type == TextFormatType.BOLD), None
+        )
+        link_format = next(
+            (f for f in formatting if f.format_type == TextFormatType.LINK), None
+        )
+
+        assert bold_format is not None, "Should have bold formatting"
+        assert link_format is not None, "Should have link formatting"
+
+        # Check positions are correct integers
+        assert (
+            bold_format.start == 2
+        ), f"Bold should start at position 2, got {bold_format.start}"
+        assert (
+            bold_format.end == 6
+        ), f"Bold should end at position 6, got {bold_format.end}"
+
+        assert (
+            link_format.start == 13
+        ), f"Link should start at position 13, got {link_format.start}"
+        assert (
+            link_format.end == 17
+        ), f"Link should end at position 17, got {link_format.end}"
+        assert (
+            link_format.value == "url"
+        ), f"Link value should be 'url', got {link_format.value}"
+
+    def test_parser_c_19_comprehensive_textformat_validation(self, parser: Parser):
+        """
+        Test Case: PARSER-C-19 (Task 2.1 Comprehensive)
+        Validates that all formatting issues from TASK_002 are resolved.
+        Tests boolean, string, and multi-line formatting edge cases.
+        """
+        from markdowndeck.models.constants import TextFormatType
+        from markdowndeck.models.elements.text import TextFormat
+
+        # Test case 1: Boolean formatting issue (should not be [true])
+        markdown1 = "**Bold text** and *italic text*"
+        deck1 = parser.parse(markdown1)
+        text_element1 = next(
+            (e for e in deck1.slides[0].elements if e.element_type == ElementType.TEXT),
+            None,
+        )
+
+        assert text_element1 is not None, "Should have text element"
+        assert (
+            len(text_element1.formatting) == 2
+        ), "Should have bold and italic formatting"
+
+        for fmt in text_element1.formatting:
+            assert isinstance(
+                fmt, TextFormat
+            ), f"Should be TextFormat object, not {type(fmt)}"
+            assert not isinstance(fmt, bool), "Should not be a boolean"
+            assert fmt.format_type in [
+                TextFormatType.BOLD,
+                TextFormatType.ITALIC,
+            ], f"Unexpected format type: {fmt.format_type}"
+
+        # Test case 2: String formatting issue (links should not be ["https://..."])
+        markdown2 = "Visit [our website](https://example.com) for more info"
+        deck2 = parser.parse(markdown2)
+        text_element2 = next(
+            (e for e in deck2.slides[0].elements if e.element_type == ElementType.TEXT),
+            None,
+        )
+
+        assert text_element2 is not None, "Should have text element"
+        assert len(text_element2.formatting) == 1, "Should have one link formatting"
+
+        link_fmt = text_element2.formatting[0]
+        assert isinstance(
+            link_fmt, TextFormat
+        ), f"Should be TextFormat object, not {type(link_fmt)}"
+        assert not isinstance(link_fmt, str), "Should not be a string"
+        assert link_fmt.format_type == TextFormatType.LINK, "Should be link format type"
+        assert link_fmt.value == "https://example.com", "Should have correct URL value"
+
+        # Test case 3: Multi-line formatting (should handle line breaks correctly)
+        markdown3 = "**This is bold\nacross multiple lines**"
+        deck3 = parser.parse(markdown3)
+        text_element3 = next(
+            (e for e in deck3.slides[0].elements if e.element_type == ElementType.TEXT),
+            None,
+        )
+
+        assert text_element3 is not None, "Should have text element"
+        assert len(text_element3.formatting) == 1, "Should have one bold formatting"
+
+        bold_fmt = text_element3.formatting[0]
+        assert isinstance(
+            bold_fmt, TextFormat
+        ), f"Should be TextFormat object, not {type(bold_fmt)}"
+        assert bold_fmt.format_type == TextFormatType.BOLD, "Should be bold format type"
+        assert bold_fmt.start == 0, "Bold should start at beginning"
+        assert bold_fmt.end == len(
+            text_element3.text
+        ), "Bold should cover entire text including newline"
+        assert "\n" in text_element3.text, "Text should preserve newline"
+
+    def test_parser_c_20_prevent_section_directive_bleeding(self, parser: Parser):
+        """
+        Test Case: PARSER-C-20 (Task 4)
+        Validates that section directives don't incorrectly bleed to unrelated elements.
+        Ensures element-specific directives take precedence over section directives.
+        """
+        # Arrange
+        markdown = """[background=gray]
+
+### Title
+
+[background=blue]
+
+- Blue List
+
+---
+
+[background=red]
+
+- Red List"""
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        assert len(slide.sections) == 2, "Should have 2 sections"
+
+        # Find elements
+        title_element = next(
+            (
+                e
+                for e in slide.elements
+                if e.element_type == ElementType.TEXT and "Title" in e.text
+            ),
+            None,
+        )
+        blue_list = None
+        red_list = None
+
+        for elem in slide.elements:
+            if elem.element_type == ElementType.BULLET_LIST:
+                list_text = " ".join(item.text for item in elem.items)
+                if "Blue" in list_text:
+                    blue_list = elem
+                elif "Red" in list_text:
+                    red_list = elem
+
+        # Verify elements exist
+        assert title_element is not None, "Should have a title element"
+        assert blue_list is not None, "Should have a blue list element"
+        assert red_list is not None, "Should have a red list element"
+
+        # Task 4 assertions:
+        # 1. First section should have gray background
+        section1_bg = slide.sections[0].directives.get("background")
+        assert section1_bg == {
+            "type": "named",
+            "value": "gray",
+        }, f"Section 1 should have gray background, got {section1_bg}"
+
+        # 2. Title should inherit gray background from section
+        title_bg = title_element.directives.get("background")
+        assert title_bg == {
+            "type": "named",
+            "value": "gray",
+        }, f"Title should have gray background, got {title_bg}"
+
+        # 3. Blue list should have blue background (overriding section)
+        blue_bg = blue_list.directives.get("background")
+        assert blue_bg == {
+            "type": "named",
+            "value": "blue",
+        }, f"Blue list should have blue background, got {blue_bg}"
+
+        # 4. Second section should have red background
+        section2_bg = slide.sections[1].directives.get("background")
+        assert section2_bg == {
+            "type": "named",
+            "value": "red",
+        }, f"Section 2 should have red background, got {section2_bg}"
+
+        # 5. Red list should inherit red background from its section
+        red_bg = red_list.directives.get("background")
+        assert red_bg == {
+            "type": "named",
+            "value": "red",
+        }, f"Red list should have red background, got {red_bg}"

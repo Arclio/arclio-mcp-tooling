@@ -50,8 +50,12 @@ class ContentParser:
 
         # Initialize formatters with dependency injection
         self.formatters: list[BaseFormatter] = [
-            ImageFormatter(self.element_factory),
-            ListFormatter(self.element_factory),
+            ImageFormatter(
+                self.element_factory
+            ),  # TASK 1.3: ImageFormatter now handles post-image directives
+            ListFormatter(
+                self.element_factory
+            ),  # ListFormatter now has its own DirectiveParser
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
             TextFormatter(self.element_factory, self.directive_parser),
@@ -135,6 +139,9 @@ class ContentParser:
                 f"Added {len(parsed_elements)} elements to section {section.id}"
             )
 
+            # Clear stale raw content after parsing to prevent data inconsistency
+            section.content = ""
+
     def _process_tokens_with_directive_detection(
         self, tokens: list[Token], section_directives: dict[str, Any]
     ) -> list[Element]:
@@ -156,7 +163,7 @@ class ContentParser:
 
             tokens[current_index]
 
-            # CRITICAL FIX P1: Detect and consume directive-only paragraphs
+            # TASK 1.1 FIX: Detect and consume directive-only paragraphs for THIS element only
             element_directives, consumed_tokens = self._extract_preceding_directives(
                 tokens, current_index
             )
@@ -168,19 +175,27 @@ class ContentParser:
                     break
                 tokens[current_index]
 
-            # Merge section and element-specific directives
-            merged_directives = self._merge_directives(
-                section_directives, element_directives
-            )
+            # TASK 1.1 FIX: Pass section and element directives separately
+            # Don't merge them here - let the formatter handle the merging
+            # This prevents element directives from being treated as section directives
 
             # Dispatch to appropriate formatter
-            element, new_index = self._dispatch_to_formatter(
-                tokens, current_index, merged_directives, heading_info
+            created_elements, new_index = self._dispatch_to_formatter(
+                tokens,
+                current_index,
+                section_directives,
+                element_directives,
+                heading_info,
             )
 
-            if element is not None:
-                elements.append(element)
-                logger.debug(f"Added element: {element.element_type}")
+            if created_elements:
+                elements.extend(created_elements)
+                for element in created_elements:
+                    logger.debug(f"Added element: {element.element_type}")
+
+            # TASK 1.1 FIX: Clear element_directives after processing to prevent bleeding
+            # Directives should only apply to the immediately following element
+            element_directives = {}
 
             # Advance to next token
             current_index = max(new_index + 1, current_index + 1)
@@ -277,17 +292,19 @@ class ContentParser:
         self,
         tokens: list[Token],
         current_index: int,
-        directives: dict[str, Any],
+        section_directives: dict[str, Any],
+        element_directives: dict[str, Any],
         heading_info: dict,
-    ) -> tuple[Element | None, int]:
+    ) -> tuple[list[Element], int]:
         """
         Dispatch token processing to the appropriate formatter.
 
-        CRITICAL FIX: Enhanced dispatcher that tries multiple formatters until one
-        successfully creates an element, ensuring robust token processing.
+        TASK 3.1: Updated to handle list[Element] return from formatters.
+        Enhanced dispatcher that tries multiple formatters until one
+        successfully creates elements, enabling mixed-content parsing.
         """
         if current_index >= len(tokens):
-            return None, current_index
+            return [], current_index
 
         token = tokens[current_index]
 
@@ -306,17 +323,21 @@ class ContentParser:
                         )
                         kwargs["is_subtitle"] = heading_data.get("type") == "subtitle"
 
-                    element, end_index = formatter.process(
-                        tokens, current_index, directives, None, **kwargs
+                    elements, end_index = formatter.process(
+                        tokens,
+                        current_index,
+                        section_directives,
+                        element_directives,
+                        **kwargs,
                     )
 
-                    # CRITICAL FIX: Only return if the formatter actually created an element
-                    # If element is None, continue trying other formatters
-                    if element is not None:
+                    # TASK 3.1: Return if the formatter created any elements
+                    # If elements list is empty, continue trying other formatters
+                    if elements:
                         logger.debug(
-                            f"{formatter.__class__.__name__} successfully handled {token.type}"
+                            f"{formatter.__class__.__name__} successfully handled {token.type}, created {len(elements)} elements"
                         )
-                        return element, end_index
+                        return elements, end_index
                     logger.debug(
                         f"{formatter.__class__.__name__} could not handle {token.type}, trying next formatter"
                     )
@@ -334,7 +355,7 @@ class ContentParser:
                 f"No formatter successfully handled token: {token.type} at index {current_index}"
             )
 
-        return None, current_index
+        return [], current_index
 
     def _merge_directives(
         self, section_directives: dict[str, Any], element_directives: dict[str, Any]

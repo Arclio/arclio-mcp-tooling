@@ -456,10 +456,19 @@ def _determine_layout_orientation(sections: list[Section]) -> bool:
     # Sections marked as type="row" force horizontal layout for their children
     has_row_sections = any(section.type == "row" for section in sections)
 
+    # FIXED: Multiple top-level sections with row sections should be vertical
+    # This handles cases like "Top Section\n---\nLeft\n***\nRight" where
+    # the '---' creates multiple sections and '***' creates row sections
+    if len(sections) > 1 and has_row_sections:
+        logger.debug(
+            f"Multiple sections ({len(sections)}) with row sections detected - forcing vertical layout"
+        )
+        return True
+
     # Use vertical layout when:
     # 1. Only height directives exist (no width directives)
     # 2. Single section (should span full width)
-    # But NOT when row sections exist (they force horizontal)
+    # But NOT when row sections exist (they force horizontal for single section case)
     is_vertical_layout = (
         has_height_only_directives or has_single_section
     ) and not has_row_sections
