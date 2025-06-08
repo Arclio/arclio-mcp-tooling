@@ -65,10 +65,19 @@ class TestLayoutManager:
         assert final_element.position is not None
         assert final_element.size is not None
 
-        # Verify inventory list is cleared
+        # Verify inventory list is cleared and renderable_elements populated with meta-elements
         assert (
             positioned_slide.elements == []
         ), "Elements inventory list must be cleared after layout."
+
+        # Verify renderable_elements contains positioned meta-elements from LayoutManager
+        # (In this test case, there are no meta-elements, so it should be empty)
+        assert hasattr(
+            positioned_slide, "renderable_elements"
+        ), "Slide must have renderable_elements attribute"
+        assert (
+            positioned_slide.renderable_elements == []
+        ), "No meta-elements in this test case"
 
     def test_layout_c_02(self, layout_manager: LayoutManager):
         """

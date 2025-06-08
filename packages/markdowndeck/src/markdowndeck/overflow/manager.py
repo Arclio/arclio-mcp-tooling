@@ -292,7 +292,6 @@ class OverflowManager:
         Args:
             slide: The slide to finalize
         """
-        from markdowndeck.models import ElementType
 
         logger.debug(
             f"=== FINALIZING SLIDE: Starting finalization for slide {slide.object_id} ==="
@@ -303,33 +302,29 @@ class OverflowManager:
         )
         logger.debug(f"Slide.sections count: {len(slide.sections)}")
 
-        # Initialize empty renderable_elements list
-        renderable_elements = []
+        # Preserve existing renderable_elements (meta-elements from LayoutManager)
+        # and append positioned elements from sections hierarchy per updated OVERFLOW_SPEC.md
+        if (
+            not hasattr(slide, "renderable_elements")
+            or slide.renderable_elements is None
+        ):
+            slide.renderable_elements = []
 
-        # STEP 1: First, add positioned meta-elements from slide.elements
-        # This correctly handles slide-level elements positioned by LayoutManager
-        logger.debug("STEP 1: Checking slide.elements for positioned meta-elements...")
-        for i, element in enumerate(slide.elements):
+        # Start with existing meta-elements from LayoutManager
+        renderable_elements = list(slide.renderable_elements)  # Copy existing list
+        logger.debug(
+            f"STEP 1: Preserving {len(renderable_elements)} existing meta-elements from LayoutManager"
+        )
+
+        for i, element in enumerate(renderable_elements):
             logger.debug(
-                f"  Element {i}: {element.element_type}, position={element.position}, size={element.size}"
+                f"  Preserved element {i}: {element.element_type} at {element.position} size {element.size}"
             )
-            if element.element_type in (
-                ElementType.TITLE,
-                ElementType.SUBTITLE,
-                ElementType.FOOTER,
-            ):
-                if element.position is not None and element.size is not None:
-                    renderable_elements.append(element)
-                    logger.debug(
-                        f"    -> Added positioned meta element {element.element_type}"
-                    )
-                else:
-                    logger.warning(
-                        f"Meta element {element.element_type} in slide.elements missing position/size data - skipping"
-                    )
 
-        # STEP 2: Then, traverse slide.sections hierarchy for positioned elements
-        logger.debug("STEP 2: Traversing slide.sections hierarchy...")
+        # STEP 2: Append positioned elements from slide.sections hierarchy
+        logger.debug(
+            "STEP 2: Traversing slide.sections hierarchy to append positioned elements..."
+        )
         visited_sections = set()
 
         def extract_positioned_elements(sections, depth=0):
@@ -401,7 +396,7 @@ class OverflowManager:
 
         extract_positioned_elements(slide.sections)
 
-        # STEP 3: Assign complete list to slide.renderable_elements and clear sections
+        # STEP 3: Update slide.renderable_elements with complete list (preserving + appending) and clear sections
         slide.renderable_elements = renderable_elements
         slide.sections = []
 

@@ -218,11 +218,32 @@ class PositionCalculator:
                             f"      Element {j}: {elem.element_type}, position={elem.position}, size={elem.size}"
                         )
 
+        # Populate slide.renderable_elements with positioned meta-elements per updated LAYOUT_SPEC.md
+        # These are meta-elements (TITLE, SUBTITLE, FOOTER) positioned directly on the slide
+        if (
+            not hasattr(final_slide, "renderable_elements")
+            or final_slide.renderable_elements is None
+        ):
+            final_slide.renderable_elements = []
+
+        # Add positioned meta-elements that are positioned directly on slide
+        for element in final_slide.elements:
+            if (
+                element.element_type
+                in [ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER]
+                and element.position is not None
+                and element.size is not None
+            ):
+                final_slide.renderable_elements.append(element)
+                logger.debug(
+                    f"Added positioned meta-element to renderable_elements: {element.element_type}"
+                )
+
         # Clear the stale inventory list per LAYOUT_SPEC.md Rule #3 and DATA_FLOW.md
-        # The slide.sections hierarchy is now the authoritative source for all spatial data
+        # The slide.sections hierarchy is now the authoritative source for structural/spatial data
         final_slide.elements = []
         logger.debug(
-            "Cleared slide.elements inventory list - slide.sections is now authoritative"
+            f"Populated slide.renderable_elements with {len(final_slide.renderable_elements)} meta-elements and cleared slide.elements inventory list"
         )
 
         return final_slide
@@ -260,8 +281,8 @@ class PositionCalculator:
                 content="",
                 elements=[],
                 position=(self.body_left, self.body_top),
-                size=(self.body_width, self.body_height),
-                directives={"height": self.body_height},
+                size=None,  # Allow intrinsic height calculation
+                directives={},  # No pre-set height directive
             )
             return [root_section]
 
@@ -271,8 +292,8 @@ class PositionCalculator:
             content="Auto-generated root section",
             children=body_elements,
             position=(self.body_left, self.body_top),
-            size=(self.body_width, self.body_height),
-            directives={"height": self.body_height},
+            size=None,  # Allow intrinsic height calculation
+            directives={},  # No pre-set height directive
         )
 
         logger.debug(

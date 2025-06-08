@@ -56,6 +56,20 @@ class TestPipelineIntegration:
         assert (
             positioned_slide.elements == []
         ), "LayoutManager must clear the inventory list."
+
+        # Verify renderable_elements contains positioned meta-elements from LayoutManager
+        assert hasattr(
+            positioned_slide, "renderable_elements"
+        ), "Slide must have renderable_elements attribute"
+        # This test has a title, so renderable_elements should contain it
+        title_elements = [
+            elem
+            for elem in positioned_slide.renderable_elements
+            if elem.element_type.name == "TITLE"
+        ]
+        assert (
+            len(title_elements) == 1
+        ), "Should have one positioned title element from LayoutManager"
         final_section = positioned_slide.sections[0]
         final_element = final_section.children[0]
         assert final_section.position is not None
@@ -85,6 +99,20 @@ class TestPipelineIntegration:
 
         # Assert intermediate state (Positioned IR)
         assert positioned_slide.elements == []
+
+        # Verify renderable_elements contains positioned meta-elements from LayoutManager
+        assert hasattr(
+            positioned_slide, "renderable_elements"
+        ), "Slide must have renderable_elements attribute"
+        # This test has a title, so renderable_elements should contain it
+        title_elements = [
+            elem
+            for elem in positioned_slide.renderable_elements
+            if elem.element_type.name == "TITLE"
+        ]
+        assert (
+            len(title_elements) == 1
+        ), "Should have one positioned title element from LayoutManager"
         assert len(positioned_slide.sections) > 0
 
         # Act: Handoff to OverflowManager

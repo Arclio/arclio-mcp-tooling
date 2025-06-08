@@ -119,8 +119,18 @@ Right content
         create_shape_reqs = [r["createShape"] for r in requests if "createShape" in r]
         text_shapes = [r for r in create_shape_reqs if r.get("shapeType") == "TEXT_BOX"]
 
-        # There will be shapes for Title, Left Text, Right Text
-        assert len(text_shapes) >= 3, "Should create shapes for title and both columns."
+        # There will be TEXT_BOX shapes for Left Text and Right Text
+        # (Title is handled via slide placeholder, not TEXT_BOX)
+        assert len(text_shapes) >= 2, "Should create TEXT_BOX shapes for both columns."
+
+        # Verify title is handled via insertText to slide placeholder
+        insert_text_reqs = [r["insertText"] for r in requests if "insertText" in r]
+        title_inserts = [
+            r for r in insert_text_reqs if "title" in r.get("objectId", "")
+        ]
+        assert (
+            len(title_inserts) >= 1
+        ), "Should insert title text into slide placeholder."
 
         # Verify columns are positioned horizontally apart (a simple proxy for layout)
         # Note: This is a simplified check. A more robust check would analyze transforms precisely.
