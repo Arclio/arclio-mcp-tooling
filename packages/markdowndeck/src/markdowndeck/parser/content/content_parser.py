@@ -67,6 +67,7 @@ class ContentParser:
         subtitle_text: str | None,
         sections: list[Section],
         slide_footer_text: str | None,
+        title_directives: dict[str, Any] | None = None,
     ) -> list[Element]:
         """
         Parse content into slide elements and populate section.elements.
@@ -76,6 +77,7 @@ class ContentParser:
             subtitle_text: Optional subtitle text
             sections: The list of Section models for the slide
             slide_footer_text: Optional footer text
+            title_directives: Optional title-level directives (from same-line parsing)
 
         Returns:
             List of all elements for the slide
@@ -89,10 +91,10 @@ class ContentParser:
                 slide_title_text, self.md
             )
 
-            # Title directives are now part of the section's directives
-            section_for_title = sections[0] if sections else Section()
+            # Per Unified Hierarchical Directive Scoping: only use title-level directives
+            # (from same-line parsing), NOT section directives
             title_element = self.element_factory.create_title_element(
-                slide_title_text, formatting, section_for_title.directives
+                slide_title_text, formatting, title_directives or {}
             )
 
             all_elements.append(title_element)

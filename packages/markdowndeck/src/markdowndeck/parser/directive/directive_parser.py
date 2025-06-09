@@ -88,10 +88,20 @@ class DirectiveParser:
             return
 
         content = section.content
+        logger.debug(
+            f"[parse_directives] Section {getattr(section, 'id', None)} initial content: {repr(content[:100])}"
+        )
+        # SKIP LEADING BLANK LINES
+        content = content.lstrip("\n\r ")
+        logger.debug(
+            f"[parse_directives] Section {getattr(section, 'id', None)} content after lstrip: {repr(content[:100])}"
+        )
         # Pattern to match one or more directive blocks at the start of the content.
         directive_block_pattern = r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)"
         match = re.match(directive_block_pattern, content)
-
+        logger.debug(
+            f"[parse_directives] Section {getattr(section, 'id', None)} directive match: {bool(match)}"
+        )
         if not match:
             self._handle_malformed_directives(section, content)
             return

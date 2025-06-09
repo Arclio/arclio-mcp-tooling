@@ -80,6 +80,7 @@ class Parser:
                     subtitle_text=slide_data.get("subtitle"),
                     sections=section_models,
                     slide_footer_text=slide_data.get("footer"),
+                    title_directives=slide_data.get("title_directives", {}),
                 )
                 logger.debug(
                     f"Created {len(elements)} elements for slide {slide_index + 1}"

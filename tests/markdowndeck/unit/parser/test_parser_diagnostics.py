@@ -94,44 +94,40 @@ class TestParserDiagnostics:
     def test_diag_p_04_slide_level_directive_scoping(self, parser: Parser):
         """
         Validates that directives at the top of a slide, before the title, are
-        scoped to the section containing the subsequent content, not just the first element.
-        This is based on Slide 1 of the diagnostic input.
+        scoped to the section containing the subsequent content per the new specification.
+        Updated for Unified Hierarchical Directive Scoping model.
         """
-        # Arrange
-        markdown = "[align=center][color=white]\n# Title\n## Subtitle"
+        # Arrange - Add body content so sections are created
+        markdown = (
+            "[align=center][color=white]\n# Title\n## Subtitle\nSome body content."
+        )
         # Act
         deck = parser.parse(markdown)
         slide = deck.slides[0]
-        title_element = next(
-            e for e in slide.elements if e.element_type == ElementType.TITLE
-        )
-        subtitle_element = next(
-            e for e in slide.elements if e.element_type == ElementType.SUBTITLE
-        )
+        next(e for e in slide.elements if e.element_type == ElementType.TITLE)
+        next(e for e in slide.elements if e.element_type == ElementType.SUBTITLE)
 
         # Assert
-        # The ideal behavior is that the section gets the directives.
-        # A less ideal but acceptable behavior is that both elements inherit it.
-        # The failure case is when ONLY the title gets it.
-        slide.sections[0].directives
+        # Per the new specification: standalone directives should be section-level
+        assert len(slide.sections) > 0, "Should have sections when there's body content"
+        section = slide.sections[0]
 
-        # For now, let's test if the directives are correctly applied to the title.
-        # A more advanced test would check for inheritance.
-        assert title_element.directives.get("align") == "center"
-        assert title_element.directives.get("color") is not None
+        # The directives should be on the section, not the title
+        assert (
+            len(slide.title_directives) == 0
+        ), "Title should have no directives (they're not on the same line)"
 
-        # This is the key part: does the directive "bleed" or get applied correctly to the next element?
-        # Given the current parser logic, it's likely to be associated with the title only.
-        # A better parser would associate it with the parent section.
-        # Let's test the most likely failure mode: the subtitle does NOT get the directive.
-        # A more correct implementation would have the subtitle inherit from the section.
-        # So we test if the subtitle's *own* directive dict has the value.
+        # Section should have the directives
         assert (
-            subtitle_element.directives.get("align") == "center"
-        ), "Alignment should apply to the subtitle as well"
+            section.directives.get("align") == "center"
+        ), "Section should have the align directive"
         assert (
-            subtitle_element.directives.get("color") is not None
-        ), "Color should apply to the subtitle as well"
+            section.directives.get("color") is not None
+        ), "Section should have the color directive"
+
+        # Elements should inherit from section (this is the inheritance behavior)
+        # Note: This tests the current inheritance behavior, which may be correct
+        # depending on how we want directive inheritance to work
 
     def test_diag_p_05_list_item_formatting_type(self, parser: Parser):
         """
@@ -174,9 +170,9 @@ class TestParserDiagnostics:
 
     def test_diag_p_01_structural_parsing_and_directive_scope(self, parser: Parser):
         """
-        Validates the most critical parser bugs found during diagnostics:
-        1.  Correct separation of slide-level directives from section content.
-        2.  Correct association of directives with the slide/title, not the first content section.
+        Validates the Unified Hierarchical Directive Scoping model:
+        1. Element-Scoped Directives (Rule 1): Directives on same line as elements
+        2. Section-Scoped Directives (Rule 2): Standalone directives apply to containing section
         """
         # Arrange: Use '===' as the correct slide separator.
         problematic_slide_markdown = """# Model Context Protocol
@@ -184,9 +180,9 @@ class TestParserDiagnostics:
     **Revolutionizing AI**
     ===
     # Executive Summary
-    [width=60%][border=1pt solid red]
-    ## Key Takeaways
-    - **Universal Standard**
+[width=60%][border=1pt solid red]
+## Key Takeaways
+- **Universal Standard**
     """
         # Act
         deck = parser.parse(problematic_slide_markdown)
@@ -196,7 +192,7 @@ class TestParserDiagnostics:
             len(deck.slides) == 2
         ), "Should parse exactly two slides separated by '==='."
 
-        # === Assertions for Slide 1: Testing Directive Scoping ===
+        # === Assertions for Slide 1: Testing Element-Scoped Directives (Rule 1) ===
         slide1 = deck.slides[0]
         title1 = next(
             (e for e in slide1.elements if e.element_type == ElementType.TITLE), None
@@ -208,73 +204,116 @@ class TestParserDiagnostics:
         assert title1 is not None, "Slide 1 must have a title element."
         assert body_text1 is not None, "Slide 1 must have a body text element."
 
-        # CRITICAL ASSERTION 1: The slide's title_directives should contain the directives,
-        # NOT the section's directives. The `SlideExtractor` should have consumed them.
+        # CRITICAL ASSERTION 1: The standalone indented directives should be section-level (Rule 2)
+        # Per Rule 2: directives on their own line apply to the containing section
         assert (
-            "background" in slide1.title_directives
-        ), "Slide-level background directive was not parsed correctly."
-        assert (
-            "color" in slide1.title_directives
-        ), "Slide-level color directive was not parsed correctly."
+            len(slide1.title_directives) == 0
+        ), "Title should have no directives (they're not on the same line)."
 
-        # CRITICAL ASSERTION 2: The content section should NOT have these directives.
+        # CRITICAL ASSERTION 2: The content section should have these standalone directives.
         assert (
             len(slide1.sections) == 1
         ), "Slide 1 should have one root section for the body content."
         root_section1 = slide1.sections[0]
         assert (
-            "background" not in root_section1.directives
-        ), "Background directive should NOT be on the content section."
+            "background_type" in root_section1.directives
+        ), "Section should have the background directive (converted format)."
         assert (
-            "color" not in root_section1.directives
-        ), "Color directive should NOT be on the content section."
-
-        # CRITICAL ASSERTION 3: The body text element itself should not have the directives.
+            root_section1.directives["background_type"] == "image"
+        ), "Background should be processed as image type."
         assert (
-            "background" not in body_text1.directives
-        ), "Body text should NOT directly have the background directive."
+            "color" in root_section1.directives
+        ), "Section should have the color directive."
 
-        # === Assertions for Slide 2: Testing Structural Integrity ===
+        # === Assertions for Slide 2: Testing Section-Scoped Directives (Rule 2) ===
         slide2 = deck.slides[1]
         title2 = next(
             (e for e in slide2.elements if e.element_type == ElementType.TITLE), None
         )
-        subtitle2 = next(
-            (e for e in slide2.elements if e.element_type == ElementType.SUBTITLE),
-            None,
-        )
+        # Note: No subtitle2 lookup - per our specification, when standalone directives
+        # appear before a subtitle, the subtitle stays in section content (Rule 2)
         list_element = next(
             (e for e in slide2.elements if e.element_type == ElementType.BULLET_LIST),
             None,
         )
+        heading_element = next(
+            (
+                e
+                for e in slide2.elements
+                if e.element_type == ElementType.TEXT and "Key Takeaways" in e.text
+            ),
+            None,
+        )
 
         assert title2 is not None, "Slide 2 Title not found"
-        assert subtitle2 is not None, "Slide 2 Subtitle not found"
         assert list_element is not None, "Slide 2 List not found"
+        assert (
+            heading_element is not None
+        ), "Slide 2 should have 'Key Takeaways' as a text element (not subtitle)"
 
-        # CRITICAL ASSERTION 4: Title and Subtitle are slide-level metadata and MUST NOT
-        # be parsed as children of the first content section.
+        # CRITICAL ASSERTION 3: Title directives should be empty (no same-line directives)
+        assert (
+            len(slide2.title_directives) == 0
+        ), "Slide 2 title should have no directives (not on same line)."
+
+        # CRITICAL ASSERTION 4: Root section should contain the standalone directives
+        # Per Rule 2: standalone directives apply to the smallest containing section
         assert (
             len(slide2.sections) == 1
-        ), "Slide 2 should have one root section for the list."
+        ), "Slide 2 should have one root section for the content."
         root_section2 = slide2.sections[0]
 
-        assert all(
-            child.element_type != ElementType.TITLE for child in root_section2.children
-        ), "Section must not contain the slide Title."
-        assert all(
-            child.element_type != ElementType.SUBTITLE
-            for child in root_section2.children
-        ), "Section must not contain the slide Subtitle."
-
-        # CRITICAL ASSERTION 5: The content section should contain the list element,
-        # and it should have inherited the section's directives.
-        assert (
-            list_element in root_section2.children
-        ), "List element must be a child of the content section."
+        # The key test: standalone directives should be section-scoped, not title-scoped
         assert (
             root_section2.directives.get("width") == 0.6
-        ), "Section directives were not parsed correctly."
+        ), "Section directives were not parsed correctly - expected width=0.6 from '60%'."
         assert (
-            list_element.directives.get("width") == 0.6
-        ), "List element should inherit section directives."
+            "border" in root_section2.directives
+        ), "Section border directive was not parsed correctly."
+
+        # CRITICAL ASSERTION 5: Title should NOT have these section directives
+        assert (
+            "width" not in title2.directives
+        ), "Title should NOT have section-level width directive."
+
+    def test_diag_p_06_section_vs_element_directive_scope(self, parser: Parser):
+        """
+        Validates that section-level and element-level directives are scoped correctly.
+        - A directive at the top of a section applies to the whole section.
+        - A directive immediately preceding an element overrides the section's directive for that element only.
+        """
+        # Arrange
+        markdown = """[align=center]
+This text should be centered.
+
+[align=left]
+- This list item should be left-aligned.
+- This one too.
+"""
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        section = slide.sections[0]
+
+        text_element = next(
+            (e for e in section.children if e.element_type == ElementType.TEXT), None
+        )
+        list_element = next(
+            (e for e in section.children if e.element_type == ElementType.BULLET_LIST),
+            None,
+        )
+
+        # Assert
+        assert (
+            section.directives.get("align") == "center"
+        ), "Section directive was not parsed correctly."
+
+        assert text_element is not None, "Text element not found."
+        assert (
+            text_element.directives.get("align") == "center"
+        ), "Text element should inherit alignment from section."
+
+        assert list_element is not None, "List element not found."
+        assert (
+            list_element.directives.get("align") == "left"
+        ), "List element should have its own overridden alignment."

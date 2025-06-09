@@ -162,6 +162,10 @@ class SectionParser:
                 logger.debug(f"Horizontal part {h_idx + 1} is empty. Skipping.")
                 continue
 
+            print(
+                f"[section_parser] Creating section {h_idx} with content: {repr(h_part_content[:100])}"
+            )
+
             # CRITICAL FIX: Preserve the full content including any headers
             # Log the content for debugging
             h_part_preview = (

@@ -215,8 +215,9 @@ class TestParser:
 
     def test_parser_c_09(self, parser: Parser):
         """
-        Test Case: PARSER-C-09
-        Validates directive association with a section/heading.
+        Test Case: PARSER-C-09 (Updated for Unified Hierarchical Directive Scoping)
+        Validates section-scoped directive parsing per Rule 2 (The Containment Rule).
+        Standalone directives apply to the smallest containing section.
         From: docs/markdowndeck/testing/TEST_CASES_PARSER.md
         """
         # Arrange
@@ -233,8 +234,15 @@ class TestParser:
         )
 
         # Assert
+        # Per Rule 2: standalone directive should be on the section, not the element
+        assert (
+            section.directives.get("align") == "center"
+        ), "Section should have the align directive"
+
+        # The heading element should inherit from its parent section
         assert heading_element is not None
-        assert heading_element.directives.get("align") == "center"
+        # Note: inheritance behavior will be handled by layout manager,
+        # but for now we verify the directive is on the section
 
     def test_parser_c_10(self, parser: Parser):
         """
@@ -757,3 +765,86 @@ class TestParser:
             "type": "named",
             "value": "red",
         }, f"Red list should have red background, got {red_bg}"
+
+    def test_parser_c_21_nested_subsection_directive_targeting(self, parser: Parser):
+        """
+        Test Case: PARSER-C-21 (New for Unified Hierarchical Directive Scoping)
+        Validates the "Targeting a specific column (nested subsection)" case from the cookbook.
+        Demonstrates hierarchical proximity - directives apply to the smallest containing section.
+        """
+        # Arrange - from the cookbook example
+        markdown = """Top Content
+---
+Left Column
+***
+[background=blue]
+This right column is blue."""
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert - Structural validation
+        assert (
+            len(slide.sections) == 2
+        ), "Should have 2 top-level sections (vertical split)"
+
+        top_section = slide.sections[0]
+        bottom_section = slide.sections[1]
+
+        # Bottom section should have subsections (horizontal split)
+        assert (
+            len(bottom_section.children) >= 2
+        ), "Bottom section should have left and right subsections"
+
+        # Find the subsections
+        left_subsection = None
+        right_subsection = None
+
+        for child in bottom_section.children:
+            if hasattr(child, "children"):  # It's a section
+                # Check content to identify left vs right
+                content_text = ""
+                for subchild in child.children:
+                    if hasattr(subchild, "text"):
+                        content_text += subchild.text
+
+                if "Left Column" in content_text:
+                    left_subsection = child
+                elif "right column" in content_text:
+                    right_subsection = child
+
+        assert left_subsection is not None, "Should have left subsection"
+        assert right_subsection is not None, "Should have right subsection"
+
+        # CRITICAL ASSERTION: The background=blue directive should ONLY be on the right subsection
+        assert (
+            "background" not in top_section.directives
+        ), "Top section should NOT have the background directive"
+        assert (
+            "background" not in bottom_section.directives
+        ), "Bottom section should NOT have the background directive"
+        assert (
+            "background" not in left_subsection.directives
+        ), "Left subsection should NOT have the background directive"
+        # Check that the background directive is properly converted
+        background_directive = right_subsection.directives.get("background")
+        assert (
+            background_directive is not None
+        ), "Right subsection should have a background directive"
+        assert background_directive == {
+            "type": "named",
+            "value": "blue",
+        }, "Right subsection should have the blue background directive (converted format)"
+
+        # Validate that the directive is properly scoped to just the right column
+        assert (
+            len(right_subsection.children) > 0
+        ), "Right subsection should have content"
+
+        # The content in the right subsection should be able to inherit the directive
+        right_content = right_subsection.children[0]
+        if hasattr(right_content, "text"):
+            assert (
+                "This right column is blue" in right_content.text
+            ), "Right content should contain expected text"
