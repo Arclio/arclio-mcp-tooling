@@ -68,6 +68,7 @@ class ContentParser:
         sections: list[Section],
         slide_footer_text: str | None,
         title_directives: dict[str, Any] | None = None,
+        subtitle_directives: dict[str, Any] | None = None,
     ) -> list[Element]:
         """
         Parse content into slide elements and populate section.elements.
@@ -78,6 +79,7 @@ class ContentParser:
             sections: The list of Section models for the slide
             slide_footer_text: Optional footer text
             title_directives: Optional title-level directives (from same-line parsing)
+            subtitle_directives: Optional subtitle-level directives (from same-line parsing)
 
         Returns:
             List of all elements for the slide
@@ -106,17 +108,29 @@ class ContentParser:
             subtitle_formatting = self.element_factory.extract_formatting_from_text(
                 subtitle_text, self.md
             )
-            section_for_subtitle = sections[0] if sections else Section()
-            section_directives = section_for_subtitle.directives or {}
-            subtitle_alignment = AlignmentType(
-                section_directives.get("align", "center")
-            )
+
+            # FIX: Use subtitle directives from same-line parsing, not section directives
+            # Per DIRECTIVES.md Rule 1: same-line directives take precedence
+            if subtitle_directives:
+                # Use subtitle directives from same-line parsing
+                directives_to_use = subtitle_directives.copy()
+                subtitle_alignment = AlignmentType(
+                    subtitle_directives.get("align", "center")
+                )
+            else:
+                # Fallback to section directives if no same-line directives
+                section_for_subtitle = sections[0] if sections else Section()
+                section_directives = section_for_subtitle.directives or {}
+                directives_to_use = section_directives.copy()
+                subtitle_alignment = AlignmentType(
+                    section_directives.get("align", "center")
+                )
 
             subtitle_element = self.element_factory.create_subtitle_element(
                 text=subtitle_text,
                 formatting=subtitle_formatting,
                 alignment=subtitle_alignment,
-                directives=section_directives.copy(),
+                directives=directives_to_use,
             )
             all_elements.append(subtitle_element)
             logger.debug(f"Added subtitle element: {subtitle_text[:30]}")

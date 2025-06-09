@@ -152,7 +152,7 @@ class SlideExtractor:
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
 
         # Extract title, subtitle, and directives
-        title, subtitle, content_after_meta, title_directives = (
+        title, subtitle, content_after_meta, title_directives, subtitle_directives = (
             self._extract_title_with_directives(main_content_segment)
         )
 
@@ -190,6 +190,7 @@ class SlideExtractor:
                 f"{slide_object_id}_notesShape" if final_notes else None
             ),
             "title_directives": title_directives,
+            "subtitle_directives": subtitle_directives,
         }
 
         logger.debug(
@@ -201,7 +202,7 @@ class SlideExtractor:
 
     def _extract_title_with_directives(
         self, content: str
-    ) -> tuple[str | None, str | None, str, dict]:
+    ) -> tuple[str | None, str | None, str, dict, dict]:
         """
         Extract title and subtitle with their same-line directives per Rule 1 (Element-Scoped Directives).
 
@@ -209,9 +210,13 @@ class SlideExtractor:
         - ONLY processes directives on the same line as title/subtitle (Rule 1)
         - NEVER consumes standalone directive lines (those are for Rule 2 - Section-Scoped)
         - Leaves all standalone directive lines in content for the section parser
+
+        Returns:
+            Tuple of (title_text, subtitle_text, remaining_content, title_directives, subtitle_directives)
         """
         lines = content.split("\n")
         title_directives = {}
+        subtitle_directives = {}
         title_text = None
         subtitle_text = None
         consumed_lines = 0
@@ -254,7 +259,7 @@ class SlideExtractor:
                 break
         else:
             # No title found
-            return None, None, content, {}
+            return None, None, content, {}, {}
 
         # Track what we've consumed so far (just the title line)
         consumed_lines = title_line_index + 1
@@ -289,7 +294,7 @@ class SlideExtractor:
                     subtitle_text = full_subtitle_text
                     directive_text = ""
 
-                # Parse directives from subtitle line
+                # Parse directives from subtitle line - FIX: Use subtitle_directives, not title_directives
                 if directive_text:
                     directive_matches = re.findall(
                         r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
@@ -297,7 +302,7 @@ class SlideExtractor:
                     for key, value in directive_matches:
                         key = key.strip().lower()
                         value = value.strip()
-                        title_directives[key] = value
+                        subtitle_directives[key] = value
                 break
 
             # If we hit non-subtitle content, stop looking for subtitle
@@ -319,7 +324,13 @@ class SlideExtractor:
         else:
             final_content = ""
 
-        return title_text, subtitle_text, final_content, title_directives
+        return (
+            title_text,
+            subtitle_text,
+            final_content,
+            title_directives,
+            subtitle_directives,
+        )
 
     def _extract_notes(self, content: str) -> str | None:
         """Extract speaker notes from content."""
