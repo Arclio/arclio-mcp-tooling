@@ -5,6 +5,7 @@ Each test case directly corresponds to a specification in
 `docs/markdowndeck/testing/TEST_CASES_UNIT_API_GENERATOR.md`.
 """
 
+import re
 from copy import deepcopy
 
 import pytest
@@ -17,6 +18,7 @@ from markdowndeck.models import (
     Slide,
     TextElement,
 )
+from markdowndeck.models.elements.list import ListElement
 
 
 @pytest.fixture
@@ -56,6 +58,147 @@ def finalized_slide() -> Slide:
 
 class TestApiRequestGenerator:
     """Tests the functionality of the ApiRequestGenerator."""
+
+    def test_object_id_regex_compliance(self, api_generator: ApiRequestGenerator):
+        """
+        Test Case: API-C-06
+        Validates that all generated objectIds comply with Google Slides API regex.
+
+        Per Google Slides API documentation, objectIds must match:
+        ^[a-zA-Z0-9_][a-zA-Z0-9_-:]*$
+        """
+        # Arrange: Create a slide with various element types without object_ids
+        slide = Slide(
+            object_id="test_slide",
+            sections=[],
+            elements=[],
+            renderable_elements=[
+                TextElement(
+                    element_type=ElementType.TITLE,
+                    text="Test Title",
+                    position=(50, 50),
+                    size=(620, 40),
+                    object_id=None,  # Explicitly set to None to force generation
+                ),
+                TextElement(
+                    element_type=ElementType.TEXT,
+                    text="Test Body",
+                    position=(50, 150),
+                    size=(620, 100),
+                    object_id=None,  # Explicitly set to None to force generation
+                ),
+                ImageElement(
+                    element_type=ElementType.IMAGE,
+                    url="https://example.com/image.jpg",
+                    position=(50, 300),
+                    size=(300, 200),
+                    object_id=None,  # Explicitly set to None to force generation
+                ),
+            ],
+        )
+        deck = Deck(slides=[slide])
+
+        # Act
+        batches = api_generator.generate_batch_requests(deck, "pres_id")
+
+        # Assert: Check that ALL objectIds in createShape/createImage requests match the regex
+        google_slides_object_id_regex = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_:\-]*$")
+
+        generated_object_ids = []
+        for batch in batches:
+            for request in batch["requests"]:
+                object_id = None
+
+                # Extract objectId from different request types
+                if "createShape" in request:
+                    object_id = request["createShape"]["objectId"]
+                elif "createImage" in request:
+                    object_id = request["createImage"]["objectId"]
+                elif "createSlide" in request:
+                    object_id = request["createSlide"]["objectId"]
+                elif "insertText" in request:
+                    object_id = request["insertText"]["objectId"]
+                elif "updateParagraphStyle" in request:
+                    object_id = request["updateParagraphStyle"]["objectId"]
+
+                # Validate objectId if found
+                if object_id:
+                    generated_object_ids.append(object_id)
+                    assert google_slides_object_id_regex.match(object_id), (
+                        f"ObjectId '{object_id}' does not match Google Slides API regex "
+                        f"^[a-zA-Z0-9_][a-zA-Z0-9_-:]*$"
+                    )
+
+        # Ensure we actually tested some objectIds
+        assert len(generated_object_ids) > 0, "No objectIds were generated to test"
+
+    def test_empty_list_no_delete_text(self, api_generator: ApiRequestGenerator):
+        """
+        Test Case: API-C-07
+        Validates that empty lists don't generate invalid deleteText requests.
+
+        This tests the fix for Discrepancy #2: Invalid deleteText for empty placeholders.
+        """
+        # Arrange: Create a slide with an empty list element
+        slide = Slide(
+            object_id="test_slide",
+            sections=[],
+            elements=[],
+            renderable_elements=[
+                ListElement(
+                    element_type=ElementType.BULLET_LIST,
+                    items=[],  # Empty list
+                    position=(50, 150),
+                    size=(620, 100),
+                    object_id=None,
+                ),
+            ],
+        )
+        deck = Deck(slides=[slide])
+
+        # Act
+        batches = api_generator.generate_batch_requests(deck, "pres_id")
+
+        # Assert: Check that no deleteText requests are generated for empty lists
+        for batch in batches:
+            for request in batch["requests"]:
+                assert (
+                    "deleteText" not in request
+                ), "Empty lists should not generate deleteText requests as they would be invalid"
+
+    def test_invalid_image_url_skipped(self, api_generator: ApiRequestGenerator):
+        """
+        Test Case: API-C-08
+        Validates that invalid image URLs are skipped and don't generate createImage requests.
+
+        This tests the fix for Discrepancy #3: Inconsistent image URL validation.
+        """
+        # Arrange: Create a slide with an invalid image URL
+        slide = Slide(
+            object_id="test_slide",
+            sections=[],
+            elements=[],
+            renderable_elements=[
+                ImageElement(
+                    element_type=ElementType.IMAGE,
+                    url="invalid-url-not-http",  # Invalid URL
+                    position=(50, 300),
+                    size=(300, 200),
+                    object_id=None,
+                ),
+            ],
+        )
+        deck = Deck(slides=[slide])
+
+        # Act
+        batches = api_generator.generate_batch_requests(deck, "pres_id")
+
+        # Assert: Check that no createImage requests are generated for invalid URLs
+        for batch in batches:
+            for request in batch["requests"]:
+                assert (
+                    "createImage" not in request
+                ), "Invalid image URLs should not generate createImage requests"
 
     def test_api_c_01(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
         """
