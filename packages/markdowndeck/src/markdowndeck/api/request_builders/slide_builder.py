@@ -19,6 +19,10 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 "type": "CENTERED_TITLE",
                 "index": 0,
             },  # Often TITLE is CENTERED_TITLE or TITLE placeholder
+            {
+                "type": "SUBTITLE",
+                "index": 0,
+            },  # Many title layouts also include subtitle placeholders
         ],
         SlideLayout.TITLE_AND_BODY: [
             {"type": "TITLE", "index": 0},
@@ -58,6 +62,11 @@ class SlideRequestBuilder(BaseRequestBuilder):
         ElementType.ORDERED_LIST: "BODY",
     }
 
+    # Additional mappings for placeholder types that should also map to element types
+    ADDITIONAL_PLACEHOLDER_MAPPINGS: dict[str, ElementType] = {
+        "CENTERED_TITLE": ElementType.TITLE,
+    }
+
     def create_slide_request(self, slide: Slide) -> dict:
         if not slide.object_id:
             slide.object_id = self._generate_id("slide")
@@ -85,6 +94,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
                     "objectId": generated_placeholder_object_id,
                 }
             )
+            # First check the regular mapping
             for (
                 md_element_type,
                 api_ph_type_from_map,
@@ -103,6 +113,17 @@ class SlideRequestBuilder(BaseRequestBuilder):
                             md_element_type == ElementType.TITLE
                         ):  # Prioritize mapping TITLE ElementType
                             break
+
+            # Then check additional mappings (like CENTERED_TITLE -> TITLE)
+            if placeholder_type_api in self.ADDITIONAL_PLACEHOLDER_MAPPINGS:
+                md_element_type = self.ADDITIONAL_PLACEHOLDER_MAPPINGS[
+                    placeholder_type_api
+                ]
+                key_for_mapping = md_element_type
+                if key_for_mapping not in slide.placeholder_mappings:
+                    slide.placeholder_mappings[key_for_mapping] = (
+                        generated_placeholder_object_id
+                    )
 
         request = {
             "createSlide": {
