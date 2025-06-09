@@ -182,11 +182,8 @@ class TextRequestBuilder(BaseRequestBuilder):
                 "spaceAbove": {"magnitude": 0, "unit": "PT"},
                 "spaceBelow": {"magnitude": 0, "unit": "PT"},
                 "lineSpacing": (
-                    float(element.directives["line-spacing"])
-                    if hasattr(element, "directives")
-                    and "line-spacing" in element.directives
-                    else 1.15
-                ),
+                    float(element.directives.get("line-spacing", 1.15)) * 100.0
+                ),  # Multiply by 100 for percentage
             }
             fields_for_text_para = "alignment,spaceAbove,spaceBelow,lineSpacing"
             if element.element_type == ElementType.TEXT and hasattr(element, "text"):
@@ -376,9 +373,8 @@ class TextRequestBuilder(BaseRequestBuilder):
         if "line-spacing" in element.directives:
             spacing = element.directives["line-spacing"]
             if isinstance(spacing, int | float) and spacing > 0:
-                style_updates["lineSpacing"] = float(
-                    spacing
-                )  # API expects float (e.g., 1.15 for 115%)
+                # FIXED: Convert multiplier (e.g., 1.15) to percentage (115.0) for the API
+                style_updates["lineSpacing"] = float(spacing) * 100.0
                 fields.append("lineSpacing")
         if "para-spacing-before" in element.directives:
             spacing = element.directives["para-spacing-before"]
