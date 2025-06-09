@@ -147,8 +147,8 @@ _build-or-publish:
 	        mkdir -p "$$dist_dir"; \
 	        (cd "$$pkg_dir" && . "../../$(VENV_DIR)/bin/activate" && $(UV) build --verbose -o "$$dist_dir"); \
 	    elif [ "$$ACTION" = "publish" ]; then \
-	        if [ -d "$$dist_dir" ] && [ -n "$$(ls -A '$$dist_dir'/*.whl 2>/dev/null)" ]; then \
-	            (cd "$$pkg_dir" && . "../../$(VENV_DIR)/bin/activate" && $(UV) publish --token "$${UV_PYPI_TOKEN}" "$$dist_dir"/*); \
+	        if [ -d "$$dist_dir" ] && [ -n "$$(find "$$dist_dir" -name '*.whl' -o -name '*.tar.gz' 2>/dev/null | head -1)" ]; then \
+	            (cd "$$pkg_dir" && . "../../$(VENV_DIR)/bin/activate" && if [ -f "../../.env" ]; then set -a && . "../../.env" && set +a; fi && $(UV) publish --token "$${UV_PYPI_TOKEN}" "$$dist_dir"/*.whl "$$dist_dir"/*.tar.gz 2>/dev/null || $(UV) publish --token "$${UV_PYPI_TOKEN}" "$$dist_dir"/*); \
 	        else echo "${YELLOW}No build found for $$pkg_name. Skipping publish.${RESET}"; fi; \
 	    fi; \
 	done; echo "${GREEN}$$ACTION process completed.${RESET}"

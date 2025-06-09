@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "google-workspace-mcp"
-version = "1.0.2"
+version = "1.0.3"
 description = "MCP server for Google Workspace integration"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},
@@ -22,7 +22,7 @@ dependencies = [
     "markdown>=3.5.0",
     "beautifulsoup4>=4.12.0",
     "mcp>=1.7.0",
-    "markdowndeck>=0.1.1",
+    "markdowndeck>=0.1.2",
 ]
 
 [project.scripts]

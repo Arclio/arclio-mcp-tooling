@@ -97,6 +97,7 @@ def calculate_text_bbox(
     font_size: float,
     font_family: str | None = None,
     max_width: float | None = None,
+    line_height_multiplier: float = 1.0,
 ) -> tuple[float, float]:
     """
     Calculate the bounding box (width, height) for the given text.
@@ -106,6 +107,7 @@ def calculate_text_bbox(
         font_size: Font size in points
         font_family: Font family (optional)
         max_width: Maximum width for line wrapping (optional)
+        line_height_multiplier: Typography-specific line height multiplier
 
     Returns:
         Tuple of (width, height) in points
@@ -120,7 +122,9 @@ def calculate_text_bbox(
     # even without a width constraint
     if "\n" in text or max_width is not None:
         # Multi-line measurement with or without wrapping
-        return _calculate_wrapped_text_bbox(text, font, max_width)
+        return _calculate_wrapped_text_bbox(
+            text, font, max_width, line_height_multiplier
+        )
 
     # Single line measurement only for text without newlines
     try:
@@ -161,7 +165,10 @@ def _estimate_text_size(text: str, font_size: float) -> tuple[float, float]:
 
 
 def _calculate_wrapped_text_bbox(
-    text: str, font: ImageFont.FreeTypeFont, max_width: float | None
+    text: str,
+    font: ImageFont.FreeTypeFont,
+    max_width: float | None,
+    line_height_multiplier: float = 1.0,
 ) -> tuple[float, float]:
     """
     Calculate bbox for text that may wrap across multiple lines.
@@ -196,26 +203,33 @@ def _calculate_wrapped_text_bbox(
 
     # Calculate total width (max of all line widths) and height
     max_line_width = 0.0
-    total_height = 0.0
-    # Use basic font size as line height - let caller apply typography-specific multipliers
-    line_height = font.size
+
+    # Get proper font metrics for accurate line height calculation
+    try:
+        ascent, descent = font.getmetrics()
+        # This gives us the proper line height that accounts for ascenders and descenders
+        base_line_height = float(ascent + abs(descent))
+    except (AttributeError, Exception):
+        # Fallback: use font size with reasonable spacing
+        base_line_height = font.size * 1.2
+
+    # Apply typography-specific line height multiplier
+    proper_line_height = base_line_height * line_height_multiplier
 
     for line in all_lines:
         if line.strip():  # Non-empty line
             try:
                 bbox = font.getbbox(line)
                 line_width = bbox[2] - bbox[0]
-                # Use actual text height for non-empty lines
-                line_text_height = bbox[3] - bbox[1]
-                line_height = max(line_height, line_text_height)
             except Exception:
                 # Fallback for problematic lines
                 line_width = len(line) * font.size * 0.6
 
             max_line_width = max(max_line_width, line_width)
 
-    # Total height is number of lines times the line height
-    total_height = len(all_lines) * line_height
+    # Total height is number of lines times the proper line height
+    # This now correctly accounts for spacing between lines
+    total_height = len(all_lines) * proper_line_height
 
     return (float(max_line_width), float(total_height))
 

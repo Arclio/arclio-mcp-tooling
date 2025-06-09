@@ -99,11 +99,15 @@ def calculate_text_element_height(
     # Use Pillow-based font metrics for accurate height calculation
     try:
         _, text_height = calculate_text_bbox(
-            text_content, font_size, max_width=effective_width
+            text_content,
+            font_size,
+            max_width=effective_width,
+            line_height_multiplier=line_height_multiplier,
         )
 
-        # Apply line height multiplier
-        content_height = text_height * line_height_multiplier
+        # Font metrics now handle proper line spacing internally,
+        # so we don't need to apply line height multiplier again
+        content_height = text_height
         total_height = content_height + padding
 
         logger.debug(

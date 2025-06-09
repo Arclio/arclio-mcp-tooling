@@ -587,7 +587,7 @@ wheels = [
 
 [[package]]
 name = "google-workspace-mcp"
-version = "1.0.2"
+version = "1.0.3"
 source = { editable = "packages/google-workspace-mcp" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -945,13 +945,14 @@ wheels = [
 
 [[package]]
 name = "markdowndeck"
-version = "0.1.0"
+version = "0.1.2"
 source = { editable = "packages/markdowndeck" }
 dependencies = [
     { name = "google-api-python-client" },
     { name = "google-auth" },
     { name = "google-auth-oauthlib" },
     { name = "markdown-it-py" },
+    { name = "pillow" },
     { name = "python-dotenv" },
     { name = "requests" },
 ]
@@ -962,6 +963,7 @@ requires-dist = [
     { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.0.0" },
     { name = "markdown-it-py", specifier = ">=3.0.0" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "requests", specifier = ">=2.28.0" },
 ]
