@@ -226,6 +226,16 @@ class ApiRequestGenerator:
                 f"Slide {slide.object_id} has notes but no speaker_notes_object_id yet. Notes will be added in a second pass."
             )
 
+        # Clean up unused placeholders to prevent "Click to add text" from appearing
+        if slide.placeholder_mappings:
+            unused_placeholder_ids = self._identify_unused_placeholders(slide, requests)
+            for placeholder_id in unused_placeholder_ids:
+                delete_request = {"deleteObject": {"objectId": placeholder_id}}
+                requests.append(delete_request)
+                logger.debug(
+                    f"Added deleteObject request for unused placeholder: {placeholder_id}"
+                )
+
         logger.debug(f"Generated {len(requests)} requests for slide {slide.object_id}")
         return {"presentationId": presentation_id, "requests": requests}
 
@@ -361,3 +371,61 @@ class ApiRequestGenerator:
             )
 
         return requests  # Always return the list, even if empty
+
+    def _identify_unused_placeholders(
+        self, slide: Slide, requests: list[dict]
+    ) -> list[str]:
+        """
+        Identify placeholder IDs that are mapped but not used in any API requests.
+
+        Args:
+            slide: The slide with placeholder mappings
+            requests: List of generated API requests
+
+        Returns:
+            List of unused placeholder IDs that should be deleted
+        """
+        if not slide.placeholder_mappings:
+            return []
+
+        # Extract all placeholder IDs from the mappings
+        all_placeholder_ids = set(slide.placeholder_mappings.values())
+
+        # Extract placeholder IDs that are actually used in requests
+        used_placeholder_ids = set()
+
+        for request in requests:
+            # Check various request types that might use placeholders
+            object_id = None
+
+            if "insertText" in request:
+                object_id = request["insertText"].get("objectId")
+            elif "updateTextStyle" in request:
+                object_id = request["updateTextStyle"].get("objectId")
+            elif "updateParagraphStyle" in request:
+                object_id = request["updateParagraphStyle"].get("objectId")
+            elif "updateShapeProperties" in request:
+                object_id = request["updateShapeProperties"].get("objectId")
+            elif "createList" in request:
+                object_id = request["createList"].get("objectId")
+            elif "insertTableRows" in request:
+                object_id = request["insertTableRows"].get("tableObjectId")
+            elif "insertTableColumns" in request:
+                object_id = request["insertTableColumns"].get("tableObjectId")
+            elif "updateTableCellProperties" in request:
+                object_id = request["updateTableCellProperties"].get("objectId")
+            # Note: We don't check "createShape" or "createSlide" because those create new objects
+            # rather than using existing placeholders
+
+            if object_id and object_id in all_placeholder_ids:
+                used_placeholder_ids.add(object_id)
+
+        # Return placeholders that exist in mappings but are not used
+        unused_placeholder_ids = all_placeholder_ids - used_placeholder_ids
+
+        if unused_placeholder_ids:
+            logger.debug(
+                f"Found {len(unused_placeholder_ids)} unused placeholders: {unused_placeholder_ids}"
+            )
+
+        return list(unused_placeholder_ids)

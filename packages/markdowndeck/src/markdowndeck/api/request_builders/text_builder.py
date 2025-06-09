@@ -265,6 +265,19 @@ class TextRequestBuilder(BaseRequestBuilder):
             # Note: If we need to clear placeholder content in the future, we could:
             # 1. First insert a single character, then delete with range 0 to 1
             # 2. Or check placeholder state before deleting
+
+            # FIXED: Disable autofit BEFORE inserting text to prevent race conditions
+            # with theme-default autofitting. This ensures our layout calculations
+            # are respected for themed placeholders.
+            autofit_request = {
+                "updateShapeProperties": {
+                    "objectId": placeholder_id,
+                    "fields": "autofit.autofitType",
+                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+                }
+            }
+            requests.append(autofit_request)
+
             requests.append(
                 {
                     "insertText": {
@@ -274,17 +287,6 @@ class TextRequestBuilder(BaseRequestBuilder):
                     }
                 }
             )
-
-            # Disable autofit to prevent Google Slides from automatically resizing text
-            # This ensures our layout calculations are respected for themed placeholders
-            autofit_request = {
-                "updateShapeProperties": {
-                    "objectId": placeholder_id,
-                    "fields": "autofit.autofitType",
-                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
-                }
-            }
-            requests.append(autofit_request)
 
             logger.debug(
                 f"Added autofit disabling request for themed placeholder {placeholder_id}"
