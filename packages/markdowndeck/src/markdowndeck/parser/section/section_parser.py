@@ -107,7 +107,7 @@ class SectionParser:
                         directives={},
                         children=horizontal_sections,
                         id=row_id,
-                        content=v_part_content,
+                        content="",  # FIXED: Row sections should have empty content to prevent directive bleeding
                     )
                 )
                 logger.debug(

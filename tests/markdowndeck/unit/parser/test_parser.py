@@ -7,6 +7,7 @@ Each test case directly corresponds to a specification in
 
 import pytest
 from markdowndeck.models import ElementType, TextFormatType
+from markdowndeck.models.elements.text import TextFormat
 from markdowndeck.parser import Parser
 
 
@@ -462,7 +463,7 @@ class TestParser:
         """
         Test Case: PARSER-C-16 (Task 1.2)
         Validates that directives inside list items are properly parsed.
-        This test should FAIL initially, demonstrating missing inline directive support.
+        Updated to comply with DIRECTIVES.md Rule 2.3 (The List Item Rule).
         """
         # Arrange - based on the problematic markdown from Slide 5
         markdown = """- Context provision
@@ -489,13 +490,29 @@ class TestParser:
             "[border=2pt solid TEXT1]" not in list_text
         ), "Raw directive string should be parsed out of list text"
 
-        # The list element should have the parsed border directive
+        # FIXED: According to DIRECTIVES.md Rule 2.3, the directive should apply to the second list item
+        # The directive appears as trailing content in the first item and applies to the next item
+        assert len(list_element.items) == 2, "Should have two list items"
+
+        # The list element itself should NOT have the directive
         assert (
-            "border" in list_element.directives
-        ), "List element should have parsed border directive"
+            "border" not in list_element.directives
+        ), "List element should NOT have the directive (it applies to individual items)"
+
+        # The second list item should have the parsed border directive
+        second_item = list_element.items[1]
         assert (
-            list_element.directives["border"] == "2pt solid TEXT1"
+            "border" in second_item.directives
+        ), "Second list item should have parsed border directive"
+        assert (
+            second_item.directives["border"] == "2pt solid TEXT1"
         ), "Border directive should be correctly parsed"
+
+        # The first list item should not have the directive
+        first_item = list_element.items[0]
+        assert (
+            "border" not in first_item.directives
+        ), "First list item should NOT have the directive"
 
     def test_parser_c_17_post_image_directive_parsing(self, parser: Parser):
         """
@@ -848,3 +865,100 @@ This right column is blue."""
             assert (
                 "This right column is blue" in right_content.text
             ), "Right content should contain expected text"
+
+    def test_parser_pvb_01_textformat_data_integrity(self, parser: Parser):
+        """
+        Test Case: PARSER-PVB-01 (Parser Verification B)
+        Validates that TextElement.formatting contains a list of valid TextFormat objects, not booleans.
+        Spec: DATA_MODELS.md, Section 3.5
+        """
+        # Arrange
+        markdown = "Text with **bold** and *italic* content."
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        text_element = next(
+            e for e in slide.elements if e.element_type == ElementType.TEXT
+        )
+
+        # Assert
+        assert text_element is not None, "Text element should be created."
+        assert isinstance(
+            text_element.formatting, list
+        ), "Formatting attribute must be a list."
+        assert len(text_element.formatting) == 2, "Expected two formatting objects."
+
+        for fmt in text_element.formatting:
+            assert isinstance(
+                fmt, TextFormat
+            ), f"Each item in formatting must be a TextFormat object, but got {type(fmt)}."
+            assert isinstance(fmt.start, int), "TextFormat.start must be an integer."
+            assert isinstance(fmt.end, int), "TextFormat.end must be an integer."
+            assert isinstance(
+                fmt.format_type, TextFormatType
+            ), "TextFormat.format_type must be a TextFormatType enum."
+            assert fmt.value is not None, "TextFormat.value should not be None."
+
+    def test_parser_pva_01_element_scoped_directive_stripping(self, parser: Parser):
+        """
+        Test Case: PARSER-PVA-01 (Parser Verification A)
+        Validates that same-line directives are stripped from the final element text.
+        Spec: DIRECTIVES.md, Rule 1
+        """
+        # Arrange
+        markdown = "# My Clean Title [color=blue][fontsize=48]"
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        title_element = next(
+            e for e in slide.elements if e.element_type == ElementType.TITLE
+        )
+
+        # Assert
+        assert (
+            title_element.text == "My Clean Title"
+        ), "The raw directive string must be stripped from the element's text."
+        assert slide.title_directives.get("color") == "blue"
+        assert slide.title_directives.get("fontsize") == "48"
+
+    def test_parser_pvc_01_list_item_directive_scoping(self, parser: Parser):
+        """
+        Test Case: PARSER-PVC-01 (Parser Verification C)
+        Validates that standalone directives preceding list items apply to individual list items.
+        Spec: DIRECTIVES.md, Rule 3 (List Item Rule)
+        """
+        # Arrange
+        markdown = """- First item
+[color=red]
+- Second item (should be red)
+- Third item"""
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        list_element = next(
+            e for e in slide.elements if e.element_type == ElementType.BULLET_LIST
+        )
+
+        # Assert
+        assert list_element is not None, "List element should be created."
+        assert len(list_element.items) == 3, "List should have three items."
+
+        # Check that directive applies to the second list item only
+        assert (
+            list_element.items[0].directives == {}
+        ), "First item should have no directives."
+        assert list_element.items[1].directives.get("color") == {
+            "type": "named",
+            "value": "red",
+        }, "Second item should have red color directive."
+        assert (
+            list_element.items[2].directives == {}
+        ), "Third item should have no directives."
+
+        # Verify text content is correct and clean
+        assert list_element.items[0].text == "First item"
+        assert list_element.items[1].text == "Second item (should be red)"
+        assert list_element.items[2].text == "Third item"

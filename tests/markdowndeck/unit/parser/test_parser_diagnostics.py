@@ -41,8 +41,9 @@ class TestParserDiagnostics:
     def test_diag_p_02_list_item_with_standalone_directive(self, parser: Parser):
         """
         Validates that a directive on its own line within a list's content
-        is correctly associated with the list element, not mangled into text.
+        is correctly associated with individual list items per DIRECTIVES.md Rule 2.3.
         This test is based on Slide 5 of the diagnostic input.
+        Updated to comply with The List Item Rule.
         """
         # Arrange
         markdown = """
@@ -64,10 +65,25 @@ class TestParserDiagnostics:
         assert len(list_element.items) == 2, "The list should have two distinct items."
         assert "Context provision" in list_element.items[0].text
         assert "GET endpoints equivalent" in list_element.items[1].text
+
+        # FIXED: According to DIRECTIVES.md Rule 2.3, the directive should apply to the second list item
+        # The list element itself should NOT have the directive
         assert (
-            "border" in list_element.directives
-        ), "Directive should be associated with the list."
-        assert list_element.directives["border"] == "2pt solid TEXT1"
+            "border" not in list_element.directives
+        ), "List element should NOT have the directive (it applies to individual items per Rule 2.3)"
+
+        # The second list item should have the directive
+        second_item = list_element.items[1]
+        assert (
+            "border" in second_item.directives
+        ), "Second list item should have the directive per DIRECTIVES.md Rule 2.3"
+        assert second_item.directives["border"] == "2pt solid TEXT1"
+
+        # The first list item should not have the directive
+        first_item = list_element.items[0]
+        assert (
+            "border" not in first_item.directives
+        ), "First list item should NOT have the directive"
 
     def test_diag_p_03_post_image_directive_consumption(self, parser: Parser):
         """

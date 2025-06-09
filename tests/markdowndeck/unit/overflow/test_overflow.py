@@ -186,6 +186,61 @@ class TestOverflowManager:
         ), "The overflowing element should be rendered on the single slide."
         assert final_slide.renderable_elements[0].text == "Large content"
 
+    def test_ovb_01_finalization_avoids_duplicates(
+        self, overflow_manager: OverflowManager
+    ):
+        """
+        Test Case: OVB-01 (Overflow Verification B)
+        Validates that _finalize_slide creates a clean, non-redundant renderable_elements list.
+        Spec: DATA_FLOW.md, Finalized IR state
+        """
+        # Arrange
+        # 1. Create a slide simulating the state AFTER LayoutManager
+        title_element = TextElement(
+            element_type=ElementType.TITLE, text="My Title", object_id="title1"
+        )
+
+        # LayoutManager places meta-elements in renderable_elements
+        slide = Slide(object_id="dup_test", renderable_elements=[title_element])
+
+        # The sections hierarchy still contains a reference to the title (or a duplicate)
+        # For this test, we'll put a duplicate element in the sections list
+        body_title_duplicate = TextElement(
+            element_type=ElementType.TITLE,
+            text="My Title",
+            object_id="title1_dup",
+            position=(50, 50),
+            size=(620, 40),
+        )
+        section = Section(
+            id="sec1",
+            children=[body_title_duplicate],
+            position=(50, 50),
+            size=(620, 40),
+        )
+        slide.sections.append(section)
+
+        # Act
+        # Directly call the private method we are testing
+        overflow_manager._finalize_slide(slide)
+
+        # Assert
+        # The final list should contain ONLY ONE title element.
+        final_list = slide.renderable_elements
+        title_elements_in_final_list = [
+            e for e in final_list if e.element_type == ElementType.TITLE
+        ]
+
+        assert (
+            len(final_list) == 1
+        ), "The final list should only contain one element after deduplication."
+        assert (
+            len(title_elements_in_final_list) == 1
+        ), "There must be exactly one title element in the final render list."
+        assert (
+            final_list[0].object_id == "title1"
+        ), "The original meta-element should be the one that is kept."
+
     def test_overflow_c_03(
         self,
         overflow_manager: OverflowManager,

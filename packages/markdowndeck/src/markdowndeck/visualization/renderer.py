@@ -420,7 +420,7 @@ def _render_list(ax, element):
 
 
 def _render_table(ax, element):
-    """Renders a simplified visual representation of a table."""
+    """Renders a simplified visual representation of a table with actual content."""
     _draw_element_box(ax, element)
     pos_x, pos_y = element.position
     size_w, size_h = element.size
@@ -433,6 +433,10 @@ def _render_table(ax, element):
     num_rows = (1 if headers else 0) + len(rows)
 
     if num_cols == 0 or num_rows == 0:
+        # Fallback to placeholder if no content
+        ax.text(
+            pos_x + 5, pos_y + 5, "[Empty Table]", fontsize=8, color="gray", zorder=3
+        )
         return
 
     col_width = size_w / num_cols
@@ -456,7 +460,68 @@ def _render_table(ax, element):
             zorder=2,
         )
 
-    ax.text(pos_x + 5, pos_y + 5, "[Table]", fontsize=8, color="gray", zorder=3)
+    # Render table content
+    current_row = 0
+
+    # Render headers if they exist
+    if headers:
+        for col_idx, header in enumerate(headers):
+            cell_x = pos_x + col_idx * col_width
+            cell_y = pos_y + current_row * row_height
+
+            # Truncate long headers to fit in cell
+            display_text = header[:10] + "..." if len(header) > 10 else header
+
+            ax.text(
+                cell_x + col_width / 2,
+                cell_y + row_height / 2,
+                display_text,
+                fontsize=ELEMENT_FONT_SIZES["table"],
+                ha="center",
+                va="center",
+                weight="bold",
+                zorder=3,
+            )
+        current_row += 1
+
+    # Render data rows (limit to first few rows to avoid overcrowding)
+    max_rows_to_show = min(len(rows), 3)  # Show max 3 data rows
+    for row_idx in range(max_rows_to_show):
+        row = rows[row_idx]
+        for col_idx, cell_value in enumerate(
+            row[:num_cols]
+        ):  # Ensure we don't exceed columns
+            cell_x = pos_x + col_idx * col_width
+            cell_y = pos_y + current_row * row_height
+
+            # Convert cell value to string and truncate if needed
+            cell_str = str(cell_value) if cell_value is not None else ""
+            display_text = cell_str[:8] + "..." if len(cell_str) > 8 else cell_str
+
+            ax.text(
+                cell_x + col_width / 2,
+                cell_y + row_height / 2,
+                display_text,
+                fontsize=ELEMENT_FONT_SIZES["table"],
+                ha="center",
+                va="center",
+                zorder=3,
+            )
+        current_row += 1
+
+    # If there are more rows than we're showing, add an indicator
+    if len(rows) > max_rows_to_show:
+        ax.text(
+            pos_x + size_w / 2,
+            pos_y + size_h - 5,
+            f"... +{len(rows) - max_rows_to_show} more rows",
+            fontsize=6,
+            ha="center",
+            va="bottom",
+            style="italic",
+            color="gray",
+            zorder=3,
+        )
 
 
 def _render_image(ax, element):

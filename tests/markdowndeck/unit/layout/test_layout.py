@@ -313,3 +313,149 @@ class TestLayoutManager:
         assert (
             abs(row_positioned.position[0] - top_positioned.position[0]) < 5
         ), f"X coordinates should be similar: top={top_positioned.position[0]}, row={row_positioned.position[0]}"
+
+    def test_layout_p_02_proportional_columns(self, layout_manager: LayoutManager):
+        """
+        Test Case: LAYOUT-P-02 (Integration)
+        Validates correct proportional width and intrinsic height calculation for a row section.
+        This test addresses the critical bugs identified in Task 7:
+        - Issue #1: Incorrect proportional width calculation
+        - Issue #2: Flawed intrinsic height calculation for row sections
+
+        Uses the actual problematic slide structure from the notebook.
+        """
+        # Arrange: Parse the real problematic slide from the notebook
+        from markdowndeck.parser import Parser
+
+        problematic_markdown = """# Executive Summary
+[width=60%][padding=20][background=BACKGROUND2][border=2pt solid ACCENT1]
+## Key Takeaways
+[fontsize=18][line-spacing=1.5][color=ACCENT1]
+- **Universal Standard**: MCP eliminates M×N integration complexity
+- **Open Protocol**: Created by Anthropic, adopted industry-wide
+***
+[width=40%][background=ACCENT2][color=TEXT1][padding=15][valign=middle]
+## Impact Metrics
+[align=center][fontsize=20]
+**85%** reduction in integration time
+**3x** faster development cycles
+"""
+
+        parser = Parser()
+        deck = parser.parse(problematic_markdown)
+        slide = deck.slides[0]
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(slide)
+
+        # Assert
+        # Find the row section (should be the first top-level section)
+        row_section = None
+        for section in positioned_slide.sections:
+            if section.type == "row" and len(section.children) >= 2:
+                row_section = section
+                break
+
+        assert row_section is not None, "Should have a row section with 2 children"
+
+        final_left = row_section.children[0]
+        final_right = row_section.children[1]
+
+        # Get expected dimensions
+        body_width = layout_manager.position_calculator.body_width
+        spacing = layout_manager.position_calculator.HORIZONTAL_SPACING
+        usable_width = body_width - spacing
+
+        expected_left_width = usable_width * 0.6
+        expected_right_width = usable_width * 0.4
+
+        # Assert widths are correct
+        assert (
+            abs(final_left.size[0] - expected_left_width) < 1
+        ), f"Left column width is incorrect. Expected {expected_left_width}, got {final_left.size[0]}. Row size: {row_section.size}"
+        assert (
+            abs(final_right.size[0] - expected_right_width) < 1
+        ), f"Right column width is incorrect. Expected {expected_right_width}, got {final_right.size[0]}. Row size: {row_section.size}"
+
+        # Assert parent row height is based on tallest child
+        assert (
+            row_section.size[1] >= final_left.size[1]
+        ), f"Row height ({row_section.size[1]}) must be at least the height of the tallest child ({final_left.size[1]})"
+        assert (
+            row_section.size[1] > 40
+        ), f"Row height ({row_section.size[1]}) must be calculated from content, not a default value of 40"
+
+    def test_layout_p_03_mixed_width_columns_and_intrinsic_height(
+        self, layout_manager: LayoutManager
+    ):
+        """
+        Test Case: LAYOUT-P-03 (Integration)
+        Validates correct proportional and absolute width calculation, and intrinsic height for a row.
+        This test directly reproduces the critical bugs from TASK_007.md.
+        Spec: LAYOUT_SPEC.md, Rules #2 and #4
+        """
+        # Arrange: Use the problematic markdown from the Golden Test Case (Slide 3)
+        from markdowndeck.parser import Parser
+
+        problematic_markdown = """# Mixed Width Columns
+This text is in the first column. It will take up the remaining space after the explicitly sized columns are accounted for.
+***
+[width=0.25]
+This text is in the second column. It is explicitly sized to take up 25% of the available width.
+***
+[width=150]
+This text is in the third column. It is sized to be exactly 150 points wide.
+"""
+        parser = Parser()
+        deck = parser.parse(problematic_markdown)
+        slide = deck.slides[0]
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(slide)
+
+        # Assert
+        # Find the row section (should be the first top-level section)
+        row_section = next(
+            (s for s in positioned_slide.sections if s.type == "row"), None
+        )
+        assert row_section is not None, "A 'row' type section should have been created."
+        assert (
+            len(row_section.children) == 3
+        ), "The row section should contain three child sections (columns)."
+
+        col1, col2, col3 = row_section.children
+
+        # --- Assertions for Issue #1: Corrected Width Calculation ---
+        body_width = layout_manager.position_calculator.body_width
+        spacing = (
+            layout_manager.position_calculator.HORIZONTAL_SPACING * 2
+        )  # 2 gaps for 3 columns
+        body_width - spacing  # Should be 620 - 20 = 600
+
+        # Expected widths based on the CORRECTED algorithm:
+        # Usable: 600. Absolute: 150.
+        # Proportional (25% of total usable 600): 150.
+        # Implicit (remaining): 600 - 150 - 150 = 300.
+        expected_col1_width = 300.0
+        expected_col2_width = 150.0
+        expected_col3_width = 150.0
+
+        assert (
+            abs(col1.size[0] - expected_col1_width) < 1
+        ), f"Implicit column width is incorrect. Expected ~{expected_col1_width}, got {col1.size[0]}."
+        assert (
+            abs(col2.size[0] - expected_col2_width) < 1
+        ), f"Proportional column width is incorrect. Expected ~{expected_col2_width}, got {col2.size[0]}."
+        assert (
+            abs(col3.size[0] - expected_col3_width) < 1
+        ), f"Absolute column width is incorrect. Expected {expected_col3_width}, got {col3.size[0]}."
+
+        # --- Assertions for Issue #2: Flawed Intrinsic Height ---
+        # The parent row's height must be at least the height of its tallest child.
+        max_child_height = max(c.size[1] for c in row_section.children)
+        assert (
+            row_section.size[1] >= max_child_height
+        ), f"Row height ({row_section.size[1]}) must be >= tallest child ({max_child_height})."
+        assert (
+            row_section.size[1] > 40.0
+        ), f"Row height ({row_section.size[1]}) must be calculated from content, not a default of 40."

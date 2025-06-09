@@ -3,6 +3,7 @@
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
+from typing import Any
 
 from markdowndeck.models import ElementType
 from markdowndeck.models.elements.base import Element
@@ -20,6 +21,7 @@ class ListItem:
     level: int = 0
     formatting: list[TextFormat] = field(default_factory=list)
     children: list["ListItem"] = field(default_factory=list)
+    directives: dict[str, Any] = field(default_factory=dict)
 
     def add_child(self, child: "ListItem") -> None:
         """Add a child item to this list item."""
@@ -57,7 +59,9 @@ class ListElement(Element):
             return 0
         return max(item.max_depth() for item in self.items)
 
-    def split(self, available_height: float) -> tuple["ListElement | None", "ListElement | None"]:
+    def split(
+        self, available_height: float
+    ) -> tuple["ListElement | None", "ListElement | None"]:
         """
         Split this ListElement using simple minimum requirements.
 
@@ -110,7 +114,9 @@ class ListElement(Element):
         fitted_item_count = len(fitted_items)
 
         if fitted_item_count < minimum_items_required:
-            logger.info(f"List split rejected: Only {fitted_item_count} items fit, need minimum {minimum_items_required}")
+            logger.info(
+                f"List split rejected: Only {fitted_item_count} items fit, need minimum {minimum_items_required}"
+            )
             return None, deepcopy(self)
 
         # Minimum met - proceed with split
@@ -136,7 +142,9 @@ class ListElement(Element):
                 )
                 overflowing_part._continuation_title = continuation_title
 
-        logger.info(f"List split successful: {fitted_item_count} items fitted, {len(overflowing_items)} items overflowing")
+        logger.info(
+            f"List split successful: {fitted_item_count} items fitted, {len(overflowing_items)} items overflowing"
+        )
         return fitted_part, overflowing_part
 
     def set_preceding_title(self, title_text: str):

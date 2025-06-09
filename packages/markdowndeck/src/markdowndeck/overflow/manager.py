@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from markdowndeck.models import Slide
 
+from markdowndeck.models import ElementType
 from markdowndeck.overflow.detector import OverflowDetector
 from markdowndeck.overflow.handlers import StandardOverflowHandler
 
@@ -316,6 +317,19 @@ class OverflowManager:
             f"STEP 1: Preserving {len(renderable_elements)} existing meta-elements from LayoutManager"
         )
 
+        # Keep track of existing object_ids and meta-element types to prevent duplicates
+        existing_object_ids = {
+            elem.object_id for elem in renderable_elements if elem.object_id
+        }
+        existing_meta_types = {
+            elem.element_type
+            for elem in renderable_elements
+            if elem.element_type
+            in [ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER]
+        }
+        logger.debug(f"Existing object_ids: {existing_object_ids}")
+        logger.debug(f"Existing meta-element types: {existing_meta_types}")
+
         for i, element in enumerate(renderable_elements):
             logger.debug(
                 f"  Preserved element {i}: {element.element_type} at {element.position} size {element.size}"
@@ -371,10 +385,44 @@ class OverflowManager:
                         )
 
                         if element.position is not None and element.size is not None:
-                            renderable_elements.append(element)
-                            logger.debug(
-                                f"{indent}      -> Added positioned section element {element.element_type}"
-                            )
+                            # Check for duplicates using object_id or meta-element type
+                            is_duplicate = False
+
+                            # Check object_id duplication
+                            if (
+                                element.object_id
+                                and element.object_id in existing_object_ids
+                            ):
+                                is_duplicate = True
+                                logger.debug(
+                                    f"{indent}      -> Skipped duplicate element {element.element_type} with object_id={element.object_id}"
+                                )
+
+                            # Check meta-element type duplication (only one TITLE, SUBTITLE, FOOTER allowed)
+                            elif element.element_type in [
+                                ElementType.TITLE,
+                                ElementType.SUBTITLE,
+                                ElementType.FOOTER,
+                            ]:
+                                if element.element_type in existing_meta_types:
+                                    is_duplicate = True
+                                    logger.debug(
+                                        f"{indent}      -> Skipped duplicate meta-element {element.element_type} (already have one)"
+                                    )
+
+                            if not is_duplicate:
+                                renderable_elements.append(element)
+                                if element.object_id:
+                                    existing_object_ids.add(element.object_id)
+                                if element.element_type in [
+                                    ElementType.TITLE,
+                                    ElementType.SUBTITLE,
+                                    ElementType.FOOTER,
+                                ]:
+                                    existing_meta_types.add(element.element_type)
+                                logger.debug(
+                                    f"{indent}      -> Added positioned section element {element.element_type}"
+                                )
                         else:
                             logger.warning(
                                 f"Section element {element.element_type} in section {section.id} missing position/size data - skipping"

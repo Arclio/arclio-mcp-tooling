@@ -492,7 +492,10 @@ def _calculate_predictable_dimensions(
     """
     Calculate predictable dimensions for sections with explicit and implicit sizing.
 
-    This preserves the existing equal division logic for horizontal sections.
+    Fixed algorithm that properly handles mixed width types:
+    1. Calculate absolute sections first
+    2. Calculate proportional sections from TOTAL usable space (not remaining)
+    3. Distribute remainder to implicit sections
     """
     num_sections = len(sections)
     if num_sections == 0:
@@ -501,92 +504,63 @@ def _calculate_predictable_dimensions(
     total_spacing = spacing * (num_sections - 1)
     usable_dimension = available_dimension - total_spacing
 
-    explicitly_sized_indices = {}
-    explicitly_sized_total = 0.0
+    # 1. Identify section types and sum absolute widths
+    absolute_indices = {}
+    proportional_indices = {}
     implicit_indices = []
+    absolute_total = 0.0
 
-    # First pass: identify explicit sections and sum their requests
     for i, section in enumerate(sections):
         directive_value = (
             section.directives.get(dimension_key)
             if hasattr(section, "directives") and section.directives
             else None
         )
-        if directive_value is not None:
-            try:
-                size = 0.0
-                if isinstance(directive_value, float) and 0.0 < directive_value <= 1.0:
-                    # Apply percentage to usable dimension (space available after spacing)
-                    size = usable_dimension * directive_value
-                elif isinstance(directive_value, int | float) and directive_value > 1.0:
-                    size = float(directive_value)
-
-                if size > 0.0:
-                    explicitly_sized_indices[i] = size
-                    explicitly_sized_total += size
-                    continue
-            except (ValueError, TypeError):
-                pass
-        implicit_indices.append(i)
-
-    # Scale down explicit sizes if they collectively exceed the usable space
-    # But only scale percentage-based directives, not absolute ones
-    if explicitly_sized_total > usable_dimension:
-        # Separate absolute vs percentage directives
-        absolute_indices = {}
-        percentage_indices = {}
-        absolute_total = 0.0
-        percentage_total = 0.0
-
-        for i in explicitly_sized_indices:
-            section = sections[i]
-            directive_value = (
-                section.directives.get(dimension_key)
-                if hasattr(section, "directives") and section.directives
-                else None
-            )
-            if directive_value is not None:
-                if isinstance(directive_value, float) and 0.0 < directive_value <= 1.0:
-                    # Percentage directive
-                    percentage_indices[i] = explicitly_sized_indices[i]
-                    percentage_total += explicitly_sized_indices[i]
-                elif isinstance(directive_value, int | float) and directive_value > 1.0:
-                    # Absolute directive - don't scale
-                    absolute_indices[i] = explicitly_sized_indices[i]
-                    absolute_total += explicitly_sized_indices[i]
-
-        # If absolute directives alone exceed space, we have a problem
-        if absolute_total > usable_dimension:
-            logger.warning(
-                f"Absolute {dimension_key} directives ({absolute_total:.1f}) exceed usable space ({usable_dimension:.1f}). "
-                f"Sections may overlap."
-            )
-            # Keep absolute sizes as-is, even if they cause overflow
+        if isinstance(directive_value, int | float) and directive_value > 1.0:
+            absolute_indices[i] = float(directive_value)
+            absolute_total += float(directive_value)
+        elif isinstance(directive_value, float) and 0.0 < directive_value <= 1.0:
+            proportional_indices[i] = directive_value
         else:
-            # Scale only percentage directives to fit remaining space after absolute directives
-            remaining_for_percentage = usable_dimension - absolute_total
-            if percentage_total > remaining_for_percentage and percentage_total > 0:
-                scale_factor = remaining_for_percentage / percentage_total
-                for i in percentage_indices:
-                    explicitly_sized_indices[i] *= scale_factor
+            implicit_indices.append(i)
 
-        # Recalculate total after scaling
-        explicitly_sized_total = sum(explicitly_sized_indices.values())
+    # 2. Calculate proportional widths based on the TOTAL usable space
+    proportional_total = 0.0
+    for i, proportion in proportional_indices.items():
+        # Proportions are of the total usable space (the key fix)
+        size = usable_dimension * proportion
+        proportional_indices[i] = size
+        proportional_total += size
 
-    # Distribute remaining space to implicit sections
-    # Spacing is handled during positioning, not during dimension calculation
-    remaining_space = usable_dimension - explicitly_sized_total
-    num_implicit = len(implicit_indices)
-    implicit_size = remaining_space / num_implicit if num_implicit > 0 else 0
+    # 3. Distribute final remainder to implicit sections
+    remaining_for_implicit = max(
+        0.0, usable_dimension - absolute_total - proportional_total
+    )
+    implicit_size = (
+        remaining_for_implicit / len(implicit_indices) if implicit_indices else 0.0
+    )
 
     # Build the final dimensions list
     dimensions = [0.0] * num_sections
     for i in range(num_sections):
-        dimensions[i] = explicitly_sized_indices.get(i, implicit_size)
+        if i in absolute_indices:
+            dimensions[i] = absolute_indices[i]
+        elif i in proportional_indices:
+            dimensions[i] = proportional_indices[i]
+        else:  # is implicit
+            dimensions[i] = implicit_size
+
+    # Check if absolute sections exceed available space
+    if absolute_total > usable_dimension:
+        logger.warning(
+            f"Absolute {dimension_key} directives ({absolute_total:.1f}) exceed usable space ({usable_dimension:.1f}). "
+            f"Sections may overlap."
+        )
 
     logger.debug(
-        f"Calculated {dimension_key} dimensions: explicit={len(explicitly_sized_indices)}, "
-        f"implicit={num_implicit}, dimensions={[f'{d:.1f}' for d in dimensions]}"
+        f"Calculated {dimension_key} dimensions: absolute={len(absolute_indices)}, "
+        f"proportional={len(proportional_indices)}, implicit={len(implicit_indices)}, "
+        f"dimensions={[f'{d:.1f}' for d in dimensions]}"
     )
 
     return dimensions
