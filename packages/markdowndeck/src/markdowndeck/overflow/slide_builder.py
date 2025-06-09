@@ -304,7 +304,7 @@ class SlideBuilder:
                         # Generate unique object ID for each element to avoid conflicts
                         if hasattr(element, "object_id"):
                             element.object_id = (
-                                f"{element.element_type}_{uuid.uuid4().hex[:8]}"
+                                f"{element.element_type.value}_{uuid.uuid4().hex[:8]}"
                             )
 
                         # CRITICAL: Reset element positions for continuation slides

@@ -23,26 +23,25 @@ from markdowndeck.layout.constants import (
     P_FONT_SIZE,
     P_LINE_HEIGHT_MULTIPLIER,
     QUOTE_PADDING,
-    # Character widths
-    STANDARD_CHAR_WIDTH,
     SUBTITLE_PADDING,
     TEXT_PADDING,
-    TITLE_CHAR_WIDTH,
     # Padding
     TITLE_PADDING,
 )
+from markdowndeck.layout.metrics.font_metrics import calculate_text_bbox
 from markdowndeck.models import ElementType, TextElement
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_text_element_height(element: TextElement | dict, available_width: float) -> float:
+def calculate_text_element_height(
+    element: TextElement | dict, available_width: float
+) -> float:
     """
     Calculate the pure intrinsic height needed for a text element based on its content.
 
-    This is a pure measurement function that returns the actual height required
-    to render the element's content at the given width. It does not apply any
-    constraints or attempt to fit content within boundaries.
+    This function now uses actual font metrics via Pillow to accurately determine
+    text height, replacing the previous simplistic character width estimation.
 
     Args:
         element: The text element to measure
@@ -57,7 +56,9 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
         "element_type",
         element.get("element_type") if isinstance(element, dict) else ElementType.TEXT,
     )
-    text_content = getattr(element, "text", element.get("text") if isinstance(element, dict) else "")
+    text_content = getattr(
+        element, "text", element.get("text") if isinstance(element, dict) else ""
+    )
     directives = getattr(
         element,
         "directives",
@@ -76,7 +77,9 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
             return _get_minimum_height_for_type(element_type)
 
     # Get typography parameters for this element type
-    font_size, line_height_multiplier, char_width, padding, min_height = _get_typography_params(element_type)
+    font_size, line_height_multiplier, _, padding, min_height = _get_typography_params(
+        element_type
+    )
 
     # Apply font size directive if present
     if directives and "fontsize" in directives:
@@ -90,105 +93,86 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
         except (ValueError, TypeError):
             logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
 
-    # Calculate actual line height
-    line_height = font_size * line_height_multiplier
+    # Calculate effective width (subtract padding)
+    effective_width = max(10.0, available_width - padding)
 
-    # Calculate effective width (subtract minimal border padding)
-    effective_width = max(10.0, available_width - 4.0)  # 2pt padding on each side
+    # Use Pillow-based font metrics for accurate height calculation
+    try:
+        _, text_height = calculate_text_bbox(
+            text_content, font_size, max_width=effective_width
+        )
 
-    # Calculate how many lines the text will require
-    total_lines = _calculate_line_count(text_content, effective_width, char_width)
+        # Apply line height multiplier
+        content_height = text_height * line_height_multiplier
+        total_height = content_height + padding
 
-    # Calculate total height: lines * line_height + padding
-    content_height = total_lines * line_height
-    total_height = content_height + padding
+        logger.debug(
+            f"Font-based height calculation: type={element_type}, "
+            f"font_size={font_size:.1f}, text_height={text_height:.1f}, "
+            f"content_height={content_height:.1f}, total_height={total_height:.1f}"
+        )
+
+    except Exception as e:
+        logger.warning(
+            f"Font metrics calculation failed, falling back to estimation: {e}"
+        )
+        # Fallback to old method if font metrics fail
+        total_height = _fallback_height_calculation(
+            text_content, effective_width, font_size, line_height_multiplier, padding
+        )
 
     # Apply minimum height constraint
     final_height = max(total_height, min_height)
 
     logger.debug(
         f"Text height calculation: type={element_type}, "
-        f"content_length={len(text_content)}, lines={total_lines}, "
-        f"line_height={line_height:.1f}, final_height={final_height:.1f}"
+        f"content_length={len(text_content)}, final_height={final_height:.1f}"
     )
 
     return final_height
 
 
-def _get_typography_params(
-    element_type: ElementType,
-) -> tuple[float, float, float, float, float]:
+def _fallback_height_calculation(
+    text_content: str,
+    effective_width: float,
+    font_size: float,
+    line_height_multiplier: float,
+    padding: float,
+) -> float:
     """
-    Get typography parameters for a specific element type.
+    Fallback height calculation using the old character width estimation method.
 
-    Returns:
-        (font_size, line_height_multiplier, char_width, padding, min_height)
+    This is used when font metrics are not available.
     """
-    if element_type == ElementType.TITLE:
-        return (
-            H1_FONT_SIZE,
-            H1_LINE_HEIGHT_MULTIPLIER,
-            TITLE_CHAR_WIDTH,
-            TITLE_PADDING,
-            MIN_TITLE_HEIGHT,
-        )
-    if element_type == ElementType.SUBTITLE:
-        return (
-            H2_FONT_SIZE,
-            H2_LINE_HEIGHT_MULTIPLIER,
-            STANDARD_CHAR_WIDTH,
-            SUBTITLE_PADDING,
-            MIN_SUBTITLE_HEIGHT,
-        )
-    if element_type == ElementType.QUOTE:
-        return (
-            P_FONT_SIZE,
-            P_LINE_HEIGHT_MULTIPLIER,
-            STANDARD_CHAR_WIDTH,
-            QUOTE_PADDING,
-            MIN_QUOTE_HEIGHT,
-        )
-    if element_type == ElementType.FOOTER:
-        return (
-            FOOTER_FONT_SIZE,
-            P_LINE_HEIGHT_MULTIPLIER,
-            STANDARD_CHAR_WIDTH,
-            TEXT_PADDING,
-            20.0,
-        )  # Footer minimum
-    # Default for TEXT and other types
-    return (
-        P_FONT_SIZE,
-        P_LINE_HEIGHT_MULTIPLIER,
-        STANDARD_CHAR_WIDTH,
-        TEXT_PADDING,
-        MIN_TEXT_HEIGHT,
+    # Use old character width estimation as fallback
+    STANDARD_CHAR_WIDTH = 5.0  # Average character width estimation
+
+    # Calculate actual line height
+    line_height = font_size * line_height_multiplier
+
+    # Calculate how many lines the text will require using old method
+    total_lines = _calculate_line_count_fallback(
+        text_content, effective_width, STANDARD_CHAR_WIDTH
     )
 
+    # Calculate total height: lines * line_height + padding
+    content_height = total_lines * line_height
+    total_height = content_height + padding
 
-def _get_minimum_height_for_type(element_type: ElementType) -> float:
-    """Get the minimum height for an element type."""
-    minimums = {
-        ElementType.TITLE: MIN_TITLE_HEIGHT,
-        ElementType.SUBTITLE: MIN_SUBTITLE_HEIGHT,
-        ElementType.QUOTE: MIN_QUOTE_HEIGHT,
-        ElementType.FOOTER: 20.0,
-        ElementType.TEXT: MIN_TEXT_HEIGHT,
-    }
-    return minimums.get(element_type, MIN_TEXT_HEIGHT)
+    logger.debug(
+        f"Using fallback calculation: lines={total_lines}, total_height={total_height:.1f}"
+    )
+
+    return total_height
 
 
-def _calculate_line_count(text: str, available_width: float, char_width: float) -> int:
+def _calculate_line_count_fallback(
+    text: str, available_width: float, char_width: float
+) -> int:
     """
-    Calculate how many lines the text will require for the given width.
+    Calculate how many lines the text will require using character width estimation.
 
-    Args:
-        text: The text content
-        available_width: Available width in points
-        char_width: Average character width in points
-
-    Returns:
-        Number of lines required
+    This is the old fallback method when font metrics are not available.
     """
     if not text.strip():
         return 1  # Empty text still takes one line
@@ -211,6 +195,69 @@ def _calculate_line_count(text: str, available_width: float, char_width: float) 
             total_lines += lines_needed
 
     return total_lines
+
+
+def _get_typography_params(
+    element_type: ElementType,
+) -> tuple[float, float, float, float, float]:
+    """
+    Get typography parameters for a specific element type.
+
+    Returns:
+        (font_size, line_height_multiplier, char_width, padding, min_height)
+    """
+    if element_type == ElementType.TITLE:
+        return (
+            H1_FONT_SIZE,
+            H1_LINE_HEIGHT_MULTIPLIER,
+            0.0,  # char_width no longer used
+            TITLE_PADDING,
+            MIN_TITLE_HEIGHT,
+        )
+    if element_type == ElementType.SUBTITLE:
+        return (
+            H2_FONT_SIZE,
+            H2_LINE_HEIGHT_MULTIPLIER,
+            0.0,  # char_width no longer used
+            SUBTITLE_PADDING,
+            MIN_SUBTITLE_HEIGHT,
+        )
+    if element_type == ElementType.QUOTE:
+        return (
+            P_FONT_SIZE,
+            P_LINE_HEIGHT_MULTIPLIER,
+            0.0,  # char_width no longer used
+            QUOTE_PADDING,
+            MIN_QUOTE_HEIGHT,
+        )
+    if element_type == ElementType.FOOTER:
+        return (
+            FOOTER_FONT_SIZE,
+            P_LINE_HEIGHT_MULTIPLIER,
+            0.0,  # char_width no longer used
+            TEXT_PADDING,
+            20.0,
+        )  # Footer minimum
+    # Default for TEXT and other types
+    return (
+        P_FONT_SIZE,
+        P_LINE_HEIGHT_MULTIPLIER,
+        0.0,  # char_width no longer used
+        TEXT_PADDING,
+        MIN_TEXT_HEIGHT,
+    )
+
+
+def _get_minimum_height_for_type(element_type: ElementType) -> float:
+    """Get the minimum height for an element type."""
+    minimums = {
+        ElementType.TITLE: MIN_TITLE_HEIGHT,
+        ElementType.SUBTITLE: MIN_SUBTITLE_HEIGHT,
+        ElementType.QUOTE: MIN_QUOTE_HEIGHT,
+        ElementType.FOOTER: 20.0,
+        ElementType.TEXT: MIN_TEXT_HEIGHT,
+    }
+    return minimums.get(element_type, MIN_TEXT_HEIGHT)
 
 
 def _detect_heading_level(text: str) -> int:

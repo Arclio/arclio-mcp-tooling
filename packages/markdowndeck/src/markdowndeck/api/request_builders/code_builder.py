@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 class CodeRequestBuilder(BaseRequestBuilder):
     """Builder for code-related Google Slides API requests."""
 
-    def generate_code_element_requests(self, element: CodeElement, slide_id: str) -> list[dict]:
+    def generate_code_element_requests(
+        self, element: CodeElement, slide_id: str
+    ) -> list[dict]:
         """
         Generate requests for a code element.
 
@@ -31,7 +33,9 @@ class CodeRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"code_{slide_id}")
-            logger.debug(f"Generated missing object_id for code element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for code element: {element.object_id}"
+            )
 
         # Create shape
         create_shape_request = {
@@ -56,8 +60,16 @@ class CodeRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_shape_request)
 
-        # We're no longer setting autofit since only NONE is supported,
-        # and applying NONE is unnecessary as it's the default
+        # Disable autofit to prevent Google Slides from automatically resizing text
+        # This ensures our layout calculations are respected
+        autofit_request = {
+            "updateShapeProperties": {
+                "objectId": element.object_id,
+                "fields": "autofit.autofitType",
+                "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+            }
+        }
+        requests.append(autofit_request)
 
         # Skip insertion if there's no code text
         if not element.code:
@@ -78,7 +90,11 @@ class CodeRequestBuilder(BaseRequestBuilder):
             element_id=element.object_id,
             style={
                 "fontFamily": "Courier New",
-                "backgroundColor": {"opaqueColor": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}},
+                "backgroundColor": {
+                    "opaqueColor": {
+                        "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                    }
+                },
             },
             fields="fontFamily,backgroundColor",
             range_type="ALL",
@@ -108,7 +124,13 @@ class CodeRequestBuilder(BaseRequestBuilder):
                 "objectId": element.object_id,
                 "fields": "shapeBackgroundFill.solidFill.color",  # Correct field path
                 "shapeProperties": {
-                    "shapeBackgroundFill": {"solidFill": {"color": {"rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}}}}
+                    "shapeBackgroundFill": {
+                        "solidFill": {
+                            "color": {
+                                "rgbColor": {"red": 0.95, "green": 0.95, "blue": 0.95}
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -140,6 +162,16 @@ class CodeRequestBuilder(BaseRequestBuilder):
             }
             requests.append(create_label_request)
 
+            # Disable autofit for label as well
+            label_autofit_request = {
+                "updateShapeProperties": {
+                    "objectId": label_id,
+                    "fields": "autofit.autofitType",
+                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+                }
+            }
+            requests.append(label_autofit_request)
+
             # Insert label text
             insert_label_request = {
                 "insertText": {
@@ -156,7 +188,11 @@ class CodeRequestBuilder(BaseRequestBuilder):
                 style={
                     "fontFamily": "Arial",
                     "fontSize": {"magnitude": 10, "unit": "PT"},
-                    "foregroundColor": {"opaqueColor": {"rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}}},
+                    "foregroundColor": {
+                        "opaqueColor": {
+                            "rgbColor": {"red": 0.3, "green": 0.3, "blue": 0.3}
+                        }
+                    },
                 },
                 fields="fontFamily,fontSize,foregroundColor",
                 range_type="ALL",

@@ -6,6 +6,8 @@ Parser, LayoutManager, and OverflowManager components, ensuring they adhere to
 the contracts defined in ARCHITECTURE.md and DATA_FLOW.md.
 """
 
+import re
+
 import pytest
 from markdowndeck import markdown_to_requests
 from markdowndeck.layout import LayoutManager
@@ -213,3 +215,67 @@ Right content.
         all_text = " ".join([r.get("insertText", {}).get("text", "") for r in requests])
         assert "Left content" in all_text
         assert "Right content" in all_text
+
+    def test_integration_p_05_continuation_slide_object_ids(
+        self,
+        parser: Parser,
+        layout_manager: LayoutManager,
+        overflow_manager: OverflowManager,
+    ):
+        """
+        Test Case: INTEGRATION-P-05
+        Validates that continuation slide elements have valid Google API objectIds.
+        This test verifies the fix for invalid objectId generation bug in SlideBuilder.
+        """
+        # Arrange: Use content that will definitely overflow and create many text elements
+        # Each line will become a separate paragraph, and having many should force overflow
+        lines = []
+        for i in range(20):  # Create many lines of text to guarantee overflow
+            lines.append(
+                f"This is line number {i} with some content that takes up space."
+            )
+
+        text_content = "\n".join(lines)
+        markdown = f"# Overflow Test\n\n{text_content}"
+
+        # Act: Run the full pipeline to create continuation slides
+        unpositioned_deck = parser.parse(markdown)
+        positioned_slide = layout_manager.calculate_positions(
+            unpositioned_deck.slides[0]
+        )
+
+        final_slides = overflow_manager.process_slide(positioned_slide)
+
+        # Assert: Must have created continuation slides
+        assert (
+            len(final_slides) > 1
+        ), "Overflow should have created multiple slides for objectId validation."
+
+        # Collect all elements from all slides for validation
+        all_elements = []
+        for slide in final_slides:
+            for element in slide.renderable_elements:
+                if hasattr(element, "object_id") and element.object_id:
+                    all_elements.append(element)
+
+        # Valid Google Slides API objectId regex pattern
+        valid_object_id_pattern = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_:\-]*$")
+
+        # Validate every element's objectId across all slides
+        assert (
+            len(all_elements) > 0
+        ), "Must have at least some elements to validate objectIds"
+
+        for i, element in enumerate(all_elements):
+            assert hasattr(
+                element, "object_id"
+            ), f"Element {i} must have object_id attribute"
+            assert (
+                element.object_id is not None
+            ), f"Element {i} object_id cannot be None"
+
+            # This assertion validates that continuation slide elements have valid objectIds
+            assert valid_object_id_pattern.match(element.object_id), (
+                f"Element {i} has invalid objectId '{element.object_id}'. "
+                rf"Must match Google Slides API regex: ^[a-zA-Z0-9_][a-zA-Z0-9_:\-]*$"
+            )

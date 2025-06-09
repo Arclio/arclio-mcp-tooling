@@ -63,8 +63,16 @@ class TextRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_textbox_request)
 
-        # Removed autofit request since only NONE is supported by the Google Slides REST API
-        # and NONE is the default state, so we don't need to set it explicitly
+        # Disable autofit to prevent Google Slides from automatically resizing text
+        # This ensures our layout calculations are respected
+        autofit_request = {
+            "updateShapeProperties": {
+                "objectId": element.object_id,
+                "fields": "autofit.autofitType",
+                "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+            }
+        }
+        requests.append(autofit_request)
 
         # --- CORRECTED SECTION FOR CONTENT ALIGNMENT ---
         # Define content alignment for text box (vertical alignment)
@@ -250,7 +258,16 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         element = deepcopy(element)
         element.object_id = placeholder_id
-        if element.text:
+
+        # Only generate deleteText and insertText if we have content to insert
+        if element.text and element.text.strip():
+            # For themed placeholders, skip deleteText since they should start empty
+            # This avoids the "startIndex 0 must be less than endIndex 0" error when
+            # the placeholder is already empty (common in Google Slides themes)
+            #
+            # Note: If we need to clear placeholder content in the future, we could:
+            # 1. First insert a single character, then delete with range 0 to 1
+            # 2. Or check placeholder state before deleting
             requests.append(
                 {
                     "insertText": {
@@ -260,6 +277,22 @@ class TextRequestBuilder(BaseRequestBuilder):
                     }
                 }
             )
+
+            # Disable autofit to prevent Google Slides from automatically resizing text
+            # This ensures our layout calculations are respected for themed placeholders
+            autofit_request = {
+                "updateShapeProperties": {
+                    "objectId": placeholder_id,
+                    "fields": "autofit.autofitType",
+                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+                }
+            }
+            requests.append(autofit_request)
+
+            logger.debug(
+                f"Added autofit disabling request for themed placeholder {placeholder_id}"
+            )
+
             if hasattr(element, "formatting") and element.formatting:
                 for text_format in element.formatting:
                     text_length = len(element.text)

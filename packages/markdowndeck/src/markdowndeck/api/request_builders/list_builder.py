@@ -245,8 +245,16 @@ class ListRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_shape_request)
 
-        # Removed autofit request since only NONE is supported by the Google Slides REST API
-        # and NONE is the default state, so we don't need to set it explicitly
+        # Disable autofit to prevent Google Slides from automatically resizing text
+        # This ensures our layout calculations are respected
+        autofit_request = {
+            "updateShapeProperties": {
+                "objectId": element.object_id,
+                "fields": "autofit.autofitType",
+                "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+            }
+        }
+        requests.append(autofit_request)
 
         # Skip insertion if there are no items
         if not hasattr(element, "items") or not element.items:
@@ -503,12 +511,14 @@ class ListRequestBuilder(BaseRequestBuilder):
 
         # Only generate deleteText and insertText if we have content to insert
         if full_text.strip():
-            # First, delete any existing text in the placeholder
-            delete_text_request = {
-                "deleteText": {"objectId": placeholder_id, "textRange": {"type": "ALL"}}
-            }
-            requests.append(delete_text_request)
-
+            # For themed placeholders, skip deleteText since they should start empty
+            # This avoids the "startIndex 0 must be less than endIndex 0" error when
+            # the placeholder is already empty (common in Google Slides themes)
+            #
+            # Note: If we need to clear placeholder content in the future, we could:
+            # 1. First insert a single character, then delete with range 0 to 1
+            # 2. Or check placeholder state before deleting
+            # For now, direct insertText is safer for themed placeholders
             insert_text_request = {
                 "insertText": {
                     "objectId": placeholder_id,

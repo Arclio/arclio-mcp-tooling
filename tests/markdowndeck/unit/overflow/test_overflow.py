@@ -342,6 +342,66 @@ class TestOverflowManager:
         #     len(continuation_slide.renderable_elements) > 0
         # ), "Renderable elements must be populated."
 
+    def test_overflow_c_05_split_preserves_formatting_objects(self):
+        """
+        Test Case: OVERFLOW-C-05
+        Validates that splitting a TextElement preserves the list of TextFormat objects,
+        preventing data corruption into booleans or other types.
+        Spec: DATA_MODELS.md, section 3.5 TextFormat
+        """
+        from markdowndeck.models import TextFormat, TextFormatType
+
+        # Arrange - Create a much longer text that will definitely cause overflow
+        long_text = (
+            "This is the first line with some content.\n"
+            "This is the second line with more content.\n"
+            "This is the third line with bold formatting.\n"
+            "This is the fourth line with italic text.\n"
+            "This is the fifth line that should overflow.\n"
+            "This is the sixth line in the overflow part.\n"
+            "This is the seventh and final line."
+        )
+
+        text_element = TextElement(
+            element_type=ElementType.TEXT,
+            text=long_text,
+            size=(620, 200),  # Large size to avoid edge cases
+            formatting=[
+                # Bold formatting for "bold formatting" in line 3
+                TextFormat(
+                    start=110, end=125, format_type=TextFormatType.BOLD, value=True
+                ),
+                # Italic formatting for "italic text" in line 4
+                TextFormat(
+                    start=175, end=186, format_type=TextFormatType.ITALIC, value=True
+                ),
+            ],
+        )
+
+        # Act - Call the split method directly with a small available height
+        # Use very small height to force split at 2 lines (minimum requirement)
+        fitted_part, overflowing_part = text_element.split(available_height=30.0)
+
+        # Assert
+        assert (
+            overflowing_part is not None
+        ), "Overflowing part should exist when text is split."
+        assert isinstance(
+            overflowing_part.formatting, list
+        ), "Formatting must be a list."
+
+        # This is the key assertion. It fails if the list contains anything other than TextFormat objects.
+        for item in overflowing_part.formatting:
+            assert isinstance(
+                item, TextFormat
+            ), f"Formatting list contains invalid type: {type(item)}"
+            assert hasattr(item, "start"), "TextFormat must have start attribute"
+            assert hasattr(item, "end"), "TextFormat must have end attribute"
+            assert hasattr(
+                item, "format_type"
+            ), "TextFormat must have format_type attribute"
+            assert hasattr(item, "value"), "TextFormat must have value attribute"
+
     @patch("markdowndeck.layout.LayoutManager.calculate_positions")
     def test_overflow_p_01(
         self, mock_calculate_positions: MagicMock, overflow_manager: OverflowManager
