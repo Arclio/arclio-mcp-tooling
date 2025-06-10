@@ -12,19 +12,49 @@ logger = logging.getLogger(__name__)
 class BaseRequestBuilder:
     """Base class for Google Slides API request builders."""
 
-    def _generate_id(self, prefix: str = "") -> str:
+    def _generate_id(self, prefix: str = "", max_length: int = 50) -> str:
         """
-        Generate a unique ID string.
+        Generate a unique ID string that stays within Google Slides API limits.
 
         Args:
             prefix: Optional prefix for the ID
+            max_length: Maximum allowed length (Google Slides limit is 50)
 
         Returns:
-            String with the generated ID
+            String with the generated ID under the length limit
         """
-        if prefix:
-            return f"{prefix}_{uuid.uuid4().hex[:8]}"
-        return uuid.uuid4().hex[:8]
+        uuid_suffix = uuid.uuid4().hex[:8]  # 8 chars for uniqueness
+
+        if not prefix:
+            return uuid_suffix
+
+        # Calculate available space for prefix
+        separator_chars = 1  # One underscore: {prefix}_{uuid}
+        available_for_prefix = max_length - len(uuid_suffix) - separator_chars
+
+        # Intelligently truncate prefix if needed while preserving meaning
+        if len(prefix) > available_for_prefix:
+            # For slide-related prefixes, try to preserve the slide number
+            if prefix.startswith("slide_") and "_" in prefix:
+                parts = prefix.split("_")
+                if len(parts) >= 2 and parts[1].isdigit():
+                    # Keep "slide_N" and truncate the rest
+                    essential_part = f"slide_{parts[1]}"
+                    if len(essential_part) <= available_for_prefix:
+                        truncated_prefix = essential_part
+                    else:
+                        # Even essential part is too long, simple truncation
+                        truncated_prefix = prefix[:available_for_prefix]
+                else:
+                    # Simple truncation
+                    truncated_prefix = prefix[:available_for_prefix]
+            else:
+                # Simple truncation for non-slide prefixes
+                truncated_prefix = prefix[:available_for_prefix]
+        else:
+            truncated_prefix = prefix
+
+        return f"{truncated_prefix}_{uuid_suffix}"
 
     def _hex_to_rgb(self, hex_color: str) -> dict[str, float]:
         """
@@ -102,7 +132,9 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(color_value_str)
                     style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 else:  # Assume theme color name if not a hex string
-                    style["foregroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
+                    style["foregroundColor"] = {
+                        "opaqueColor": {"themeColor": color_value_str.upper()}
+                    }
         elif text_format.format_type == TextFormatType.BACKGROUND_COLOR:
             color_value_str = text_format.value
             if isinstance(color_value_str, str):
@@ -110,7 +142,9 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(color_value_str)
                     style["backgroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 else:  # Assume theme color name
-                    style["backgroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
+                    style["backgroundColor"] = {
+                        "opaqueColor": {"themeColor": color_value_str.upper()}
+                    }
         elif text_format.format_type == TextFormatType.FONT_SIZE:
             if isinstance(text_format.value, int | float):
                 style["fontSize"] = {
@@ -234,9 +268,9 @@ class BaseRequestBuilder:
 
         # Add cell location for table text styling if provided
         if cell_location:
-            request["updateTextStyle"]["cellLocation"] = (
-                cell_location  # Corrected: cellLocation is part of updateTextStyle directly
-            )
+            request["updateTextStyle"][
+                "cellLocation"
+            ] = cell_location  # Corrected: cellLocation is part of updateTextStyle directly
             # The tableRange is not needed here if cellLocation is used.
             # The API docs for UpdateTextStyleRequest show cellLocation at the same level as textRange.
             # If textRange is also set, it applies within the specified cell.

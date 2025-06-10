@@ -279,7 +279,7 @@ class PositionCalculator:
             root_section = Section(
                 id="root",
                 content="",
-                elements=[],
+                children=[],
                 position=(self.body_left, self.body_top),
                 size=None,  # Allow intrinsic height calculation
                 directives={},  # No pre-set height directive

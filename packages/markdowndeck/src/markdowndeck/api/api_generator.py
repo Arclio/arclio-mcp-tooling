@@ -26,10 +26,16 @@ class ApiRequestGenerator:
     def __init__(self):
         """Initialize the request generator with all builders."""
         logger.debug("Initializing API request generator")
+
+        # Import ElementFactory for ListRequestBuilder
+        from markdowndeck.parser.content.element_factory import ElementFactory
+
+        element_factory = ElementFactory()
+
         self.slide_builder = SlideRequestBuilder()
         self.text_builder = TextRequestBuilder()
         self.media_builder = MediaRequestBuilder()
-        self.list_builder = ListRequestBuilder()
+        self.list_builder = ListRequestBuilder(element_factory)
         self.table_builder = TableRequestBuilder()
         self.code_builder = CodeRequestBuilder()
 

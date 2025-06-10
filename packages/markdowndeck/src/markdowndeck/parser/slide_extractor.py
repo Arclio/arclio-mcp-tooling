@@ -140,54 +140,51 @@ class SlideExtractor:
         self, content: str, index: int, slide_object_id: str
     ) -> dict:
         """
-        Process slide content with improved title and subtitle handling.
+        Process slide content with robust title, subtitle, and metadata handling.
+        This version ensures that consumed metadata lines are NOT passed to the content parser.
         """
-        original_content = content
-
-        # Split by footer separator
-        footer_parts = re.split(
-            r"^\s*@@@\s*$", original_content, maxsplit=1, flags=re.MULTILINE
-        )
+        # --- Stage 1: Isolate Footer and Notes ---
+        # Split by footer separator first to isolate the main content block
+        footer_parts = re.split(r"^\s*@@@\s*$", content, maxsplit=1, flags=re.MULTILINE)
         main_content_segment = footer_parts[0]
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
 
-        # Extract title, subtitle, and directives
-        title, subtitle, content_after_meta, title_directives, subtitle_directives = (
+        # Extract notes from the entire original content block to catch all cases
+        notes = self._extract_notes(content)
+
+        # Remove notes from the main content segment to prevent re-parsing
+        if notes:
+            main_content_segment = re.sub(
+                r"<!--\s*notes:\s*.*?\s*-->", "", main_content_segment, flags=re.DOTALL
+            )
+        # Also remove notes from the footer if they were there
+        if footer and notes:
+            footer = re.sub(
+                r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
+            ).strip()
+
+        # --- Stage 2: Extract Title/Subtitle and Finalize Content ---
+        # The _extract_title_with_directives method is now responsible for returning
+        # ONLY the content that is NOT a title or subtitle.
+        title, subtitle, final_slide_content, title_directives, subtitle_directives = (
             self._extract_title_with_directives(main_content_segment)
         )
 
-        # Extract notes
-        notes_from_content = self._extract_notes(content_after_meta)
-        final_notes = notes_from_content
+        # Ensure final content is clean
+        final_slide_content = final_slide_content.strip()
 
-        # Check for notes in footer (override content notes)
-        if footer:
-            notes_from_footer = self._extract_notes(footer)
-            if notes_from_footer:
-                final_notes = notes_from_footer
-                # Remove notes from footer
-                footer = re.sub(
-                    r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
-                ).strip()
-
-        # Remove all notes from content
-        content_after_meta = re.sub(
-            r"<!--\s*notes:\s*.*?\s*-->", "", content_after_meta, flags=re.DOTALL
-        )
-
-        final_slide_content = content_after_meta.strip()
-
+        # --- Stage 3: Assemble the Slide Dictionary ---
         slide = {
             "title": title,
-            "subtitle": subtitle,  # Add subtitle field
+            "subtitle": subtitle,
             "content": final_slide_content,
             "footer": footer,
-            "notes": final_notes,
-            "background": None,
+            "notes": notes,
+            "background": None,  # Will be parsed from section directives later
             "index": index,
             "object_id": slide_object_id,
             "speaker_notes_object_id": (
-                f"{slide_object_id}_notesShape" if final_notes else None
+                f"{slide_object_id}_notesShape" if notes else None
             ),
             "title_directives": title_directives,
             "subtitle_directives": subtitle_directives,
@@ -196,7 +193,8 @@ class SlideExtractor:
         logger.debug(
             f"Processed slide {index + 1}: title='{title or 'None'}', "
             f"subtitle='{subtitle or 'None'}', "
-            f"content_length={len(slide['content'])}, directives={title_directives}"
+            f"content_length={len(slide['content'])}, title_directives={title_directives}, "
+            f"subtitle_directives={subtitle_directives}"
         )
         return slide
 
@@ -206,123 +204,88 @@ class SlideExtractor:
         """
         Extract title and subtitle with their same-line directives per Rule 1 (Element-Scoped Directives).
 
-        Per the Unified Hierarchical Directive Scoping model:
-        - ONLY processes directives on the same line as title/subtitle (Rule 1)
-        - NEVER consumes standalone directive lines (those are for Rule 2 - Section-Scoped)
-        - Leaves all standalone directive lines in content for the section parser
+        This is a more robust implementation that correctly handles complex slide content
+        by iterating through lines, processing titles/subtitles, and then reassembling the
+        remaining content.
 
         Returns:
             Tuple of (title_text, subtitle_text, remaining_content, title_directives, subtitle_directives)
         """
         lines = content.split("\n")
-        title_directives = {}
-        subtitle_directives = {}
-        title_text = None
-        subtitle_text = None
-        consumed_lines = 0
+        title_text, subtitle_text = None, None
+        title_directives, subtitle_directives = {}, {}
+        remaining_lines = list(lines)
 
-        # Step 1: Find and process title with same-line directives only
-        title_line_index = None
+        # Find and process ALL H1 Titles (to prevent duplication in content)
+        # The first meaningful H1 becomes the slide title, subsequent H1s are consumed to prevent duplication
+        found_primary_title = False
+
         for i, line in enumerate(lines):
-            # Check if this is a title line
+            # Regular expression to find H1 markdown syntax at the start of a line
             title_match = re.match(r"^\s*#\s+(.+)$", line)
             if title_match:
                 full_title_text = title_match.group(1).strip()
-                title_line_index = i
 
-                # Extract directives from the title line itself (Rule 1)
-                directive_pattern = r"(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
-                start_directive_match = re.match(directive_pattern, full_title_text)
-                end_directive_match = re.search(
-                    directive_pattern + r"\s*$", full_title_text
-                )
+                # Always remove H1 lines from remaining content to prevent duplication
+                remaining_lines[i] = ""  # Mark for removal
 
-                if start_directive_match:
-                    directive_text = start_directive_match.group(0)
-                    title_text = full_title_text[len(directive_text) :].strip()
-                elif end_directive_match:
-                    directive_text = end_directive_match.group(0)
-                    title_text = full_title_text[: end_directive_match.start()].strip()
-                else:
-                    title_text = full_title_text
-                    directive_text = ""
-
-                # Parse directives from title line
-                if directive_text:
-                    directive_matches = re.findall(
-                        r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+                # Only use the first meaningful H1 as the slide title
+                if not found_primary_title:
+                    # Use a helper to parse directives from the line
+                    title_text, title_directives = self._parse_text_and_directives(
+                        full_title_text
                     )
-                    for key, value in directive_matches:
-                        key = key.strip().lower()
-                        value = value.strip()
-                        title_directives[key] = value
-                break
-        else:
-            # No title found
-            return None, None, content, {}, {}
+                    found_primary_title = True
 
-        # Track what we've consumed so far (just the title line)
-        consumed_lines = title_line_index + 1
+                    # Look for a subtitle only immediately after the title (skip only comments and empty lines)
+                    # We should NOT consume H2 headers that are meant to be content
+                    for j in range(i + 1, len(lines)):
+                        next_line = lines[j].strip()
+                        if not next_line:  # Skip empty lines
+                            continue
 
-        # Step 2: Look for subtitle and extract same-line directives only
-        for search_idx in range(consumed_lines, len(lines)):
-            line = lines[search_idx]
-            if not line.strip():
-                continue
+                        # Skip comment lines but continue looking
+                        if next_line.startswith("<!--"):
+                            continue
 
-            subtitle_match = re.match(r"^\s*##\s+(.+)$", line)
-            if subtitle_match:
-                full_subtitle_text = subtitle_match.group(1).strip()
-                consumed_lines = search_idx + 1
+                        # Check if this is an H2 that could be a subtitle
+                        subtitle_match = re.match(r"^\s*##\s+(.+)$", next_line)
+                        if subtitle_match:
+                            # Only treat as subtitle if we haven't hit any real content yet
+                            # (content between title and potential subtitle invalidates subtitle interpretation)
+                            full_subtitle_text = subtitle_match.group(1).strip()
+                            subtitle_text, subtitle_directives = (
+                                self._parse_text_and_directives(full_subtitle_text)
+                            )
+                            remaining_lines[j] = ""  # Mark for removal
+                            break
+                        # If we hit any other content (not comments/empty), stop looking for subtitle
+                        # This H2 should be treated as content, not a slide subtitle
+                        break
 
-                # Extract directives from subtitle line (Rule 1)
-                directive_pattern = r"(\s*\[[^\[\]]+=[^\[\]]*\]\s*)+"
-                start_directive_match = re.match(directive_pattern, full_subtitle_text)
-                end_directive_match = re.search(
-                    directive_pattern + r"\s*$", full_subtitle_text
-                )
+        # If no H1 title was found, check if the slide starts with a single H2 that could be a subtitle
+        # Only treat H2 as subtitle if it's the first meaningful content (no other content before it)
+        if not title_text:
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
+                if not stripped_line:  # Skip empty lines
+                    continue
 
-                if start_directive_match:
-                    directive_text = start_directive_match.group(0)
-                    subtitle_text = full_subtitle_text[len(directive_text) :].strip()
-                elif end_directive_match:
-                    directive_text = end_directive_match.group(0)
-                    subtitle_text = full_subtitle_text[
-                        : end_directive_match.start()
-                    ].strip()
-                else:
-                    subtitle_text = full_subtitle_text
-                    directive_text = ""
-
-                # Parse directives from subtitle line - FIX: Use subtitle_directives, not title_directives
-                if directive_text:
-                    directive_matches = re.findall(
-                        r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+                # If we find an H2 as the first non-empty line, treat it as a subtitle
+                subtitle_match = re.match(r"^\s*##\s+(.+)$", line)
+                if subtitle_match:
+                    full_subtitle_text = subtitle_match.group(1).strip()
+                    subtitle_text, subtitle_directives = (
+                        self._parse_text_and_directives(full_subtitle_text)
                     )
-                    for key, value in directive_matches:
-                        key = key.strip().lower()
-                        value = value.strip()
-                        subtitle_directives[key] = value
+                    remaining_lines[i] = ""  # Mark for removal
+                    break
+                # If the first non-empty line is not an H2, don't look for subtitles
+                # This preserves H2 headers that appear after other content
                 break
 
-            # If we hit non-subtitle content, stop looking for subtitle
-            # BUT IMPORTANT: Don't consume any standalone directive lines
-            break
-
-        # Step 3: Return remaining content (all standalone directives are preserved)
-        # Include content before title AND content after consumed lines
-        content_before_title = "\n".join(lines[:title_line_index])
-        content_after_meta = "\n".join(lines[consumed_lines:])
-
-        # Combine content, preserving standalone directives
-        if content_before_title.strip() and content_after_meta.strip():
-            final_content = content_before_title + "\n" + content_after_meta
-        elif content_before_title.strip():
-            final_content = content_before_title
-        elif content_after_meta.strip():
-            final_content = content_after_meta
-        else:
-            final_content = ""
+        # Reconstruct the remaining content
+        final_content = "\n".join(line for line in remaining_lines if line is not None)
 
         return (
             title_text,
@@ -331,6 +294,37 @@ class SlideExtractor:
             title_directives,
             subtitle_directives,
         )
+
+    def _parse_text_and_directives(self, line_content: str) -> tuple[str, dict]:
+        """
+        Helper method to parse a line of text for same-line directives.
+
+        Args:
+            line_content: The text content of a line (e.g., from a title or subtitle).
+
+        Returns:
+            A tuple of (cleaned_text, directives_dict).
+        """
+        directives = {}
+        # Regex to find any number of [key=value] pairs at the end of the string
+        directive_pattern = r"\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)$"
+        match = re.search(directive_pattern, line_content)
+
+        if match:
+            directive_text = match.group(1)
+            # The cleaned text is everything before the directives
+            cleaned_text = line_content[: match.start()].strip()
+
+            # Parse the found directives
+            directive_matches = re.findall(
+                r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+            )
+            for key, value in directive_matches:
+                directives[key.strip().lower()] = value.strip()
+        else:
+            cleaned_text = line_content.strip()
+
+        return cleaned_text, directives
 
     def _extract_notes(self, content: str) -> str | None:
         """Extract speaker notes from content."""

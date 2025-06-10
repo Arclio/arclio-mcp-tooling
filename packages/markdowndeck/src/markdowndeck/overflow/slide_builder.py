@@ -62,7 +62,12 @@ class SlideBuilder:
         )
 
         # Generate unique ID for the continuation slide
-        continuation_id = f"{self.original_slide.object_id}_cont_{slide_number}_{uuid.uuid4().hex[:6]}"
+        # Google Slides API has a 50-character limit on object IDs
+        continuation_id = self._generate_safe_object_id(
+            base_id=self.original_slide.object_id,
+            suffix=f"cont_{slide_number}",
+            max_length=50,
+        )
 
         # Create the base slide structure
         from markdowndeck.models import Slide, SlideLayout
@@ -177,7 +182,7 @@ class SlideBuilder:
         title_element = TextElement(
             element_type=ElementType.TITLE,
             text=continuation_text,
-            object_id=f"title_{uuid.uuid4().hex[:8]}",
+            object_id=self._generate_safe_element_id("title"),
             position=None,  # Reset position for recalculation
             size=None,  # Reset size for recalculation
         )
@@ -223,7 +228,7 @@ class SlideBuilder:
         footer_element = TextElement(
             element_type=ElementType.FOOTER,
             text=continuation_footer_text,
-            object_id=f"footer_{uuid.uuid4().hex[:8]}",
+            object_id=self._generate_safe_element_id("footer"),
             horizontal_alignment=getattr(
                 original_footer_element, "horizontal_alignment", "left"
             ),
@@ -302,9 +307,10 @@ class SlideBuilder:
                     # Add elements from this section
                     for element in section_elements:
                         # Generate unique object ID for each element to avoid conflicts
+                        # Use safe object ID generation to stay under Google's 50-char limit
                         if hasattr(element, "object_id"):
-                            element.object_id = (
-                                f"{element.element_type.value}_{uuid.uuid4().hex[:8]}"
+                            element.object_id = self._generate_safe_element_id(
+                                element.element_type.value
                             )
 
                         # CRITICAL: Reset element positions for continuation slides
@@ -323,6 +329,82 @@ class SlideBuilder:
             f"Extracted {len(slide.elements)} elements from {len(slide.sections)} sections "
             f"with positions reset for continuation slide"
         )
+
+    def _generate_safe_object_id(
+        self, base_id: str, suffix: str, max_length: int = 50
+    ) -> str:
+        """
+        Generate an object ID that stays within Google Slides API limits (50 characters).
+
+        Strategy:
+        1. Try full format: {base_id}_{suffix}_{uuid6}
+        2. If too long, truncate base_id intelligently
+        3. Always ensure uniqueness with UUID suffix
+
+        Args:
+            base_id: The base object ID (e.g., slide_10 or slide_10_cont_1_4ba998)
+            suffix: The suffix to add (e.g., "cont_1")
+            max_length: Maximum allowed length (Google Slides limit is 50)
+
+        Returns:
+            Safe object ID under the length limit
+        """
+        uuid_suffix = uuid.uuid4().hex[:6]  # 6 chars for uniqueness
+        separator_chars = 2  # Two underscores: _{suffix}_{uuid}
+
+        # Calculate available space for base_id
+        reserved_space = len(suffix) + len(uuid_suffix) + separator_chars
+        available_for_base = max_length - reserved_space
+
+        # If base_id is too long, intelligently truncate it
+        if len(base_id) > available_for_base:
+            # For continuation slides, prioritize keeping the original slide number
+            # and truncate the complex continuation chain
+            if "_cont_" in base_id:
+                # Extract original slide part (e.g., "slide_10" from "slide_10_cont_1_4ba998")
+                original_part = base_id.split("_cont_")[0]
+                if len(original_part) <= available_for_base:
+                    # Use original slide ID + truncation indicator
+                    truncated_base = original_part
+                else:
+                    # Even original is too long, truncate it
+                    truncated_base = base_id[: available_for_base - 3] + "..."
+            else:
+                # Simple truncation with indicator
+                truncated_base = base_id[: available_for_base - 3] + "..."
+        else:
+            truncated_base = base_id
+
+        safe_id = f"{truncated_base}_{suffix}_{uuid_suffix}"
+
+        logger.debug(f"Generated safe object ID: '{safe_id}' (length: {len(safe_id)})")
+        return safe_id
+
+    def _generate_safe_element_id(self, element_type: str, max_length: int = 50) -> str:
+        """
+        Generate a safe element object ID under Google's length limit.
+
+        Args:
+            element_type: The element type (e.g., "text", "image", "title")
+            max_length: Maximum allowed length (50 for Google Slides)
+
+        Returns:
+            Safe element object ID
+        """
+        uuid_suffix = uuid.uuid4().hex[:8]  # 8 chars for uniqueness
+        separator_chars = 1  # One underscore: {type}_{uuid}
+
+        # Calculate available space for element type
+        available_for_type = max_length - len(uuid_suffix) - separator_chars
+
+        # Truncate element type if needed
+        truncated_type = (
+            element_type[:available_for_type]
+            if len(element_type) > available_for_type
+            else element_type
+        )
+
+        return f"{truncated_type}_{uuid_suffix}"
 
     def get_continuation_metadata(self, slide_number: int) -> dict:
         """

@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 class ListRequestBuilder(BaseRequestBuilder):
     """Formatter for list elements (ordered and unordered)."""
 
+    def __init__(self, element_factory):
+        """Initialize the ListRequestBuilder with element factory."""
+        self.element_factory = element_factory
+
     def can_handle(self, token: Token, leading_tokens: list[Token]) -> bool:
         """Check if this formatter can handle the given token."""
         return token.type in ["bullet_list_open", "ordered_list_open"]
@@ -410,6 +414,30 @@ class ListRequestBuilder(BaseRequestBuilder):
             }
             requests.append(para_spacing_request)
 
+            # Add indentation for nested items (level > 0)
+            level = range_info.get("level", 0)
+            if level > 0:
+                indent_amount = level * 20.0  # 20 points per level
+                indent_request = {
+                    "updateParagraphStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {
+                            "type": "FIXED_RANGE",
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                        },
+                        "style": {
+                            "indentStart": {"magnitude": indent_amount, "unit": "PT"},
+                            "indentFirstLine": {
+                                "magnitude": indent_amount,
+                                "unit": "PT",
+                            },
+                        },
+                        "fields": "indentStart,indentFirstLine",
+                    }
+                }
+                requests.append(indent_request)
+
         # Apply item-specific text formatting with adjusted positions
         for range_info in text_ranges:
             item = range_info.get("item")
@@ -652,6 +680,30 @@ class ListRequestBuilder(BaseRequestBuilder):
                 }
             }
             requests.append(para_spacing_request)
+
+            # Add indentation for nested items (level > 0)
+            level = range_info.get("level", 0)
+            if level > 0:
+                indent_amount = level * 20.0  # 20 points per level
+                indent_request = {
+                    "updateParagraphStyle": {
+                        "objectId": placeholder_id,
+                        "textRange": {
+                            "type": "FIXED_RANGE",
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                        },
+                        "style": {
+                            "indentStart": {"magnitude": indent_amount, "unit": "PT"},
+                            "indentFirstLine": {
+                                "magnitude": indent_amount,
+                                "unit": "PT",
+                            },
+                        },
+                        "fields": "indentStart,indentFirstLine",
+                    }
+                }
+                requests.append(indent_request)
 
         # Apply item-specific text formatting with adjusted positions
         for range_info in text_ranges:
