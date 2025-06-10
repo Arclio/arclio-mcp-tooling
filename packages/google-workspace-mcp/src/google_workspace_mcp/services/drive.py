@@ -4,14 +4,14 @@ Provides comprehensive file management capabilities through Google Drive API.
 """
 
 import base64
+import binascii
 import io
 import logging
 import mimetypes
-import os
 from typing import Any
 
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 from google_workspace_mcp.services.base import BaseGoogleService
 
@@ -27,7 +27,9 @@ class DriveService(BaseGoogleService):
         """Initialize the Drive service."""
         super().__init__("drive", "v3")
 
-    def search_files(self, query: str, page_size: int = 10, shared_drive_id: str | None = None) -> list[dict[str, Any]]:
+    def search_files(
+        self, query: str, page_size: int = 10, shared_drive_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search for files in Google Drive.
 
@@ -40,17 +42,16 @@ class DriveService(BaseGoogleService):
             List of file metadata dictionaries (id, name, mimeType, etc.) or an error dictionary
         """
         try:
-            logger.info(f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}")
+            logger.info(
+                f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+            )
 
             # Validate and constrain page_size
             page_size = max(1, min(page_size, 1000))
 
-            # Format query with proper escaping
-            formatted_query = query.replace("'", "\\'")
-
             # Build list parameters with shared drive support
             list_params = {
-                "q": formatted_query,
+                "q": query,  # Use the query directly without modification
                 "pageSize": page_size,
                 "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
                 "supportsAllDrives": True,
@@ -59,9 +60,13 @@ class DriveService(BaseGoogleService):
 
             if shared_drive_id:
                 list_params["driveId"] = shared_drive_id
-                list_params["corpora"] = "drive"  # Search within the specified shared drive
+                list_params["corpora"] = (
+                    "drive"  # Search within the specified shared drive
+                )
             else:
-                list_params["corpora"] = "user"  # Default to user's files if no specific shared drive ID
+                list_params["corpora"] = (
+                    "user"  # Default to user's files if no specific shared drive ID
+                )
 
             results = self.service.files().list(**list_params).execute()
             files = results.get("files", [])
@@ -84,12 +89,18 @@ class DriveService(BaseGoogleService):
         """
         try:
             # Get file metadata
-            file_metadata = self.service.files().get(fileId=file_id, fields="mimeType, name").execute()
+            file_metadata = (
+                self.service.files()
+                .get(fileId=file_id, fields="mimeType, name")
+                .execute()
+            )
 
             original_mime_type = file_metadata.get("mimeType")
             file_name = file_metadata.get("name", "Unknown")
 
-            logger.info(f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}")
+            logger.info(
+                f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}"
+            )
 
             # Handle Google Workspace files by exporting
             if original_mime_type.startswith("application/vnd.google-apps."):
@@ -129,7 +140,9 @@ class DriveService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(f"Successfully retrieved metadata for file: {file_metadata.get('name', 'Unknown')}")
+            logger.info(
+                f"Successfully retrieved metadata for file: {file_metadata.get('name', 'Unknown')}"
+            )
             return file_metadata
 
         except Exception as e:
@@ -185,13 +198,17 @@ class DriveService(BaseGoogleService):
 
             created_folder = self.service.files().create(**create_params).execute()
 
-            logger.info(f"Successfully created folder '{folder_name}' with ID: {created_folder.get('id')}")
+            logger.info(
+                f"Successfully created folder '{folder_name}' with ID: {created_folder.get('id')}"
+            )
             return created_folder
 
         except Exception as e:
             return self.handle_api_error("create_folder", e)
 
-    def _export_google_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
+    def _export_google_file(
+        self, file_id: str, file_name: str, mime_type: str
+    ) -> dict[str, Any]:
         """Export a Google Workspace file in an appropriate format."""
         # Determine export format
         export_mime_type = None
@@ -216,7 +233,9 @@ class DriveService(BaseGoogleService):
 
         # Export the file
         try:
-            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime_type, supportsAllDrives=True)
+            request = self.service.files().export_media(
+                fileId=file_id, mimeType=export_mime_type
+            )
 
             content_bytes = self._download_content(request)
             if isinstance(content_bytes, dict) and content_bytes.get("error"):
@@ -248,7 +267,9 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("_export_google_file", e)
 
-    def _download_regular_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
+    def _download_regular_file(
+        self, file_id: str, file_name: str, mime_type: str
+    ) -> dict[str, Any]:
         """Download a regular (non-Google Workspace) file."""
         request = self.service.files().get_media(fileId=file_id, supportsAllDrives=True)
 
@@ -262,7 +283,9 @@ class DriveService(BaseGoogleService):
                 content = content_bytes.decode("utf-8")
                 return {"mimeType": mime_type, "content": content, "encoding": "utf-8"}
             except UnicodeDecodeError:
-                logger.warning(f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64.")
+                logger.warning(
+                    f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64."
+                )
                 content = base64.b64encode(content_bytes).decode("utf-8")
                 return {
                     "mimeType": mime_type,
@@ -289,61 +312,60 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("download_content", e)
 
-    def upload_file(
+    def upload_file_content(
         self,
-        file_path: str,
+        filename: str,
+        content_base64: str,
         parent_folder_id: str | None = None,
         shared_drive_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Upload a file to Google Drive.
+        Upload a file to Google Drive using its content.
 
         Args:
-            file_path: Path to the local file to upload
-            parent_folder_id: Optional parent folder ID to upload the file to
-            shared_drive_id: Optional shared drive ID to upload the file to a shared drive
+            filename: The name for the file in Google Drive.
+            content_base64: Base64 encoded content of the file.
+            parent_folder_id: Optional parent folder ID.
+            shared_drive_id: Optional shared drive ID.
 
         Returns:
-            Dict containing file metadata on success, or error information on failure
+            Dict containing file metadata on success, or error information on failure.
         """
         try:
-            # Check if file exists locally
-            if not os.path.exists(file_path):
-                logger.error(f"Local file not found for upload: {file_path}")
+            logger.info(f"Uploading file '{filename}' from content.")
+
+            # Decode the base64 content
+            try:
+                content_bytes = base64.b64decode(content_base64, validate=True)
+            except (ValueError, TypeError, binascii.Error) as e:
+                logger.error(f"Invalid base64 content for file '{filename}': {e}")
                 return {
                     "error": True,
-                    "error_type": "local_file_error",
-                    "message": f"Local file not found: {file_path}",
-                    "operation": "upload_file",
+                    "error_type": "invalid_content",
+                    "message": "Invalid base64 encoded content provided.",
+                    "operation": "upload_file_content",
                 }
 
-            file_name = os.path.basename(file_path)
-            logger.info(f"Uploading file '{file_name}' from path: {file_path}")
-
-            # Get file MIME type
-            mime_type, _ = mimetypes.guess_type(file_path)
+            # Get file MIME type from filename
+            mime_type, _ = mimetypes.guess_type(filename)
             if mime_type is None:
                 mime_type = "application/octet-stream"
 
-            file_metadata = {"name": file_name}
-
-            # Set parent folder if specified
+            file_metadata = {"name": filename}
             if parent_folder_id:
                 file_metadata["parents"] = [parent_folder_id]
             elif shared_drive_id:
-                # If shared drive is specified but no parent, set shared drive as parent
                 file_metadata["parents"] = [shared_drive_id]
 
-            media = MediaFileUpload(file_path, mimetype=mime_type)
+            # Use MediaIoBaseUpload for in-memory content
+            media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mime_type)
 
-            # Prepare create parameters
             create_params = {
                 "body": file_metadata,
                 "media_body": media,
                 "fields": "id,name,mimeType,modifiedTime,size,webViewLink",
                 "supportsAllDrives": True,
             }
-
             if shared_drive_id:
                 create_params["driveId"] = shared_drive_id
 
@@ -353,14 +375,14 @@ class DriveService(BaseGoogleService):
             return file
 
         except HttpError as e:
-            return self.handle_api_error("upload_file", e)
+            return self.handle_api_error("upload_file_content", e)
         except Exception as e:
-            logger.error(f"Non-API error in upload_file: {str(e)}")
+            logger.error(f"Non-API error in upload_file_content: {str(e)}")
             return {
                 "error": True,
                 "error_type": "local_error",
-                "message": f"Error uploading file: {str(e)}",
-                "operation": "upload_file",
+                "message": f"Error uploading file from content: {str(e)}",
+                "operation": "upload_file_content",
             }
 
     def delete_file(self, file_id: str) -> dict[str, Any]:
@@ -400,7 +422,11 @@ class DriveService(BaseGoogleService):
             # API allows pageSize up to 100 for drives.list
             actual_page_size = min(max(1, page_size), 100)
 
-            results = self.service.drives().list(pageSize=actual_page_size, fields="drives(id, name, kind)").execute()
+            results = (
+                self.service.drives()
+                .list(pageSize=actual_page_size, fields="drives(id, name, kind)")
+                .execute()
+            )
             drives = results.get("drives", [])
 
             # Filter for kind='drive#drive' just to be sure, though API should only return these

@@ -2,6 +2,7 @@
 Unit tests for Drive drive_upload_file tool.
 """
 
+import base64
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -16,7 +17,9 @@ class TestDriveUploadFile:
     @pytest.fixture
     def mock_drive_service(self):
         """Patch DriveService for tool tests."""
-        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.drive.DriveService"
+        ) as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -26,24 +29,28 @@ class TestDriveUploadFile:
         # Setup mock response (raw service result)
         mock_service_response = {
             "id": "file123",
-            "name": "file.txt",
+            "name": "test.txt",
             "mimeType": "text/plain",
             "modifiedTime": "2024-01-01T12:00:00.000Z",
             "webViewLink": "https://drive.google.com/file/d/file123/view",
         }
-        mock_drive_service.upload_file.return_value = mock_service_response
+        mock_drive_service.upload_file_content.return_value = mock_service_response
 
-        # Define arguments (removed 'user_id')
+        # Define arguments
+        content = "Hello, World!"
+        content_base64 = base64.b64encode(content.encode()).decode()
         args = {
-            "file_path": "/fake/path/to/file.txt",
+            "filename": "test.txt",
+            "content_base64": content_base64,
         }
 
         # Call the function
         result = await drive_upload_file(**args)
 
         # Verify the service call
-        mock_drive_service.upload_file.assert_called_once_with(
-            file_path="/fake/path/to/file.txt",
+        mock_drive_service.upload_file_content.assert_called_once_with(
+            filename="test.txt",
+            content_base64=content_base64,
             parent_folder_id=None,
             shared_drive_id=None,
         )
@@ -52,22 +59,34 @@ class TestDriveUploadFile:
     async def test_upload_file_service_error(self, mock_drive_service):
         """Test drive_upload_file when the service returns an error."""
         # Setup mock error response
-        mock_drive_service.upload_file.return_value = {
+        mock_drive_service.upload_file_content.return_value = {
             "error": True,
-            "message": "Local file not found via API",
-            "error_type": "local_file_error",
+            "message": "Invalid base64 content",
+            "error_type": "invalid_content",
         }
 
-        # Define arguments (removed 'user_id')
-        args = {"file_path": "/invalid/path"}
+        # Define arguments
+        args = {"filename": "test.txt", "content_base64": "invalid content"}
 
         # Call the function and assert ValueError
-        with pytest.raises(ValueError, match="Local file not found via API"):
+        with pytest.raises(ValueError, match="Invalid base64 content"):
             await drive_upload_file(**args)
 
-    async def test_upload_file_missing_path(self):
-        """Test drive_upload_file with missing file_path."""
-        # Define arguments (removed 'user_id')
-        args = {"file_path": ""}
-        with pytest.raises(ValueError, match="File path cannot be empty"):
+    async def test_upload_file_missing_filename(self):
+        """Test drive_upload_file with missing filename."""
+        # Define arguments
+        args = {
+            "filename": "",
+            "content_base64": "SGVsbG8gV29ybGQ=",  # "Hello World" in base64
+        }
+        with pytest.raises(ValueError, match="Filename cannot be empty"):
+            await drive_upload_file(**args)
+
+    async def test_upload_file_missing_content(self):
+        """Test drive_upload_file with missing content."""
+        # Define arguments
+        args = {"filename": "test.txt", "content_base64": ""}
+        with pytest.raises(
+            ValueError, match="File content \\(content_base64\\) cannot be empty"
+        ):
             await drive_upload_file(**args)
