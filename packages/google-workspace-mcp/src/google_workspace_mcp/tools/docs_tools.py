@@ -37,7 +37,9 @@ async def docs_create_document(title: str) -> dict[str, Any]:
         raise ValueError(result.get("message", "Error creating document"))
 
     if not result or not result.get("document_id"):
-        raise ValueError(f"Failed to create document '{title}' or did not receive a document ID.")
+        raise ValueError(
+            f"Failed to create document '{title}' or did not receive a document ID."
+        )
 
     return result
 
@@ -57,7 +59,9 @@ async def docs_get_document_metadata(document_id: str) -> dict[str, Any]:
         A dictionary containing the document's 'document_id', 'title', and 'document_link',
         or an error message.
     """
-    logger.info(f"Executing docs_get_document_metadata tool for document_id: '{document_id}'")
+    logger.info(
+        f"Executing docs_get_document_metadata tool for document_id: '{document_id}'"
+    )
     if not document_id or not document_id.strip():
         raise ValueError("Document ID cannot be empty.")
 
@@ -88,7 +92,9 @@ async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
         A dictionary containing the 'document_id' and 'markdown_content',
         or an error message.
     """
-    logger.info(f"Executing docs_get_content_as_markdown tool for document_id: '{document_id}'")
+    logger.info(
+        f"Executing docs_get_content_as_markdown tool for document_id: '{document_id}'"
+    )
     if not document_id or not document_id.strip():
         raise ValueError("Document ID cannot be empty.")
 
@@ -96,10 +102,14 @@ async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
     result = docs_service.get_document_content_as_markdown(document_id=document_id)
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(result.get("message", "Error retrieving document content as Markdown"))
+        raise ValueError(
+            result.get("message", "Error retrieving document content as Markdown")
+        )
 
     if not result or "markdown_content" not in result:
-        raise ValueError(f"Failed to retrieve Markdown content for document '{document_id}'.")
+        raise ValueError(
+            f"Failed to retrieve Markdown content for document '{document_id}'."
+        )
 
     return result
 
@@ -108,7 +118,9 @@ async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
     name="docs_append_text",
     description="Appends text to the end of a specified Google Document.",
 )
-async def docs_append_text(document_id: str, text: str, ensure_newline: bool = True) -> dict[str, Any]:
+async def docs_append_text(
+    document_id: str, text: str, ensure_newline: bool = True
+) -> dict[str, Any]:
     """
     Appends the given text to the end of the specified Google Document.
 
@@ -127,7 +139,9 @@ async def docs_append_text(document_id: str, text: str, ensure_newline: bool = T
     # Text can be empty, that's fine.
 
     docs_service = DocsService()
-    result = docs_service.append_text(document_id=document_id, text=text, ensure_newline=ensure_newline)
+    result = docs_service.append_text(
+        document_id=document_id, text=text, ensure_newline=ensure_newline
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error appending text to document"))
@@ -142,7 +156,9 @@ async def docs_append_text(document_id: str, text: str, ensure_newline: bool = T
     name="docs_prepend_text",
     description="Prepends text to the beginning of a specified Google Document.",
 )
-async def docs_prepend_text(document_id: str, text: str, ensure_newline: bool = True) -> dict[str, Any]:
+async def docs_prepend_text(
+    document_id: str, text: str, ensure_newline: bool = True
+) -> dict[str, Any]:
     """
     Prepends the given text to the beginning of the specified Google Document.
 
@@ -161,7 +177,9 @@ async def docs_prepend_text(document_id: str, text: str, ensure_newline: bool = 
     # Text can be empty, that's fine.
 
     docs_service = DocsService()
-    result = docs_service.prepend_text(document_id=document_id, text=text, ensure_newline=ensure_newline)
+    result = docs_service.prepend_text(
+        document_id=document_id, text=text, ensure_newline=ensure_newline
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error prepending text to document"))
@@ -195,13 +213,17 @@ async def docs_insert_text(
     Returns:
         A dictionary indicating success or an error message.
     """
-    logger.info(f"Executing docs_insert_text tool for document_id: '{document_id}' at index: {index}")
+    logger.info(
+        f"Executing docs_insert_text tool for document_id: '{document_id}' at index: {index}"
+    )
     if not document_id or not document_id.strip():
         raise ValueError("Document ID cannot be empty.")
     # Text can be empty, that's a valid insertion (though perhaps not useful).
 
     docs_service = DocsService()
-    result = docs_service.insert_text(document_id=document_id, text=text, index=index, segment_id=segment_id)
+    result = docs_service.insert_text(
+        document_id=document_id, text=text, index=index, segment_id=segment_id
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error inserting text into document"))
@@ -231,7 +253,9 @@ async def docs_batch_update(document_id: str, requests: list[dict]) -> dict[str,
         A dictionary containing the API response from the batchUpdate call (includes replies for each request),
         or an error message.
     """
-    logger.info(f"Executing docs_batch_update tool for document_id: '{document_id}' with {len(requests)} requests.")
+    logger.info(
+        f"Executing docs_batch_update tool for document_id: '{document_id}' with {len(requests)} requests."
+    )
     if not document_id or not document_id.strip():
         raise ValueError("Document ID cannot be empty.")
     if not isinstance(requests, list):
@@ -243,9 +267,72 @@ async def docs_batch_update(document_id: str, requests: list[dict]) -> dict[str,
     result = docs_service.batch_update(document_id=document_id, requests=requests)
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(result.get("message", "Error executing batch update on document"))
+        raise ValueError(
+            result.get("message", "Error executing batch update on document")
+        )
 
     if not result:  # Should be caught by error dict check
         raise ValueError(f"Failed to execute batch update on document '{document_id}'.")
 
     return result  # Return the full response which includes documentId and replies
+
+
+@mcp.tool(
+    name="docs_insert_image",
+    description="Inserts an image into a Google Document from a URL at a specific index. The image URL must be publicly accessible and in PNG, JPEG, or GIF format.",
+)
+async def docs_insert_image(
+    document_id: str,
+    image_url: str,
+    index: int,
+    width: float | None = None,
+    height: float | None = None,
+) -> dict[str, Any]:
+    """
+    Inserts an image into a Google Document from a URL at a specific index.
+
+    Args:
+        document_id: The ID of the Google Document.
+        image_url: The publicly accessible URL of the image to insert.
+        index: The 1-based index in the document where the image will be inserted.
+        width: Optional width of the image in points (PT).
+        height: Optional height of the image in points (PT).
+
+    Returns:
+        A dictionary containing the inserted image ID and success status, or an error message.
+    """
+    logger.info(
+        f"Executing docs_insert_image tool for document_id: '{document_id}' at index: {index}"
+    )
+
+    if not document_id or not document_id.strip():
+        raise ValueError("Document ID cannot be empty.")
+
+    if not image_url or not image_url.strip():
+        raise ValueError("Image URL cannot be empty.")
+
+    if not isinstance(index, int) or index < 1:
+        raise ValueError("Index must be a positive integer (1-based).")
+
+    if width is not None and (not isinstance(width, int | float) or width <= 0):
+        raise ValueError("Width must be a positive number.")
+
+    if height is not None and (not isinstance(height, int | float) or height <= 0):
+        raise ValueError("Height must be a positive number.")
+
+    docs_service = DocsService()
+    result = docs_service.insert_image(
+        document_id=document_id,
+        image_url=image_url,
+        index=index,
+        width=width,
+        height=height,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error inserting image into document"))
+
+    if not result or not result.get("success"):
+        raise ValueError(f"Failed to insert image into document '{document_id}'.")
+
+    return result
