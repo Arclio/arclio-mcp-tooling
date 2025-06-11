@@ -56,17 +56,22 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
         )
 
-        # FIXED: Consolidate all shape property updates into a single request.
+        # FIXED: Separated autofit request to prevent field mask conflicts.
+        # This is a dedicated request to ensure autofit is disabled correctly.
+        requests.append(
+            {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+                    "fields": "autofit.autofitType",
+                }
+            }
+        )
+
+        # Handle other shape properties in a separate request.
         shape_props = {}
         fields = []
-
-        # Default: Disable autofit
-        shape_props["autofit"] = {"autofitType": "NONE"}
-        fields.append("autofit.autofitType")
-
-        # Add other shape properties from directives
         self._add_shape_properties(element, shape_props, fields)
-
         if shape_props and fields:
             requests.append(
                 {

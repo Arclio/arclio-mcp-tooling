@@ -126,15 +126,54 @@ class BaseRequestBuilder:
         elif text_format.format_type == TextFormatType.LINK:
             style["link"] = {"url": text_format.value}
         elif text_format.format_type == TextFormatType.COLOR:
+            # FIXED: This block now handles hex, named colors, and theme colors correctly.
             color_value_str = text_format.value
             if isinstance(color_value_str, str):
+                color_value_lower = color_value_str.lower()
+                named_colors = {
+                    "black": "#000000",
+                    "white": "#FFFFFF",
+                    "red": "#FF0000",
+                    "green": "#008000",
+                    "blue": "#0000FF",
+                    "yellow": "#FFFF00",
+                    "cyan": "#00FFFF",
+                    "magenta": "#FF00FF",
+                    "silver": "#C0C0C0",
+                    "gray": "#808080",
+                    "maroon": "#800000",
+                    "olive": "#808000",
+                    "purple": "#800080",
+                    "teal": "#008080",
+                    "navy": "#000080",
+                }
+                theme_colors = {
+                    "TEXT1",
+                    "TEXT2",
+                    "BACKGROUND1",
+                    "BACKGROUND2",
+                    "ACCENT1",
+                    "ACCENT2",
+                    "ACCENT3",
+                    "ACCENT4",
+                    "ACCENT5",
+                    "ACCENT6",
+                }
+
                 if color_value_str.startswith("#"):
                     rgb = self._hex_to_rgb(color_value_str)
                     style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
-                else:  # Assume theme color name if not a hex string
+                elif color_value_lower in named_colors:
+                    rgb = self._hex_to_rgb(named_colors[color_value_lower])
+                    style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
+                elif color_value_str.upper() in theme_colors:
                     style["foregroundColor"] = {
                         "opaqueColor": {"themeColor": color_value_str.upper()}
                     }
+                else:
+                    logger.warning(
+                        f"Unsupported color value: '{color_value_str}'. It is not a valid hex, named, or theme color."
+                    )
         elif text_format.format_type == TextFormatType.BACKGROUND_COLOR:
             color_value_str = text_format.value
             if isinstance(color_value_str, str):

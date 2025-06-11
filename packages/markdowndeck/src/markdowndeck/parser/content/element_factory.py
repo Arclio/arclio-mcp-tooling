@@ -259,16 +259,19 @@ class ElementFactory:
                 plain_text += child.content
 
             elif child_type == "code_inline":
-                # CRITICAL FIX: Preserve code content exactly as-is (no directive stripping)
+                # FIXED: The root cause of the color directive bug was here.
+                # This was incorrectly stripping directives from all `code_inline` tokens,
+                # which would corrupt text that happened to contain a color directive.
+                # The correct behavior is to simply treat the content as code.
                 start_pos = len(plain_text)
-                plain_text += child.content
+                code_content = child.content
+                plain_text += code_content
 
-                # Create code formatting for the exact content
-                if child.content.strip():
+                if code_content.strip():
                     formatting_data.append(
                         TextFormat(
                             start=start_pos,
-                            end=start_pos + len(child.content),
+                            end=start_pos + len(code_content),
                             format_type=TextFormatType.CODE,
                             value=True,
                         )

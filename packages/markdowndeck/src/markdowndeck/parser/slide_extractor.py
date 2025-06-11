@@ -2,11 +2,17 @@ import logging
 import re
 import uuid
 
+from markdowndeck.parser.directive import DirectiveParser
+
 logger = logging.getLogger(__name__)
 
 
 class SlideExtractor:
     """Extract individual slides from markdown content with improved parsing."""
+
+    def __init__(self):
+        """Initialize the SlideExtractor with a DirectiveParser instance."""
+        self.directive_parser = DirectiveParser()
 
     def extract_slides(self, markdown: str) -> list[dict]:
         """
@@ -254,19 +260,23 @@ class SlideExtractor:
         )
 
     def _parse_text_and_directives(self, line_content: str) -> tuple[str, dict]:
+        # ENHANCED: Use the centralized DirectiveParser for consistent logic.
         directives = {}
+        # This regex finds directives at the end of the string.
         directive_pattern = r"\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)$"
         match = re.search(directive_pattern, line_content)
+
         if match:
             directive_text = match.group(1)
+            # The cleaned text is everything before the directive match.
             cleaned_text = line_content[: match.start()].strip()
-            directive_matches = re.findall(
-                r"\[([^=\[\]]+)=([^\[\]]*)\]", directive_text
+            # Use the injected directive_parser to parse the text.
+            directives, _ = self.directive_parser.parse_inline_directives(
+                directive_text
             )
-            for key, value in directive_matches:
-                directives[key.strip().lower()] = value.strip()
         else:
             cleaned_text = line_content.strip()
+
         return cleaned_text, directives
 
     def _extract_notes(self, content: str) -> str | None:

@@ -89,14 +89,19 @@ def _create_color_value(color_type: str, color_value: str | dict) -> dict[str, A
     return {"type": "unknown", "value": color_value}
 
 
-def convert_dimension(value: str) -> float:
+def convert_dimension(value: str) -> float | tuple[float, ...]:
     """
-    Convert dimension value with enhanced CSS unit support.
-
-    ENHANCEMENT P8: Better CSS dimension parsing.
+    Convert dimension value, now supporting multi-value strings for spacing.
     """
     value = value.strip()
-    logger.debug(f"Converting dimension value: '{value}'")
+
+    # Handle multi-value strings (e.g., "10,20" or "10, 20, 10, 20")
+    if "," in value:
+        try:
+            parts = [float(p.strip()) for p in value.split(",")]
+            return tuple(parts)
+        except ValueError as e:
+            raise ValueError(f"Invalid multi-value dimension format: '{value}'") from e
 
     # Handle CSS units (strip and process separately if needed)
     css_unit_pattern = r"^([\d.]+)(px|pt|em|rem|%|in|cm|mm|vh|vw)?$"
@@ -105,47 +110,28 @@ def convert_dimension(value: str) -> float:
     if css_match:
         numeric_part = css_match.group(1)
         unit = css_match.group(2) or ""
-
         try:
             numeric_value = float(numeric_part)
-
-            # Convert percentage to decimal
             if unit == "%":
                 return numeric_value / 100.0
-            # For other units, return as-is (layout engine will handle)
             return numeric_value
-
         except ValueError as e:
             raise ValueError(f"Invalid numeric value in dimension: '{value}'") from e
 
     # Handle fractions
     if "/" in value:
-        parts = value.split("/")
-        if len(parts) == 2:
-            try:
-                num = float(parts[0].strip())
-                denom = float(parts[1].strip())
-            except ValueError as e:
-                raise ValueError(f"Invalid fraction format: '{value}'") from e
-
-            if denom == 0:
-                raise ValueError("division by zero")
-
-            return num / denom
-        raise ValueError(f"Invalid fraction format: '{value}'")
-
-    # Handle percentage (legacy)
-    if value.endswith("%"):
-        percentage_str = value.rstrip("%").strip()
+        num_str, den_str = value.split("/", 1)
         try:
-            percentage = float(percentage_str)
-            return percentage / 100.0
-        except ValueError as e:
-            raise ValueError(f"Invalid dimension format: '{value}'") from e
+            num, den = float(num_str.strip()), float(den_str.strip())
+            if den == 0:
+                raise ValueError("division by zero")
+            return num / den
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"Invalid fraction format: '{value}'") from e
 
-    # Handle numeric values
+    # Handle single numeric value
     try:
-        return float(value) if "." in value else int(value)
+        return float(value)
     except ValueError as e:
         raise ValueError(f"Invalid dimension format: '{value}'") from e
 
@@ -277,7 +263,11 @@ def convert_style(value: str) -> tuple[str, Any]:
 
         # Recursively parse the color component
         color_type, color_value = convert_style(color_str.strip())
-        color_data = color_value if color_type == "color" else {"type": "unknown", "value": color_value}
+        color_data = (
+            color_value
+            if color_type == "color"
+            else {"type": "unknown", "value": color_value}
+        )
 
         border_info = {
             "width": width_str,
@@ -292,16 +282,22 @@ def convert_style(value: str) -> tuple[str, Any]:
 
     # ENHANCEMENT P8: Box shadow parsing - improved to handle inset shadows
     # Pattern matches: [inset] <offset-x> <offset-y> [blur-radius] [spread-radius] <color>
-    shadow_pattern = (
-        r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
-    )
-    if re.match(shadow_pattern, value, re.IGNORECASE) or "shadow" in value.lower() or re.match(r"^\d+.*\d+", value):
+    shadow_pattern = r"^(?:inset\s+)?(?:\d+(?:\.\d+)?(?:px|pt|em|rem)?\s+){2,4}(?:rgba?\([^)]+\)|hsla?\([^)]+\)|#[0-9A-Fa-f]{3,8}|\w+)"
+    if (
+        re.match(shadow_pattern, value, re.IGNORECASE)
+        or "shadow" in value.lower()
+        or re.match(r"^\d+.*\d+", value)
+    ):
         return ("shadow", {"type": "css", "value": value})
 
     # ENHANCEMENT P8: CSS transition/animation parsing
     # Recognize typical transition/animation patterns (more specific)
     transition_pattern = r"^(all|\w+)\s+[\d.]+s\s+[\w-]+(?:\s+[\d.]+s)?$"
-    if "transition" in value.lower() or "animation" in value.lower() or re.match(transition_pattern, value.lower()):
+    if (
+        "transition" in value.lower()
+        or "animation" in value.lower()
+        or re.match(transition_pattern, value.lower())
+    ):
         return ("animation", {"type": "css", "value": value})
 
     # Simple border styles

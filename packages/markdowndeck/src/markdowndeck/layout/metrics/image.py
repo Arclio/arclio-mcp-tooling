@@ -36,64 +36,12 @@ def calculate_image_element_height(
     Returns:
         The calculated height that ensures the image fits within constraints
     """
-    image_element = (
-        cast(ImageElement, element)
-        if isinstance(element, ImageElement)
-        else ImageElement(**element)
+    # This function is now a simple wrapper around calculate_image_display_size
+    # for backward compatibility within the metrics module.
+    _width, height = calculate_image_display_size(
+        element, available_width, available_height
     )
-
-    # Check for explicit height directive first
-    if hasattr(image_element, "directives") and image_element.directives:
-        height_directive = image_element.directives.get("height")
-        if height_directive is not None:
-            try:
-                if isinstance(height_directive, int | float) and height_directive > 0:
-                    explicit_height = float(height_directive)
-                    logger.debug(f"Using explicit height directive: {explicit_height}")
-                    return explicit_height
-            except (ValueError, TypeError):
-                logger.warning(f"Invalid height directive: {height_directive}")
-
-    # Get image URL
-    image_url = getattr(image_element, "url", "")
-    if not image_url or not image_url.strip():
-        logger.debug("No image URL provided, using minimum height")
-        return MIN_IMAGE_HEIGHT
-
-    # Get aspect ratio for the image - check element attribute first
-    aspect_ratio = getattr(image_element, "aspect_ratio", None)
-    if aspect_ratio is None:
-        aspect_ratio = _get_image_aspect_ratio(image_url)
-
-    # REFACTORED: Correct scaling algorithm that respects both constraints
-    # Calculate height if constrained by width
-    height_from_width = available_width / aspect_ratio
-
-    # If there is no height constraint, width is the only constraint
-    if available_height <= 0:
-        return max(height_from_width, MIN_IMAGE_HEIGHT)
-
-    # We have a height constraint. Compare aspect ratios to find the true constraint.
-    # Box aspect ratio is available_width / available_height
-    # If image aspect ratio > box aspect ratio, image is "wider" than the box -> width is constraint
-    # If image aspect ratio <= box aspect ratio, image is "taller" than the box -> height is constraint
-    box_aspect_ratio = available_width / available_height
-    if aspect_ratio > box_aspect_ratio:
-        # The image is wider than the box, so it is constrained by width.
-        scaled_height = height_from_width
-    else:
-        # The image is taller than (or same as) the box, so it is constrained by height.
-        scaled_height = available_height
-
-    final_height = max(scaled_height, MIN_IMAGE_HEIGHT)
-
-    logger.debug(
-        f"Image proactively scaled: url={image_url[:50]}..., "
-        f"aspect_ratio={aspect_ratio:.2f}, available_width={available_width:.1f}, "
-        f"available_height={available_height:.1f}, final_height={final_height:.1f}"
-    )
-
-    return final_height
+    return height
 
 
 def _get_image_aspect_ratio(url: str) -> float:
@@ -188,7 +136,7 @@ def _extract_aspect_ratio_from_url(url: str) -> float | None:
         if width_match and height_match:
             try:
                 width = int(width_match.group(1))
-                height = int(height_match.group(1))
+                height = int(height_match.group(2))
                 if width > 0 and height > 0:
                     return width / height
             except ValueError:
@@ -234,38 +182,84 @@ def calculate_image_display_size(
         else ImageElement(**element)
     )
 
-    # Check for explicit width directive
-    display_width = available_width
+    aspect_ratio = _get_image_aspect_ratio(getattr(image_element, "url", ""))
+
+    # Determine the initial target width from directives, capped by container width.
+    target_width = available_width
     if hasattr(image_element, "directives") and image_element.directives:
         width_directive = image_element.directives.get("width")
         if width_directive is not None:
             try:
                 if isinstance(width_directive, float) and 0 < width_directive <= 1:
-                    display_width = available_width * width_directive
+                    target_width = available_width * width_directive
                 elif isinstance(width_directive, int | float) and width_directive > 1:
-                    display_width = min(float(width_directive), available_width)
+                    target_width = min(float(width_directive), available_width)
             except (ValueError, TypeError):
-                pass
+                logger.warning(f"Invalid width directive: {width_directive}")
 
-    # Calculate height based on the display width with proactive scaling
-    display_height = calculate_image_element_height(
-        image_element, display_width, available_height
+    # Determine the initial target height from directives, capped by container height.
+    target_height = available_height if available_height > 0 else float("inf")
+    if hasattr(image_element, "directives") and image_element.directives:
+        height_directive = image_element.directives.get("height")
+        if height_directive is not None:
+            try:
+                if isinstance(height_directive, float) and 0 < height_directive <= 1:
+                    target_height = min(
+                        target_height, available_height * height_directive
+                    )
+                elif isinstance(height_directive, int | float) and height_directive > 1:
+                    target_height = min(target_height, float(height_directive))
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid height directive: {height_directive}")
+
+    # Calculate final dimensions while preserving aspect ratio.
+    # We have three constraints: target_width, target_height, and available_width/available_height.
+    # The final size must respect all of them.
+
+    # Calculate dimensions if constrained by width
+    target_width / aspect_ratio
+
+    # Calculate dimensions if constrained by height
+    target_height * aspect_ratio
+
+    # The image must fit inside the available area.
+    # It also must respect the user's target width/height directives if they make it smaller.
+    final_w = available_width
+    final_h = available_height
+
+    if available_height <= 0:  # No height constraint
+        final_w = target_width
+        final_h = final_w / aspect_ratio
+    else:  # Both width and height are constrained
+        # Compare aspect ratios to see which dimension is the primary constraint
+        if (available_width / available_height) > aspect_ratio:
+            # Container is wider than the image; height is the limiting dimension
+            final_h = available_height
+            final_w = final_h * aspect_ratio
+        else:
+            # Container is taller/narrower than the image; width is the limiting dimension
+            final_w = available_width
+            final_h = final_w / aspect_ratio
+
+    # Now, check if the user directives for width/height are even more constraining.
+    if target_width < final_w:
+        final_w = target_width
+        final_h = final_w / aspect_ratio
+
+    if target_height < final_h:
+        final_h = target_height
+        final_w = final_h * aspect_ratio
+
+    final_h = max(final_h, MIN_IMAGE_HEIGHT)
+
+    logger.debug(
+        f"Image display size calculated: "
+        f"url={getattr(image_element, 'url', '')[:30]}..., "
+        f"aspect_ratio={aspect_ratio:.2f}, available=({available_width:.1f}, {available_height:.1f}), "
+        f"final=({final_w:.1f}, {final_h:.1f})"
     )
 
-    # Recalculate width from the final height to preserve aspect ratio
-    aspect_ratio = getattr(image_element, "aspect_ratio", None)
-    if aspect_ratio is None:
-        aspect_ratio = _get_image_aspect_ratio(getattr(image_element, "url", ""))
-    final_width = display_height * aspect_ratio
-
-    # Final sanity check to ensure width does not exceed container width due to rounding.
-    if final_width > available_width:
-        final_width = available_width
-        final_height = final_width / aspect_ratio
-    else:
-        final_height = display_height
-
-    return (final_width, final_height)
+    return (final_w, final_h)
 
 
 def estimate_image_loading_impact(image_url: str) -> str:
