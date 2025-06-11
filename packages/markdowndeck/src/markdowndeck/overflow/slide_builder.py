@@ -74,7 +74,7 @@ class SlideBuilder:
 
         continuation_slide = Slide(
             object_id=continuation_id,
-            layout=SlideLayout.TITLE_AND_BODY,  # Use standard layout for continuations
+            layout=SlideLayout.BLANK,  # Per spec, all slides use BLANK layout
             sections=deepcopy(new_sections),
             elements=[],  # Will be populated from sections and metadata
             background=(
@@ -357,21 +357,21 @@ class SlideBuilder:
         available_for_base = max_length - reserved_space
 
         # If base_id is too long, intelligently truncate it
-        if len(base_id) > available_for_base:
+        if not base_id or len(base_id) > available_for_base:
             # For continuation slides, prioritize keeping the original slide number
             # and truncate the complex continuation chain
-            if "_cont_" in base_id:
+            if base_id and "_cont_" in base_id:
                 # Extract original slide part (e.g., "slide_10" from "slide_10_cont_1_4ba998")
                 original_part = base_id.split("_cont_")[0]
                 if len(original_part) <= available_for_base:
                     # Use original slide ID + truncation indicator
                     truncated_base = original_part
                 else:
-                    # Even original is too long, truncate it
+                    # Even original is too long, simple truncation
                     truncated_base = base_id[: available_for_base - 3] + "..."
             else:
                 # Simple truncation with indicator
-                truncated_base = base_id[: available_for_base - 3] + "..."
+                truncated_base = (base_id or "slide")[:available_for_base]
         else:
             truncated_base = base_id
 

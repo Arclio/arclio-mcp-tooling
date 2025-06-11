@@ -6,7 +6,6 @@ from typing import cast
 from markdowndeck.layout.constants import (
     # Image specific constants
     DEFAULT_IMAGE_ASPECT_RATIO,
-    IMAGE_HEIGHT_FRACTION,
     MIN_IMAGE_HEIGHT,
 )
 from markdowndeck.models import ImageElement
@@ -37,7 +36,11 @@ def calculate_image_element_height(
     Returns:
         The calculated height that ensures the image fits within constraints
     """
-    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
+    image_element = (
+        cast(ImageElement, element)
+        if isinstance(element, ImageElement)
+        else ImageElement(**element)
+    )
 
     # Check for explicit height directive first
     if hasattr(image_element, "directives") and image_element.directives:
@@ -57,32 +60,40 @@ def calculate_image_element_height(
         logger.debug("No image URL provided, using minimum height")
         return MIN_IMAGE_HEIGHT
 
-    # Get aspect ratio for the image
-    aspect_ratio = _get_image_aspect_ratio(image_url)
+    # Get aspect ratio for the image - check element attribute first
+    aspect_ratio = getattr(image_element, "aspect_ratio", None)
+    if aspect_ratio is None:
+        aspect_ratio = _get_image_aspect_ratio(image_url)
 
-    # PROACTIVE SCALING: Calculate height based on available width and aspect ratio
-    # This ensures the image will always fit within its container
-    scaled_height = available_width / aspect_ratio
+    # REFACTORED: Correct scaling algorithm that respects both constraints
+    # Calculate height if constrained by width
+    height_from_width = available_width / aspect_ratio
 
-    # Apply minimum height constraint
-    scaled_height = max(scaled_height, MIN_IMAGE_HEIGHT)
+    # If there is no height constraint, width is the only constraint
+    if available_height <= 0:
+        return max(height_from_width, MIN_IMAGE_HEIGHT)
 
-    # If available_height is specified, ensure we don't exceed it
-    if available_height > 0:
-        max_allowed_height = available_height * IMAGE_HEIGHT_FRACTION
+    # We have a height constraint. Compare aspect ratios to find the true constraint.
+    # Box aspect ratio is available_width / available_height
+    # If image aspect ratio > box aspect ratio, image is "wider" than the box -> width is constraint
+    # If image aspect ratio <= box aspect ratio, image is "taller" than the box -> height is constraint
+    box_aspect_ratio = available_width / available_height
+    if aspect_ratio > box_aspect_ratio:
+        # The image is wider than the box, so it is constrained by width.
+        scaled_height = height_from_width
+    else:
+        # The image is taller than (or same as) the box, so it is constrained by height.
+        scaled_height = available_height
 
-        # Scale down if necessary to fit height constraint
-        if scaled_height > max_allowed_height:
-            scaled_height = max_allowed_height
-            logger.debug(f"Image height constrained by available space: {scaled_height:.1f}")
+    final_height = max(scaled_height, MIN_IMAGE_HEIGHT)
 
     logger.debug(
         f"Image proactively scaled: url={image_url[:50]}..., "
         f"aspect_ratio={aspect_ratio:.2f}, available_width={available_width:.1f}, "
-        f"scaled_height={scaled_height:.1f}"
+        f"available_height={available_height:.1f}, final_height={final_height:.1f}"
     )
 
-    return scaled_height
+    return final_height
 
 
 def _get_image_aspect_ratio(url: str) -> float:
@@ -108,7 +119,9 @@ def _get_image_aspect_ratio(url: str) -> float:
     if aspect_ratio is None:
         # Use default aspect ratio
         aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
-        logger.debug(f"Using default aspect ratio {aspect_ratio:.2f} for image: {url[:50]}...")
+        logger.debug(
+            f"Using default aspect ratio {aspect_ratio:.2f} for image: {url[:50]}..."
+        )
 
     # Cache the result
     _image_dimensions_cache[url] = aspect_ratio
@@ -215,7 +228,11 @@ def calculate_image_display_size(
     Returns:
         (display_width, display_height) tuple that fits within constraints
     """
-    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
+    image_element = (
+        cast(ImageElement, element)
+        if isinstance(element, ImageElement)
+        else ImageElement(**element)
+    )
 
     # Check for explicit width directive
     display_width = available_width
@@ -231,9 +248,24 @@ def calculate_image_display_size(
                 pass
 
     # Calculate height based on the display width with proactive scaling
-    display_height = calculate_image_element_height(image_element, display_width, available_height)
+    display_height = calculate_image_element_height(
+        image_element, display_width, available_height
+    )
 
-    return (display_width, display_height)
+    # Recalculate width from the final height to preserve aspect ratio
+    aspect_ratio = getattr(image_element, "aspect_ratio", None)
+    if aspect_ratio is None:
+        aspect_ratio = _get_image_aspect_ratio(getattr(image_element, "url", ""))
+    final_width = display_height * aspect_ratio
+
+    # Final sanity check to ensure width does not exceed container width due to rounding.
+    if final_width > available_width:
+        final_width = available_width
+        final_height = final_width / aspect_ratio
+    else:
+        final_height = display_height
+
+    return (final_width, final_height)
 
 
 def estimate_image_loading_impact(image_url: str) -> str:

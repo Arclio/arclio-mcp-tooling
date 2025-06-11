@@ -1,5 +1,3 @@
-"""Media element models."""
-
 from dataclasses import dataclass
 
 from markdowndeck.models.elements.base import Element
@@ -11,6 +9,8 @@ class ImageElement(Element):
 
     url: str = ""
     alt_text: str = ""
+    # FIXED: Added aspect_ratio attribute per DATA_MODELS.md spec.
+    aspect_ratio: float | None = None
 
     def is_valid(self) -> bool:
         """
@@ -30,19 +30,30 @@ class ImageElement(Element):
         """
         return self.url.startswith(("http://", "https://"))
 
-    def split(self, available_height: float) -> tuple["ImageElement | None", "ImageElement | None"]:
+    def split(
+        self, available_height: float
+    ) -> tuple["ImageElement | None", "ImageElement | None"]:
         """
-        Image elements are proactively scaled by the Layout Calculator to fit their containers.
-        Since they are pre-scaled, they will always fit and never need to be split.
+        Image elements are proactively scaled and should never be split.
 
-        Per the specification: Images return (self, None) because they are sized to prevent
-        overflow in the first place.
+        Per DATA_MODELS.md (Sec 3.4): This method must raise a NotImplementedError
+        if called. Images are pre-scaled by the Layout Manager to fit their
+        containers, so an attempt to split one indicates a critical system error.
 
         Args:
-            available_height: Unused, as images are pre-scaled
+            available_height: Unused, as images are pre-scaled.
 
         Returns:
-            (self, None) - image always fits because it's pre-scaled
+            This method does not return; it always raises an error.
+
+        Raises:
+            NotImplementedError: Always, as images are unsplittable by design.
         """
-        # Images are proactively scaled by the Layout Calculator, so they always fit
-        return self, None
+        # REFACTORED: Aligned with DATA_MODELS.md (Sec 3.4).
+        # MAINTAINS: The principle that images are atomic.
+        # BREAKING_CHANGE: This method no longer returns (self, None). It raises an exception.
+        # JUSTIFICATION: DATA_MODELS.md Sec 3.4 requires this behavior.
+        raise NotImplementedError(
+            "ImageElement.split should never be called. "
+            "Images are proactively scaled by the LayoutManager and are considered atomic."
+        )

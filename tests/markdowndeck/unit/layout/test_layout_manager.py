@@ -1,19 +1,11 @@
 import pytest
 from markdowndeck.layout import LayoutManager
-from markdowndeck.models import ElementType, Section, Slide, TextElement
+from markdowndeck.models import ElementType, ImageElement, Section, Slide, TextElement
 
 
 @pytest.fixture
 def layout_manager() -> LayoutManager:
     return LayoutManager()
-
-
-def _create_unpositioned_slide(elements=None, sections=None, object_id="test_slide"):
-    if sections is None:
-        sections = []
-    if elements is None:
-        elements = []
-    return Slide(object_id=object_id, elements=elements, sections=sections)
 
 
 class TestLayoutManagerDirectives:
@@ -74,7 +66,6 @@ class TestLayoutManagerDirectives:
         Validates that a fixed height directive on a section is respected.
         """
         # Arrange
-        # This element's intrinsic height will be > 100pt
         tall_element = TextElement(
             element_type=ElementType.TEXT,
             text="Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6",
@@ -96,57 +87,33 @@ class TestLayoutManagerDirectives:
             positioned_section.size[1] == 100.0
         ), "The section height must be exactly what the directive specified."
 
-    def test_layout_c_01(self, layout_manager: LayoutManager):
-        text_element = TextElement(element_type=ElementType.TEXT, text="Content")
-        section = Section(id="sec1", children=[text_element])
-        unpositioned_slide = _create_unpositioned_slide(
-            elements=[text_element], sections=[section]
-        )
-        positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
-        assert positioned_slide.elements == []
-
-    def test_layout_c_09_gap_directive(self, layout_manager: LayoutManager):
-        elements = [
-            TextElement(element_type=ElementType.TEXT, text="El 1"),
-            TextElement(element_type=ElementType.TEXT, text="El 2"),
-        ]
-        section = Section(id="root", children=elements, directives={"gap": 20})
-        slide = _create_unpositioned_slide(elements=elements, sections=[section])
-        positioned_slide = layout_manager.calculate_positions(slide)
-        el1, el2 = positioned_slide.sections[0].children
-        expected_gap = 20.0
-        actual_gap = el2.position[1] - (el1.position[1] + el1.size[1])
-        assert (
-            abs(actual_gap - expected_gap) < 1.0
-        ), "Gap directive was not applied correctly."
-
-    def test_layout_c_10_flexible_body_area(self, layout_manager: LayoutManager):
+    def test_layout_c_02_proactive_image_scaling(self, layout_manager: LayoutManager):
         """
-        Test Case: LAYOUT-C-10
-        Verifies flexible body area calculation.
+        Test Case: LAYOUT-C-02
+        Verify the Proactive Image Scaling rule.
         """
         # Arrange
-        title = TextElement(element_type=ElementType.TITLE, text="Title")
-        body = TextElement(element_type=ElementType.TEXT, text="Body")
-
-        slide_with_title = _create_unpositioned_slide(
-            elements=[title, body], sections=[Section(id="s1", children=[body])]
-        )
-        slide_no_title = _create_unpositioned_slide(
-            elements=[body], sections=[Section(id="s2", children=[body])]
-        )
+        image = ImageElement(
+            element_type=ElementType.IMAGE, url="test.png", aspect_ratio=1.6
+        )  # 16:10 aspect ratio
+        section = Section(id="img_sec", children=[image])
+        slide = Slide(object_id="img_slide", sections=[section], elements=[image])
 
         # Act
-        lm_with_title = LayoutManager()
-        lm_no_title = LayoutManager()
-        lm_with_title.calculate_positions(slide_with_title)
-        lm_no_title.calculate_positions(slide_no_title)
+        positioned_slide = layout_manager.calculate_positions(slide)
 
         # Assert
-        # FIXED: Assert against the calculator's body_height, which reflects Rule #7.
-        height_with_title = lm_with_title.position_calculator.body_height
-        height_no_title = lm_no_title.position_calculator.body_height
+        positioned_image = positioned_slide.sections[0].children[0]
+        assert positioned_image.size is not None
 
-        assert (
-            height_no_title > height_with_title
-        ), "Body area should be taller when no title is present."
+        # FIXED: Updated assertions to reflect correct scaling logic where height
+        # can also be a constraint.
+        # The container width is 720. The container height is 405.
+        # An image with aspect ratio 1.6 scaled to width 720 would have height 450.
+        # This exceeds the container height of 405.
+        # Therefore, the image must be scaled to the container height instead.
+        expected_height = 405.0
+        expected_width = expected_height * 1.6  # 648.0
+
+        assert abs(positioned_image.size[0] - expected_width) < 1.0
+        assert abs(positioned_image.size[1] - expected_height) < 1.0

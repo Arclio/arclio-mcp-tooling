@@ -1,5 +1,3 @@
-"""Overflow management with strict jurisdictional boundaries."""
-
 import logging
 from typing import TYPE_CHECKING
 
@@ -109,6 +107,7 @@ class OverflowManager:
 
         # Add safeguards against infinite recursion
         iteration_count = 0
+        continuation_count = 0  # FIXED: Track continuation count for unique IDs
         original_slide_id = slide.object_id
 
         while slides_to_process:
@@ -159,9 +158,10 @@ class OverflowManager:
             logger.info(
                 f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler."
             )
+            continuation_count += 1  # Increment before creating the slide
 
             fitted_slide, continuation_slide = self.handler.handle_overflow(
-                current_slide, overflowing_section
+                current_slide, overflowing_section, continuation_count
             )
 
             # Step 3: Finalize and add fitted slide to final results
@@ -171,18 +171,20 @@ class OverflowManager:
                 f"Added finalized fitted slide {fitted_slide.object_id} to final results"
             )
 
-            # Step 4: Calculate positions for continuation slide and enqueue for processing
-            # Per OVERFLOW_SPEC.md Rule #3: OverflowManager orchestrates continuation slide layout
-            logger.debug(
-                f"Positioning continuation slide {continuation_slide.object_id}"
-            )
-            repositioned_continuation = self.layout_manager.calculate_positions(
-                continuation_slide
-            )
-            slides_to_process.append(repositioned_continuation)
-            logger.debug(
-                f"Repositioned and enqueued continuation slide {continuation_slide.object_id} for processing"
-            )
+            # FIXED: Only process a continuation slide if one was actually created
+            if continuation_slide:
+                # Step 4: Calculate positions for continuation slide and enqueue for processing
+                # Per OVERFLOW_SPEC.md Rule #3: OverflowManager orchestrates continuation slide layout
+                logger.debug(
+                    f"Positioning continuation slide {continuation_slide.object_id}"
+                )
+                repositioned_continuation = self.layout_manager.calculate_positions(
+                    continuation_slide
+                )
+                slides_to_process.append(repositioned_continuation)
+                logger.debug(
+                    f"Enqueued repositioned continuation slide {continuation_slide.object_id} for processing"
+                )
 
         logger.info(
             f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"
@@ -283,180 +285,64 @@ class OverflowManager:
         """
         Finalize a slide by creating renderable_elements list and clearing sections hierarchy.
 
-        Per OVERFLOW_SPEC.md Section 3: This method transforms a slide from "Positioned" state
-        to "Finalized" state by rigorously following the data flow specification:
-        1. Initialize empty renderable_elements list
-        2. First: Add positioned meta-elements (TITLE, SUBTITLE, FOOTER) from slide.elements
-        3. Then: Traverse slide.sections hierarchy to collect all positioned elements
-        4. Assign complete list to slide.renderable_elements and clear slide.sections
-
-        Args:
-            slide: The slide to finalize
+        This is a critical fix to align with `DATA_FLOW.md` and `OVERFLOW_SPEC.md`. It resolves
+        the brittle test issue by ensuring the `renderable_elements` list is built correctly.
         """
+        logger.debug(f"Finalizing slide {slide.object_id}...")
 
-        logger.debug(
-            f"=== FINALIZING SLIDE: Starting finalization for slide {slide.object_id} ==="
-        )
-        logger.debug(f"Initial slide.elements count: {len(slide.elements)}")
-        logger.debug(
-            f"Initial slide.renderable_elements count: {len(slide.renderable_elements)}"
-        )
-        logger.debug(f"Slide.sections count: {len(slide.sections)}")
+        # Per spec, start with any meta-elements populated by LayoutManager
+        final_renderable_elements = list(getattr(slide, "renderable_elements", []))
 
-        # Preserve existing renderable_elements (meta-elements from LayoutManager)
-        # and append positioned elements from sections hierarchy per updated OVERFLOW_SPEC.md
-        if (
-            not hasattr(slide, "renderable_elements")
-            or slide.renderable_elements is None
-        ):
-            slide.renderable_elements = []
-
-        # Start with existing meta-elements from LayoutManager
-        renderable_elements = list(slide.renderable_elements)  # Copy existing list
-        logger.debug(
-            f"STEP 1: Preserving {len(renderable_elements)} existing meta-elements from LayoutManager"
-        )
-
-        # Keep track of existing object_ids and meta-element types to prevent duplicates
+        # FIXED: Track both object IDs and meta element types to prevent duplicates
         existing_object_ids = {
-            elem.object_id for elem in renderable_elements if elem.object_id
+            el.object_id for el in final_renderable_elements if el.object_id
+        }
+        meta_element_types = {
+            ElementType.TITLE,
+            ElementType.SUBTITLE,
+            ElementType.FOOTER,
         }
         existing_meta_types = {
-            elem.element_type
-            for elem in renderable_elements
-            if elem.element_type
-            in [ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER]
+            el.element_type
+            for el in final_renderable_elements
+            if el.element_type in meta_element_types
         }
-        logger.debug(f"Existing object_ids: {existing_object_ids}")
-        logger.debug(f"Existing meta-element types: {existing_meta_types}")
 
-        for i, element in enumerate(renderable_elements):
-            logger.debug(
-                f"  Preserved element {i}: {element.element_type} at {element.position} size {element.size}"
-            )
-
-        # STEP 2: Append positioned elements from slide.sections hierarchy
-        logger.debug(
-            "STEP 2: Traversing slide.sections hierarchy to append positioned elements..."
-        )
-        visited_sections = set()
-
-        def extract_positioned_elements(sections, depth=0):
-            indent = "  " * depth
-            logger.debug(
-                f"{indent}Extracting from {len(sections)} sections at depth {depth}"
-            )
-
-            for section_idx, section in enumerate(sections):
-                # Separate elements and child sections from unified children list
-                section_elements = [
-                    child
-                    for child in section.children
-                    if not hasattr(child, "children")
-                ]
-                child_sections = [
-                    child for child in section.children if hasattr(child, "children")
-                ]
-
-                logger.debug(
-                    f"{indent}Section {section_idx}: {section.id}, elements_count={len(section_elements)}"
-                )
-                logger.debug(
-                    f"{indent}  Section position={section.position}, size={section.size}"
-                )
-
-                # Circular reference protection
-                if section.id in visited_sections:
-                    logger.warning(
-                        f"Circular reference detected in section {section.id} during finalization. Skipping."
-                    )
-                    continue
-
-                visited_sections.add(section.id)
-
-                if section_elements:
-                    logger.debug(
-                        f"{indent}  Processing {len(section_elements)} elements in section {section.id}"
-                    )
-                    # Only include elements that have proper position/size data
-                    for elem_idx, element in enumerate(section_elements):
-                        logger.debug(
-                            f"{indent}    Element {elem_idx}: {element.element_type}, position={element.position}, size={element.size}"
-                        )
-
-                        if element.position is not None and element.size is not None:
-                            # Check for duplicates using object_id or meta-element type
+        # Recursively traverse the sections hierarchy to collect all positioned elements
+        def extract_elements_from_sections(sections):
+            for section in sections:
+                # Process elements and subsections from the unified children list
+                for child in section.children:
+                    if not hasattr(child, "children"):  # It's an Element
+                        if child.position and child.size:
                             is_duplicate = False
-
-                            # Check object_id duplication
+                            # Check for duplicate by object_id
                             if (
-                                element.object_id
-                                and element.object_id in existing_object_ids
+                                child.object_id
+                                and child.object_id in existing_object_ids
+                            ) or (
+                                child.element_type in meta_element_types
+                                and child.element_type in existing_meta_types
                             ):
                                 is_duplicate = True
-                                logger.debug(
-                                    f"{indent}      -> Skipped duplicate element {element.element_type} with object_id={element.object_id}"
-                                )
-
-                            # Check meta-element type duplication (only one TITLE, SUBTITLE, FOOTER allowed)
-                            elif element.element_type in [
-                                ElementType.TITLE,
-                                ElementType.SUBTITLE,
-                                ElementType.FOOTER,
-                            ]:
-                                if element.element_type in existing_meta_types:
-                                    is_duplicate = True
-                                    logger.debug(
-                                        f"{indent}      -> Skipped duplicate meta-element {element.element_type} (already have one)"
-                                    )
 
                             if not is_duplicate:
-                                renderable_elements.append(element)
-                                if element.object_id:
-                                    existing_object_ids.add(element.object_id)
-                                if element.element_type in [
-                                    ElementType.TITLE,
-                                    ElementType.SUBTITLE,
-                                    ElementType.FOOTER,
-                                ]:
-                                    existing_meta_types.add(element.element_type)
-                                logger.debug(
-                                    f"{indent}      -> Added positioned section element {element.element_type}"
-                                )
-                        else:
-                            logger.warning(
-                                f"Section element {element.element_type} in section {section.id} missing position/size data - skipping"
-                            )
-                else:
-                    logger.debug(f"{indent}  Section {section.id} has no elements")
+                                final_renderable_elements.append(child)
+                                if child.object_id:
+                                    existing_object_ids.add(child.object_id)
+                                if child.element_type in meta_element_types:
+                                    existing_meta_types.add(child.element_type)
+                    else:  # It's a Section
+                        extract_elements_from_sections([child])
 
-                if child_sections:
-                    logger.debug(
-                        f"{indent}  Processing {len(child_sections)} child sections in section {section.id}"
-                    )
-                    extract_positioned_elements(child_sections, depth + 1)
-                else:
-                    logger.debug(
-                        f"{indent}  Section {section.id} has no child sections"
-                    )
+        if hasattr(slide, "sections"):
+            extract_elements_from_sections(slide.sections)
 
-                visited_sections.remove(section.id)
-
-        extract_positioned_elements(slide.sections)
-
-        # STEP 3: Update slide.renderable_elements with complete list (preserving + appending) and clear sections
-        slide.renderable_elements = renderable_elements
-        slide.sections = []
-
-        logger.debug(f"=== FINALIZATION COMPLETE: slide {slide.object_id} ===")
-        logger.debug(f"Final renderable_elements count: {len(renderable_elements)}")
-        logger.debug(f"Sections cleared: {len(slide.sections)}")
-
-        for i, elem in enumerate(renderable_elements):
-            logger.debug(
-                f"  Renderable element {i}: {elem.element_type} at {elem.position} size {elem.size}"
-            )
+        # Update slide to the "Finalized" state
+        slide.renderable_elements = final_renderable_elements
+        slide.sections = []  # Per spec, sections are cleared after finalization
+        slide.elements = []  # Clear the stale inventory list as well
 
         logger.info(
-            f"Finalized slide {slide.object_id}: {len(renderable_elements)} elements, sections cleared"
+            f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."
         )

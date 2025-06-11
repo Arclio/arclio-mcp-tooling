@@ -18,7 +18,9 @@ from markdowndeck.models import ElementType, TableElement, TextElement
 logger = logging.getLogger(__name__)
 
 
-def calculate_table_element_height(element: TableElement | dict, available_width: float) -> float:
+def calculate_table_element_height(
+    element: TableElement | dict, available_width: float
+) -> float:
     """
     Calculate the pure intrinsic height needed for a table element based on its content.
 
@@ -32,7 +34,11 @@ def calculate_table_element_height(element: TableElement | dict, available_width
     Returns:
         The intrinsic height in points required to render the complete table
     """
-    table_element = cast(TableElement, element) if isinstance(element, TableElement) else TableElement(**element)
+    table_element = (
+        cast(TableElement, element)
+        if isinstance(element, TableElement)
+        else TableElement(**element)
+    )
 
     if not table_element.rows and not table_element.headers:
         return MIN_TABLE_HEIGHT
@@ -51,13 +57,15 @@ def calculate_table_element_height(element: TableElement | dict, available_width
 
     # Calculate header height if headers exist
     if table_element.headers:
-        header_height = _calculate_row_height(table_element.headers, col_width, is_header=True)
+        header_height = calculate_row_height(
+            table_element.headers, col_width, is_header=True
+        )
         total_height += header_height
         logger.debug(f"Header row height: {header_height:.1f}")
 
     # Calculate data rows height
     for i, row_data in enumerate(table_element.rows):
-        row_height = _calculate_row_height(row_data, col_width, is_header=False)
+        row_height = calculate_row_height(row_data, col_width, is_header=False)
         total_height += row_height
         logger.debug(f"Data row {i} height: {row_height:.1f}")
 
@@ -77,7 +85,9 @@ def calculate_table_element_height(element: TableElement | dict, available_width
     return final_height
 
 
-def _calculate_row_height(row_data: list, col_width: float, is_header: bool = False) -> float:
+def calculate_row_height(
+    row_data: list, col_width: float, is_header: bool = False
+) -> float:
     """
     Calculate the height required for a single table row.
 
@@ -103,8 +113,12 @@ def _calculate_row_height(row_data: list, col_width: float, is_header: bool = Fa
 
         if cell_text.strip():
             # Use text metrics to calculate cell content height
-            temp_text_element = TextElement(element_type=ElementType.TEXT, text=cell_text)
-            cell_content_height = calculate_text_element_height(temp_text_element, cell_content_width)
+            temp_text_element = TextElement(
+                element_type=ElementType.TEXT, text=cell_text
+            )
+            cell_content_height = calculate_text_element_height(
+                temp_text_element, cell_content_width
+            )
         else:
             # Empty cell still needs minimum height
             cell_content_height = 16.0
@@ -118,7 +132,9 @@ def _calculate_row_height(row_data: list, col_width: float, is_header: bool = Fa
     return max(max_cell_height, min_row_height)
 
 
-def calculate_table_column_widths(available_width: float, num_columns: int) -> list[float]:
+def calculate_table_column_widths(
+    available_width: float, num_columns: int
+) -> list[float]:
     """
     Calculate equal-width columns for a table.
 

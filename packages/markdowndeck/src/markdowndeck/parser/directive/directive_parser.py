@@ -1,5 +1,3 @@
-"""Parse layout directives from markdown sections with enhanced handling."""
-
 import logging
 import re
 from typing import Any
@@ -26,7 +24,7 @@ class DirectiveParser:
 
     def __init__(self):
         """Initialize the directive parser with enhanced type support."""
-        # ENHANCEMENT P8: Extended directive types for better CSS support
+
         self.directive_types = {
             "width": "dimension",
             "height": "dimension",
@@ -41,7 +39,7 @@ class DirectiveParser:
             "margin-right": "dimension",
             "color": "style",
             "fontsize": "dimension",
-            "font-size": "dimension",  # CSS alias
+            "font-size": "dimension",
             "opacity": "float",
             "border": "string",
             "border-radius": "dimension",
@@ -58,10 +56,19 @@ class DirectiveParser:
             "list-style": "string",
             "text-decoration": "string",
             "font-weight": "string",
-            # ENHANCEMENT P8: CSS properties using style converter
             "box-shadow": "style",
             "transform": "style",
             "transition": "style",
+            # FIXED: Added 'gap' as a dimension type.
+            "gap": "dimension",
+        }
+
+        self.converters = {
+            "dimension": convert_dimension,
+            "alignment": convert_alignment,
+            "style": self._enhanced_convert_style,
+            "float": self._safe_float_convert,
+            "string": str,
         }
 
         # Enhanced value converters
@@ -74,130 +81,74 @@ class DirectiveParser:
         }
 
     def parse_directives(self, section: Section) -> None:
-        """
-        Extract and parse directives from section content with enhanced validation.
-        This version correctly handles section-level directives that are not separated
-        by a blank line from the content that follows.
-
-        Args:
-            section: Section model instance to be modified in-place
-        """
         if not section or not section.content:
             if section and section.directives is None:
                 section.directives = {}
             return
-
-        content = section.content
-        logger.debug(
-            f"[parse_directives] Section {getattr(section, 'id', None)} initial content: {repr(content[:100])}"
-        )
-        # SKIP LEADING BLANK LINES
-        content = content.lstrip("\n\r ")
-        logger.debug(
-            f"[parse_directives] Section {getattr(section, 'id', None)} content after lstrip: {repr(content[:100])}"
-        )
-        # Pattern to match one or more directive blocks at the start of the content.
+        content = section.content.lstrip("\n\r ")
         directive_block_pattern = r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)"
         match = re.match(directive_block_pattern, content)
-        logger.debug(
-            f"[parse_directives] Section {getattr(section, 'id', None)} directive match: {bool(match)}"
-        )
         if not match:
             self._handle_malformed_directives(section, content)
             return
-
-        # This logic now correctly assumes that any directives at the very start
-        # of a section's content block apply to the entire section.
         directive_text = match.group(1).strip()
         remaining_content = content[match.end(0) :]
-
-        logger.debug(
-            f"Found section-level directives: {directive_text!r} for section {section.id}"
-        )
-
-        # Parse directives with enhanced error handling
         directives = self._parse_directive_text(directive_text)
-        # Use a temporary dict to avoid modifying the one being iterated
         merged_directives = (section.directives or {}).copy()
         merged_directives.update(directives)
         section.directives = merged_directives
-
-        # Remove directive text from content
         section.content = remaining_content.lstrip()
-
-        # Verify complete removal
         self._verify_directive_removal(section)
 
     def parse_inline_directives(self, text_line: str) -> tuple[dict[str, Any], str]:
-        """
-        Parse directives from a single line with enhanced support.
-
-        ENHANCEMENT P4: Better handling of mixed directive/content lines.
-        """
         text_line = text_line.strip()
         if not text_line:
             return {}, ""
-
-        # Pattern for directive-only lines
         full_directive_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)\s*$"
         match = re.match(full_directive_pattern, text_line)
-
         if not match:
             return {}, text_line
-
         directive_text = match.group(1)
         directives = self._parse_directive_text(directive_text)
-
         return directives, ""
 
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
-        """Parse directive text into a structured dictionary."""
         directives = {}
         directive_pattern = r"\[([^=\[\]]+)=([^\[\]]*)\]"
         matches = re.findall(directive_pattern, directive_text)
-
         for key, value in matches:
             key = key.strip().lower()
             value = value.strip()
-
-            logger.debug(f"Processing directive: '{key}'='{value}'")
-
             if key in self.directive_types:
                 directive_type = self.directive_types[key]
                 converter = self.converters.get(directive_type)
-
                 if converter:
                     try:
                         converted_value = converter(value)
-
-                        # Handle style directives with special processing
                         if directive_type == "style" and isinstance(
                             converted_value, tuple
                         ):
-                            processed_directives = self._process_style_directive_value(
-                                key, converted_value
+                            directives.update(
+                                self._process_style_directive_value(
+                                    key, converted_value
+                                )
                             )
-                            directives.update(processed_directives)
                         else:
                             directives[key] = converted_value
-
-                        logger.debug(f"Processed directive: {key}={converted_value}")
-                    except ValueError as e:
-                        logger.warning(f"Error processing directive {key}={value}: {e}")
-                        # Store as string fallback
+                    except ValueError:
                         directives[key] = value
-                    except Exception as e:
-                        logger.warning(
-                            f"Unexpected error processing directive {key}={value}: {e}"
-                        )
-                        directives[key] = value
-                else:
-                    directives[key] = value
             else:
-                logger.info(f"Unknown directive type: {key}, storing as string")
                 directives[key] = value
-
         return directives
+
+    def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
+        return convert_style(value)
+
+    def _safe_float_convert(self, value: str) -> float:
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
         """

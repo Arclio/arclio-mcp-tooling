@@ -1,5 +1,3 @@
-"""Core overflow handling strategies with unanimous consent model."""
-
 import logging
 from copy import deepcopy
 from typing import TYPE_CHECKING
@@ -52,47 +50,32 @@ class StandardOverflowHandler:
         )
 
     def handle_overflow(
-        self, slide: "Slide", overflowing_section: "Section"
-    ) -> tuple["Slide", "Slide"]:
+        self, slide: "Slide", overflowing_section: "Section", continuation_number: int
+    ) -> tuple["Slide", "Slide | None"]:
         """
         Handle overflow by partitioning the overflowing section and creating a continuation slide.
 
         Args:
             slide: The original slide with overflow
             overflowing_section: The first section that overflows
+            continuation_number: The sequence number for this continuation.
 
         Returns:
-            Tuple of (modified_original_slide, continuation_slide)
+            Tuple of (modified_original_slide, continuation_slide | None)
         """
         logger.info(
             f"Handling overflow for section {overflowing_section.id} at position {overflowing_section.position}"
         )
 
-        # Store original non-body elements to preserve them
-        from markdowndeck.models import ElementType
-
-        original_meta_elements = [
-            e
-            for e in slide.elements
-            if e.element_type
-            in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
-        ]
-
-        # Calculate available height before the overflowing section
-        (overflowing_section.position[1] if overflowing_section.position else 0)
-        # FIXED: Pass absolute Y boundary instead of relative height
-        # since partitioning methods now check absolute positions
         available_height = self.body_end_y
         logger.debug(
             f"Using absolute boundary for overflow section: {available_height} (body_end_y={self.body_end_y})"
         )
 
-        # Partition the overflowing section using the specification algorithm
         fitted_part, overflowing_part = self._partition_section(
             overflowing_section, available_height, visited=set()
         )
 
-        # Find the index of the overflowing section in the original slide
         section_index = -1
         for i, section in enumerate(slide.sections):
             if section is overflowing_section:
@@ -101,42 +84,44 @@ class StandardOverflowHandler:
 
         if section_index == -1:
             logger.error("Could not find overflowing section in slide sections list")
-            return slide, slide  # Fallback - return duplicate slides
+            return slide, None
 
-        # Collect subsequent sections that should move to continuation slide
         subsequent_sections = slide.sections[section_index + 1 :]
-
-        # Create sections for continuation slide
         continuation_sections = []
         if overflowing_part:
             continuation_sections.append(overflowing_part)
         continuation_sections.extend(deepcopy(subsequent_sections))
 
-        # Create continuation slide
-        slide_builder = SlideBuilder(slide)
-        continuation_slide = slide_builder.create_continuation_slide(
-            continuation_sections, 1
+        # Check if continuation slide should be created per OVERFLOW_SPEC.md Rule #6.3
+        # A continuation slide must not be created if there's no actual content to move
+        has_content = self._has_actual_content(continuation_sections)
+        logger.debug(
+            f"Content check: continuation_sections={len(continuation_sections)}, has_content={has_content}"
         )
 
-        # Modify original slide
+        if not has_content:
+            logger.info(
+                "No overflowing content found; no continuation slide will be created."
+            )
+            modified_original = deepcopy(slide)
+            if fitted_part:
+                modified_original.sections = slide.sections[:section_index] + [
+                    fitted_part
+                ]
+            else:
+                modified_original.sections = slide.sections[:section_index]
+            return modified_original, None
+
+        slide_builder = SlideBuilder(slide)
+        continuation_slide = slide_builder.create_continuation_slide(
+            continuation_sections, continuation_number
+        )
+
         modified_original = deepcopy(slide)
-
-        # Handle section modification based on fitted part
         if fitted_part:
-            # Replace overflowing section with fitted part
-            modified_original.sections[section_index] = fitted_part
-            # Keep sections up to and including the fitted section
-            modified_original.sections = modified_original.sections[: section_index + 1]
+            modified_original.sections = slide.sections[:section_index] + [fitted_part]
         else:
-            # Create empty version of the section to preserve structure
-            empty_section = deepcopy(overflowing_section)
-            empty_section.children = []
-            modified_original.sections[section_index] = empty_section
-            # Keep sections up to and including the empty section
-            modified_original.sections = modified_original.sections[: section_index + 1]
-
-        # Update elements list to match the modified sections
-        self._rebuild_elements_from_sections(modified_original, original_meta_elements)
+            modified_original.sections = slide.sections[:section_index]
 
         logger.info(
             f"Created continuation slide with {len(continuation_sections)} sections"
@@ -249,33 +234,115 @@ class StandardOverflowHandler:
                     overflow_element = element
                     break
 
-        # Special case: If no element overflows individually, but we're being called
-        # for an overflowing section, move all content to continuation slide
-        #
-        # This edge case can occur when:
-        # 1. User manually specifies section height larger than content height
-        # 2. Section has fixed directives that create artificial overflow
-        #
-        # In real-world usage, section heights are calculated by the layout manager
-        # based on their content, so this scenario is rare. When it does occur,
-        # the most logical behavior is to preserve content integrity by moving
-        # the entire section to the continuation slide rather than artificially
-        # splitting content that would otherwise fit.
-        #
-        # Design rationale: Splitting content that fits within boundaries would
-        # create poor UX and break logical content flow. It's better to maintain
-        # content coherence at the cost of some wasted space.
         if overflow_element_index == -1:
             logger.debug(
                 "No individual element overflows, but section does. "
-                "Moving entire section content to continuation slide to preserve logical content flow. "
-                "This typically occurs when section height > content height due to manual directives."
+                "Testing if any element would actually produce overflow content when split."
             )
-            # Return no fitted section, and overflowing section with all content
-            overflowing_section = deepcopy(section)
-            overflowing_section.position = None
-            overflowing_section.size = None
-            return None, overflowing_section
+            # Test each element to see if splitting would actually create overflow content
+            has_actual_overflow = False
+            for element in section_elements:
+                if hasattr(element, "split"):
+                    try:
+                        # Calculate available height for this element
+                        if element.position:
+                            element_top = element.position[1]
+                            remaining_height = max(0.0, available_height - element_top)
+                        else:
+                            remaining_height = available_height
+
+                        fitted_part, overflowing_part = element.split(remaining_height)
+                        if overflowing_part is not None:
+                            has_actual_overflow = True
+                            break
+                    except Exception:
+                        # If split fails, assume it can't be split
+                        pass
+
+            if not has_actual_overflow:
+                logger.debug(
+                    "No elements would actually produce overflow content when split. "
+                    "Section dimensions may be wrong - keeping content on current slide."
+                )
+                return section, None
+
+            logger.debug(
+                "Elements would produce overflow content - applying progressive element reduction."
+            )
+
+            # Apply progressive element reduction algorithm
+            # Find first element that produces overflow content when split
+            fitted_elements = []
+            overflowing_elements = []
+
+            for i, element in enumerate(section_elements):
+                if hasattr(element, "split"):
+                    try:
+                        # Calculate available height for this element
+                        if element.position:
+                            element_top = element.position[1]
+                            remaining_height = max(0.0, available_height - element_top)
+                        else:
+                            remaining_height = available_height
+
+                        fitted_part, overflowing_part = element.split(remaining_height)
+
+                        if overflowing_part is not None:
+                            # This element produces overflow - stop here
+                            if fitted_part:
+                                fitted_elements.append(fitted_part)
+
+                            # Build the overflowing elements list
+                            # The overflow starts from the overflowing_part and includes elements after current
+                            # Check if overflowing_part is one of the remaining elements (next progression)
+                            remaining_elements = section_elements[i + 1 :]
+
+                            # If the overflowing_part matches the next element, this is a progression
+                            if (
+                                remaining_elements
+                                and overflowing_part is remaining_elements[0]
+                            ):
+                                # Progression case: continue from the next element onwards
+                                overflowing_elements.extend(
+                                    deepcopy(remaining_elements)
+                                )
+                            else:
+                                # Standard case: add overflowing_part + remaining elements
+                                if overflowing_part:
+                                    overflowing_elements.append(overflowing_part)
+                                overflowing_elements.extend(
+                                    deepcopy(remaining_elements)
+                                )
+                            break
+                        # This element fits completely
+                        fitted_elements.append(deepcopy(element))
+                    except Exception:
+                        # If split fails, assume it can't be split - add to fitted
+                        fitted_elements.append(deepcopy(element))
+                else:
+                    # No split method - add to fitted
+                    fitted_elements.append(deepcopy(element))
+
+            # Create result sections
+            fitted_section = None
+            overflowing_section = None
+
+            if fitted_elements:
+                fitted_section = deepcopy(section)
+                fitted_section.children = fitted_elements
+
+            if overflowing_elements:
+                overflowing_section = deepcopy(section)
+                overflowing_section.children = overflowing_elements
+                overflowing_section.position = None
+                overflowing_section.size = None
+
+            logger.debug(
+                f"Progressive reduction result: fitted={len(fitted_elements)} elements, "
+                f"overflowing={len(overflowing_elements)} elements"
+            )
+
+            return fitted_section, overflowing_section
 
         logger.debug(f"Found overflowing element at index {overflow_element_index}")
 
@@ -295,20 +362,19 @@ class StandardOverflowHandler:
             overflowing_part.position = overflow_element.position
 
         # Step 3: Construct fitted_elements list
-        fitted_elements = []
-        # Add all elements before the overflow point
-        if overflow_element_index > 0:
-            fitted_elements.extend(deepcopy(section_elements[:overflow_element_index]))
-        # Add the fitted_part from the split (if any)
+        fitted_elements = deepcopy(section_elements[:overflow_element_index])
         if fitted_part:
             fitted_elements.append(fitted_part)
 
         # Step 4: Construct overflowing_elements list
+        # THIS IS THE CRITICAL FIX: The overflowing_part from the split
+        # represents the remainder of the element being split. All subsequent
+        # elements must also be moved to the overflow.
         overflowing_elements = []
-        # Add the overflowing_part from the split (if any)
         if overflowing_part:
             overflowing_elements.append(overflowing_part)
-        # Add all elements after the overflow point
+
+        # Add all elements that came _after_ the one that was split.
         if overflow_element_index + 1 < len(section_elements):
             overflowing_elements.extend(
                 deepcopy(section_elements[overflow_element_index + 1 :])
@@ -425,8 +491,6 @@ class StandardOverflowHandler:
         fitted_columns = []
         overflowing_columns = []
 
-        # CRITICAL FIX: Maintain column structure in continuation row
-        # We need to create placeholders for ALL columns to preserve structure
         for _i, column in enumerate(child_sections):
             fitted_col, overflowing_col = self._partition_section(
                 column, available_height, visited.copy()
@@ -435,7 +499,6 @@ class StandardOverflowHandler:
             if fitted_col:
                 fitted_columns.append(fitted_col)
             else:
-                # Create empty version of the column to preserve structure
                 empty_fitted_col = deepcopy(column)
                 empty_fitted_col.children = []
                 fitted_columns.append(empty_fitted_col)
@@ -443,11 +506,8 @@ class StandardOverflowHandler:
             if overflowing_col:
                 overflowing_columns.append(overflowing_col)
             else:
-                # CRITICAL: Create empty version of the column to preserve row structure
-                # This ensures continuation row maintains the same number of columns
                 empty_overflowing_col = deepcopy(column)
                 empty_overflowing_col.children = []
-                # Reset position for continuation slide
                 empty_overflowing_col.position = None
                 empty_overflowing_col.size = None
                 overflowing_columns.append(empty_overflowing_col)
@@ -460,11 +520,9 @@ class StandardOverflowHandler:
             fitted_row = deepcopy(row_section)
             fitted_row.children = fitted_columns
 
-        # Always create continuation row with all columns (some may be empty)
         if overflowing_columns:
             overflowing_row = deepcopy(row_section)
             overflowing_row.children = overflowing_columns
-            # Reset position for continuation slide
             overflowing_row.position = None
             overflowing_row.size = None
 
@@ -474,6 +532,58 @@ class StandardOverflowHandler:
         )
 
         return fitted_row, overflowing_row
+
+    def _has_actual_content(self, sections: list["Section"]) -> bool:
+        """
+        Check if a list of sections contains any actual elements.
+
+        Per OVERFLOW_SPEC.md Rule #6.3: Empty continuation slides must not be created.
+        This method recursively checks for any Element objects within the section hierarchy.
+
+        Args:
+            sections: List of sections to check
+
+        Returns:
+            True if any section contains at least one element, False otherwise
+        """
+        if not sections:
+            logger.debug("_has_actual_content: No sections provided")
+            return False
+
+        for i, section in enumerate(sections):
+            logger.debug(
+                f"_has_actual_content: Checking section {i} ({section.id}) with {len(section.children)} children"
+            )
+            if not section.children:
+                continue
+
+            # Check for direct elements (children that are not sections)
+            element_count = 0
+            for child in section.children:
+                if not hasattr(child, "children"):  # It's an element
+                    element_count += 1
+                    logger.debug(
+                        f"_has_actual_content: Found element {child.element_type}"
+                    )
+                    return True
+
+            logger.debug(
+                f"_has_actual_content: Section {i} has {element_count} direct elements"
+            )
+
+            # Check nested sections recursively
+            nested_sections = [
+                child for child in section.children if hasattr(child, "children")
+            ]
+            if nested_sections:
+                logger.debug(
+                    f"_has_actual_content: Checking {len(nested_sections)} nested sections"
+                )
+                if self._has_actual_content(nested_sections):
+                    return True
+
+        logger.debug("_has_actual_content: No content found in any section")
+        return False
 
     def _find_overflowing_element_in_column(
         self, column: "Section", available_height: float
@@ -545,144 +655,3 @@ class StandardOverflowHandler:
 
         # Target element not found in column
         return available_height
-
-    def _partition_section_with_subsections(
-        self, section: "Section", available_height: float, visited: set[str]
-    ) -> tuple["Section | None", "Section | None"]:
-        """
-        Partition a section containing subsections (non-row).
-
-        Args:
-            section: Section containing subsections
-            available_height: Available height for this section
-            visited: Set of section IDs already visited
-
-        Returns:
-            Tuple of (fitted_part, overflowing_part)
-        """
-        # Get child sections from unified children list
-        child_sections = [
-            child for child in section.children if hasattr(child, "children")
-        ]
-
-        # Find first overflowing subsection
-        overflowing_subsection_index = -1
-
-        for i, subsection in enumerate(child_sections):
-            if subsection.position and subsection.size:
-                subsection_bottom = subsection.position[1] + subsection.size[1]
-                if subsection_bottom > available_height:
-                    overflowing_subsection_index = i
-                    break
-
-        if overflowing_subsection_index == -1:
-            # No overflow in subsections
-            return deepcopy(section), None
-
-        # Recursively partition the overflowing subsection
-        overflowing_subsection = child_sections[overflowing_subsection_index]
-        subsection_available_height = available_height - (
-            overflowing_subsection.position[1] if overflowing_subsection.position else 0
-        )
-
-        fitted_subsection, overflowing_subsection_part = self._partition_section(
-            overflowing_subsection, subsection_available_height, visited.copy()
-        )
-
-        # Build result sections
-        fitted_section = None
-        overflowing_section = None
-
-        # Fitted part includes subsections before overflow point plus fitted part
-        fitted_subsections = deepcopy(child_sections[:overflowing_subsection_index])
-        if fitted_subsection:
-            fitted_subsections.append(fitted_subsection)
-
-        if fitted_subsections:
-            fitted_section = deepcopy(section)
-            fitted_section.children = fitted_subsections
-
-        # Overflowing part includes overflowing part plus subsequent subsections
-        overflowing_subsections = []
-        if overflowing_subsection_part:
-            overflowing_subsections.append(overflowing_subsection_part)
-        overflowing_subsections.extend(
-            deepcopy(child_sections[overflowing_subsection_index + 1 :])
-        )
-
-        if overflowing_subsections:
-            overflowing_section = deepcopy(section)
-            overflowing_section.children = overflowing_subsections
-            # Reset position for continuation slide
-            overflowing_section.position = None
-            overflowing_section.size = None
-
-        return fitted_section, overflowing_section
-
-    def _is_element_splittable(self, element) -> bool:
-        """
-        Check if an element supports splitting.
-
-        Args:
-            element: The element to check
-
-        Returns:
-            True if the element can be split across slides
-        """
-        # All elements should have a split method per the new specification
-        has_split_method = hasattr(element, "split") and callable(element.split)
-        logger.debug(
-            f"Element {element.element_type} splittable check: has_split={has_split_method}"
-        )
-        return has_split_method
-
-    def _rebuild_elements_from_sections(
-        self, slide: "Slide", meta_elements: list
-    ) -> None:
-        """
-        Rebuild the slide's flat .elements list from its sections.
-
-        CRITICAL FIX: Removed deepcopy of section.elements to preserve position/size data
-        that was set by the LayoutManager. The elements in the fitted/overflowing sections
-        are already copies from the partitioning process.
-
-        Args:
-            slide: The slide to rebuild elements for
-            meta_elements: The original title, subtitle, and footer elements to preserve
-        """
-        new_elements = list(meta_elements)  # Direct reference instead of deepcopy
-
-        # Recursively extract elements from the modified sections
-        visited_sections = set()
-
-        def extract_elements(sections):
-            for section in sections:
-                # Circular reference protection
-                if section.id in visited_sections:
-                    logger.warning(
-                        f"Circular reference detected in section {section.id} during element extraction. Skipping."
-                    )
-                    continue
-
-                visited_sections.add(section.id)
-
-                # Get elements and child sections from unified children list
-                section_elements = [
-                    child
-                    for child in section.children
-                    if not hasattr(child, "children")
-                ]
-                child_sections = [
-                    child for child in section.children if hasattr(child, "children")
-                ]
-
-                if section_elements:
-                    # CRITICAL: Use direct references to preserve position/size data
-                    new_elements.extend(section_elements)
-                if child_sections:
-                    extract_elements(child_sections)
-
-                visited_sections.remove(section.id)
-
-        extract_elements(slide.sections)
-        slide.elements = new_elements

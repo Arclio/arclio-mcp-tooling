@@ -10,11 +10,11 @@ def list_builder() -> ListRequestBuilder:
 
 
 class TestListBuilderNesting:
-    def test_nested_list_generates_indentation_requests(
+    def test_api_c_17_nested_list_generates_indentation_requests(
         self, list_builder: ListRequestBuilder
     ):
         """
-        Test Case: API-C-17 (new)
+        Test Case: API-C-17
         Validates that a nested list generates 'updateParagraphStyle' requests
         with 'indentStart' to create visual nesting in Google Slides.
         """
@@ -47,7 +47,6 @@ class TestListBuilderNesting:
             len(indent_requests) > 0
         ), "Should generate at least one request to set indentation for the nested item."
 
-        # Find the request for the nested item (level 1)
         nested_item_request = next(
             (
                 req

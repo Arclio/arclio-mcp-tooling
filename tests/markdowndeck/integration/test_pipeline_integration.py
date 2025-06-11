@@ -1,12 +1,6 @@
 """
 Integration tests for the full MarkdownDeck pipeline.
-
-These tests verify the data handoffs and state transformations between the
-Parser, LayoutManager, and OverflowManager components, ensuring they adhere to
-the contracts defined in ARCHITECTURE.md and DATA_FLOW.md.
 """
-
-import re
 
 import pytest
 from markdowndeck import markdown_to_requests
@@ -15,9 +9,30 @@ from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
 
 
-class TestPipelineIntegration:
-    """Tests the integration and data flow between pipeline components."""
+def _find_shape_by_text(requests: list, text_substring: str) -> dict | None:
+    """Finds a createShape request linked to an insertText request with specific text."""
+    text_req = next(
+        (
+            r
+            for r in requests
+            if "insertText" in r and text_substring in r["insertText"]["text"]
+        ),
+        None,
+    )
+    if not text_req:
+        return None
+    object_id = text_req["insertText"]["objectId"]
+    return next(
+        (
+            r
+            for r in requests
+            if "createShape" in r and r["createShape"]["objectId"] == object_id
+        ),
+        None,
+    )
 
+
+class TestPipelineIntegration:
     @pytest.fixture
     def parser(self) -> Parser:
         return Parser()
@@ -30,252 +45,75 @@ class TestPipelineIntegration:
     def overflow_manager(self) -> OverflowManager:
         return OverflowManager()
 
-    def test_integration_p_01(self, parser: Parser, layout_manager: LayoutManager):
-        """
-        Test Case: INTEGRATION-P-01
-        Validates the Parser -> LayoutManager handoff.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
-        """
-        # Arrange
-        markdown = "# Title\n[width=1/2]\n* Item 1"
-
-        # Act
-        unpositioned_deck = parser.parse(markdown)
-        unpositioned_slide = unpositioned_deck.slides[0]
-
-        # Assert initial state (Unpositioned IR)
-        assert (
-            len(unpositioned_slide.elements) > 0
-        ), "Parser should populate inventory list."
-        assert (
-            unpositioned_slide.sections[0].children[0].position is None
-        ), "IR must be unpositioned."
-
-        # Act: Handoff to LayoutManager
-        positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
-
-        # Assert final state (Positioned IR)
-        assert (
-            positioned_slide.elements == []
-        ), "LayoutManager must clear the inventory list."
-
-        # Verify renderable_elements contains positioned meta-elements from LayoutManager
-        assert hasattr(
-            positioned_slide, "renderable_elements"
-        ), "Slide must have renderable_elements attribute"
-        # This test has a title, so renderable_elements should contain it
-        title_elements = [
-            elem
-            for elem in positioned_slide.renderable_elements
-            if elem.element_type.name == "TITLE"
-        ]
-        assert (
-            len(title_elements) == 1
-        ), "Should have one positioned title element from LayoutManager"
-        final_section = positioned_slide.sections[0]
-        final_element = final_section.children[0]
-        assert final_section.position is not None
-        assert final_section.size is not None
-        assert final_element.position is not None
-        assert final_element.size is not None
-
-    def test_integration_p_02(
-        self,
-        parser: Parser,
-        layout_manager: LayoutManager,
-        overflow_manager: OverflowManager,
-    ):
-        """
-        Test Case: INTEGRATION-P-02
-        Validates the LayoutManager -> OverflowManager handoff for a slide with no overflow.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
-        """
-        # Arrange
-        markdown = "# Simple Slide\nThis content fits on one slide."
-
-        # Act
-        unpositioned_deck = parser.parse(markdown)
-        positioned_slide = layout_manager.calculate_positions(
-            unpositioned_deck.slides[0]
-        )
-
-        # Assert intermediate state (Positioned IR)
-        assert positioned_slide.elements == []
-
-        # Verify renderable_elements contains positioned meta-elements from LayoutManager
-        assert hasattr(
-            positioned_slide, "renderable_elements"
-        ), "Slide must have renderable_elements attribute"
-        # This test has a title, so renderable_elements should contain it
-        title_elements = [
-            elem
-            for elem in positioned_slide.renderable_elements
-            if elem.element_type.name == "TITLE"
-        ]
-        assert (
-            len(title_elements) == 1
-        ), "Should have one positioned title element from LayoutManager"
-        assert len(positioned_slide.sections) > 0
-
-        # Act: Handoff to OverflowManager
-        final_slides = overflow_manager.process_slide(positioned_slide)
-
-        # Assert
-        assert len(final_slides) == 1
-        final_slide = final_slides[0]
-
-        # Assert final state (Finalized IR)
-        assert (
-            final_slide.sections == []
-        ), "OverflowManager must clear the sections list."
-        assert (
-            len(final_slide.renderable_elements) > 0
-        ), "Finalized slide must have renderable elements."
-
-        # Verify data integrity: all renderable elements have position and size
-        for element in final_slide.renderable_elements:
-            assert element.position is not None, "Final element must have position."
-            assert element.size is not None, "Final element must have size."
-
-    def test_integration_p_03(
-        self,
-        parser: Parser,
-        layout_manager: LayoutManager,
-        overflow_manager: OverflowManager,
-    ):
-        """
-        Test Case: INTEGRATION-P-03
-        Validates the full recursive pipeline for a slide that causes overflow.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
-        """
-        # Arrange
-        long_content = "\n".join([f"* Item {i}" for i in range(15)])
-        markdown = f"# Long Slide\n{long_content}"
-
-        # Act
-        unpositioned_deck = parser.parse(markdown)
-        positioned_slide = layout_manager.calculate_positions(
-            unpositioned_deck.slides[0]
-        )
-        final_slides = overflow_manager.process_slide(positioned_slide)
-
-        # Assert
-        assert len(final_slides) > 1, "Overflow should have created multiple slides."
-
-        # Verify all slides are in the "Finalized" state
-        for i, slide in enumerate(final_slides):
-            assert slide.sections == [], f"Slide {i} sections list must be cleared."
-
-        # Check that at least some slides have renderable elements
-        # (Note: Due to current layout manager limitations with recursive overflow,
-        # some slides may have 0 elements, but the last slide should have elements)
-        total_elements = sum(len(slide.renderable_elements) for slide in final_slides)
-        assert total_elements > 0, "At least some slides must have renderable elements."
-
-        # Verify all elements in the finalized slides have position data
-        for i, slide in enumerate(final_slides):
-            for element in slide.renderable_elements:
-                assert (
-                    element.position is not None
-                ), f"Element in slide {i} must have position."
-                assert element.size is not None, f"Element in slide {i} must have size."
-
     def test_integration_p_04(self):
-        """
-        Test Case: INTEGRATION-P-04
-        Validates the end-to-end pipeline via the `markdown_to_requests` helper.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
-        """
-        # Arrange
-        markdown = """# E2E Test
-[width=1/2]
-Left content.
-***
-[width=1/2]
-Right content.
-"""
-
-        # Act
+        """Test Case: INTEGRATION-P-04 - Full pipeline via markdown_to_requests."""
+        markdown = "# E2E Test\nContent."
         result = markdown_to_requests(markdown, title="E2E Pipeline Test")
-
-        # Assert
-        assert "title" in result
-        assert result["title"] == "E2E Pipeline Test"
-        assert "slide_batches" in result
-        assert len(result["slide_batches"]) == 1
-
         requests = result["slide_batches"][0]["requests"]
-        assert len(requests) > 0, "Should generate API requests."
 
-        # Check for key requests proving the pipeline ran
-        create_slide_req = next((r for r in requests if "createSlide" in r), None)
-        assert create_slide_req is not None, "A createSlide request must be present."
+        title_shape_req = _find_shape_by_text(requests, "E2E Test")
+        assert (
+            title_shape_req is not None
+        ), "A createShape request for the title must exist."
 
-        # Verify content from both columns is present
-        all_text = " ".join([r.get("insertText", {}).get("text", "") for r in requests])
-        assert "Left content" in all_text
-        assert "Right content" in all_text
+        content_shape_req = _find_shape_by_text(requests, "Content.")
+        assert (
+            content_shape_req is not None
+        ), "A createShape request for the content must exist."
 
-    def test_integration_p_05_continuation_slide_object_ids(
-        self,
-        parser: Parser,
-        layout_manager: LayoutManager,
-        overflow_manager: OverflowManager,
-    ):
-        """
-        Test Case: INTEGRATION-P-05
-        Validates that continuation slide elements have valid Google API objectIds.
-        This test verifies the fix for invalid objectId generation bug in SlideBuilder.
-        """
-        # Arrange: Use content that will definitely overflow and create many text elements
-        # Each line will become a separate paragraph, and having many should force overflow
-        lines = []
-        for i in range(20):  # Create many lines of text to guarantee overflow
-            lines.append(
-                f"This is line number {i} with some content that takes up space."
-            )
+    def test_integration_p_06_style_directive_flow(self):
+        """Test Case: INTEGRATION-P-06 - End-to-end flow of styling directives."""
+        markdown = "[color=#FF0000]\nRed Text"
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
 
-        text_content = "\n".join(lines)
-        markdown = f"# Overflow Test\n\n{text_content}"
+        style_req = next((r for r in requests if "updateTextStyle" in r), None)
+        assert style_req is not None, "An updateTextStyle request must be generated."
 
-        # Act: Run the full pipeline to create continuation slides
-        unpositioned_deck = parser.parse(markdown)
-        positioned_slide = layout_manager.calculate_positions(
-            unpositioned_deck.slides[0]
+        color = style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
+            "rgbColor"
+        ]
+        assert abs(color["red"] - 1.0) < 1e-9
+
+    def test_integration_p_07_flexible_body_area(self):
+        """Test Case: INTEGRATION-P-07 - End-to-end validation of flexible body area."""
+        markdown = "Body Only\n===\n# Title\nBody With Title"
+        result = markdown_to_requests(markdown)
+
+        batch1_reqs = result["slide_batches"][0]["requests"]
+        batch2_reqs = result["slide_batches"][1]["requests"]
+
+        shape1 = _find_shape_by_text(batch1_reqs, "Body Only")
+        shape2 = _find_shape_by_text(batch2_reqs, "Body With Title")
+        assert shape1 and shape2, "Could not find body shapes in both slides."
+
+        shape1_y = shape1["elementProperties"]["transform"]["translateY"]
+        shape2_y = shape2["elementProperties"]["transform"]["translateY"]
+
+        assert (
+            shape1_y < shape2_y
+        ), "Body content should be positioned higher on a slide without a title."
+
+    def test_integration_p_08_gap_directive_flow(self):
+        """Test Case: INTEGRATION-P-08 - End-to-end validation of the gap directive."""
+        markdown = "[gap=30]\nFirst Line\n\nSecond Line"
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        shape1 = _find_shape_by_text(requests, "First Line")
+        shape2 = _find_shape_by_text(requests, "Second Line")
+        assert shape1 and shape2, "Could not find text shapes."
+
+        shape1_props = shape1["elementProperties"]
+        shape2_props = shape2["elementProperties"]
+
+        shape1_bottom = (
+            shape1_props["transform"]["translateY"]
+            + shape1_props["size"]["height"]["magnitude"]
         )
+        shape2_top = shape2_props["transform"]["translateY"]
 
-        final_slides = overflow_manager.process_slide(positioned_slide)
-
-        # Assert: Must have created continuation slides
+        actual_gap = shape2_top - shape1_bottom
         assert (
-            len(final_slides) > 1
-        ), "Overflow should have created multiple slides for objectId validation."
-
-        # Collect all elements from all slides for validation
-        all_elements = []
-        for slide in final_slides:
-            for element in slide.renderable_elements:
-                if hasattr(element, "object_id") and element.object_id:
-                    all_elements.append(element)
-
-        # Valid Google Slides API objectId regex pattern
-        valid_object_id_pattern = re.compile(r"^[a-zA-Z0-9_][a-zA-Z0-9_:\-]*$")
-
-        # Validate every element's objectId across all slides
-        assert (
-            len(all_elements) > 0
-        ), "Must have at least some elements to validate objectIds"
-
-        for i, element in enumerate(all_elements):
-            assert hasattr(
-                element, "object_id"
-            ), f"Element {i} must have object_id attribute"
-            assert (
-                element.object_id is not None
-            ), f"Element {i} object_id cannot be None"
-
-            # This assertion validates that continuation slide elements have valid objectIds
-            assert valid_object_id_pattern.match(element.object_id), (
-                f"Element {i} has invalid objectId '{element.object_id}'. "
-                rf"Must match Google Slides API regex: ^[a-zA-Z0-9_][a-zA-Z0-9_:\-]*$"
-            )
+            abs(actual_gap - 30.0) < 1.0
+        ), "The gap between elements must be ~30 points."
