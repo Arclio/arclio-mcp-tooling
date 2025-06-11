@@ -1,5 +1,3 @@
-"""Stress and performance tests for overflow handler system."""
-
 import gc
 import os
 import time
@@ -35,7 +33,7 @@ class TestOverflowStress:
     ):
         """
         Test Case: STRESS-O-01
-        Tests performance with exponentially growing content.
+        Tests performance with content that creates many continuations.
         From: docs/markdowndeck/testing/TEST_CASES_STRESS.md
         """
         performance_results = []

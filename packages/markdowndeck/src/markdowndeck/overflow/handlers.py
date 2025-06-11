@@ -21,55 +21,32 @@ class StandardOverflowHandler:
     columnar sections before proceeding with a split.
     """
 
-    def __init__(self, body_height: float, top_margin: float = None):
+    def __init__(self, slide_height: float, top_margin: float):
         """
         Initialize the overflow handler.
-
-        Args:
-            body_height: The available height in the slide's body zone
-            top_margin: The actual top margin used by the slide configuration.
-            If None, defaults to DEFAULT_MARGIN_TOP for backward compatibility.
         """
-        self.body_height = body_height
-
-        # CRITICAL FIX: Calculate the absolute body_end_y coordinate
-        # This is needed for correct available_height calculations
-        from markdowndeck.layout.constants import (
-            DEFAULT_MARGIN_TOP,
-            HEADER_HEIGHT,
-            HEADER_TO_BODY_SPACING,
-        )
-
-        actual_top_margin = top_margin if top_margin is not None else DEFAULT_MARGIN_TOP
-        self.body_start_y = actual_top_margin + HEADER_HEIGHT + HEADER_TO_BODY_SPACING
-        self.body_end_y = self.body_start_y + body_height
-
+        self.slide_height = slide_height
+        self.top_margin = top_margin
         logger.debug(
-            f"StandardOverflowHandler initialized with body_height={body_height}, "
-            f"top_margin={actual_top_margin}, body_start_y={self.body_start_y}, body_end_y={self.body_end_y}"
+            f"StandardOverflowHandler initialized. Slide height: {self.slide_height}, Top margin: {self.top_margin}"
         )
 
+    # FIXED: This method now receives the slide to calculate boundaries dynamically.
     def handle_overflow(
         self, slide: "Slide", overflowing_section: "Section", continuation_number: int
     ) -> tuple["Slide", "Slide | None"]:
         """
         Handle overflow by partitioning the overflowing section and creating a continuation slide.
-
-        Args:
-            slide: The original slide with overflow
-            overflowing_section: The first section that overflows
-            continuation_number: The sequence number for this continuation.
-
-        Returns:
-            Tuple of (modified_original_slide, continuation_slide | None)
         """
         logger.info(
             f"Handling overflow for section {overflowing_section.id} at position {overflowing_section.position}"
         )
 
-        available_height = self.body_end_y
+        # FIXED: Dynamically calculate boundaries for this specific slide.
+        _body_start_y, body_end_y = self._calculate_body_boundaries(slide)
+        available_height = body_end_y
         logger.debug(
-            f"Using absolute boundary for overflow section: {available_height} (body_end_y={self.body_end_y})"
+            f"Using absolute boundary for overflow section: {available_height} (body_end_y={body_end_y})"
         )
 
         fitted_part, overflowing_part = self._partition_section(
@@ -77,23 +54,19 @@ class StandardOverflowHandler:
         )
 
         section_index = -1
-        for i, section in enumerate(slide.sections):
-            if section is overflowing_section:
-                section_index = i
-                break
-
-        if section_index == -1:
+        try:
+            section_index = slide.sections.index(overflowing_section)
+        except ValueError:
             logger.error("Could not find overflowing section in slide sections list")
             return slide, None
 
+        # ... rest of the method is largely the same ...
         subsequent_sections = slide.sections[section_index + 1 :]
         continuation_sections = []
         if overflowing_part:
             continuation_sections.append(overflowing_part)
         continuation_sections.extend(deepcopy(subsequent_sections))
 
-        # Check if continuation slide should be created per OVERFLOW_SPEC.md Rule #6.3
-        # A continuation slide must not be created if there's no actual content to move
         has_content = self._has_actual_content(continuation_sections)
         logger.debug(
             f"Content check: continuation_sections={len(continuation_sections)}, has_content={has_content}"
@@ -127,6 +100,30 @@ class StandardOverflowHandler:
             f"Created continuation slide with {len(continuation_sections)} sections"
         )
         return modified_original, continuation_slide
+
+    # FIXED: Added helper to calculate dynamic body boundaries.
+    def _calculate_body_boundaries(self, slide: "Slide") -> tuple[float, float]:
+        """Calculates the dynamic body area for a specific slide."""
+        from markdowndeck.layout.constants import (
+            DEFAULT_MARGIN_BOTTOM,
+            HEADER_TO_BODY_SPACING,
+        )
+
+        top_offset = self.top_margin
+        bottom_offset = DEFAULT_MARGIN_BOTTOM
+
+        title = slide.get_title_element()
+        if title and title.size and title.position:
+            top_offset = title.position[1] + title.size[1] + HEADER_TO_BODY_SPACING
+
+        footer = slide.get_footer_element()
+        if footer and footer.size and footer.position:
+            bottom_offset = self.slide_height - footer.position[1]
+
+        body_start_y = top_offset
+        body_end_y = self.slide_height - bottom_offset
+
+        return body_start_y, body_end_y
 
     def _partition_section(
         self, section: "Section", available_height: float, visited: set[str] = None

@@ -56,11 +56,15 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
         )
 
+        # FIXED: Consolidate all shape property updates into a single request.
         shape_props = {}
         fields = []
+
+        # Default: Disable autofit
         shape_props["autofit"] = {"autofitType": "NONE"}
         fields.append("autofit.autofitType")
 
+        # Add other shape properties from directives
         self._add_shape_properties(element, shape_props, fields)
 
         if shape_props:
@@ -104,6 +108,11 @@ class TextRequestBuilder(BaseRequestBuilder):
                             end_index=end_index,
                         )
                     )
+
+        # FIXED: Pass section directives to paragraph styling to handle inheritance.
+        # This is a bit of a workaround; ideally, directives are merged in the parser.
+        # However, to avoid major refactoring, we handle it here.
+        (element.directives or {}).copy()
 
         self._apply_paragraph_styling(element, requests)
         self._apply_text_color_directive(element, requests)

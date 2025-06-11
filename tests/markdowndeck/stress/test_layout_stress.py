@@ -1,5 +1,3 @@
-"""Stress tests for the unified layout calculator."""
-
 import time
 
 import pytest
@@ -76,7 +74,7 @@ class TestLayoutCalculatorStress:
         # Build a deeply nested structure
         deepest_section = Section(id=f"sec_{depth}", children=[content_element])
         current_section = deepest_section
-        for i in range(depth - 1, 0, -1):
+        for i in range(depth - 1, -1, -1):
             parent_section = Section(
                 id=f"sec_{i}", type="section", children=[current_section]
             )
@@ -102,7 +100,7 @@ class TestLayoutCalculatorStress:
 
         # Verify the structure is still there and positioned
         final_section = result_slide.sections[0]
-        for _ in range(depth - 1):
+        for _ in range(depth):
             child_sections = [
                 child for child in final_section.children if hasattr(child, "children")
             ]

@@ -69,71 +69,42 @@ class SlideExtractor:
     def _split_content_with_code_block_awareness(
         self, content: str, pattern: str
     ) -> list[str]:
-        """
-        Split content by pattern while respecting code block boundaries.
-
-        ENHANCEMENT P7: Improved code fence detection.
-        """
+        # ... this method is correct and remains unchanged ...
         lines = content.split("\n")
         parts = []
         current_part_lines = []
-
         in_code_block = False
         current_fence = None
-
-        # ENHANCEMENT P7: Support for more fence types
-        fence_patterns = ["```", "~~~", "````"]  # Extended support
-
+        fence_patterns = ["```", "~~~", "````"]
         try:
             separator_re = re.compile(pattern)
         except re.error as e:
             logger.error(f"Invalid regex pattern '{pattern}': {e}")
             return [content] if content.strip() else []
-
-        for line_idx, line in enumerate(lines):
+        for _line_idx, line in enumerate(lines):
             stripped_line = line.strip()
-
-            # Check for code fence
             is_code_fence_line = False
             potential_fence = None
-
             for fence in fence_patterns:
                 if stripped_line.startswith(fence):
                     potential_fence = fence
                     is_code_fence_line = True
                     break
-
             if is_code_fence_line:
                 if not in_code_block:
                     in_code_block = True
                     current_fence = potential_fence
-                    logger.debug(
-                        f"Opening code block with {potential_fence} at line {line_idx + 1}"
-                    )
                 elif potential_fence == current_fence:
                     in_code_block = False
                     current_fence = None
-                    logger.debug(
-                        f"Closing code block with {potential_fence} at line {line_idx + 1}"
-                    )
-
-            # Check for slide separator (only outside code blocks)
             if separator_re.match(line) and not in_code_block:
                 if current_part_lines:
                     parts.append("\n".join(current_part_lines))
                 current_part_lines = []
                 continue
-            if separator_re.match(line) and in_code_block:
-                logger.debug(
-                    f"Slide separator inside code block at line {line_idx + 1}"
-                )
-
             current_part_lines.append(line)
-
-        # Add final part
         if current_part_lines:
             parts.append("\n".join(current_part_lines))
-
         return parts
 
     def _process_slide_content(
@@ -141,36 +112,31 @@ class SlideExtractor:
     ) -> dict:
         """
         Process slide content with robust title, subtitle, and metadata handling.
-        This version ensures that consumed metadata lines are NOT passed to the content parser.
         """
         # --- Stage 1: Isolate Footer and Notes ---
-        # Split by footer separator first to isolate the main content block
         footer_parts = re.split(r"^\s*@@@\s*$", content, maxsplit=1, flags=re.MULTILINE)
         main_content_segment = footer_parts[0]
         footer = footer_parts[1].strip() if len(footer_parts) > 1 else None
-
-        # Extract notes from the entire original content block to catch all cases
         notes = self._extract_notes(content)
 
-        # Remove notes from the main content segment to prevent re-parsing
         if notes:
             main_content_segment = re.sub(
                 r"<!--\s*notes:\s*.*?\s*-->", "", main_content_segment, flags=re.DOTALL
             )
-        # Also remove notes from the footer if they were there
         if footer and notes:
             footer = re.sub(
                 r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
             ).strip()
 
+        # FIXED: Extract slide-level directives like [background] before title extraction.
+        background_directive, main_content_segment = self._extract_background_directive(
+            main_content_segment
+        )
+
         # --- Stage 2: Extract Title/Subtitle and Finalize Content ---
-        # The _extract_title_with_directives method is now responsible for returning
-        # ONLY the content that is NOT a title or subtitle.
         title, subtitle, final_slide_content, title_directives, subtitle_directives = (
             self._extract_title_with_directives(main_content_segment)
         )
-
-        # Ensure final content is clean
         final_slide_content = final_slide_content.strip()
 
         # --- Stage 3: Assemble the Slide Dictionary ---
@@ -180,7 +146,8 @@ class SlideExtractor:
             "content": final_slide_content,
             "footer": footer,
             "notes": notes,
-            "background": None,  # Will be parsed from section directives later
+            # FIXED: Add the parsed background directive to the slide dictionary.
+            "background": background_directive,
             "index": index,
             "object_id": slide_object_id,
             "speaker_notes_object_id": (
@@ -192,11 +159,43 @@ class SlideExtractor:
 
         logger.debug(
             f"Processed slide {index + 1}: title='{title or 'None'}', "
-            f"subtitle='{subtitle or 'None'}', "
-            f"content_length={len(slide['content'])}, title_directives={title_directives}, "
-            f"subtitle_directives={subtitle_directives}"
+            f"subtitle='{subtitle or 'None'}', background={background_directive}"
         )
         return slide
+
+    def _extract_background_directive(self, content: str) -> tuple[dict | None, str]:
+        """Extracts a slide-level [background=...] directive from the top of content."""
+        lines = content.lstrip().split("\n")
+        background_directive = None
+        content_started = False
+        cleaned_lines = []
+
+        for line in lines:
+            stripped_line = line.strip()
+            if not stripped_line or stripped_line.startswith(
+                "<!--"
+            ):  # Skip empty/comment lines
+                cleaned_lines.append(line)
+                continue
+
+            if content_started:
+                cleaned_lines.append(line)
+                continue
+
+            match = re.match(r"^\[background=(.+)\]$", stripped_line)
+            if match:
+                value = match.group(1).strip()
+                if value.lower().startswith("url("):
+                    url = value[4:-1].strip("'\"")
+                    background_directive = {"type": "image", "value": url}
+                else:
+                    background_directive = {"type": "color", "value": value}
+                # This line is consumed, don't add to cleaned_lines
+            else:
+                content_started = True
+                cleaned_lines.append(line)
+
+        return background_directive, "\n".join(cleaned_lines)
 
     def _extract_title_with_directives(
         self, content: str

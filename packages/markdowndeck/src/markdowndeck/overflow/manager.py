@@ -10,23 +10,13 @@ from markdowndeck.overflow.handlers import StandardOverflowHandler
 
 logger = logging.getLogger(__name__)
 
-# Constants for preventing infinite recursion
-MAX_OVERFLOW_ITERATIONS = 50  # Maximum number of overflow processing iterations
-MAX_CONTINUATION_SLIDES = 25  # Maximum number of continuation slides per original slide
+MAX_OVERFLOW_ITERATIONS = 50
+MAX_CONTINUATION_SLIDES = 25
 
 
 class OverflowManager:
     """
     Main orchestrator for overflow detection and handling with strict jurisdictional boundaries.
-
-    Per the specification: The Overflow Handler's logic is triggered ONLY when a section's
-    external bounding box overflows the slide's available height. It MUST IGNORE internal
-    content overflow within sections that have user-defined, fixed sizes.
-
-    Architecture:
-    - OverflowDetector: Identifies external section overflow only
-    - OverflowHandler: Applies overflow resolution strategies
-    - Clean separation of detection from handling logic
     """
 
     def __init__(
@@ -37,87 +27,46 @@ class OverflowManager:
     ):
         """
         Initialize the overflow manager.
-
-        Args:
-            slide_width: Width of slides in points
-            slide_height: Height of slides in points
-            margins: Slide margins (top, right, bottom, left)
         """
         self.slide_width = slide_width
         self.slide_height = slide_height
         self.margins = margins or {"top": 50, "right": 50, "bottom": 50, "left": 50}
 
-        # Calculate body height (available space for content)
-        # Using constants from specification
-        header_height = 90.0
-        footer_height = 30.0
-        header_to_body_spacing = 10.0
-        body_to_footer_spacing = 10.0
-
-        self.body_height = (
-            slide_height
-            - self.margins["top"]
-            - self.margins["bottom"]
-            - header_height
-            - footer_height
-            - header_to_body_spacing
-            - body_to_footer_spacing
-        )
-
-        # Initialize components
+        # FIXED: Initialize detector with base slide dimensions, not a static body height.
         self.detector = OverflowDetector(
-            body_height=self.body_height, top_margin=self.margins["top"]
+            slide_height=self.slide_height, top_margin=self.margins["top"]
         )
+        # FIXED: Initialize handler to be configured dynamically per slide.
         self.handler = StandardOverflowHandler(
-            body_height=self.body_height, top_margin=self.margins["top"]
+            slide_height=self.slide_height, top_margin=self.margins["top"]
         )
 
-        # Layout manager for repositioning continuation slides
         from markdowndeck.layout import LayoutManager
 
         self.layout_manager = LayoutManager(slide_width, slide_height, margins)
 
         logger.debug(
-            f"OverflowManager initialized with body_height={self.body_height}, "
-            f"slide_dimensions={slide_width}x{slide_height}, margins={self.margins}"
+            f"OverflowManager initialized with slide_dimensions={slide_width}x{slide_height}, margins={self.margins}"
         )
 
     def process_slide(self, slide: "Slide") -> list["Slide"]:
         """
         Process a positioned slide and handle any external overflow using the main algorithm.
-
-        This method strictly enforces the jurisdictional boundary: it only processes
-        external section overflow and ignores internal content overflow within sections
-        that have user-defined sizes.
-
-        Per OVERFLOW_SPEC.md: This method is responsible for orchestrating continuation slide
-        layout and producing final renderable_elements lists while clearing sections hierarchy.
-
-        Args:
-            slide: Slide with all elements positioned by layout calculator
-
-        Returns:
-            List of slides (original slide if no overflow, or multiple slides if overflow handled)
         """
         logger.debug(f"Processing slide {slide.object_id} for EXTERNAL overflow only")
 
-        # Main Algorithm Implementation with Strict Jurisdictional Boundaries
         final_slides = []
         slides_to_process = [slide]
-
-        # Add safeguards against infinite recursion
         iteration_count = 0
-        continuation_count = 0  # FIXED: Track continuation count for unique IDs
+        continuation_count = 0
         original_slide_id = slide.object_id
 
         while slides_to_process:
-            # Check for infinite recursion protection
             iteration_count += 1
             if iteration_count > MAX_OVERFLOW_ITERATIONS:
                 logger.error(
-                    f"Maximum overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for slide {original_slide_id}"
+                    f"Max overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for {original_slide_id}"
                 )
-                # Force-add remaining slides to prevent infinite loop - but finalize them first
                 for remaining_slide in slides_to_process:
                     self._finalize_slide(remaining_slide)
                 final_slides.extend(slides_to_process)
@@ -125,28 +74,24 @@ class OverflowManager:
 
             if len(final_slides) > MAX_CONTINUATION_SLIDES:
                 logger.error(
-                    f"Maximum continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for slide {original_slide_id}"
+                    f"Max continuation slides ({MAX_CONTINUATION_SLIDES}) exceeded for {original_slide_id}"
                 )
-                # Force-add remaining slides to prevent infinite slides - but finalize them first
                 for remaining_slide in slides_to_process:
                     self._finalize_slide(remaining_slide)
                 final_slides.extend(slides_to_process)
                 break
 
-            # Dequeue current slide
             current_slide = slides_to_process.pop(0)
-
             logger.debug(
-                f"Processing slide {current_slide.object_id} from queue (iteration {iteration_count})"
+                f"Processing slide {current_slide.object_id} (iteration {iteration_count})"
             )
 
-            # Step 1: Detect EXTERNAL overflow only
+            # REFACTORED: Pass the slide to the detector for dynamic height calculation.
             overflowing_section = self.detector.find_first_overflowing_section(
                 current_slide
             )
 
             if overflowing_section is None:
-                # No external overflow - finalize the slide per OVERFLOW_SPEC.md Rule #4
                 self._finalize_slide(current_slide)
                 final_slides.append(current_slide)
                 logger.debug(
@@ -154,27 +99,23 @@ class OverflowManager:
                 )
                 continue
 
-            # Step 2: Handle external overflow
             logger.info(
                 f"EXTERNAL overflow detected in slide {current_slide.object_id}, proceeding with handler."
             )
-            continuation_count += 1  # Increment before creating the slide
+            continuation_count += 1
 
+            # REFACTORED: Pass the slide to the handler for dynamic height calculation.
             fitted_slide, continuation_slide = self.handler.handle_overflow(
                 current_slide, overflowing_section, continuation_count
             )
 
-            # Step 3: Finalize and add fitted slide to final results
             self._finalize_slide(fitted_slide)
             final_slides.append(fitted_slide)
             logger.debug(
                 f"Added finalized fitted slide {fitted_slide.object_id} to final results"
             )
 
-            # FIXED: Only process a continuation slide if one was actually created
             if continuation_slide:
-                # Step 4: Calculate positions for continuation slide and enqueue for processing
-                # Per OVERFLOW_SPEC.md Rule #3: OverflowManager orchestrates continuation slide layout
                 logger.debug(
                     f"Positioning continuation slide {continuation_slide.object_id}"
                 )
@@ -190,6 +131,58 @@ class OverflowManager:
             f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"
         )
         return final_slides
+
+    def _finalize_slide(self, slide: "Slide") -> None:
+        """
+        Finalize a slide by creating renderable_elements list and clearing sections hierarchy.
+        """
+        logger.debug(f"Finalizing slide {slide.object_id}...")
+        final_renderable_elements = list(getattr(slide, "renderable_elements", []))
+        existing_object_ids = {
+            el.object_id for el in final_renderable_elements if el.object_id
+        }
+        meta_element_types = {
+            ElementType.TITLE,
+            ElementType.SUBTITLE,
+            ElementType.FOOTER,
+        }
+        existing_meta_types = {
+            el.element_type
+            for el in final_renderable_elements
+            if el.element_type in meta_element_types
+        }
+
+        def extract_elements_from_sections(sections):
+            for section in sections:
+                for child in section.children:
+                    if not hasattr(child, "children"):
+                        if child.position and child.size:
+                            is_duplicate = (
+                                child.object_id
+                                and child.object_id in existing_object_ids
+                            ) or (
+                                child.element_type in meta_element_types
+                                and child.element_type in existing_meta_types
+                            )
+                            if not is_duplicate:
+                                final_renderable_elements.append(child)
+                                if child.object_id:
+                                    existing_object_ids.add(child.object_id)
+                                if child.element_type in meta_element_types:
+                                    existing_meta_types.add(child.element_type)
+                    else:
+                        extract_elements_from_sections([child])
+
+        if hasattr(slide, "sections"):
+            extract_elements_from_sections(slide.sections)
+
+        slide.renderable_elements = final_renderable_elements
+        slide.sections = []
+        slide.elements = []
+
+        logger.info(
+            f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."
+        )
 
     def get_overflow_analysis(self, slide: "Slide") -> dict:
         """
