@@ -138,29 +138,37 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         # Background Properties
         bg_dir = directives.get("background")
-        # Handle both dict from slide-level and tuple from section-level for now
-        if isinstance(bg_dir, dict) and bg_dir.get("type") == "color":
-            bg_val = bg_dir.get("value")
-            if bg_val:
-                try:
-                    rgb = self._hex_to_rgb(bg_val)
-                    props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                        "color": {"rgbColor": rgb}
-                    }
-                    fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
-                except (ValueError, AttributeError):
-                    logger.warning(f"Invalid background color value: {bg_val}")
-        elif isinstance(bg_dir, tuple) and len(bg_dir) == 2:
-            bg_type, bg_val = bg_dir
-            if bg_type == "color":
-                try:
-                    rgb = self._hex_to_rgb(bg_val)
-                    props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                        "color": {"rgbColor": rgb}
-                    }
-                    fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
-                except (ValueError, AttributeError):
-                    logger.warning(f"Invalid background color value: {bg_val}")
+        # Handle dict format from directive parser
+        if isinstance(bg_dir, dict):
+            if bg_dir.get("type") == "hex":
+                bg_val = bg_dir.get("value")
+                if bg_val:
+                    try:
+                        rgb = self._hex_to_rgb(bg_val)
+                        props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
+                            "color": {"rgbColor": rgb}
+                        }
+                        fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Invalid background color value: {bg_val}")
+            elif bg_dir.get("type") == "named":
+                # For named colors, we need to handle them differently
+                bg_val = bg_dir.get("value")
+                if bg_val:
+                    # For now, just log a warning - named colors need special handling
+                    logger.warning(
+                        f"Named background colors not yet supported: {bg_val}"
+                    )
+        elif isinstance(bg_dir, str):
+            # Handle simple string format (legacy)
+            try:
+                rgb = self._hex_to_rgb(bg_dir)
+                props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
+                    "color": {"rgbColor": rgb}
+                }
+                fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
+            except (ValueError, AttributeError):
+                logger.warning(f"Invalid background color value: {bg_dir}")
 
         # Border Properties (simplified)
         border_val = directives.get("border")
@@ -204,12 +212,25 @@ class TextRequestBuilder(BaseRequestBuilder):
 
     def _apply_text_color_directive(self, element: TextElement, requests: list[dict]):
         color_val = (element.directives or {}).get("color")
-        if not isinstance(color_val, str):
+        if not color_val:
+            return
+
+        # Handle both string and dict formats
+        if isinstance(color_val, dict):
+            # Extract the actual color value from the dict
+            if color_val.get("type") == "hex" or color_val.get("type") == "named":
+                color_str = color_val.get("value")
+            else:
+                logger.warning(f"Unsupported color type: {color_val.get('type')}")
+                return
+        elif isinstance(color_val, str):
+            color_str = color_val
+        else:
             return
 
         try:
             color_format = TextFormat(
-                start=0, end=0, format_type=TextFormatType.COLOR, value=color_val
+                start=0, end=0, format_type=TextFormatType.COLOR, value=color_str
             )
             style = self._format_to_style(color_format)
             if "foregroundColor" in style:
@@ -222,7 +243,7 @@ class TextRequestBuilder(BaseRequestBuilder):
                     )
                 )
         except (ValueError, AttributeError):
-            logger.warning(f"Invalid text color value: {color_val}")
+            logger.warning(f"Invalid text color value: {color_str}")
 
     def _apply_font_size_directive(self, element: TextElement, requests: list[dict]):
         font_size_raw = (element.directives or {}).get("fontsize")

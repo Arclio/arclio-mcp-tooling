@@ -147,7 +147,7 @@ class TestApiRequestGenerator:
             object_id="bg_el",
             position=(50, 250),
             size=(200, 50),
-            directives={"background": ("color", "#123456")},
+            directives={"background": {"type": "hex", "value": "#123456"}},
         )
         finalized_slide.renderable_elements.append(bg_element)
         deck = Deck(slides=[finalized_slide])
