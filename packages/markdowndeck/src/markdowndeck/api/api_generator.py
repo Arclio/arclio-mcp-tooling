@@ -1,6 +1,5 @@
-"""Generator for Google Slides API requests."""
-
 import logging
+from copy import deepcopy
 
 from markdowndeck.api.request_builders import (
     CodeRequestBuilder,
@@ -63,12 +62,9 @@ class ApiRequestGenerator:
             if background_request:
                 requests.append(background_request)
 
-        # REFACTORED: Replaced complex while loop with a simple for loop.
-        # MAINTAINS: The goal of processing all renderable elements.
-        # JUSTIFICATION: Aligns with API_GEN_SPEC.md Rule #5 and PRINCIPLES.md (Blank Canvas First).
-        # This removes all theme-placeholder logic and ad-hoc subheading combination.
         for element in slide.renderable_elements:
-            element_requests = self._generate_element_requests(element, slide.object_id)
+            # Pass the entire slide object for context (e.g., title_directives)
+            element_requests = self._generate_element_requests(element, slide)
             if element_requests:
                 requests.extend(element_requests)
 
@@ -87,23 +83,48 @@ class ApiRequestGenerator:
         logger.debug(f"Generated {len(requests)} requests for slide {slide.object_id}")
         return {"presentationId": presentation_id, "requests": requests}
 
-    def _generate_element_requests(self, element: Element, slide_id: str) -> list[dict]:
+    def _generate_element_requests(self, element: Element, slide: Slide) -> list[dict]:
         """
         Generate requests for a specific element by delegating to appropriate builder.
         """
         if element is None:
-            logger.warning(f"Skipping None element for slide {slide_id}")
+            logger.warning(f"Skipping None element for slide {slide.object_id}")
             return []
 
-        # REFACTORED: Removed all theme_placeholder logic. All elements are created as new shapes.
-        # JUSTIFICATION: Aligns with API_GEN_SPEC.md Rule #5.
-        if not getattr(element, "object_id", None):
-            from copy import deepcopy
+        # REFACTORED: Deepcopy element to ensure statelessness and apply context-specific directives.
+        # JUSTIFICATION: This is the fix for API-C-03 and E2E-F-04. It ensures that title/subtitle
+        # directives parsed by the SlideExtractor are correctly applied to the final element
+        # without modifying the original slide object from the IR.
+        element = deepcopy(element)
 
-            element = deepcopy(element)
+        # Apply slide-level meta directives to the element copy
+        if element.element_type == ElementType.TITLE and slide.title_directives:
+            # Directives on the element itself (e.g., from a section) are base,
+            # title-specific directives (from same-line parsing) override them.
+            merged_directives = element.directives.copy()
+            merged_directives.update(slide.title_directives)
+            element.directives = merged_directives
+            logger.debug(
+                f"Applied title directives to element {element.object_id}: {slide.title_directives}"
+            )
+
+        if (
+            element.element_type == ElementType.SUBTITLE
+            and hasattr(slide, "subtitle_directives")
+            and slide.subtitle_directives
+        ):
+            merged_directives = element.directives.copy()
+            merged_directives.update(slide.subtitle_directives)
+            element.directives = merged_directives
+            logger.debug(
+                f"Applied subtitle directives to element {element.object_id}: {slide.subtitle_directives}"
+            )
+
+        # Ensure a unique objectId if one isn't present
+        if not getattr(element, "object_id", None):
             element_type_name = getattr(element.element_type, "value", "unknown")
             element.object_id = self.slide_builder._generate_id(
-                f"{element_type_name}_{slide_id}"
+                f"{element_type_name}_{slide.object_id}"
             )
             logger.debug(
                 f"Generated missing object_id for element copy: {element.object_id}"
@@ -111,6 +132,7 @@ class ApiRequestGenerator:
 
         element_type = getattr(element, "element_type", None)
         requests = []
+        slide_id = slide.object_id
 
         try:
             if element_type in [

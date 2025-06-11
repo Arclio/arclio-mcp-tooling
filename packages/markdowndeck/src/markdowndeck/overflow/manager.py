@@ -184,6 +184,8 @@ class OverflowManager:
             f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."
         )
 
+    # Other methods like get_overflow_analysis remain the same, they just need to use the detector correctly.
+
     def get_overflow_analysis(self, slide: "Slide") -> dict:
         """
         Get detailed overflow analysis for debugging purposes.

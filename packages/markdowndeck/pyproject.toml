@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "markdowndeck"
-version = "0.1.2"
+version = "0.1.3"
 description = "Convert Markdown to Google Slides presentations"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},

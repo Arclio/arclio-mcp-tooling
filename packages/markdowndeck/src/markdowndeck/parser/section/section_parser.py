@@ -5,6 +5,7 @@ import re
 import uuid
 
 from markdowndeck.models.slide import Section
+from markdowndeck.parser.directive import DirectiveParser
 from markdowndeck.parser.section.content_splitter import (
     ContentSplitter,
 )  # Updated import path if necessary
@@ -18,6 +19,7 @@ class SectionParser:
     def __init__(self):
         """Initialize the section parser."""
         self.content_splitter = ContentSplitter()
+        self.directive_parser = DirectiveParser()
         # self.section_counter = 0 # Not strictly needed as instance var if IDs are UUID based
 
     def parse_sections(self, content: str) -> list[Section]:
@@ -162,29 +164,23 @@ class SectionParser:
                 logger.debug(f"Horizontal part {h_idx + 1} is empty. Skipping.")
                 continue
 
-            print(
-                f"[section_parser] Creating section {h_idx} with content: {repr(h_part_content[:100])}"
-            )
-
-            # CRITICAL FIX: Preserve the full content including any headers
-            # Log the content for debugging
-            h_part_preview = (
-                h_part_content[:50] + "..."
-                if len(h_part_content) > 50
-                else h_part_content
-            )
-            logger.debug(f"Processing horizontal part {h_idx + 1}: {h_part_preview}")
-
+            # Create a temporary section for directive parsing
             subsection_id = f"section-{v_id_prefix}-h{h_idx}-{self._generate_id()}"
-            subsections.append(
-                Section(
-                    type="section",
-                    content=h_part_content.strip(),
-                    directives={},
-                    id=subsection_id,
-                )
+            temp_section = Section(
+                type="section",
+                content=h_part_content.strip(),
+                directives={},
+                id=subsection_id,
             )
-            logger.debug(f"Created horizontal subsection {subsection_id}")
+
+            # Use DirectiveParser to separate directives from content
+            # This modifies temp_section in-place
+            self.directive_parser.parse_directives(temp_section)
+
+            subsections.append(temp_section)
+            logger.debug(
+                f"Created horizontal subsection {subsection_id} with directives: {temp_section.directives}"
+            )
         return subsections
 
     def _generate_id(self) -> str:

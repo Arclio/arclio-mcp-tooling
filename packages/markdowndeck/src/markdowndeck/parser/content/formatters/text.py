@@ -212,7 +212,9 @@ class TextFormatter(BaseFormatter):
         element_directives, cleaned_content = (
             self._extract_element_directives_from_text(raw_content)
         )
-        final_directives = self.merge_directives(directives, element_directives)
+        # FIXED: Correctly merge section and element directives. Element-specific take precedence.
+        final_directives = directives.copy()
+        final_directives.update(element_directives)
 
         # Skip image-only paragraphs (handled by ImageFormatter)
         if self._is_image_only_paragraph(inline_token):

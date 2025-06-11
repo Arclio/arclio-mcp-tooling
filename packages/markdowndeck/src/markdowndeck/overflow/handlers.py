@@ -15,12 +15,9 @@ logger = logging.getLogger(__name__)
 class StandardOverflowHandler:
     """
     Standard overflow handling strategy implementing the unanimous consent model.
-
-    This handler implements recursive partitioning with the new coordinated splitting
-    algorithm that requires unanimous consent from all overflowing elements in
-    columnar sections before proceeding with a split.
     """
 
+    # REFACTORED: Removed static height calculation from __init__.
     def __init__(self, slide_height: float, top_margin: float):
         """
         Initialize the overflow handler.

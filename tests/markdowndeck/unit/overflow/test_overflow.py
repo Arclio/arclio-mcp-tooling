@@ -18,16 +18,18 @@ from markdowndeck.overflow import OverflowManager
 
 
 @pytest.fixture
-def overflow_manager() -> OverflowManager:
-    """Provides a fresh OverflowManager instance for each test."""
-    return OverflowManager()
-
-
-@pytest.fixture
-def positioned_slide_no_overflow(overflow_manager: OverflowManager) -> Slide:
+def positioned_slide_no_overflow() -> Slide:
     """Creates a slide in the 'Positioned' state that does NOT overflow."""
-    body_height = overflow_manager.body_height
-    section_height = body_height * 0.8
+    from markdowndeck.layout.constants import (
+        DEFAULT_MARGIN_BOTTOM,
+        DEFAULT_MARGIN_TOP,
+        DEFAULT_SLIDE_HEIGHT,
+    )
+
+    # Calculate a realistic available body height
+    available_height = DEFAULT_SLIDE_HEIGHT - DEFAULT_MARGIN_TOP - DEFAULT_MARGIN_BOTTOM
+    section_height = available_height * 0.8  # Ensure it fits
+
     section = Section(
         id="fitting_section",
         position=(50, 150),
@@ -71,57 +73,48 @@ def positioned_slide_with_internal_overflow() -> Slide:
 
 
 @pytest.fixture
-def positioned_slide_with_external_overflow(overflow_manager: OverflowManager) -> Slide:
-    """Creates a slide that demonstrates the edge case of section overflow without element overflow.
+def positioned_slide_with_external_overflow() -> Slide:
+    """Creates a slide that demonstrates external overflow."""
+    from markdowndeck.layout.constants import DEFAULT_SLIDE_HEIGHT
 
-    This represents the scenario where user manually specifies section height larger than
-    content height, causing section overflow but element content fits within boundaries.
-    In this case, the entire content should move to continuation slide to preserve
-    content coherence rather than artificially splitting content that fits.
-    """
-    body_height = overflow_manager.body_height
-    section_height = body_height * 1.5  # Manually specified large section height
+    # Define a height guaranteed to overflow
+    overflowing_height = DEFAULT_SLIDE_HEIGHT * 1.5
 
-    # Create title element
     title = TextElement(
         element_type=ElementType.TITLE,
         text="Original Title",
         position=(50, 50),
         size=(620, 30),
     )
-
-    # Create footer element
     footer = TextElement(
         element_type=ElementType.FOOTER,
         text="Original Footer",
         position=(50, 370),
         size=(620, 20),
     )
-
     text_element = TextElement(
         element_type=ElementType.TEXT,
         text="Overflow Content\nLine2\nLine3",
-        position=(50, 150),  # Element fits within slide boundary
-        size=(620, 50),  # Small element size - doesn't overflow individually
+        position=(50, 150),
+        size=(620, 50),
     )
 
-    # Mock the split method - shouldn't be called in this edge case
     def mock_split(available_height):
+        # A simple mock for testing purposes
         fitted = TextElement(
-            element_type=ElementType.TEXT, text="Overflow Content", size=(620, 20)
+            element_type=ElementType.TEXT, text="Fitted Part", size=(620, 20)
         )
         overflowing = TextElement(
-            element_type=ElementType.TEXT, text="Line2\nLine3", size=(620, 30)
+            element_type=ElementType.TEXT, text="Overflow Part", size=(620, 30)
         )
         return fitted, overflowing
 
     text_element.split = mock_split
 
-    # Section has artificially large height (edge case scenario)
     section = Section(
         id="overflowing_section",
         position=(50, 150),
-        size=(620, section_height),  # Section height >> element height
+        size=(620, overflowing_height),
         children=[text_element],
     )
     return Slide(
@@ -129,7 +122,7 @@ def positioned_slide_with_external_overflow(overflow_manager: OverflowManager) -
         title="Original Title",
         footer="Original Footer",
         sections=[section],
-        elements=[title, footer, text_element],  # Include all elements for test setup
+        elements=[title, footer, text_element],
         renderable_elements=[],
     )
 
@@ -137,15 +130,14 @@ def positioned_slide_with_external_overflow(overflow_manager: OverflowManager) -
 class TestOverflowManager:
     """Tests the functionality of the OverflowManager."""
 
-    def test_overflow_c_01(
-        self, overflow_manager: OverflowManager, positioned_slide_no_overflow: Slide
-    ):
+    def test_overflow_c_01(self, positioned_slide_no_overflow: Slide):
         """
         Test Case: OVERFLOW-C-01
         Validates the "No-Op" path for a slide that fits.
         From: docs/markdowndeck/testing/TEST_CASES_OVERFLOW.md
         """
         # Act
+        overflow_manager = OverflowManager()
         final_slides = overflow_manager.process_slide(positioned_slide_no_overflow)
 
         # Assert
@@ -163,7 +155,6 @@ class TestOverflowManager:
 
     def test_overflow_c_02(
         self,
-        overflow_manager: OverflowManager,
         positioned_slide_with_internal_overflow: Slide,
     ):
         """
@@ -172,6 +163,7 @@ class TestOverflowManager:
         From: docs/markdowndeck/testing/TEST_CASES_OVERFLOW.md
         """
         # Act
+        overflow_manager = OverflowManager()
         final_slides = overflow_manager.process_slide(
             positioned_slide_with_internal_overflow
         )
@@ -186,9 +178,7 @@ class TestOverflowManager:
         ), "The overflowing element should be rendered on the single slide."
         assert final_slide.renderable_elements[0].text == "Large content"
 
-    def test_ovb_01_finalization_avoids_duplicates(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_ovb_01_finalization_avoids_duplicates(self):
         """
         Test Case: OVB-01 (Overflow Verification B)
         Validates that _finalize_slide creates a clean, non-redundant renderable_elements list.
@@ -222,6 +212,7 @@ class TestOverflowManager:
 
         # Act
         # Directly call the private method we are testing
+        overflow_manager = OverflowManager()
         overflow_manager._finalize_slide(slide)
 
         # Assert
@@ -243,7 +234,6 @@ class TestOverflowManager:
 
     def test_overflow_c_03(
         self,
-        overflow_manager: OverflowManager,
         positioned_slide_with_external_overflow: Slide,
     ):
         """
@@ -255,6 +245,7 @@ class TestOverflowManager:
         than artificially splitting content that fits within boundaries.
         """
         # Act
+        overflow_manager = OverflowManager()
         with patch.object(
             overflow_manager.layout_manager,
             "calculate_positions",
@@ -287,7 +278,6 @@ class TestOverflowManager:
 
     def test_overflow_c_04(
         self,
-        overflow_manager: OverflowManager,
         positioned_slide_with_external_overflow: Slide,
     ):
         """
@@ -298,6 +288,7 @@ class TestOverflowManager:
         moves due to section overflow without element overflow.
         """
         # Act
+        overflow_manager = OverflowManager()
         with patch.object(
             overflow_manager.layout_manager,
             "calculate_positions",
@@ -382,7 +373,7 @@ class TestOverflowManager:
 
     @patch("markdowndeck.layout.LayoutManager.calculate_positions")
     def test_overflow_c_06_continuation_slide_inherits_directives(
-        self, mock_calculate_positions: MagicMock, overflow_manager: OverflowManager
+        self, mock_calculate_positions: MagicMock
     ):
         """
         Test Case: OVERFLOW-C-06
@@ -417,6 +408,7 @@ class TestOverflowManager:
             return slide_to_layout
 
         mock_calculate_positions.side_effect = realistic_layout_mock
+        overflow_manager = OverflowManager()
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert
@@ -429,9 +421,7 @@ class TestOverflowManager:
         assert continuation_section.directives.get("padding") == 20
 
     @patch("markdowndeck.layout.LayoutManager.calculate_positions")
-    def test_overflow_p_01(
-        self, mock_calculate_positions: MagicMock, overflow_manager: OverflowManager
-    ):
+    def test_overflow_p_01(self, mock_calculate_positions: MagicMock):
         """
         Test Case: OVERFLOW-P-01
         Validates the recursive interaction between OverflowManager and LayoutManager.
@@ -480,15 +470,14 @@ class TestOverflowManager:
             return slide
 
         mock_calculate_positions.side_effect = realistic_layout_mock
+        overflow_manager = OverflowManager()
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert
         assert len(final_slides) == 3
         assert mock_calculate_positions.call_count == 2
 
-    def test_overflow_c_07_no_empty_continuation_slides(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_overflow_c_07_no_empty_continuation_slides(self):
         """
         Test Case: OVERFLOW-C-07
         Validates that no continuation slide is created if splitting results in no overflowing content.
@@ -506,6 +495,7 @@ class TestOverflowManager:
         slide = Slide(object_id="no_overflow_content", sections=[section])
 
         # Act
+        overflow_manager = OverflowManager()
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert

@@ -587,7 +587,7 @@ wheels = [
 
 [[package]]
 name = "google-workspace-mcp"
-version = "1.0.3"
+version = "1.0.4"
 source = { editable = "packages/google-workspace-mcp" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -945,7 +945,7 @@ wheels = [
 
 [[package]]
 name = "markdowndeck"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "packages/markdowndeck" }
 dependencies = [
     { name = "google-api-python-client" },

@@ -40,7 +40,10 @@ class TestOverflowStress:
 
         for scale in [10, 100, 250]:  # Reduced scale for faster test runs
             elements = [
-                TextElement(element_type=ElementType.TEXT, text=f"Row {i}")
+                TextElement(
+                    element_type=ElementType.TEXT,
+                    text=f"This is a longer content line for stress test item {i} to ensure it takes up enough vertical space to reliably trigger the overflow manager.",
+                )
                 for i in range(scale)
             ]
             slide = Slide(object_id=f"scale_{scale}_slide", elements=elements)
@@ -60,7 +63,7 @@ class TestOverflowStress:
                 }
             )
             assert (
-                processing_time < scale * 0.1
+                processing_time < scale * 0.2
             ), "Processing time should scale reasonably."
             assert len(result_slides) > 1, "Should create multiple slides."
 

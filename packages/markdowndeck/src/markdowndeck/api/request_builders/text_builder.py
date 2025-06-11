@@ -67,7 +67,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         # Add other shape properties from directives
         self._add_shape_properties(element, shape_props, fields)
 
-        if shape_props:
+        if shape_props and fields:
             requests.append(
                 {
                     "updateShapeProperties": {
@@ -109,11 +109,6 @@ class TextRequestBuilder(BaseRequestBuilder):
                         )
                     )
 
-        # FIXED: Pass section directives to paragraph styling to handle inheritance.
-        # This is a bit of a workaround; ideally, directives are merged in the parser.
-        # However, to avoid major refactoring, we handle it here.
-        (element.directives or {}).copy()
-
         self._apply_paragraph_styling(element, requests)
         self._apply_text_color_directive(element, requests)
         self._apply_font_size_directive(element, requests)
@@ -143,7 +138,19 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         # Background Properties
         bg_dir = directives.get("background")
-        if isinstance(bg_dir, tuple) and len(bg_dir) == 2:
+        # Handle both dict from slide-level and tuple from section-level for now
+        if isinstance(bg_dir, dict) and bg_dir.get("type") == "color":
+            bg_val = bg_dir.get("value")
+            if bg_val:
+                try:
+                    rgb = self._hex_to_rgb(bg_val)
+                    props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
+                        "color": {"rgbColor": rgb}
+                    }
+                    fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
+                except (ValueError, AttributeError):
+                    logger.warning(f"Invalid background color value: {bg_val}")
+        elif isinstance(bg_dir, tuple) and len(bg_dir) == 2:
             bg_type, bg_val = bg_dir
             if bg_type == "color":
                 try:
@@ -178,6 +185,8 @@ class TextRequestBuilder(BaseRequestBuilder):
             AlignmentType.JUSTIFY: "JUSTIFIED",
         }
         api_alignment = alignment_map.get(element.horizontal_alignment, "START")
+        if "align" in directives:
+            api_alignment = alignment_map.get(directives["align"], api_alignment)
         style_updates["alignment"] = api_alignment
         fields_list.append("alignment")
 
@@ -199,7 +208,6 @@ class TextRequestBuilder(BaseRequestBuilder):
             return
 
         try:
-            # Use _format_to_style to handle hex or theme colors
             color_format = TextFormat(
                 start=0, end=0, format_type=TextFormatType.COLOR, value=color_val
             )
@@ -217,14 +225,23 @@ class TextRequestBuilder(BaseRequestBuilder):
             logger.warning(f"Invalid text color value: {color_val}")
 
     def _apply_font_size_directive(self, element: TextElement, requests: list[dict]):
-        font_size = (element.directives or {}).get("fontsize")
-        if not isinstance(font_size, int | float) or font_size <= 0:
+        font_size_raw = (element.directives or {}).get("fontsize")
+        if not font_size_raw:
+            return
+
+        # Convert string directive values to numeric
+        try:
+            font_size = float(font_size_raw)
+            if font_size <= 0:
+                return
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid font size value: {font_size_raw}")
             return
 
         requests.append(
             self._apply_text_formatting(
                 element_id=element.object_id,
-                style={"fontSize": {"magnitude": float(font_size), "unit": "PT"}},
+                style={"fontSize": {"magnitude": font_size, "unit": "PT"}},
                 fields="fontSize",
                 range_type="ALL",
             )
