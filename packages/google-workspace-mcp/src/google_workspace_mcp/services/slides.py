@@ -7,11 +7,10 @@ import logging
 import re
 from typing import Any
 
-from markdowndeck import create_presentation
-
 from google_workspace_mcp.auth import gauth
 from google_workspace_mcp.services.base import BaseGoogleService
 from google_workspace_mcp.utils.markdown_slides import MarkdownSlidesConverter
+from markdowndeck import create_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,11 @@ class SlidesService(BaseGoogleService):
             Presentation data dictionary or error information
         """
         try:
-            return self.service.presentations().get(presentationId=presentation_id).execute()
+            return (
+                self.service.presentations()
+                .get(presentationId=presentation_id)
+                .execute()
+            )
         except Exception as e:
             return self.handle_api_error("get_presentation", e)
 
@@ -57,7 +60,9 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_presentation", e)
 
-    def create_slide(self, presentation_id: str, layout: str = "TITLE_AND_BODY") -> dict[str, Any]:
+    def create_slide(
+        self, presentation_id: str, layout: str = "TITLE_AND_BODY"
+    ) -> dict[str, Any]:
         """
         Add a new slide to an existing presentation.
 
@@ -80,11 +85,17 @@ class SlidesService(BaseGoogleService):
                 }
             ]
 
-            logger.info(f"Sending API request to create slide: {json.dumps(requests[0], indent=2)}")
+            logger.info(
+                f"Sending API request to create slide: {json.dumps(requests[0], indent=2)}"
+            )
 
             # Execute the request
             response = (
-                self.service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": requests}).execute()
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
             )
 
             logger.info(f"API response: {json.dumps(response, indent=2)}")
@@ -161,12 +172,20 @@ class SlidesService(BaseGoogleService):
                 },
             ]
 
-            logger.info(f"Sending API request to create shape: {json.dumps(requests[0], indent=2)}")
-            logger.info(f"Sending API request to insert text: {json.dumps(requests[1], indent=2)}")
+            logger.info(
+                f"Sending API request to create shape: {json.dumps(requests[0], indent=2)}"
+            )
+            logger.info(
+                f"Sending API request to insert text: {json.dumps(requests[1], indent=2)}"
+            )
 
             # Execute the request
             response = (
-                self.service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": requests}).execute()
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
             )
 
             logger.info(f"API response: {json.dumps(response, indent=2)}")
@@ -205,7 +224,9 @@ class SlidesService(BaseGoogleService):
             Response data or error information
         """
         try:
-            logger.info(f"Adding formatted text to slide {slide_id}, position={position}, size={size}")
+            logger.info(
+                f"Adding formatted text to slide {slide_id}, position={position}, size={size}"
+            )
             logger.info(f"Text content: '{formatted_text[:100]}...'")
             logger.info(
                 f"Checking for formatting: bold={'**' in formatted_text}, italic={'*' in formatted_text}, code={'`' in formatted_text}"
@@ -240,17 +261,23 @@ class SlidesService(BaseGoogleService):
             ]
 
             # Log the shape creation request
-            logger.info(f"Sending API request to create shape: {json.dumps(create_requests[0], indent=2)}")
+            logger.info(
+                f"Sending API request to create shape: {json.dumps(create_requests[0], indent=2)}"
+            )
 
             # Execute creation request
             creation_response = (
                 self.service.presentations()
-                .batchUpdate(presentationId=presentation_id, body={"requests": create_requests})
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": create_requests}
+                )
                 .execute()
             )
 
             # Log the response
-            logger.info(f"API response for shape creation: {json.dumps(creation_response, indent=2)}")
+            logger.info(
+                f"API response for shape creation: {json.dumps(creation_response, indent=2)}"
+            )
 
             # Process the formatted text
             # First, remove formatting markers to get plain text
@@ -274,7 +301,9 @@ class SlidesService(BaseGoogleService):
             ]
 
             # Log the text insertion request
-            logger.info(f"Sending API request to insert plain text: {json.dumps(text_request[0], indent=2)}")
+            logger.info(
+                f"Sending API request to insert plain text: {json.dumps(text_request[0], indent=2)}"
+            )
 
             # Execute text insertion
             text_response = (
@@ -287,7 +316,9 @@ class SlidesService(BaseGoogleService):
             )
 
             # Log the response
-            logger.info(f"API response for plain text insertion: {json.dumps(text_response, indent=2)}")
+            logger.info(
+                f"API response for plain text insertion: {json.dumps(text_response, indent=2)}"
+            )
 
             # Now generate style requests if there's formatting to apply
             if "**" in formatted_text or "*" in formatted_text:
@@ -364,9 +395,13 @@ class SlidesService(BaseGoogleService):
                 if style_requests:
                     try:
                         # Log the style requests
-                        logger.info(f"Sending API request to apply text styling with {len(style_requests)} style requests")
+                        logger.info(
+                            f"Sending API request to apply text styling with {len(style_requests)} style requests"
+                        )
                         for i, req in enumerate(style_requests):
-                            logger.info(f"Style request {i + 1}: {json.dumps(req, indent=2)}")
+                            logger.info(
+                                f"Style request {i + 1}: {json.dumps(req, indent=2)}"
+                            )
 
                         # Execute style requests
                         style_response = (
@@ -379,9 +414,13 @@ class SlidesService(BaseGoogleService):
                         )
 
                         # Log the response
-                        logger.info(f"API response for text styling: {json.dumps(style_response, indent=2)}")
+                        logger.info(
+                            f"API response for text styling: {json.dumps(style_response, indent=2)}"
+                        )
                     except Exception as style_error:
-                        logger.warning(f"Failed to apply text styles: {str(style_error)}")
+                        logger.warning(
+                            f"Failed to apply text styles: {str(style_error)}"
+                        )
                         logger.exception("Style application error details")
 
             return {
@@ -440,7 +479,9 @@ class SlidesService(BaseGoogleService):
                     },
                 }
             }
-            logger.info(f"Sending API request to create shape for bullet list: {json.dumps(log_data, indent=2)}")
+            logger.info(
+                f"Sending API request to create shape for bullet list: {json.dumps(log_data, indent=2)}"
+            )
 
             # Create requests
             requests = [
@@ -476,15 +517,23 @@ class SlidesService(BaseGoogleService):
             ]
 
             # Log the text insertion
-            logger.info(f"Sending API request to insert bullet text: {json.dumps(requests[1], indent=2)}")
+            logger.info(
+                f"Sending API request to insert bullet text: {json.dumps(requests[1], indent=2)}"
+            )
 
             # Execute the request to create shape and insert text
             response = (
-                self.service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": requests}).execute()
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
             )
 
             # Log the response
-            logger.info(f"API response for bullet list creation: {json.dumps(response, indent=2)}")
+            logger.info(
+                f"API response for bullet list creation: {json.dumps(response, indent=2)}"
+            )
 
             # Now add bullet formatting
             try:
@@ -493,14 +542,18 @@ class SlidesService(BaseGoogleService):
                     {
                         "createParagraphBullets": {
                             "objectId": element_id,
-                            "textRange": {"type": "ALL"},  # Apply to all text in the shape
+                            "textRange": {
+                                "type": "ALL"
+                            },  # Apply to all text in the shape
                             "bulletPreset": "BULLET_DISC_CIRCLE_SQUARE",
                         }
                     }
                 ]
 
                 # Log the bullet formatting request
-                logger.info(f"Sending API request to apply bullet formatting: {json.dumps(bullet_request[0], indent=2)}")
+                logger.info(
+                    f"Sending API request to apply bullet formatting: {json.dumps(bullet_request[0], indent=2)}"
+                )
 
                 bullet_response = (
                     self.service.presentations()
@@ -512,9 +565,13 @@ class SlidesService(BaseGoogleService):
                 )
 
                 # Log the response
-                logger.info(f"API response for bullet formatting: {json.dumps(bullet_response, indent=2)}")
+                logger.info(
+                    f"API response for bullet formatting: {json.dumps(bullet_response, indent=2)}"
+                )
             except Exception as bullet_error:
-                logger.warning(f"Failed to apply bullet formatting: {str(bullet_error)}")
+                logger.warning(
+                    f"Failed to apply bullet formatting: {str(bullet_error)}"
+                )
                 # No fallback here - the text is already added, just without bullets
 
             return {
@@ -527,7 +584,9 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("add_bulleted_list", e)
 
-    def create_presentation_from_markdown(self, title: str, markdown_content: str) -> dict[str, Any]:
+    def create_presentation_from_markdown(
+        self, title: str, markdown_content: str
+    ) -> dict[str, Any]:
         """
         Create a Google Slides presentation from Markdown content using markdowndeck.
 
@@ -545,9 +604,13 @@ class SlidesService(BaseGoogleService):
             credentials = gauth.get_credentials()
 
             # Use markdowndeck to create the presentation
-            result = create_presentation(markdown=markdown_content, title=title, credentials=credentials)
+            result = create_presentation(
+                markdown=markdown_content, title=title, credentials=credentials
+            )
 
-            logger.info(f"Successfully created presentation with ID: {result.get('presentationId')}")
+            logger.info(
+                f"Successfully created presentation with ID: {result.get('presentationId')}"
+            )
 
             # The presentation data is already in the expected format from markdowndeck
             return result
@@ -568,7 +631,11 @@ class SlidesService(BaseGoogleService):
         """
         try:
             # Get the presentation with slide details
-            presentation = self.service.presentations().get(presentationId=presentation_id).execute()
+            presentation = (
+                self.service.presentations()
+                .get(presentationId=presentation_id)
+                .execute()
+            )
 
             # Extract slide information
             slides = []
@@ -587,9 +654,13 @@ class SlidesService(BaseGoogleService):
                         if "textElements" in element["shape"]["text"]:
                             # Extract text content
                             text_parts = []
-                            for text_element in element["shape"]["text"]["textElements"]:
+                            for text_element in element["shape"]["text"][
+                                "textElements"
+                            ]:
                                 if "textRun" in text_element:
-                                    text_parts.append(text_element["textRun"].get("content", ""))
+                                    text_parts.append(
+                                        text_element["textRun"].get("content", "")
+                                    )
                             element_content = "".join(text_parts)
                     elif "image" in element:
                         element_type = "image"
@@ -597,9 +668,7 @@ class SlidesService(BaseGoogleService):
                             element_content = element["image"]["contentUrl"]
                     elif "table" in element:
                         element_type = "table"
-                        element_content = (
-                            f"Table with {element['table'].get('rows', 0)} rows, {element['table'].get('columns', 0)} columns"
-                        )
+                        element_content = f"Table with {element['table'].get('rows', 0)} rows, {element['table'].get('columns', 0)} columns"
 
                     # Add to elements if we found content
                     if element_type and element_content:
@@ -613,7 +682,10 @@ class SlidesService(BaseGoogleService):
 
                 # Get speaker notes if present
                 notes = ""
-                if "slideProperties" in slide and "notesPage" in slide["slideProperties"]:
+                if (
+                    "slideProperties" in slide
+                    and "notesPage" in slide["slideProperties"]
+                ):
                     notes_page = slide["slideProperties"]["notesPage"]
                     if "pageElements" in notes_page:
                         for element in notes_page["pageElements"]:
@@ -623,9 +695,13 @@ class SlidesService(BaseGoogleService):
                                 and "textElements" in element["shape"]["text"]
                             ):
                                 note_parts = []
-                                for text_element in element["shape"]["text"]["textElements"]:
+                                for text_element in element["shape"]["text"][
+                                    "textElements"
+                                ]:
                                     if "textRun" in text_element:
-                                        note_parts.append(text_element["textRun"].get("content", ""))
+                                        note_parts.append(
+                                            text_element["textRun"].get("content", "")
+                                        )
                                 if note_parts:
                                     notes = "".join(note_parts)
 
@@ -657,14 +733,22 @@ class SlidesService(BaseGoogleService):
             # Define the delete request
             requests = [{"deleteObject": {"objectId": slide_id}}]
 
-            logger.info(f"Sending API request to delete slide: {json.dumps(requests[0], indent=2)}")
+            logger.info(
+                f"Sending API request to delete slide: {json.dumps(requests[0], indent=2)}"
+            )
 
             # Execute the request
             response = (
-                self.service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": requests}).execute()
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
             )
 
-            logger.info(f"API response for slide deletion: {json.dumps(response, indent=2)}")
+            logger.info(
+                f"API response for slide deletion: {json.dumps(response, indent=2)}"
+            )
 
             return {
                 "presentationId": presentation_id,
@@ -697,12 +781,13 @@ class SlidesService(BaseGoogleService):
             Response data or error information
         """
         try:
-            # Create a unique element ID
-            f"image_{slide_id}_{hash(image_url) % 10000}"
+            # Create a unique element ID (FIX: Actually assign the variable!)
+            image_id = f"image_{slide_id}_{hash(image_url) % 10000}"
 
             # Define the base request
             create_image_request = {
                 "createImage": {
+                    "objectId": image_id,  # FIX: Add the missing objectId
                     "url": image_url,
                     "elementProperties": {
                         "pageObjectId": slide_id,
@@ -711,7 +796,7 @@ class SlidesService(BaseGoogleService):
                             "scaleY": 1,
                             "translateX": position[0],
                             "translateY": position[1],
-                            "unit": "PT",
+                            "unit": "PT",  # Could use "EMU" to match docs
                         },
                     },
                 }
@@ -724,7 +809,9 @@ class SlidesService(BaseGoogleService):
                     "height": {"magnitude": size[1], "unit": "PT"},
                 }
 
-            logger.info(f"Sending API request to create image: {json.dumps(create_image_request, indent=2)}")
+            logger.info(
+                f"Sending API request to create image: {json.dumps(create_image_request, indent=2)}"
+            )
 
             # Execute the request
             response = (
@@ -739,7 +826,9 @@ class SlidesService(BaseGoogleService):
             # Extract the image ID from the response
             if "replies" in response and len(response["replies"]) > 0:
                 image_id = response["replies"][0].get("createImage", {}).get("objectId")
-                logger.info(f"API response for image creation: {json.dumps(response, indent=2)}")
+                logger.info(
+                    f"API response for image creation: {json.dumps(response, indent=2)}"
+                )
                 return {
                     "presentationId": presentation_id,
                     "slideId": slide_id,
@@ -804,7 +893,9 @@ class SlidesService(BaseGoogleService):
                 }
             }
 
-            logger.info(f"Sending API request to create table: {json.dumps(create_table_request, indent=2)}")
+            logger.info(
+                f"Sending API request to create table: {json.dumps(create_table_request, indent=2)}"
+            )
 
             # Execute table creation
             response = (
@@ -816,7 +907,9 @@ class SlidesService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(f"API response for table creation: {json.dumps(response, indent=2)}")
+            logger.info(
+                f"API response for table creation: {json.dumps(response, indent=2)}"
+            )
 
             # Populate the table if data is provided
             if data:
@@ -841,7 +934,9 @@ class SlidesService(BaseGoogleService):
                             )
 
                 if text_requests:
-                    logger.info(f"Sending API request to populate table with {len(text_requests)} cell entries")
+                    logger.info(
+                        f"Sending API request to populate table with {len(text_requests)} cell entries"
+                    )
                     table_text_response = (
                         self.service.presentations()
                         .batchUpdate(
@@ -850,7 +945,9 @@ class SlidesService(BaseGoogleService):
                         )
                         .execute()
                     )
-                    logger.info(f"API response for table population: {json.dumps(table_text_response, indent=2)}")
+                    logger.info(
+                        f"API response for table population: {json.dumps(table_text_response, indent=2)}"
+                    )
 
             return {
                 "presentationId": presentation_id,
@@ -891,14 +988,22 @@ class SlidesService(BaseGoogleService):
                 }
             ]
 
-            logger.info(f"Sending API request to add slide notes: {json.dumps(requests[0], indent=2)}")
+            logger.info(
+                f"Sending API request to add slide notes: {json.dumps(requests[0], indent=2)}"
+            )
 
             # Execute the request
             response = (
-                self.service.presentations().batchUpdate(presentationId=presentation_id, body={"requests": requests}).execute()
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
             )
 
-            logger.info(f"API response for slide notes: {json.dumps(response, indent=2)}")
+            logger.info(
+                f"API response for slide notes: {json.dumps(response, indent=2)}"
+            )
 
             return {
                 "presentationId": presentation_id,
@@ -909,7 +1014,9 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("add_slide_notes", e)
 
-    def duplicate_slide(self, presentation_id: str, slide_id: str, insert_at_index: int | None = None) -> dict[str, Any]:
+    def duplicate_slide(
+        self, presentation_id: str, slide_id: str, insert_at_index: int | None = None
+    ) -> dict[str, Any]:
         """
         Duplicate a slide in a presentation.
 
@@ -927,9 +1034,13 @@ class SlidesService(BaseGoogleService):
 
             # If insert location is specified
             if insert_at_index is not None:
-                duplicate_request["duplicateObject"]["insertionIndex"] = insert_at_index
+                duplicate_request["duplicateObject"]["insertionIndex"] = str(
+                    insert_at_index
+                )
 
-            logger.info(f"Sending API request to duplicate slide: {json.dumps(duplicate_request, indent=2)}")
+            logger.info(
+                f"Sending API request to duplicate slide: {json.dumps(duplicate_request, indent=2)}"
+            )
 
             # Execute the duplicate request
             response = (
@@ -941,12 +1052,16 @@ class SlidesService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(f"API response for slide duplication: {json.dumps(response, indent=2)}")
+            logger.info(
+                f"API response for slide duplication: {json.dumps(response, indent=2)}"
+            )
 
             # Extract the duplicated slide ID
             new_slide_id = None
             if "replies" in response and len(response["replies"]) > 0:
-                new_slide_id = response["replies"][0].get("duplicateObject", {}).get("objectId")
+                new_slide_id = (
+                    response["replies"][0].get("duplicateObject", {}).get("objectId")
+                )
 
             return {
                 "presentationId": presentation_id,
