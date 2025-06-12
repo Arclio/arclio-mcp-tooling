@@ -323,7 +323,7 @@ async def add_image_to_slide(
     logger.info(f"Position: ({position_x}, {position_y}) {unit}")
     if size_width and size_height:
         logger.info(f"Size: {size_width} x {size_height} {unit}")
-    
+
     if not presentation_id or not slide_id or not image_url:
         raise ValueError("Presentation ID, Slide ID, and Image URL are required")
 
@@ -333,7 +333,9 @@ async def add_image_to_slide(
 
     # Validate unit
     if unit not in ["PT", "EMU"]:
-        raise ValueError("Unit must be either 'PT' (points) or 'EMU' (English Metric Units)")
+        raise ValueError(
+            "Unit must be either 'PT' (points) or 'EMU' (English Metric Units)"
+        )
 
     slides_service = SlidesService()
 
@@ -562,5 +564,59 @@ async def create_presentation_from_markdown(
         raise ValueError(
             result.get("message", "Error creating presentation from Markdown")
         )
+
+    return result
+
+
+@mcp.tool(
+    name="create_textbox_with_text",
+    description="Creates a text box with text content in one operation, following the Google API example pattern. Perfect for adding text boxes to slides.",
+)
+async def create_textbox_with_text(
+    presentation_id: str,
+    slide_id: str,
+    text: str,
+    position_x: float = 350.0,
+    position_y: float = 100.0,
+    size_width: float = 350.0,
+    size_height: float = 350.0,
+    unit: str = "PT",
+    element_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Create a text box with text following the Google API example pattern.
+    This creates both the text box shape and inserts text in one operation.
+
+    Args:
+        presentation_id: The ID of the presentation.
+        slide_id: The ID of the slide.
+        text: The text content to insert.
+        position_x: X coordinate for position (default 350.0 PT).
+        position_y: Y coordinate for position (default 100.0 PT).
+        size_width: Width of the text box (default 350.0 PT).
+        size_height: Height of the text box (default 350.0 PT).
+        unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
+        element_id: Optional custom element ID, auto-generated if not provided.
+
+    Returns:
+        Response data confirming text box creation or raises error.
+    """
+    logger.info(f"Executing create_textbox_with_text on slide '{slide_id}'")
+    if not presentation_id or not slide_id or text is None:
+        raise ValueError("Presentation ID, Slide ID, and Text are required")
+
+    slides_service = SlidesService()
+    result = slides_service.create_textbox_with_text(
+        presentation_id=presentation_id,
+        slide_id=slide_id,
+        text=text,
+        position=(position_x, position_y),
+        size=(size_width, size_height),
+        unit=unit,
+        element_id=element_id,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error creating text box with text"))
 
     return result

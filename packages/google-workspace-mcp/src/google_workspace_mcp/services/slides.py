@@ -1156,3 +1156,104 @@ class SlidesService(BaseGoogleService):
             }
         except Exception as e:
             return self.handle_api_error("duplicate_slide", e)
+
+    def create_textbox_with_text(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        text: str,
+        position: tuple[float, float] = (350, 100),
+        size: tuple[float, float] = (350, 350),
+        unit: str = "PT",
+        element_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Create a text box with text following the Google API example pattern.
+        This method creates both the text box shape and inserts text in one operation.
+
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide (page)
+            text: The text content to insert
+            position: Tuple of (x, y) coordinates for position in PT
+            size: Tuple of (width, height) for the text box in PT
+            unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
+            element_id: Optional custom element ID, auto-generated if not provided
+
+        Returns:
+            Response data or error information
+        """
+        try:
+            # Generate element ID if not provided
+            if element_id is None:
+                import time
+
+                element_id = f"TextBox_{int(time.time() * 1000)}"
+
+            # Convert size to Google API format
+            width = {"magnitude": size[0], "unit": unit}
+            height = {"magnitude": size[1], "unit": unit}
+
+            # Build requests following the Google API example exactly
+            requests = [
+                # Create text box shape
+                {
+                    "createShape": {
+                        "objectId": element_id,
+                        "shapeType": "TEXT_BOX",
+                        "elementProperties": {
+                            "pageObjectId": slide_id,
+                            "size": {"height": height, "width": width},
+                            "transform": {
+                                "scaleX": 1,
+                                "scaleY": 1,
+                                "translateX": position[0],
+                                "translateY": position[1],
+                                "unit": unit,
+                            },
+                        },
+                    }
+                },
+                # Insert text into the text box
+                {
+                    "insertText": {
+                        "objectId": element_id,
+                        "insertionIndex": 0,
+                        "text": text,
+                    }
+                },
+            ]
+
+            logger.info(
+                f"Creating text box with text using requests: {json.dumps(requests, indent=2)}"
+            )
+
+            # Execute the request
+            response = (
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
+            )
+
+            logger.info(f"Text box creation response: {json.dumps(response, indent=2)}")
+
+            # Extract object ID from response if available
+            created_object_id = None
+            if "replies" in response and len(response["replies"]) > 0:
+                create_shape_response = response["replies"][0].get("createShape")
+                if create_shape_response:
+                    created_object_id = create_shape_response.get("objectId")
+
+            return {
+                "presentationId": presentation_id,
+                "slideId": slide_id,
+                "elementId": created_object_id or element_id,
+                "text": text,
+                "operation": "create_textbox_with_text",
+                "result": "success",
+                "response": response,
+            }
+        except Exception as e:
+            return self.handle_api_error("create_textbox_with_text", e)
