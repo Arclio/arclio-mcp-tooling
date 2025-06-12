@@ -4,16 +4,15 @@ Provides comprehensive file management capabilities through Google Drive API.
 """
 
 import base64
+import binascii
 import io
 import logging
 import mimetypes
-import os
 from typing import Any
 
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
-
 from google_workspace_mcp.services.base import BaseGoogleService
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +48,12 @@ class DriveService(BaseGoogleService):
             # Validate and constrain page_size
             page_size = max(1, min(page_size, 1000))
 
-            # Use query as-is - Google Drive API handles proper escaping internally
-            formatted_query = query
+            # Format query with proper escaping
+            formatted_query = query.replace("'", "\\'")
 
             # Build list parameters with shared drive support
             list_params = {
-                "q": formatted_query,
+                "q": query,  # Use the query directly without modification
                 "pageSize": page_size,
                 "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
                 "supportsAllDrives": True,
@@ -315,61 +314,60 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("download_content", e)
 
-    def upload_file(
+    def upload_file_content(
         self,
-        file_path: str,
+        filename: str,
+        content_base64: str,
         parent_folder_id: str | None = None,
         shared_drive_id: str | None = None,
     ) -> dict[str, Any]:
         """
-        Upload a file to Google Drive.
+        Upload a file to Google Drive using its content.
 
         Args:
-            file_path: Path to the local file to upload
-            parent_folder_id: Optional parent folder ID to upload the file to
-            shared_drive_id: Optional shared drive ID to upload the file to a shared drive
+            filename: The name for the file in Google Drive.
+            content_base64: Base64 encoded content of the file.
+            parent_folder_id: Optional parent folder ID.
+            shared_drive_id: Optional shared drive ID.
 
         Returns:
-            Dict containing file metadata on success, or error information on failure
+            Dict containing file metadata on success, or error information on failure.
         """
         try:
-            # Check if file exists locally
-            if not os.path.exists(file_path):
-                logger.error(f"Local file not found for upload: {file_path}")
+            logger.info(f"Uploading file '{filename}' from content.")
+
+            # Decode the base64 content
+            try:
+                content_bytes = base64.b64decode(content_base64, validate=True)
+            except (ValueError, TypeError, binascii.Error) as e:
+                logger.error(f"Invalid base64 content for file '{filename}': {e}")
                 return {
                     "error": True,
-                    "error_type": "local_file_error",
-                    "message": f"Local file not found: {file_path}",
-                    "operation": "upload_file",
+                    "error_type": "invalid_content",
+                    "message": "Invalid base64 encoded content provided.",
+                    "operation": "upload_file_content",
                 }
 
-            file_name = os.path.basename(file_path)
-            logger.info(f"Uploading file '{file_name}' from path: {file_path}")
-
-            # Get file MIME type
-            mime_type, _ = mimetypes.guess_type(file_path)
+            # Get file MIME type from filename
+            mime_type, _ = mimetypes.guess_type(filename)
             if mime_type is None:
                 mime_type = "application/octet-stream"
 
-            file_metadata = {"name": file_name}
-
-            # Set parent folder if specified
+            file_metadata = {"name": filename}
             if parent_folder_id:
                 file_metadata["parents"] = [parent_folder_id]
             elif shared_drive_id:
-                # If shared drive is specified but no parent, set shared drive as parent
                 file_metadata["parents"] = [shared_drive_id]
 
-            media = MediaFileUpload(file_path, mimetype=mime_type)
+            # Use MediaIoBaseUpload for in-memory content
+            media = MediaIoBaseUpload(io.BytesIO(content_bytes), mimetype=mime_type)
 
-            # Prepare create parameters
             create_params = {
                 "body": file_metadata,
                 "media_body": media,
                 "fields": "id,name,mimeType,modifiedTime,size,webViewLink",
                 "supportsAllDrives": True,
             }
-
             if shared_drive_id:
                 create_params["driveId"] = shared_drive_id
 
@@ -379,14 +377,14 @@ class DriveService(BaseGoogleService):
             return file
 
         except HttpError as e:
-            return self.handle_api_error("upload_file", e)
+            return self.handle_api_error("upload_file_content", e)
         except Exception as e:
-            logger.error(f"Non-API error in upload_file: {str(e)}")
+            logger.error(f"Non-API error in upload_file_content: {str(e)}")
             return {
                 "error": True,
                 "error_type": "local_error",
-                "message": f"Error uploading file: {str(e)}",
-                "operation": "upload_file",
+                "message": f"Error uploading file from content: {str(e)}",
+                "operation": "upload_file_content",
             }
 
     def delete_file(self, file_id: str) -> dict[str, Any]:

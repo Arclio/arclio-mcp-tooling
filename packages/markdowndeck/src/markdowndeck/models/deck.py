@@ -11,7 +11,6 @@ class Deck:
 
     slides: list[Slide] = field(default_factory=list)
     title: str = "Untitled Presentation"
-    theme_id: str | None = None
 
     def add_slide(self, slide: Slide) -> None:
         """Add a slide to the deck."""

@@ -1,7 +1,10 @@
-"""Factory for creating slide elements with enhanced directive handling."""
+# File: packages/markdowndeck/src/markdowndeck/parser/content/element_factory.py
+# Purpose: Creates slide element models.
+# Key Changes:
+# - REMOVED: Removed `_remove_directive_patterns` and `_strip_directives_from_code_content`. This logic is now centralized in `DirectiveParser` and used by formatters *before* calling the factory, simplifying the factory's responsibility. The factory now trusts it receives clean text.
+# - REFACTORED: `extract_formatting_from_text` now expects pre-cleaned text.
 
 import logging
-import re
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -26,18 +29,11 @@ logger = logging.getLogger(__name__)
 
 class ElementFactory:
     """
-    Factory for creating slide elements with enhanced directive support.
+    Factory for creating slide elements.
 
-    IMPROVEMENTS:
-    - Better directive pattern detection
-    - Enhanced formatting extraction
-    - Robust text cleaning methods
+    This factory assumes it receives pre-cleaned text content where directives
+    have already been processed and removed by the calling formatter.
     """
-
-    def __init__(self):
-        """Initialize the ElementFactory with enhanced directive patterns."""
-        # Enhanced directive pattern for better detection
-        self.directive_pattern = re.compile(r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)")
 
     def create_title_element(
         self,
@@ -182,63 +178,25 @@ class ElementFactory:
         self, text: str, md_parser: MarkdownIt
     ) -> list[TextFormat]:
         """
-        Extract formatting from text with enhanced directive handling.
-
-        CRITICAL FIX: Returns formatting relative to plain text (without markdown syntax).
+        Extracts formatting from a given text string.
+        Assumes the input text has already been cleaned of directives.
         """
         if not text:
             return []
 
         try:
-            # Clean text of directives before processing
-            cleaned_text = self._remove_directive_patterns(text)
-
-            # Parse the cleaned text to get proper tokens
-            tokens = md_parser.parse(cleaned_text.strip())
+            tokens = md_parser.parse(text.strip())
             for token in tokens:
                 if token.type == "inline":
-                    # Return formatting relative to plain text, not cleaned text
                     return self._extract_formatting_from_inline_token(token)
         except Exception as e:
             logger.error(f"Failed to extract formatting from text '{text[:50]}': {e}")
 
         return []
 
-    def _remove_directive_patterns(self, text: str) -> str:
-        """
-        Remove directive patterns from text for cleaner formatting extraction.
-
-        ENHANCEMENT: Better directive detection and removal.
-        """
-        # Remove directive patterns from the beginning of text
-        return re.sub(r"^\s*(?:\[[^\[\]]+=[^\[\]]*\]\s*)+", "", text)
-
-    def _strip_directives_from_code_content(self, code_content: str) -> str:
-        """
-        Strip directive patterns from code content.
-
-        ENHANCEMENT: Improved directive detection in code spans.
-        """
-        if not code_content:
-            return code_content
-
-        match = self.directive_pattern.match(code_content)
-        if match:
-            directive_text = match.group(1)
-            remaining_content = code_content[len(directive_text) :].strip()
-
-            logger.debug(
-                f"Stripped directives from code: '{directive_text}' -> '{remaining_content}'"
-            )
-            return remaining_content
-
-        return code_content
-
     def _extract_formatting_from_inline_token(self, token: Token) -> list[TextFormat]:
         """
-        Extract text formatting from inline token with enhanced processing.
-
-        CRITICAL FIX: Always returns formatting for plain text, preserves code content as-is.
+        Extract text formatting from an inline token's children.
         """
         if (
             token.type != "inline"
@@ -247,7 +205,6 @@ class ElementFactory:
         ):
             return []
 
-        # Build plain text and track formatting in a single pass
         plain_text = ""
         formatting_data = []
         active_formats = []
@@ -257,35 +214,27 @@ class ElementFactory:
 
             if child_type == "text":
                 plain_text += child.content
-
             elif child_type == "code_inline":
-                # CRITICAL FIX: Preserve code content exactly as-is (no directive stripping)
                 start_pos = len(plain_text)
-                plain_text += child.content
-
-                # Create code formatting for the exact content
-                if child.content.strip():
+                code_content = child.content
+                plain_text += code_content
+                if code_content.strip():
                     formatting_data.append(
                         TextFormat(
                             start=start_pos,
-                            end=start_pos + len(child.content),
+                            end=start_pos + len(code_content),
                             format_type=TextFormatType.CODE,
-                            value=True,
                         )
                     )
-
-            elif child_type == "softbreak" or child_type == "hardbreak":
+            elif child_type in ["softbreak", "hardbreak"]:
                 plain_text += "\n"
-
             elif child_type == "image":
                 alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
                 plain_text += alt_text
-
             elif child_type.endswith("_open"):
                 base_type = child_type.split("_")[0]
                 format_type_enum = None
                 value: Any = True
-
                 if base_type == "strong":
                     format_type_enum = TextFormatType.BOLD
                 elif base_type == "em":
@@ -297,15 +246,11 @@ class ElementFactory:
                     value = (
                         child.attrs.get("href", "") if hasattr(child, "attrs") else ""
                     )
-
                 if format_type_enum:
-                    # Record the current position where the formatted content starts
                     active_formats.append((format_type_enum, len(plain_text), value))
-
             elif child_type.endswith("_close"):
                 base_type = child_type.split("_")[0]
                 expected_format_type = None
-
                 if base_type == "strong":
                     expected_format_type = TextFormatType.BOLD
                 elif base_type == "em":
@@ -314,8 +259,6 @@ class ElementFactory:
                     expected_format_type = TextFormatType.STRIKETHROUGH
                 elif base_type == "link":
                     expected_format_type = TextFormatType.LINK
-
-                # Find and close matching format
                 for i in range(len(active_formats) - 1, -1, -1):
                     fmt_type, start_pos, fmt_value = active_formats[i]
                     if fmt_type == expected_format_type:
@@ -330,5 +273,4 @@ class ElementFactory:
                             )
                         active_formats.pop(i)
                         break
-
         return formatting_data

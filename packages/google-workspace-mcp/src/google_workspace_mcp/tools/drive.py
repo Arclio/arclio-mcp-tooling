@@ -42,7 +42,9 @@ async def drive_search_files(
         raise ValueError("Query cannot be empty")
 
     drive_service = DriveService()
-    files = drive_service.search_files(query=query, page_size=page_size, shared_drive_id=shared_drive_id)
+    files = drive_service.search_files(
+        query=query, page_size=page_size, shared_drive_id=shared_drive_id
+    )
 
     if isinstance(files, dict) and files.get("error"):
         raise ValueError(f"Search failed: {files.get('message', 'Unknown error')}")
@@ -82,18 +84,20 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="drive_upload_file",
-    description="Upload a local file to Google Drive. Requires a local file path.",
+    description="Uploads a file to Google Drive by providing its content directly.",
 )
 async def drive_upload_file(
-    file_path: str,
+    filename: str,
+    content_base64: str,
     parent_folder_id: str | None = None,
     shared_drive_id: str | None = None,
 ) -> dict[str, Any]:
     """
-    Upload a local file to Google Drive.
+    Uploads a file to Google Drive using its base64 encoded content.
 
     Args:
-        file_path: Path to the local file to upload.
+        filename: The desired name for the file in Google Drive (e.g., "report.pdf").
+        content_base64: The content of the file, encoded in base64.
         parent_folder_id: Optional parent folder ID to upload the file to.
         shared_drive_id: Optional shared drive ID to upload the file to a shared drive.
 
@@ -101,14 +105,17 @@ async def drive_upload_file(
         A dictionary containing the uploaded file metadata or an error.
     """
     logger.info(
-        f"Executing drive_upload_file with path: '{file_path}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+        f"Executing drive_upload_file with filename: '{filename}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
     )
-    if not file_path or not file_path.strip():
-        raise ValueError("File path cannot be empty")
+    if not filename or not filename.strip():
+        raise ValueError("Filename cannot be empty")
+    if not content_base64 or not content_base64.strip():
+        raise ValueError("File content (content_base64) cannot be empty")
 
     drive_service = DriveService()
-    result = drive_service.upload_file(
-        file_path=file_path,
+    result = drive_service.upload_file_content(
+        filename=filename,
+        content_base64=content_base64,
         parent_folder_id=parent_folder_id,
         shared_drive_id=shared_drive_id,
     )
@@ -154,7 +161,9 @@ async def drive_create_folder(
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(f"Folder creation failed: {result.get('message', 'Unknown error')}")
+        raise ValueError(
+            f"Folder creation failed: {result.get('message', 'Unknown error')}"
+        )
 
     return result
 

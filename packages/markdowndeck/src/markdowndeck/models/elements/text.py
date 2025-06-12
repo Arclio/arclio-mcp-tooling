@@ -1,5 +1,3 @@
-"""Text element with simple, minimum-requirement splitting logic."""
-
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -91,7 +89,7 @@ class TextElement(Element):
         if full_height <= available_height:
             return deepcopy(self), None
 
-        # Get all lines, including wrapped lines for long single lines
+        # FIXED: Get all display lines, including wrapped lines for long single lines
         all_lines = self._get_all_display_lines(element_width)
         total_lines = len(all_lines)
 
@@ -114,7 +112,7 @@ class TextElement(Element):
         if max_lines_that_fit >= total_lines:
             return deepcopy(self), None
 
-        # SIMPLE CHECK: Do we meet minimum requirement?
+        # MINIMUM REQUIREMENTS CHECK: Must fit at least 2 lines
         minimum_lines_required = 2
         fitted_line_count = max_lines_that_fit
 

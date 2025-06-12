@@ -9,12 +9,14 @@ HEADER_HEIGHT = 90.0  # Height reserved for title/subtitle zone
 FOOTER_HEIGHT = 30.0  # Height reserved for footer zone
 
 # Inter-Zone Spacing (Clear spacing between major slide zones)
-HEADER_TO_BODY_SPACING = 10.0  # Gap between header and body zones
-BODY_TO_FOOTER_SPACING = 10.0  # Gap between body and footer zones
+# REFACTORED: Set to 0.0 per "Zero Default Spacing" principle.
+HEADER_TO_BODY_SPACING = 0.0  # Gap between header and body zones
+BODY_TO_FOOTER_SPACING = 0.0  # Gap between body and footer zones
 
 # Element Spacing (Within zones and sections)
-VERTICAL_SPACING = 15.0  # Default vertical spacing between elements
-HORIZONTAL_SPACING = 10.0  # Default horizontal spacing between elements
+# REFACTORED: Set to 0.0 per "Zero Default Spacing" principle.
+VERTICAL_SPACING = 0.0  # Default vertical spacing between elements
+HORIZONTAL_SPACING = 0.0  # Default horizontal spacing between elements
 VERTICAL_SPACING_REDUCTION = 0.6  # Multiplier for related elements (40% reduction)
 
 # =============================================================================
@@ -56,6 +58,7 @@ QUOTE_PADDING = 12.0  # Padding for quote elements
 CODE_PADDING = 8.0  # Padding for code blocks
 LIST_PADDING = 6.0  # Padding for list elements
 TABLE_PADDING = 6.0  # Padding for table elements
+# REFACTORED: Set to 0.0 per "Zero Default Spacing" principle.
 SECTION_PADDING = 0.0  # Default section padding (can be overridden)
 
 # =============================================================================
@@ -138,10 +141,11 @@ DEFAULT_SLIDE_WIDTH = 720.0  # 10 inches at 72 DPI
 DEFAULT_SLIDE_HEIGHT = 405.0  # 5.625 inches at 72 DPI (16:9 aspect ratio)
 
 # Default Margins
-DEFAULT_MARGIN_TOP = 50.0  # Top margin
-DEFAULT_MARGIN_RIGHT = 50.0  # Right margin
-DEFAULT_MARGIN_BOTTOM = 50.0  # Bottom margin
-DEFAULT_MARGIN_LEFT = 50.0  # Left margin
+# REFACTORED: All margins set to 0.0 per "Zero Default Spacing" principle.
+DEFAULT_MARGIN_TOP = 0.0  # Top margin
+DEFAULT_MARGIN_RIGHT = 0.0  # Right margin
+DEFAULT_MARGIN_BOTTOM = 20.0  # Bottom margin
+DEFAULT_MARGIN_LEFT = 0.0  # Left margin
 
 # =============================================================================
 # ALIGNMENT CONSTANTS

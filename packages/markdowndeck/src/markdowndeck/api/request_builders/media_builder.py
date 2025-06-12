@@ -1,5 +1,3 @@
-"""Media request builder for Google Slides API requests."""
-
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
@@ -25,28 +23,24 @@ class MediaRequestBuilder(BaseRequestBuilder):
         Returns:
             List of request dictionaries
         """
-        requests = []
-
-        # Validate image URL before creating request
+        # PREVENTATIVE_FIX: Validate the image URL before attempting to create a request.
         if not is_valid_image_url(element.url):
             logger.warning(
-                f"Image URL is invalid or inaccessible: {element.url}. "
-                f"Skipping image element creation."
+                f"Image URL is invalid, inaccessible, or too large: {element.url}. "
+                f"Skipping image element creation to prevent API errors."
             )
             return []
 
-        # Calculate position and size
+        requests = []
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", None) or (300, 200)
 
-        # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"image_{slide_id}")
             logger.debug(
                 f"Generated missing object_id for image element: {element.object_id}"
             )
 
-        # Create image request (validation already done above)
         create_image_request = {
             "createImage": {
                 "objectId": element.object_id,
@@ -69,13 +63,12 @@ class MediaRequestBuilder(BaseRequestBuilder):
         }
         requests.append(create_image_request)
 
-        # Add alt text if available
         if element.object_id and element.alt_text:
             alt_text_request = {
                 "updatePageElementAltText": {
                     "objectId": element.object_id,
-                    "title": "",  # Optional title for the alt text
-                    "description": element.alt_text,  # The actual alt text
+                    "title": "Image",
+                    "description": element.alt_text,
                 }
             }
             requests.append(alt_text_request)

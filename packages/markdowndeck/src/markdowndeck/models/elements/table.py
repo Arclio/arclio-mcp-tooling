@@ -1,5 +1,3 @@
-"""Table element with simple, minimum-requirement splitting logic."""
-
 import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -42,7 +40,9 @@ class TableElement(Element):
 
         return all(len(row) <= column_count for row in self.rows)
 
-    def split(self, available_height: float) -> tuple["TableElement | None", "TableElement | None"]:
+    def split(
+        self, available_height: float
+    ) -> tuple["TableElement | None", "TableElement | None"]:
         """
         Split this TableElement using simple minimum requirements.
 
@@ -59,7 +59,8 @@ class TableElement(Element):
         if not self.rows and not self.headers:
             return None, None
 
-        from markdowndeck.layout.metrics.table import _calculate_row_height
+        # REFACTORED: Use public `calculate_row_height` function for testability.
+        from markdowndeck.layout.metrics.table import calculate_row_height
 
         element_width = self.size[0] if self.size else 400.0
         num_cols = self.get_column_count()
@@ -70,7 +71,9 @@ class TableElement(Element):
         # Calculate header height
         header_height = 0.0
         if self.headers:
-            header_height = _calculate_row_height(self.headers, col_width, is_header=True)
+            header_height = calculate_row_height(
+                self.headers, col_width, is_header=True
+            )
 
         # Calculate available space for data rows
         available_for_rows = available_height - header_height
@@ -83,7 +86,7 @@ class TableElement(Element):
         current_rows_height = 0.0
 
         for row in self.rows:
-            next_row_height = _calculate_row_height(row, col_width, is_header=False)
+            next_row_height = calculate_row_height(row, col_width, is_header=False)
             if current_rows_height + next_row_height <= available_for_rows:
                 fitted_rows.append(row)
                 current_rows_height += next_row_height
@@ -98,8 +101,10 @@ class TableElement(Element):
         minimum_rows_required = 2
         fitted_row_count = len(fitted_rows)
 
-        if fitted_row_count < minimum_rows_required:
-            logger.info(f"Table split rejected: Only {fitted_row_count} rows fit, need minimum {minimum_rows_required}")
+        if self.headers and fitted_row_count < minimum_rows_required:
+            logger.info(
+                f"Table split rejected: Only {fitted_row_count} rows fit, need minimum {minimum_rows_required} with header."
+            )
             return None, deepcopy(self)
 
         # Minimum met - proceed with split
@@ -109,17 +114,35 @@ class TableElement(Element):
 
         # Create the overflowing part
         overflowing_rows = self.rows[len(fitted_rows) :]
+        if not overflowing_rows:
+            return fitted_part, None
+
         overflowing_part = deepcopy(self)
         overflowing_part.rows = overflowing_rows
         overflowing_part.position = None  # Reset position for continuation slide
+
+        # FIXED: Ensure headers are duplicated on the overflow part for consistency.
         if self.headers:
             overflowing_part.headers = deepcopy(self.headers)
 
         # Recalculate size for the overflowing part
-        overflow_rows_height = sum(_calculate_row_height(row, col_width, is_header=False) for row in overflowing_rows)
-        overflowing_part.size = (element_width, header_height + overflow_rows_height)
+        overflow_header_height = (
+            calculate_row_height(overflowing_part.headers, col_width, is_header=True)
+            if overflowing_part.headers
+            else 0
+        )
+        overflow_rows_height = sum(
+            calculate_row_height(row, col_width, is_header=False)
+            for row in overflowing_rows
+        )
+        overflowing_part.size = (
+            element_width,
+            overflow_header_height + overflow_rows_height,
+        )
 
-        logger.info(f"Table split successful: {fitted_row_count} rows fitted, {len(overflowing_rows)} rows overflowing")
+        logger.info(
+            f"Table split successful: {fitted_row_count} rows fitted, {len(overflowing_rows)} rows overflowing"
+        )
         return fitted_part, overflowing_part
 
     def requires_header_duplication(self) -> bool:

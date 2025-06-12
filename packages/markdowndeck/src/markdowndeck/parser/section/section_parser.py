@@ -5,9 +5,10 @@ import re
 import uuid
 
 from markdowndeck.models.slide import Section
+from markdowndeck.parser.directive import DirectiveParser
 from markdowndeck.parser.section.content_splitter import (
     ContentSplitter,
-)  # Updated import path if necessary
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,27 +19,26 @@ class SectionParser:
     def __init__(self):
         """Initialize the section parser."""
         self.content_splitter = ContentSplitter()
-        # self.section_counter = 0 # Not strictly needed as instance var if IDs are UUID based
+        self.directive_parser = DirectiveParser()
 
-    def parse_sections(self, content: str) -> list[Section]:
+    def parse_sections(self, content: str) -> Section | None:
         """
-        Parse slide content into vertical and horizontal sections.
+        Parse slide content into a single root section containing a hierarchy
+        of vertical and horizontal sections.
 
         Args:
             content: Slide content without title/footer
 
         Returns:
-            List of Section model instances
+            A single root Section model instance, or None if content is empty.
         """
-        logger.debug("Parsing slide content into sections using ContentSplitter")
+        logger.debug("Parsing slide content into a root section using ContentSplitter")
 
-        # Normalize content (mainly line endings) before splitting
         normalized_content = content.replace("\r\n", "\n").replace("\r", "\n").strip()
         if not normalized_content:
             logger.debug("No content to parse into sections")
-            return []
+            return None
 
-        # Log content length to help with debugging
         content_preview = (
             normalized_content[:100] + "..."
             if len(normalized_content) > 100
@@ -48,7 +48,24 @@ class SectionParser:
             f"Parsing content ({len(normalized_content)} chars): {content_preview}"
         )
 
-        return self._parse_vertical_sections(normalized_content)
+        # The top-level content is parsed into vertical sections.
+        top_level_sections = self._parse_vertical_sections(normalized_content)
+
+        # REFACTORED: Create a single root section to hold all top-level content sections.
+        # This aligns with the new architecture.
+        root_section = Section(
+            id=f"root-{self._generate_id()}",
+            type="section",
+            children=top_level_sections,
+            directives={},  # Root section can have its own directives if any are at the very top.
+        )
+        self.directive_parser.parse_directives(root_section)
+
+        logger.info(
+            f"Created root section '{root_section.id}' with {len(top_level_sections)} top-level children."
+        )
+
+        return root_section
 
     def _parse_vertical_sections(self, content: str) -> list[Section]:
         """
@@ -61,7 +78,6 @@ class SectionParser:
         )
         vertical_parts = vertical_split_result.parts
 
-        # Log how many vertical sections were found
         logger.debug(
             f"Split content into {len(vertical_parts)} vertical parts using '---' separator"
         )
@@ -84,9 +100,6 @@ class SectionParser:
                 logger.debug(f"Vertical part {v_idx + 1} is empty. Skipping.")
                 continue
 
-            # CRITICAL FIX: Extract and preserve headers at the beginning of sections
-            # This ensures H2/H3 headers are preserved when they start a section
-            # Log first few characters for debugging
             v_part_preview = (
                 v_part_content[:50] + "..."
                 if len(v_part_content) > 50
@@ -99,7 +112,6 @@ class SectionParser:
             )
 
             if len(horizontal_sections) > 1:
-                # This vertical part contains multiple horizontal subsections, so it's a "row"
                 row_id = f"row-{v_idx}-{self._generate_id()}"
                 final_sections.append(
                     Section(
@@ -107,7 +119,7 @@ class SectionParser:
                         directives={},
                         children=horizontal_sections,
                         id=row_id,
-                        content="",  # FIXED: Row sections should have empty content to prevent directive bleeding
+                        content="",
                     )
                 )
                 logger.debug(
@@ -123,7 +135,6 @@ class SectionParser:
                     f"Vertical part {v_idx + 1} produced no horizontal sections. Skipping."
                 )
 
-        logger.info(f"Parsed into {len(final_sections)} top-level section structures")
         return final_sections
 
     def _parse_horizontal_sections(
@@ -162,61 +173,22 @@ class SectionParser:
                 logger.debug(f"Horizontal part {h_idx + 1} is empty. Skipping.")
                 continue
 
-            print(
-                f"[section_parser] Creating section {h_idx} with content: {repr(h_part_content[:100])}"
-            )
-
-            # CRITICAL FIX: Preserve the full content including any headers
-            # Log the content for debugging
-            h_part_preview = (
-                h_part_content[:50] + "..."
-                if len(h_part_content) > 50
-                else h_part_content
-            )
-            logger.debug(f"Processing horizontal part {h_idx + 1}: {h_part_preview}")
-
             subsection_id = f"section-{v_id_prefix}-h{h_idx}-{self._generate_id()}"
-            subsections.append(
-                Section(
-                    type="section",
-                    content=h_part_content.strip(),
-                    directives={},
-                    id=subsection_id,
-                )
+            temp_section = Section(
+                type="section",
+                content=h_part_content.strip(),
+                directives={},
+                id=subsection_id,
             )
-            logger.debug(f"Created horizontal subsection {subsection_id}")
+
+            self.directive_parser.parse_directives(temp_section)
+
+            subsections.append(temp_section)
+            logger.debug(
+                f"Created horizontal subsection {subsection_id} with directives: {temp_section.directives}"
+            )
         return subsections
 
     def _generate_id(self) -> str:
         """Generate a unique ID."""
-        return uuid.uuid4().hex[:6]  # Shortened for readability
-
-    def _log_section_hierarchy(self, sections: list[Section], indent: int = 0) -> None:
-        """
-        Log the section hierarchy for debugging purposes.
-
-        Args:
-            sections: List of sections to log
-            indent: Current indentation level
-        """
-        if not sections or indent > 5:  # Prevent infinite recursion
-            return
-
-        indent_str = "  " * indent
-        for section in sections:
-            if section.type == "row":
-                child_sections = [
-                    child for child in section.children if isinstance(child, Section)
-                ]
-                logger.debug(
-                    f"{indent_str}Row section {section.id} with {len(child_sections)} child sections"
-                )
-                self._log_section_hierarchy(child_sections, indent + 1)
-            else:
-                content_preview = (
-                    section.content[:30] + "..."
-                    if len(section.content) > 30
-                    else section.content
-                )
-                content_preview = content_preview.replace("\n", "\\n")
-                logger.debug(f"{indent_str}Section {section.id}: '{content_preview}'")
+        return uuid.uuid4().hex[:6]

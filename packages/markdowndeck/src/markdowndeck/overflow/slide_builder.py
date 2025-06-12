@@ -4,7 +4,7 @@ import logging
 import re
 import uuid
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from markdowndeck.models import Slide, TextElement
@@ -21,120 +21,102 @@ logger = logging.getLogger(__name__)
 class SlideBuilder:
     """
     Factory class for creating continuation slides with consistent formatting.
-
-    This class handles the clerical work of creating new slides that maintain
-    the same visual style and metadata as the original slide while clearly
-    indicating they are continuations. It ensures proper position and size
-    reset for all elements and sections in continuation slides.
     """
 
     def __init__(self, original_slide: "Slide"):
-        """
-        Initialize the slide builder with an original slide template.
-
-        Args:
-            original_slide: The slide to use as a template for continuation slides
-        """
         self.original_slide = original_slide
-        logger.debug(
-            f"SlideBuilder initialized with original slide: {original_slide.object_id}"
-        )
 
     def create_continuation_slide(
-        self, new_sections: list["Section"], slide_number: int
+        self, new_root_section: "Section", slide_number: int
     ) -> "Slide":
         """
-        Create a continuation slide with the specified sections.
-
-        This method creates a new slide that maintains the visual consistency
-        of the original while clearly marking it as a continuation. All sections
-        and elements have their positions reset to ensure proper layout calculation.
-
-        Args:
-            new_sections: List of sections to include in the continuation slide
-            slide_number: The sequence number of this continuation slide (1, 2, 3...)
-
-        Returns:
-            A new Slide object configured as a continuation slide
+        Create a continuation slide with the specified root section.
         """
-        logger.debug(
-            f"Creating continuation slide {slide_number} with {len(new_sections)} sections"
-        )
-
-        # Generate unique ID for the continuation slide
-        continuation_id = f"{self.original_slide.object_id}_cont_{slide_number}_{uuid.uuid4().hex[:6]}"
-
-        # Create the base slide structure
         from markdowndeck.models import Slide, SlideLayout
 
+        continuation_id = self._generate_safe_object_id(
+            self.original_slide.object_id, f"cont_{slide_number}"
+        )
         continuation_slide = Slide(
             object_id=continuation_id,
-            layout=SlideLayout.TITLE_AND_BODY,  # Use standard layout for continuations
-            sections=deepcopy(new_sections),
-            elements=[],  # Will be populated from sections and metadata
+            layout=SlideLayout.BLANK,
+            root_section=deepcopy(new_root_section),
+            is_continuation=True,
+            elements=[],
             background=(
                 deepcopy(self.original_slide.background)
                 if self.original_slide.background
                 else None
             ),
-            notes=self.original_slide.notes,  # Keep original notes for reference
+            notes=self.original_slide.notes,
         )
 
-        # CRITICAL: Reset all positions and sizes in sections for continuation slides
-        self._reset_section_positions_recursively(continuation_slide.sections)
+        if continuation_slide.root_section:
+            self._reset_section_positions_recursively([continuation_slide.root_section])
 
-        # Create continuation title
         continuation_title = self._create_continuation_title(slide_number)
         if continuation_title:
             continuation_slide.elements.append(continuation_title)
             continuation_slide.title = continuation_title.text
 
-        # Create continuation footer if original had footer
         continuation_footer = self._create_continuation_footer()
         if continuation_footer:
             continuation_slide.elements.append(continuation_footer)
 
-        # Extract all elements from sections and add to slide
         self._extract_elements_from_sections_with_reset(continuation_slide)
-
-        logger.info(
-            f"Created continuation slide {continuation_id} with {len(continuation_slide.elements)} elements"
-        )
         return continuation_slide
+
+    def _find_original_title_element(self) -> "TextElement | None":
+        """
+        Find the title element in the original slide's renderable_elements or elements list.
+        REFACTORED: To check renderable_elements first.
+        """
+        search_lists = [
+            self.original_slide.renderable_elements,
+            self.original_slide.elements,
+        ]
+        for L in search_lists:
+            for element in L:
+                if element.element_type == ElementType.TITLE:
+                    return cast(TextElement, element)
+        return None
+
+    def _find_original_footer_element(self) -> "TextElement | None":
+        """
+        Find the footer element in the original slide's renderable_elements or elements list.
+        REFACTORED: To check renderable_elements first.
+        """
+        search_lists = [
+            self.original_slide.renderable_elements,
+            self.original_slide.elements,
+        ]
+        for L in search_lists:
+            for element in L:
+                if element.element_type == ElementType.FOOTER:
+                    return cast(TextElement, element)
+        return None
 
     def _reset_section_positions_recursively(
         self, sections: list["Section"], visited: set[str] = None
     ) -> None:
         """
         Recursively reset positions and sizes for all sections and their subsections.
-
-        This is critical for continuation slides to ensure the layout calculator
-        can properly reposition everything from scratch.
-
-        Args:
-            sections: List of sections to reset
-            visited: Set of visited section IDs to prevent circular references
         """
         if visited is None:
             visited = set()
 
         for section in sections:
-            # Check for circular reference
             if section.id in visited:
                 logger.warning(
                     f"Circular reference detected for section {section.id}, skipping"
                 )
                 continue
-
             visited.add(section.id)
 
-            # Reset section position and size
             section.position = None
             section.size = None
-
             logger.debug(f"Reset position/size for section {section.id}")
 
-            # Reset element positions within this section
             section_elements = [
                 c for c in section.children if not hasattr(c, "children")
             ]
@@ -142,7 +124,6 @@ class SlideBuilder:
                 element.position = None
                 element.size = None
 
-            # Recursively reset child sections
             child_sections = [c for c in section.children if hasattr(c, "children")]
             if child_sections:
                 self._reset_section_positions_recursively(
@@ -177,7 +158,7 @@ class SlideBuilder:
         title_element = TextElement(
             element_type=ElementType.TITLE,
             text=continuation_text,
-            object_id=f"title_{uuid.uuid4().hex[:8]}",
+            object_id=self._generate_safe_element_id("title"),
             position=None,  # Reset position for recalculation
             size=None,  # Reset size for recalculation
         )
@@ -223,7 +204,7 @@ class SlideBuilder:
         footer_element = TextElement(
             element_type=ElementType.FOOTER,
             text=continuation_footer_text,
-            object_id=f"footer_{uuid.uuid4().hex[:8]}",
+            object_id=self._generate_safe_element_id("footer"),
             horizontal_alignment=getattr(
                 original_footer_element, "horizontal_alignment", "left"
             ),
@@ -268,61 +249,115 @@ class SlideBuilder:
 
     def _extract_elements_from_sections_with_reset(self, slide: "Slide") -> None:
         """
-        Extract all elements from sections and add them to the slide's elements list.
-
-        This recursively processes sections and their subsections to build a flat
-        list of elements for the slide. All elements have their positions and sizes
-        reset to ensure proper layout calculation.
-
-        Args:
-            slide: The slide to populate with elements from its sections
+        Extract all elements from the root_section and add them to the slide's elements list.
+        REFACTORED: To start from the single root_section.
         """
-        from markdowndeck.models.slide import Section
+        if not slide.root_section:
+            return
 
         visited = set()
 
-        def extract_from_section_list(sections: list[Section]):
-            for section in sections:
-                # Check for circular reference
-                if section.id in visited:
-                    logger.warning(
-                        f"Circular reference detected for section {section.id} during element extraction, skipping"
+        def extract_from_section(section: "Section"):
+            if section.id in visited:
+                logger.warning(
+                    f"Circular reference detected for section {section.id}, skipping"
+                )
+                return
+            visited.add(section.id)
+
+            for child in section.children:
+                if not hasattr(child, "children"):  # It's an Element
+                    element_copy = deepcopy(child)
+                    element_copy.object_id = self._generate_safe_element_id(
+                        element_copy.element_type.value
                     )
-                    continue
+                    element_copy.position = None
+                    element_copy.size = None
+                    slide.elements.append(element_copy)
+                else:  # It's a Section
+                    extract_from_section(child)
 
-                visited.add(section.id)
-
-                # Get elements and child sections from unified children list
-                section_elements = [
-                    c for c in section.children if not hasattr(c, "children")
-                ]
-                child_sections = [c for c in section.children if hasattr(c, "children")]
-
-                if section_elements:
-                    # Add elements from this section
-                    for element in section_elements:
-                        # Generate unique object ID for each element to avoid conflicts
-                        if hasattr(element, "object_id"):
-                            element.object_id = (
-                                f"{element.element_type.value}_{uuid.uuid4().hex[:8]}"
-                            )
-
-                        # CRITICAL: Reset element positions for continuation slides
-                        # Elements in continuation slides must start with fresh positioning
-                        element_copy = deepcopy(element)
-                        element_copy.position = None
-                        element_copy.size = None
-                        slide.elements.append(element_copy)
-
-                if child_sections:
-                    # Recursively process child sections
-                    extract_from_section_list(child_sections)
-
-        extract_from_section_list(slide.sections)
+        extract_from_section(slide.root_section)
         logger.debug(
-            f"Extracted {len(slide.elements)} elements from {len(slide.sections)} sections "
+            f"Extracted {len(slide.elements)} elements from root section "
             f"with positions reset for continuation slide"
         )
+
+    def _generate_safe_object_id(
+        self, base_id: str, suffix: str, max_length: int = 50
+    ) -> str:
+        """
+        Generate an object ID that stays within Google Slides API limits (50 characters).
+
+        Strategy:
+        1. Try full format: {base_id}_{suffix}_{uuid6}
+        2. If too long, truncate base_id intelligently
+        3. Always ensure uniqueness with UUID suffix
+
+        Args:
+            base_id: The base object ID (e.g., slide_10 or slide_10_cont_1_4ba998)
+            suffix: The suffix to add (e.g., "cont_1")
+            max_length: Maximum allowed length (Google Slides limit is 50)
+
+        Returns:
+            Safe object ID under the length limit
+        """
+        uuid_suffix = uuid.uuid4().hex[:6]  # 6 chars for uniqueness
+        separator_chars = 2  # Two underscores: _{suffix}_{uuid}
+
+        # Calculate available space for base_id
+        reserved_space = len(suffix) + len(uuid_suffix) + separator_chars
+        available_for_base = max_length - reserved_space
+
+        # If base_id is too long, intelligently truncate it
+        if not base_id or len(base_id) > available_for_base:
+            # For continuation slides, prioritize keeping the original slide number
+            # and truncate the complex continuation chain
+            if base_id and "_cont_" in base_id:
+                # Extract original slide part (e.g., "slide_10" from "slide_10_cont_1_4ba998")
+                original_part = base_id.split("_cont_")[0]
+                if len(original_part) <= available_for_base:
+                    # Use original slide ID + truncation indicator
+                    truncated_base = original_part
+                else:
+                    # Even original is too long, simple truncation
+                    truncated_base = base_id[: available_for_base - 3] + "..."
+            else:
+                # Simple truncation with indicator
+                truncated_base = (base_id or "slide")[:available_for_base]
+        else:
+            truncated_base = base_id
+
+        safe_id = f"{truncated_base}_{suffix}_{uuid_suffix}"
+
+        logger.debug(f"Generated safe object ID: '{safe_id}' (length: {len(safe_id)})")
+        return safe_id
+
+    def _generate_safe_element_id(self, element_type: str, max_length: int = 50) -> str:
+        """
+        Generate a safe element object ID under Google's length limit.
+
+        Args:
+            element_type: The element type (e.g., "text", "image", "title")
+            max_length: Maximum allowed length (50 for Google Slides)
+
+        Returns:
+            Safe element object ID
+        """
+        uuid_suffix = uuid.uuid4().hex[:8]  # 8 chars for uniqueness
+        separator_chars = 1  # One underscore: {type}_{uuid}
+
+        # Calculate available space for element type
+        available_for_type = max_length - len(uuid_suffix) - separator_chars
+
+        # Truncate element type if needed
+        truncated_type = (
+            element_type[:available_for_type]
+            if len(element_type) > available_for_type
+            else element_type
+        )
+
+        return f"{truncated_type}_{uuid_suffix}"
 
     def get_continuation_metadata(self, slide_number: int) -> dict:
         """
@@ -354,74 +389,3 @@ class SlideBuilder:
                 else 0
             ),
         }
-
-    def validate_continuation_slide(self, continuation_slide: "Slide") -> list[str]:
-        """
-        Validate a continuation slide for potential issues.
-
-        Args:
-            continuation_slide: The continuation slide to validate
-
-        Returns:
-            List of validation warnings
-        """
-        warnings = []
-
-        # Check that positions are properly reset
-        for i, element in enumerate(continuation_slide.elements):
-            if hasattr(element, "position") and element.position is not None:
-                warnings.append(
-                    f"Element {i} still has position set - should be None for layout recalculation"
-                )
-            if hasattr(element, "size") and element.size is not None:
-                warnings.append(
-                    f"Element {i} still has size set - should be None for layout recalculation"
-                )
-
-        # Check sections
-        if hasattr(continuation_slide, "sections") and continuation_slide.sections:
-            section_warnings = self._validate_section_reset(continuation_slide.sections)
-            warnings.extend(section_warnings)
-
-        # Check for continuation markers
-        has_continuation_title = any(
-            hasattr(elem, "text") and CONTINUED_TITLE_SUFFIX in elem.text
-            for elem in continuation_slide.elements
-            if hasattr(elem, "element_type") and elem.element_type.name == "TITLE"
-        )
-
-        if not has_continuation_title:
-            warnings.append("Continuation slide missing continuation title marker")
-
-        return warnings
-
-    def _validate_section_reset(
-        self, sections: list["Section"], level: int = 0
-    ) -> list[str]:
-        """
-        Validate that sections have their positions properly reset.
-
-        Args:
-            sections: List of sections to validate
-            level: Current nesting level
-
-        Returns:
-            List of validation warnings
-        """
-        warnings = []
-
-        for i, section in enumerate(sections):
-            if hasattr(section, "position") and section.position is not None:
-                warnings.append(f"Section {i} at level {level} still has position set")
-            if hasattr(section, "size") and section.size is not None:
-                warnings.append(f"Section {i} at level {level} still has size set")
-
-            # Check child sections recursively
-            child_sections = [c for c in section.children if hasattr(c, "children")]
-            if child_sections:
-                subsection_warnings = self._validate_section_reset(
-                    child_sections, level + 1
-                )
-                warnings.extend(subsection_warnings)
-
-        return warnings

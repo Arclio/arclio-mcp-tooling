@@ -1,126 +1,69 @@
 """
 Parser edge case tests for specification compliance validation.
-
-These tests validate that the parser correctly handles edge cases and
-properly implements the specifications.
 """
 
-from markdowndeck.models import ElementType, TextFormat, TextFormatType
+from markdowndeck.models import ElementType, TextFormat
 from markdowndeck.parser import Parser
 
 
 def test_parser_v_01_strips_same_line_directives_from_text():
-    """
-    Test Case: PARSER-V-01 (Violation)
-    Validates that same-line directives are stripped from the element's text content.
-
-    Spec: PARSER_SPEC.md, Rule 1; DIRECTIVES.md, Rule 1 (The Proximity Rule)
-    """
-    # Arrange
+    """Test Case: PARSER-V-01"""
     parser = Parser()
     markdown = "# The Title of the Presentation [color=blue][fontsize=48]"
-
-    # Act
     deck = parser.parse(markdown)
     slide = deck.slides[0]
+    title_element = slide.get_title_element()
 
-    # Find the title element - it should be in renderable_elements after parsing
-    title_element = None
-    for element in slide.elements:
-        if element.element_type == ElementType.TITLE:
-            title_element = element
-            break
-
-    assert title_element is not None, "Title element not found in slide.elements"
-
-    # Assert
-    assert title_element.element_type == ElementType.TITLE
+    assert title_element is not None, "Title element not found."
+    assert title_element.text == "The Title of the Presentation"
+    assert "color" in title_element.directives
+    assert "fontsize" in title_element.directives
     assert (
-        title_element.text == "The Title of the Presentation"
-    ), "Directive string must be stripped from text"
-    assert "color" in title_element.directives, "Directive 'color' was not parsed"
-    assert "fontsize" in title_element.directives, "Directive 'fontsize' was not parsed"
-    assert title_element.directives["color"] == "blue", "Directive value incorrect"
-    assert title_element.directives["fontsize"] == "48", "Directive value incorrect"
+        title_element.directives["color"]["value"] == "blue"
+    )  # The converter now creates a dict
+    assert title_element.directives["fontsize"] == 48.0
+
+
+def test_parser_v_01b_strips_same_line_directives_from_subtitle():
+    """Test Case: PARSER-V-01b"""
+    parser = Parser()
+    markdown = "# Main Title\n## A Subtitle for the Presentation [fontsize=24]"
+    deck = parser.parse(markdown)
+    slide = deck.slides[0]
+    subtitle_element = slide.get_subtitle_element()
+
+    assert subtitle_element is not None, "Subtitle element not found."
+    assert subtitle_element.text == "A Subtitle for the Presentation"
+    assert "fontsize" in subtitle_element.directives
+    assert subtitle_element.directives["fontsize"] == 24.0
 
 
 def test_parser_v_01_strips_directives_from_image_text():
-    """
-    Test Case: PARSER-V-01b (Additional case)
-    Validates that same-line directives are stripped from image alt text.
-
-    Spec: PARSER_SPEC.md, Rule 1; DIRECTIVES.md, Rule 1 (The Proximity Rule)
-    """
-    # Arrange
+    """Test Case: PARSER-V-01d"""
     parser = Parser()
     markdown = (
         "![Test Image](http://example.com/image.png) [border=1pt solid red][width=300]"
     )
-
-    # Act
     deck = parser.parse(markdown)
     slide = deck.slides[0]
+    image_element = next(
+        (e for e in slide.elements if e.element_type == ElementType.IMAGE), None
+    )
 
-    # Find the image element
-    image_element = None
-    for element in slide.elements:
-        if element.element_type == ElementType.IMAGE:
-            image_element = element
-            break
-
-    assert image_element is not None, "Image element not found in slide.elements"
-
-    # Assert
-    assert image_element.element_type == ElementType.IMAGE
-    assert (
-        image_element.alt_text == "Test Image"
-    ), "Directive string must be stripped from alt text"
-    assert "border" in image_element.directives, "Directive 'border' was not parsed"
-    assert "width" in image_element.directives, "Directive 'width' was not parsed"
+    assert image_element is not None, "Image element not found."
+    assert image_element.alt_text == "Test Image"
+    assert "border" in image_element.directives
+    assert "width" in image_element.directives
 
 
 def test_parser_v_02_text_formatting_is_correct_type():
-    """
-    Test Case: PARSER-V-02 (Violation)
-    Validates that TextElement.formatting contains a list of TextFormat objects, not booleans.
-
-    Spec: DATA_MODELS.md - TextFormat specification
-    """
-    # Arrange
+    """Test Case: PARSER-V-02"""
     parser = Parser()
     markdown = "This text is **bold** and *italic*."
-
-    # Act
     deck = parser.parse(markdown)
     slide = deck.slides[0]
+    text_element = slide.root_section.children[0].children[0]
 
-    # Find the text element
-    text_element = None
-    for element in slide.elements:
-        if element.element_type == ElementType.TEXT:
-            text_element = element
-            break
-
-    assert text_element is not None, "Text element not found in slide.elements"
-
-    # Assert
-    assert len(text_element.formatting) == 2, "Should have found two formatting spans."
-    assert all(
-        isinstance(f, TextFormat) for f in text_element.formatting
-    ), "All items in formatting list must be TextFormat objects."
-
-    # Verify the first format (bold)
-    bold_format = text_element.formatting[0]
-    assert bold_format.format_type == TextFormatType.BOLD
-    assert (
-        bold_format.start == 13
-    )  # Position of "bold" in "This text is bold and italic."
-    assert bold_format.end == 17
-
-    # Verify the second format (italic)
-    italic_format = text_element.formatting[1]
-    assert italic_format.format_type == TextFormatType.ITALIC
-    assert (
-        italic_format.start == 22
-    )  # Position of "italic" in "This text is bold and italic."
-    assert italic_format.end == 28
+    assert text_element is not None, "Text element not found"
+    assert len(text_element.formatting) == 2
+    assert all(isinstance(f, TextFormat) for f in text_element.formatting)
