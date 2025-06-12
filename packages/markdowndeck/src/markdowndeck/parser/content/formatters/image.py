@@ -5,6 +5,7 @@ TASK 1.3 ENHANCEMENT: Also handles images followed by directives.
 """
 
 import logging
+import re
 from typing import Any
 
 from markdown_it.token import Token
@@ -82,21 +83,22 @@ class ImageFormatter(BaseFormatter):
             ):
                 inline_token = tokens[inline_token_index]
                 if hasattr(inline_token, "children") and inline_token.children:
-                    # Check if this paragraph only contains images and whitespace
+                    # Check if this paragraph only contains images and whitespace/directives
                     image_children = [
                         child
                         for child in inline_token.children
                         if child.type == "image"
                     ]
-                    non_image_content = [
+
+                    # Check for text that might be directives
+                    text_children = [
                         child
                         for child in inline_token.children
-                        if child.type not in ["image", "softbreak"]
-                        and not (child.type == "text" and not child.content.strip())
+                        if child.type == "text" and child.content.strip()
                     ]
 
-                    if len(image_children) == 1 and len(non_image_content) == 0:
-                        # This is an image-only paragraph
+                    if len(image_children) == 1:
+                        # Get the image info
                         image_child = image_children[0]
                         src = (
                             image_child.attrs.get("src", "")
@@ -105,68 +107,56 @@ class ImageFormatter(BaseFormatter):
                         )
                         alt_text = image_child.content or ""
 
+                        # Check if there's trailing text that could be directives
+                        post_image_directives = {}
+                        if len(text_children) > 0:
+                            # Check if any text child follows the image and matches directive pattern
+                            image_index = inline_token.children.index(image_child)
+                            for i in range(image_index + 1, len(inline_token.children)):
+                                child = inline_token.children[i]
+                                if child.type == "text" and child.content.strip():
+                                    # Try to parse this as directives
+                                    directive_pattern = (
+                                        r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)$"
+                                    )
+                                    match = re.match(
+                                        directive_pattern, child.content.strip()
+                                    )
+                                    if match:
+                                        directive_text = match.group(1)
+                                        parsed_directives, _ = (
+                                            self.directive_parser.parse_inline_directives(
+                                                directive_text
+                                            )
+                                        )
+                                        post_image_directives.update(parsed_directives)
+                                        logger.debug(
+                                            f"Found post-image directives: {parsed_directives}"
+                                        )
+                                    else:
+                                        # This is non-directive text, not an image-only paragraph
+                                        return [], start_index
+
+                        # Merge post-image directives
+                        final_directives = merged_directives.copy()
+                        final_directives.update(post_image_directives)
+
                         if src:
                             image_element = self.element_factory.create_image_element(
                                 url=src,
                                 alt_text=alt_text,
-                                directives=merged_directives.copy(),
+                                directives=final_directives,
                             )
                             logger.debug(
                                 f"Created image element from paragraph at index {start_index}: {src}"
                             )
                             return [image_element], paragraph_close_index
 
-                    # TASK 1.3 FIX: Check if this paragraph contains an image followed by directives
-                    elif len(image_children) == 1 and len(non_image_content) == 1:
-                        # Check if the non-image content is directive text
-                        non_image_child = non_image_content[0]
-                        if non_image_child.type == "text":
-                            directive_text = non_image_child.content.strip()
-
-                            # Try to parse as directives
-                            post_image_directives, remaining_text = (
-                                self.directive_parser.parse_inline_directives(
-                                    directive_text
-                                )
-                            )
-
-                            if post_image_directives and not remaining_text:
-                                # This is an image followed by directives
-                                image_child = image_children[0]
-                                src = (
-                                    image_child.attrs.get("src", "")
-                                    if hasattr(image_child, "attrs")
-                                    else ""
-                                )
-                                alt_text = image_child.content or ""
-
-                                # Merge the post-image directives with the existing directives
-                                final_directives = merged_directives.copy()
-                                final_directives.update(post_image_directives)
-
-                                if src:
-                                    image_element = (
-                                        self.element_factory.create_image_element(
-                                            url=src,
-                                            alt_text=alt_text,
-                                            directives=final_directives,
-                                        )
-                                    )
-                                    logger.debug(
-                                        f"TASK 1.3: Created image element with post-image directives at index {start_index}: {src}, directives: {post_image_directives}"
-                                    )
-                                    return [image_element], paragraph_close_index
-
                 # If we reach here, it's not an image-only paragraph
-                # Return None and indicate we didn't consume any tokens so other formatters can try
-                # CRITICAL FIX: Return start_index instead of start_index - 1 to avoid negative indices
                 logger.debug(
                     f"Paragraph at index {start_index} is not image-only, deferring to other formatters"
                 )
-                return (
-                    [],
-                    start_index,
-                )  # Don't consume any tokens, let other formatters try
+                return [], start_index
 
             # If no inline token found, it's an empty paragraph - don't handle it
             return [], start_index

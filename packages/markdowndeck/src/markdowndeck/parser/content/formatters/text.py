@@ -1,6 +1,7 @@
 """Text formatter for content parsing with improved directive handling."""
 
 import logging
+import re
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -133,8 +134,18 @@ class TextFormatter(BaseFormatter):
 
         inline_token = tokens[inline_token_index]
 
-        # CRITICAL FIX P0: Use cleaned text content
-        text_content, formatting = self._extract_clean_text_and_formatting(inline_token)
+        # CRITICAL FIX P0: Parse and remove end-of-line directives
+        raw_content = inline_token.content or ""
+        cleaned_text, line_directives = self._parse_and_remove_directives(raw_content)
+
+        # Merge the line directives with existing directives
+        final_directives = directives.copy()
+        final_directives.update(line_directives)
+
+        # Get formatting from the cleaned text
+        text_content, formatting = self._extract_clean_text_and_formatting_from_content(
+            cleaned_text, inline_token
+        )
 
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
 
@@ -150,35 +161,37 @@ class TextFormatter(BaseFormatter):
             default_alignment = AlignmentType.LEFT
             # Add styling for section headings
             if level == 2:
-                directives.setdefault("fontsize", 18)
-                directives.setdefault("margin_bottom", 10)
+                final_directives.setdefault("fontsize", 18)
+                final_directives.setdefault("margin_bottom", 10)
             elif level == 3:
-                directives.setdefault("fontsize", 16)
-                directives.setdefault("margin_bottom", 8)
+                final_directives.setdefault("fontsize", 16)
+                final_directives.setdefault("margin_bottom", 8)
 
         # Get alignment from directives
         horizontal_alignment = AlignmentType(
-            directives.get("align", default_alignment.value)
+            final_directives.get("align", default_alignment.value)
         )
 
         # Create appropriate element
         if element_type == ElementType.TITLE:
             element = self.element_factory.create_title_element(
-                title=text_content, formatting=formatting, directives=directives.copy()
+                title=text_content,
+                formatting=formatting,
+                directives=final_directives.copy(),
             )
         elif element_type == ElementType.SUBTITLE:
             element = self.element_factory.create_subtitle_element(
                 text=text_content,
                 formatting=formatting,
                 alignment=horizontal_alignment,
-                directives=directives.copy(),
+                directives=final_directives.copy(),
             )
         else:
             element = self.element_factory.create_text_element(
                 text=text_content,
                 formatting=formatting,
                 alignment=horizontal_alignment,
-                directives=directives.copy(),
+                directives=final_directives.copy(),
             )
 
         logger.debug(
@@ -208,11 +221,12 @@ class TextFormatter(BaseFormatter):
         inline_token = tokens[inline_index]
         raw_content = inline_token.content or ""
 
-        # CRITICAL FIX P0 & P4: Extract and remove directives from text
-        element_directives, cleaned_content = (
-            self._extract_element_directives_from_text(raw_content)
+        # CRITICAL FIX P0 & P4: Parse and remove directives from the line
+        cleaned_content, element_directives = self._parse_and_remove_directives(
+            raw_content
         )
-        # FIXED: Correctly merge section and element directives. Element-specific take precedence.
+
+        # Merge section and element directives
         final_directives = directives.copy()
         final_directives.update(element_directives)
 
@@ -238,32 +252,16 @@ class TextFormatter(BaseFormatter):
                     )
                     return elements, close_index
 
-        # Fallback to single text element processing
-        # CRITICAL FIX: Determine text extraction approach based on directive source
-        has_same_line_directives = bool(element_directives)
-
-        if cleaned_content.strip():
-            # Use cleaned content for text extraction when directives were found
-            if has_same_line_directives:
-                # Extract plain text from cleaned content
-                text_content, formatting = (
-                    self._extract_plain_text_from_cleaned_content(
-                        cleaned_content, inline_token
-                    )
+        # Create a modified inline token with cleaned content for processing
+        if cleaned_content != raw_content:
+            # We need to parse the cleaned content to get proper formatting
+            text_content, formatting = (
+                self._extract_clean_text_and_formatting_from_content(
+                    cleaned_content, inline_token
                 )
-            else:
-                # Use standard plain text extraction for consistency
-                text_content, formatting = self._extract_clean_text_and_formatting(
-                    inline_token
-                )
+            )
         else:
-            # CRITICAL FIX: If cleaned content is empty after directive extraction,
-            # the paragraph contains only directives and should be ignored
-            if has_same_line_directives:
-                return [], close_index
-
-            # Use original token processing if no directives were found within text
-            # Use plain text extraction for standard cases
+            # Use standard extraction if no directives were found
             text_content, formatting = self._extract_clean_text_and_formatting(
                 inline_token
             )
@@ -295,6 +293,53 @@ class TextFormatter(BaseFormatter):
             f"Created text element with cleaned content: '{text_content[:30]}'"
         )
         return [element], close_index
+
+    def _parse_and_remove_directives(self, content: str) -> tuple[str, dict[str, Any]]:
+        """
+        Parse and remove directives from the end of content.
+
+        Uses the same pattern as slide_extractor.py for consistency.
+        """
+        # Use the same regex pattern as in slide_extractor.py
+        directive_pattern = r"\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)$"
+        match = re.search(directive_pattern, content)
+
+        if match:
+            directive_text = match.group(1)
+            # Remove the directive text from the content
+            cleaned_text = content[: match.start()].rstrip()
+            # Parse the directives
+            directives, _ = self.directive_parser.parse_inline_directives(
+                directive_text
+            )
+            return cleaned_text, directives
+
+        return content, {}
+
+    def _extract_clean_text_and_formatting_from_content(
+        self, cleaned_content: str, original_token: Token
+    ) -> tuple[str, list[TextFormat]]:
+        """
+        Extract plain text and formatting from cleaned content.
+        """
+        if not cleaned_content.strip():
+            return "", []
+
+        # Parse the cleaned content to get proper tokens
+        tokens = self.md.parse(cleaned_content.strip())
+
+        # Find the inline token in the parsed content
+        for token in tokens:
+            if token.type == "inline":
+                # Extract plain text and formatting from the cleaned content
+                plain_text = self._get_plain_text_from_inline_token(token)
+                formatting = self.element_factory._extract_formatting_from_inline_token(
+                    token
+                )
+                return plain_text, formatting
+
+        # Fallback if no inline token found
+        return cleaned_content.strip(), []
 
     def _process_mixed_content_paragraph(
         self,

@@ -43,6 +43,7 @@ class PositionCalculator:
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """Calculate positions for all elements and sections in a slide."""
+        # CRITICAL FIX: Process meta-elements for ALL slides, including continuation slides
         header_height = self._position_header_elements(slide)
         footer_height = self._position_footer_elements(slide)
         self.body_top = self.margins["top"] + header_height
@@ -60,17 +61,23 @@ class PositionCalculator:
         final_slide = calculate_section_based_positions(self, slide)
 
         # Populate renderable_elements with positioned meta-elements.
-        final_slide.renderable_elements.extend(
-            [
-                e
-                for e in [
-                    slide.get_title_element(),
-                    slide.get_subtitle_element(),
-                    slide.get_footer_element(),
-                ]
-                if e and e.position
-            ]
-        )
+        # This must happen for ALL slides, not just the first one
+        meta_elements = []
+        if slide.get_title_element():
+            title_elem = slide.get_title_element()
+            if title_elem.position:
+                meta_elements.append(title_elem)
+        if slide.get_subtitle_element():
+            subtitle_elem = slide.get_subtitle_element()
+            if subtitle_elem.position:
+                meta_elements.append(subtitle_elem)
+        if slide.get_footer_element():
+            footer_elem = slide.get_footer_element()
+            if footer_elem.position:
+                meta_elements.append(footer_elem)
+
+        final_slide.renderable_elements.extend(meta_elements)
+
         # Clear the original element inventory list as it's now stale.
         final_slide.elements = []
         return final_slide
@@ -116,6 +123,17 @@ class PositionCalculator:
             title.size = (self.max_content_width, title_height)
             title.position = (self.margins["left"], self.margins["top"])
             total_height += title_height
+
+        subtitle = slide.get_subtitle_element()
+        if subtitle:
+            from markdowndeck.layout.metrics import calculate_element_height
+
+            subtitle_height = calculate_element_height(subtitle, self.max_content_width)
+            subtitle.size = (self.max_content_width, subtitle_height)
+            subtitle_y = self.margins["top"] + total_height
+            subtitle.position = (self.margins["left"], subtitle_y)
+            total_height += subtitle_height
+
         return total_height
 
     def _position_footer_elements(self, slide: Slide) -> float:

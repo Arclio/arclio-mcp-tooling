@@ -42,6 +42,7 @@ def _determine_layout_orientation(children: list[Element | Section]) -> bool:
     Determine whether sections should use vertical layout based on their directives.
     REFACTORED: Filters for Section objects before checking attributes.
     """
+    # CRITICAL FIX: Filter to only Section objects before accessing .type
     sections = [child for child in children if isinstance(child, Section)]
     if not sections:
         return True  # Default to vertical if no subsections, only elements
@@ -262,91 +263,6 @@ def _position_horizontal_sections_equal_division(
                 calculator, child_sections, subsection_area, subsection_layout
             )
         current_x += section_width + calculator.HORIZONTAL_SPACING
-
-
-def _calculate_section_intrinsic_height_and_set_child_sizes(
-    calculator, section: Section, available_width: float, available_height: float = 0
-) -> float:
-    """
-    Calculate intrinsic height AND set the final size for all child elements.
-    """
-    section_elements = [
-        child for child in section.children if not hasattr(child, "children")
-    ]
-    if not section_elements:
-        return 40.0
-
-    padding = (
-        section.directives.get("padding", SECTION_PADDING)
-        if section.directives
-        else SECTION_PADDING
-    )
-    content_width = max(10.0, available_width - 2 * padding)
-    content_height = max(10.0, available_height - 2 * padding)
-    mark_related_elements(section_elements)
-
-    total_content_height = 0.0
-    for i, element in enumerate(section_elements):
-        # FIXED: Use calculate_image_display_size for images to preserve aspect ratio.
-        if element.element_type == ElementType.IMAGE:
-            from markdowndeck.layout.metrics.image import calculate_image_display_size
-
-            element_width, element_height = calculate_image_display_size(
-                element, content_width, content_height
-            )
-        else:
-            element_width = calculator._calculate_element_width(element, content_width)
-            element_height = calculator.calculate_element_height_with_proactive_scaling(
-                element, element_width, 0
-            )
-
-        element.size = (element_width, element_height)
-
-        total_content_height += element_height
-        if i < len(section_elements) - 1:
-            total_content_height += adjust_vertical_spacing(
-                element, calculator.VERTICAL_SPACING
-            )
-
-    total_height = total_content_height + (2 * padding)
-    return max(total_height, 20.0)
-
-
-def _determine_layout_orientation(sections: list[Section]) -> bool:
-    """
-    Determine whether sections should use vertical layout based on their directives.
-    """
-    has_height_only_directives = any(
-        hasattr(section, "directives")
-        and section.directives
-        and "height" in section.directives
-        and "width" not in section.directives
-        for section in sections
-    )
-    has_single_section = len(sections) == 1
-    has_row_sections = any(section.type == "row" for section in sections)
-    has_width_directives = any(
-        hasattr(section, "directives")
-        and section.directives
-        and "width" in section.directives
-        for section in sections
-    )
-    has_multiple_regular_sections = (
-        len(sections) > 1
-        and all(section.type == "section" for section in sections)
-        and not has_width_directives
-    )
-
-    if len(sections) > 1 and has_row_sections:
-        return True
-
-    if has_multiple_regular_sections and not has_width_directives:
-        all_sections_minimal = all(
-            not section.content and not section.directives for section in sections
-        )
-        return not all_sections_minimal
-
-    return (has_height_only_directives or has_single_section) and not has_row_sections
 
 
 def _calculate_predictable_dimensions(
