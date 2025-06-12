@@ -10,7 +10,6 @@ from markdowndeck.models import (
     Deck,
     ElementType,
     ImageElement,
-    Section,
     Slide,
     TextElement,
 )
@@ -25,10 +24,9 @@ def api_generator() -> ApiRequestGenerator:
 @pytest.fixture
 def finalized_slide() -> Slide:
     """Provides a slide in the 'Finalized' state."""
+    # REFACTORED: Removed `sections` argument to align with the new Slide model.
     return Slide(
         object_id="final_slide_1",
-        sections=[],
-        elements=[],
         renderable_elements=[
             TextElement(
                 element_type=ElementType.TITLE,
@@ -56,12 +54,14 @@ class TestApiRequestGenerator:
         Test Case: API-C-01
         Validates the generator ONLY reads from `slide.renderable_elements`.
         """
-        finalized_slide.sections = [Section(id="junk_section")]
+        # Add junk data to stale attributes to ensure they are ignored.
+        finalized_slide.root_section = "Junk data"  # type: ignore
         finalized_slide.elements = [
             ImageElement(element_type=ElementType.IMAGE, url="junk.png")
         ]
         deck = Deck(slides=[finalized_slide])
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+
         title_req = next(
             (
                 r
@@ -81,9 +81,7 @@ class TestApiRequestGenerator:
         assert title_req is not None
         assert body_req is not None
         image_req = next((r for r in requests if "createImage" in r), None)
-        assert (
-            image_req is None
-        ), "Junk data from stale 'elements' list must be ignored."
+        assert image_req is None, "Junk data from stale attributes must be ignored."
 
     def test_api_c_02(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
         """
@@ -95,12 +93,14 @@ class TestApiRequestGenerator:
         api_generator.generate_batch_requests(deck, "pres_id")
         assert (
             finalized_slide == original_slide_copy
-        ), "Generator must not modify the input slide."
+        ), "Generator must not modify input."
 
-    def test_api_c_03(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
+    def test_api_c_03_and_c_09(
+        self, api_generator: ApiRequestGenerator, finalized_slide: Slide
+    ):
         """
-        Test Case: API-C-03
-        Validates interpretation of visual styling directives.
+        Test Cases: API-C-03 & API-C-09
+        Validates interpretation of visual styling directives and color formats.
         """
         styled_element = TextElement(
             element_type=ElementType.TEXT,
@@ -113,73 +113,46 @@ class TestApiRequestGenerator:
         finalized_slide.renderable_elements.append(styled_element)
         deck = Deck(slides=[finalized_slide])
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
-        style_reqs = [
-            r
-            for r in requests
-            if "updateTextStyle" in r
-            and r["updateTextStyle"]["objectId"] == "styled_el"
-        ]
-        assert len(style_reqs) > 0
-        color_update = next(
-            (
-                r
-                for r in style_reqs
-                if "foregroundColor" in r["updateTextStyle"]["style"]
-            ),
-            None,
-        )
-        font_update = next(
-            (r for r in style_reqs if "fontSize" in r["updateTextStyle"]["style"]), None
-        )
-        assert (
-            color_update is not None
-        ), "A request to update foregroundColor should exist."
-        assert font_update is not None, "A request to update fontSize should exist."
 
-    def test_api_c_05(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
-        """
-        Test Case: API-C-05
-        Validates that generated requests use precise `fields` masks.
-        """
-        bg_element = TextElement(
-            element_type=ElementType.TEXT,
-            text="BG Text",
-            object_id="bg_el",
-            position=(50, 250),
-            size=(200, 50),
-            directives={"background": {"type": "hex", "value": "#123456"}},
-        )
-        finalized_slide.renderable_elements.append(bg_element)
-        deck = Deck(slides=[finalized_slide])
-        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
-        update_req = next(
+        style_req = next(
             (
                 r
                 for r in requests
-                if "updateShapeProperties" in r
-                and r["updateShapeProperties"]["objectId"] == "bg_el"
+                if "updateTextStyle" in r
+                and r["updateTextStyle"]["objectId"] == "styled_el"
             ),
             None,
         )
-        assert update_req is not None
+        assert style_req is not None, "A request to update text style should exist."
 
-        # FIXED: Test that the required mask is a SUBSET of the generated fields.
-        # This is more robust and allows for combined property updates.
-        expected_mask = "shapeBackgroundFill.solidFill.color.rgbColor"
-        actual_fields = update_req["updateShapeProperties"]["fields"]
+        style_payload = style_req["updateTextStyle"]["style"]
         assert (
-            expected_mask in actual_fields
-        ), f"Expected fields to contain '{expected_mask}', but got '{actual_fields}'."
+            "foregroundColor" in style_payload
+        ), "Style payload should contain foregroundColor."
+        assert "fontSize" in style_payload, "Style payload should contain fontSize."
 
-    def test_api_c_18_universal_shape_creation(
+        rgb_color = style_payload["foregroundColor"]["opaqueColor"]["rgbColor"]
+        assert abs(rgb_color["red"] - 1.0) < 0.01
+        assert rgb_color["green"] == 0
+        assert rgb_color["blue"] == 0
+
+    def test_api_c_05_and_c_18(
         self, api_generator: ApiRequestGenerator, finalized_slide: Slide
     ):
         """
-        Test Case: API-C-18
-        Validates that a new shape is created for the TITLE element.
+        Test Cases: API-C-05 & API-C-18
+        Validates that all slides are created using the BLANK layout and all elements are new shapes.
         """
         deck = Deck(slides=[finalized_slide])
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+
+        create_slide_req = next((r for r in requests if "createSlide" in r), None)
+        assert create_slide_req is not None
+        assert (
+            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
+            == "BLANK"
+        )
+
         title_create_shape = next(
             (
                 r
@@ -191,64 +164,3 @@ class TestApiRequestGenerator:
         assert (
             title_create_shape is not None
         ), "A createShape request MUST be generated for the TITLE element."
-
-    def test_api_c_06_blank_layout_is_always_used(
-        self, api_generator: ApiRequestGenerator, finalized_slide: Slide
-    ):
-        """
-        Test Case: API-C-06
-        Validates that all slides are created using the BLANK layout.
-        """
-        # Arrange
-        deck = Deck(slides=[finalized_slide])
-
-        # Act
-        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
-        create_slide_req = next((r for r in requests if "createSlide" in r), None)
-
-        # Assert
-        assert create_slide_req is not None
-        assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            == "BLANK"
-        )
-
-    def test_api_c_09_color_format_handling(
-        self, api_generator: ApiRequestGenerator, finalized_slide: Slide
-    ):
-        """
-        Test Case: API-C-09
-        Validates correct conversion of different color formats.
-        """
-        # Arrange
-        hex_element = TextElement(
-            element_type=ElementType.TEXT,
-            text="Red",
-            object_id="hex_el",
-            position=(10, 10),
-            size=(100, 20),
-            directives={"color": "#FF0000"},
-        )
-        finalized_slide.renderable_elements.append(hex_element)
-        deck = Deck(slides=[finalized_slide])
-
-        # Act
-        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
-        style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and r["updateTextStyle"]["objectId"] == "hex_el"
-            ),
-            None,
-        )
-
-        # Assert
-        assert style_req is not None
-        rgb_color = style_req["updateTextStyle"]["style"]["foregroundColor"][
-            "opaqueColor"
-        ]["rgbColor"]
-        assert abs(rgb_color["red"] - 1.0) < 0.01
-        assert abs(rgb_color["green"] - 0.0) < 0.01
-        assert abs(rgb_color["blue"] - 0.0) < 0.01

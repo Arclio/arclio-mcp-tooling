@@ -25,37 +25,19 @@ logger = logging.getLogger(__name__)
 class ContentParser:
     """
     Parse markdown content into slide elements with improved directive handling.
-
-    Key improvements:
-    - Robust element-specific directive detection and association
-    - Proper directive consumption to prevent spurious text elements
-    - Enhanced block element directive support
     """
 
     def __init__(self):
         """Initialize the content parser and its formatters."""
-        opts = {
-            "html": False,
-            "typographer": True,
-            "linkify": True,
-            "breaks": True,
-        }
+        opts = {"html": False, "typographer": True, "linkify": True, "breaks": True}
         self.md = MarkdownIt("commonmark", opts)
         self.md.enable("table")
         self.md.enable("strikethrough")
-
         self.element_factory = ElementFactory()
-        # ARCHITECTURAL IMPROVEMENT: Create single DirectiveParser instance
         self.directive_parser = DirectiveParser()
-
-        # Initialize formatters with dependency injection
         self.formatters: list[BaseFormatter] = [
-            ImageFormatter(
-                self.element_factory
-            ),  # TASK 1.3: ImageFormatter now handles post-image directives
-            ListFormatter(
-                self.element_factory
-            ),  # ListFormatter now has its own DirectiveParser
+            ImageFormatter(self.element_factory),
+            ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
             TextFormatter(self.element_factory, self.directive_parser),
@@ -71,61 +53,26 @@ class ContentParser:
         subtitle_directives: dict[str, Any] | None = None,
     ) -> list[Element]:
         """
-        Parse content into slide elements and populate section.elements.
-
-        Args:
-            slide_title_text: The slide title text
-            subtitle_text: Optional subtitle text
-            sections: The list of Section models for the slide
-            slide_footer_text: Optional footer text
-            title_directives: Optional title-level directives (from same-line parsing)
-            subtitle_directives: Optional subtitle-level directives (from same-line parsing)
-
-        Returns:
-            List of all elements for the slide
+        Parse content into slide elements and populate section.children.
         """
         logger.debug("Parsing content with improved directive handling")
         all_elements: list[Element] = []
 
-        # Process the title (H1) with directives
         if slide_title_text:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_title_text, self.md
             )
-
-            # Per Unified Hierarchical Directive Scoping: only use title-level directives
-            # (from same-line parsing), NOT section directives
             title_element = self.element_factory.create_title_element(
                 slide_title_text, formatting, title_directives or {}
             )
-
             all_elements.append(title_element)
-            logger.debug(f"Added title element: {slide_title_text[:30]}")
 
-        # After the `if slide_title_text:` block, add this:
         if subtitle_text:
-            # Subtitle formatting is simple, no need to parse complex markdown
             subtitle_formatting = self.element_factory.extract_formatting_from_text(
                 subtitle_text, self.md
             )
-
-            # FIX: Use subtitle directives from same-line parsing, not section directives
-            # Per DIRECTIVES.md Rule 1: same-line directives take precedence
-            if subtitle_directives:
-                # Use subtitle directives from same-line parsing
-                directives_to_use = subtitle_directives.copy()
-                subtitle_alignment = AlignmentType(
-                    subtitle_directives.get("align", "center")
-                )
-            else:
-                # Fallback to section directives if no same-line directives
-                section_for_subtitle = sections[0] if sections else Section()
-                section_directives = section_for_subtitle.directives or {}
-                directives_to_use = section_directives.copy()
-                subtitle_alignment = AlignmentType(
-                    section_directives.get("align", "center")
-                )
-
+            directives_to_use = subtitle_directives or {}
+            subtitle_alignment = AlignmentType(directives_to_use.get("align", "center"))
             subtitle_element = self.element_factory.create_subtitle_element(
                 text=subtitle_text,
                 formatting=subtitle_formatting,
@@ -133,13 +80,11 @@ class ContentParser:
                 directives=directives_to_use,
             )
             all_elements.append(subtitle_element)
-            logger.debug(f"Added subtitle element: {subtitle_text[:30]}")
 
-        # Process all sections recursively
+        # REFACTORED: Start recursive processing from the list of top-level sections.
         for section in sections:
             self._process_section_recursively(section, all_elements)
 
-        # Process the footer
         if slide_footer_text:
             formatting = self.element_factory.extract_formatting_from_text(
                 slide_footer_text, self.md
@@ -148,7 +93,6 @@ class ContentParser:
                 slide_footer_text, formatting
             )
             all_elements.append(footer_element)
-            logger.debug(f"Added footer element: {slide_footer_text[:30]}")
 
         logger.info(f"Created {len(all_elements)} total elements from content")
         return all_elements
@@ -156,30 +100,25 @@ class ContentParser:
     def _process_section_recursively(
         self, section: Section, all_elements: list[Element]
     ):
-        """Process a section and its subsections recursively."""
-        if section.type == "row" and section.children:
-            # Process child sections in row
-            for child in section.children:
-                if isinstance(child, Section):
-                    self._process_section_recursively(child, all_elements)
-        elif section.type == "section" and section.content:
+        """
+        Process a section and its children recursively, populating elements.
+        """
+        # If the section has raw content, parse it into element children.
+        if section.content:
             tokens = self.md.parse(section.content)
-            logger.debug(f"Processing section {section.id} with {len(tokens)} tokens")
-
-            # CRITICAL FIX P1: Enhanced token processing with directive detection
             parsed_elements = self._process_tokens_with_directive_detection(
                 tokens, section.directives
             )
-
-            # Add elements to the unified children list
             section.children.extend(parsed_elements)
             all_elements.extend(parsed_elements)
-            logger.debug(
-                f"Added {len(parsed_elements)} elements to section {section.id}"
-            )
+            section.content = ""  # Clear stale content
 
-            # Clear stale raw content after parsing to prevent data inconsistency
-            section.content = ""
+        # If the section has nested sections, recurse into them.
+        child_sections = [
+            child for child in section.children if isinstance(child, Section)
+        ]
+        for child_section in child_sections:
+            self._process_section_recursively(child_section, all_elements)
 
     def _process_tokens_with_directive_detection(
         self, tokens: list[Token], section_directives: dict[str, Any]

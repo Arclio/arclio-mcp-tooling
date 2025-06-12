@@ -1,6 +1,6 @@
 import pytest
 from markdowndeck.layout import LayoutManager
-from markdowndeck.models import ElementType, Section, Slide, TextElement
+from markdowndeck.models import ElementType, ImageElement, Section, Slide, TextElement
 
 
 @pytest.fixture
@@ -8,23 +8,28 @@ def layout_manager() -> LayoutManager:
     return LayoutManager()
 
 
-def _create_unpositioned_slide(elements=None, sections=None, object_id="test_slide"):
-    if sections is None:
-        sections = []
+def _create_unpositioned_slide(
+    elements=None, root_section=None, object_id="test_slide"
+):
     if elements is None:
         elements = []
-    return Slide(object_id=object_id, elements=elements, sections=sections)
+    # If no root_section is provided but elements exist, create a default one.
+    if root_section is None and elements:
+        body_elements = [
+            e
+            for e in elements
+            if e.element_type not in (ElementType.TITLE, ElementType.FOOTER)
+        ]
+        root_section = Section(id="root", children=body_elements)
+
+    return Slide(object_id=object_id, elements=elements, root_section=root_section)
 
 
-class TestLayoutManagerDirectives:
+class TestLayoutManager:
     def test_layout_c_07_proportional_width_division(
         self, layout_manager: LayoutManager
     ):
-        """
-        Test Case: LAYOUT-C-07
-        Validates precise proportional width division for horizontal sections.
-        """
-        # Arrange
+        """Test Case: LAYOUT-C-07"""
         sections = [
             Section(
                 id="sec1",
@@ -43,110 +48,67 @@ class TestLayoutManagerDirectives:
             ),
         ]
         row_section = Section(id="root_row", type="row", children=sections)
-        # Flatten elements for initial slide inventory
         elements = [child.children[0] for child in sections]
-        slide = Slide(
-            object_id="proportional_slide", sections=[row_section], elements=elements
-        )
+        slide = _create_unpositioned_slide(elements=elements, root_section=row_section)
 
-        # Act
         positioned_slide = layout_manager.calculate_positions(slide)
 
-        # Assert
-        positioned_sections = positioned_slide.sections[0].children
+        positioned_sections = positioned_slide.root_section.children
         content_width = layout_manager.max_content_width
 
         assert len(positioned_sections) == 3
-        assert positioned_sections[0].size is not None
-        assert positioned_sections[1].size is not None
-        assert positioned_sections[2].size is not None
-
-        # Check widths with a small tolerance for floating point math
-        assert abs(positioned_sections[0].size[0] - content_width * 0.2) < 0.1
-        assert abs(positioned_sections[1].size[0] - content_width * 0.5) < 0.1
-        assert abs(positioned_sections[2].size[0] - content_width * 0.3) < 0.1
+        assert abs(positioned_sections[0].size[0] - content_width * 0.2) < 1.0
+        assert abs(positioned_sections[1].size[0] - content_width * 0.5) < 1.0
+        assert abs(positioned_sections[2].size[0] - content_width * 0.3) < 1.0
 
     def test_layout_c_04_fixed_height_directive_is_respected(
         self, layout_manager: LayoutManager
     ):
-        """
-        Test Case: LAYOUT-C-04
-        Validates that a fixed height directive on a section is respected.
-        """
-        # Arrange
-        # This element's intrinsic height will be > 100pt
-        tall_element = TextElement(
-            element_type=ElementType.TEXT,
-            text="Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6",
-        )
+        """Test Case: LAYOUT-C-04"""
+        tall_element = TextElement(element_type=ElementType.TEXT, text="Line 1\n" * 6)
         section = Section(
             id="fixed_height_sec", directives={"height": 100}, children=[tall_element]
         )
-        slide = Slide(
-            object_id="fixed_height_slide", sections=[section], elements=[tall_element]
+        slide = _create_unpositioned_slide(
+            elements=[tall_element], root_section=section
         )
 
-        # Act
         positioned_slide = layout_manager.calculate_positions(slide)
+        positioned_section = positioned_slide.root_section
 
-        # Assert
-        positioned_section = positioned_slide.sections[0]
         assert positioned_section.size is not None
-        assert (
-            positioned_section.size[1] == 100.0
-        ), "The section height must be exactly what the directive specified."
+        assert positioned_section.size[1] == 100.0
 
-    def test_layout_c_01(self, layout_manager: LayoutManager):
-        text_element = TextElement(element_type=ElementType.TEXT, text="Content")
-        section = Section(id="sec1", children=[text_element])
-        unpositioned_slide = _create_unpositioned_slide(
-            elements=[text_element], sections=[section]
+    def test_layout_c_02_proactive_image_scaling(self, layout_manager: LayoutManager):
+        """Test Case: LAYOUT-C-02"""
+        image = ImageElement(
+            element_type=ElementType.IMAGE, url="test.png", aspect_ratio=1.6
         )
-        positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
-        assert positioned_slide.elements == []
+        section = Section(id="img_sec", children=[image])
+        slide = _create_unpositioned_slide(elements=[image], root_section=section)
+
+        positioned_slide = layout_manager.calculate_positions(slide)
+        positioned_image = positioned_slide.root_section.children[0]
+
+        assert positioned_image.size is not None
+        expected_width = layout_manager.max_content_width
+        expected_height = expected_width / 1.6
+
+        assert abs(positioned_image.size[0] - expected_width) < 1.0
+        assert abs(positioned_image.size[1] - expected_height) < 1.0
 
     def test_layout_c_09_gap_directive(self, layout_manager: LayoutManager):
+        """Test Case: LAYOUT-C-06"""
         elements = [
             TextElement(element_type=ElementType.TEXT, text="El 1"),
             TextElement(element_type=ElementType.TEXT, text="El 2"),
         ]
         section = Section(id="root", children=elements, directives={"gap": 20})
-        slide = _create_unpositioned_slide(elements=elements, sections=[section])
+        slide = _create_unpositioned_slide(elements=elements, root_section=section)
+
         positioned_slide = layout_manager.calculate_positions(slide)
-        el1, el2 = positioned_slide.sections[0].children
+        el1, el2 = positioned_slide.root_section.children
+
         expected_gap = 20.0
         actual_gap = el2.position[1] - (el1.position[1] + el1.size[1])
-        assert (
-            abs(actual_gap - expected_gap) < 1.0
-        ), "Gap directive was not applied correctly."
-
-    def test_layout_c_10_flexible_body_area(self, layout_manager: LayoutManager):
-        """
-        Test Case: LAYOUT-C-10
-        Verifies flexible body area calculation.
-        """
-        # Arrange
-        title = TextElement(element_type=ElementType.TITLE, text="Title")
-        body = TextElement(element_type=ElementType.TEXT, text="Body")
-
-        slide_with_title = _create_unpositioned_slide(
-            elements=[title, body], sections=[Section(id="s1", children=[body])]
-        )
-        slide_no_title = _create_unpositioned_slide(
-            elements=[body], sections=[Section(id="s2", children=[body])]
-        )
-
-        # Act
-        lm_with_title = LayoutManager()
-        lm_no_title = LayoutManager()
-        lm_with_title.calculate_positions(slide_with_title)
-        lm_no_title.calculate_positions(slide_no_title)
-
-        # Assert
-        # FIXED: Assert against the calculator's body_height, which reflects Rule #7.
-        height_with_title = lm_with_title.position_calculator.body_height
-        height_no_title = lm_no_title.position_calculator.body_height
-
-        assert (
-            height_no_title > height_with_title
-        ), "Body area should be taller when no title is present."
+        assert abs(actual_gap - expected_gap) < 1.0

@@ -56,8 +56,6 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
         )
 
-        # FIXED: Separated autofit request to prevent field mask conflicts.
-        # This is a dedicated request to ensure autofit is disabled correctly.
         requests.append(
             {
                 "updateShapeProperties": {
@@ -68,7 +66,6 @@ class TextRequestBuilder(BaseRequestBuilder):
             }
         )
 
-        # Handle other shape properties in a separate request.
         shape_props = {}
         fields = []
         self._add_shape_properties(element, shape_props, fields)
@@ -114,9 +111,8 @@ class TextRequestBuilder(BaseRequestBuilder):
                         )
                     )
 
-        self._apply_paragraph_styling(element, requests)
-        self._apply_text_color_directive(element, requests)
-        self._apply_font_size_directive(element, requests)
+        # REFACTORED: Consolidate all paragraph and text styling into one method call.
+        self._apply_styling_directives(element, requests)
 
         return requests
 
@@ -125,8 +121,6 @@ class TextRequestBuilder(BaseRequestBuilder):
     ):
         """Helper to aggregate all shape-level property updates."""
         directives = element.directives or {}
-
-        # Vertical Alignment
         valign_directive = directives.get("valign")
         content_alignment = None
         if element.element_type in [ElementType.TITLE, ElementType.SUBTITLE]:
@@ -141,31 +135,19 @@ class TextRequestBuilder(BaseRequestBuilder):
             props["contentAlignment"] = content_alignment
             fields.append("contentAlignment")
 
-        # Background Properties
         bg_dir = directives.get("background")
-        # Handle dict format from directive parser
-        if isinstance(bg_dir, dict):
-            if bg_dir.get("type") == "hex":
-                bg_val = bg_dir.get("value")
-                if bg_val:
-                    try:
-                        rgb = self._hex_to_rgb(bg_val)
-                        props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                            "color": {"rgbColor": rgb}
-                        }
-                        fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
-                    except (ValueError, AttributeError):
-                        logger.warning(f"Invalid background color value: {bg_val}")
-            elif bg_dir.get("type") == "named":
-                # For named colors, we need to handle them differently
-                bg_val = bg_dir.get("value")
-                if bg_val:
-                    # For now, just log a warning - named colors need special handling
-                    logger.warning(
-                        f"Named background colors not yet supported: {bg_val}"
-                    )
+        if isinstance(bg_dir, dict) and bg_dir.get("type") == "hex":
+            bg_val = bg_dir.get("value")
+            if bg_val:
+                try:
+                    rgb = self._hex_to_rgb(bg_val)
+                    props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
+                        "color": {"rgbColor": rgb}
+                    }
+                    fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
+                except (ValueError, AttributeError):
+                    logger.warning(f"Invalid background color value: {bg_val}")
         elif isinstance(bg_dir, str):
-            # Handle simple string format (legacy)
             try:
                 rgb = self._hex_to_rgb(bg_dir)
                 props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
@@ -175,22 +157,17 @@ class TextRequestBuilder(BaseRequestBuilder):
             except (ValueError, AttributeError):
                 logger.warning(f"Invalid background color value: {bg_dir}")
 
-        # Border Properties (simplified)
-        border_val = directives.get("border")
-        if isinstance(border_val, str):
+        if isinstance(directives.get("border"), str):
             props["outline"] = {"dashStyle": "SOLID"}
             fields.append("outline.dashStyle")
 
-    def _apply_paragraph_styling(self, element: TextElement, requests: list[dict]):
-        style_updates = {}
-        fields_list = []
+    def _apply_styling_directives(self, element: TextElement, requests: list[dict]):
+        """Consolidates all text and paragraph styling from directives."""
+        para_style_updates, para_fields = {}, []
+        text_style_updates, text_fields = {}, []
         directives = element.directives or {}
 
-        line_spacing = directives.get("line-spacing", 1.15)
-        if isinstance(line_spacing, int | float) and line_spacing > 0:
-            style_updates["lineSpacing"] = float(line_spacing) * 100.0
-            fields_list.append("lineSpacing")
-
+        # Paragraph styles
         alignment_map = {
             AlignmentType.LEFT: "START",
             AlignmentType.CENTER: "CENTER",
@@ -200,75 +177,63 @@ class TextRequestBuilder(BaseRequestBuilder):
         api_alignment = alignment_map.get(element.horizontal_alignment, "START")
         if "align" in directives:
             api_alignment = alignment_map.get(directives["align"], api_alignment)
-        style_updates["alignment"] = api_alignment
-        fields_list.append("alignment")
+        para_style_updates["alignment"] = api_alignment
+        para_fields.append("alignment")
 
-        if style_updates:
+        line_spacing = directives.get("line-spacing", 1.15)
+        if isinstance(line_spacing, int | float) and line_spacing > 0:
+            para_style_updates["lineSpacing"] = float(line_spacing) * 100.0
+            para_fields.append("lineSpacing")
+
+        if para_style_updates:
             requests.append(
                 {
                     "updateParagraphStyle": {
                         "objectId": element.object_id,
                         "textRange": {"type": "ALL"},
-                        "style": style_updates,
-                        "fields": ",".join(sorted(set(fields_list))),
+                        "style": para_style_updates,
+                        "fields": ",".join(sorted(set(para_fields))),
                     }
                 }
             )
 
-    def _apply_text_color_directive(self, element: TextElement, requests: list[dict]):
-        color_val = (element.directives or {}).get("color")
-        if not color_val:
-            return
-
-        # Handle both string and dict formats
-        if isinstance(color_val, dict):
-            # Extract the actual color value from the dict
-            if color_val.get("type") == "hex" or color_val.get("type") == "named":
-                color_str = color_val.get("value")
-            else:
-                logger.warning(f"Unsupported color type: {color_val.get('type')}")
-                return
-        elif isinstance(color_val, str):
-            color_str = color_val
-        else:
-            return
-
-        try:
-            color_format = TextFormat(
-                start=0, end=0, format_type=TextFormatType.COLOR, value=color_str
+        # Text styles
+        if "color" in directives:
+            color_val = directives["color"]
+            color_str = (
+                color_val.get("value") if isinstance(color_val, dict) else color_val
             )
-            style = self._format_to_style(color_format)
-            if "foregroundColor" in style:
-                requests.append(
-                    self._apply_text_formatting(
-                        element_id=element.object_id,
-                        style={"foregroundColor": style["foregroundColor"]},
-                        fields="foregroundColor",
-                        range_type="ALL",
+            if color_str:
+                try:
+                    style = self._format_to_style(
+                        TextFormat(0, 0, TextFormatType.COLOR, color_str)
                     )
-                )
-        except (ValueError, AttributeError):
-            logger.warning(f"Invalid text color value: {color_str}")
+                    if "foregroundColor" in style:
+                        text_style_updates["foregroundColor"] = style["foregroundColor"]
+                        text_fields.append("foregroundColor")
+                except (ValueError, AttributeError):
+                    logger.warning(f"Invalid text color value: {color_str}")
 
-    def _apply_font_size_directive(self, element: TextElement, requests: list[dict]):
-        font_size_raw = (element.directives or {}).get("fontsize")
-        if not font_size_raw:
-            return
+        if "fontsize" in directives:
+            try:
+                font_size = float(directives["fontsize"])
+                if font_size > 0:
+                    text_style_updates["fontSize"] = {
+                        "magnitude": font_size,
+                        "unit": "PT",
+                    }
+                    text_fields.append("fontSize")
+            except (ValueError, TypeError):
+                logger.warning(f"Invalid font size value: {directives['fontsize']}")
 
-        # Convert string directive values to numeric
-        try:
-            font_size = float(font_size_raw)
-            if font_size <= 0:
-                return
-        except (ValueError, TypeError):
-            logger.warning(f"Invalid font size value: {font_size_raw}")
-            return
-
-        requests.append(
-            self._apply_text_formatting(
-                element_id=element.object_id,
-                style={"fontSize": {"magnitude": font_size, "unit": "PT"}},
-                fields="fontSize",
-                range_type="ALL",
+        if text_style_updates:
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": text_style_updates,
+                        "fields": ",".join(sorted(set(text_fields))),
+                    }
+                }
             )
-        )

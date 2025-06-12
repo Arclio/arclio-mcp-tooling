@@ -18,15 +18,91 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_section_based_positions(calculator, slide: Slide) -> Slide:
-    if not slide.sections:
+    """
+    Calculates positions for the slide's content starting from the root_section.
+    """
+    if not slide.root_section:
         return slide
+
     body_area = calculator.get_body_zone_area()
-    is_vertical_layout = _determine_layout_orientation(slide.sections)
+    is_vertical_layout = _determine_layout_orientation(slide.root_section.children)
+
+    slide.root_section.position = (body_area[0], body_area[1])
+    slide.root_section.size = (body_area[2], body_area[3])
+
     _distribute_and_position_sections_unified(
-        calculator, slide.sections, body_area, is_vertical_layout
+        calculator, slide.root_section.children, body_area, is_vertical_layout
     )
     _position_elements_in_all_sections(calculator, slide)
     return slide
+
+
+def _determine_layout_orientation(children: list[Element | Section]) -> bool:
+    """
+    Determine whether sections should use vertical layout based on their directives.
+    REFACTORED: Filters for Section objects before checking attributes.
+    """
+    sections = [child for child in children if isinstance(child, Section)]
+    if not sections:
+        return True  # Default to vertical if no subsections, only elements
+
+    has_height_only_directives = any(
+        s.directives.get("height") and not s.directives.get("width") for s in sections
+    )
+    has_row_sections = any(s.type == "row" for s in sections)
+    has_width_directives = any(s.directives.get("width") for s in sections)
+
+    if len(sections) > 1 and has_row_sections:
+        return True
+    if len(sections) > 1 and not has_width_directives:
+        return True
+
+    return (has_height_only_directives or len(sections) == 1) and not has_row_sections
+
+
+def _calculate_section_intrinsic_height_and_set_child_sizes(
+    calculator, section: Section, available_width: float, available_height: float = 0
+) -> float:
+    """
+    Calculate intrinsic height AND set the final size for all child elements.
+    """
+    section_elements = [
+        child for child in section.children if not hasattr(child, "children")
+    ]
+    if not section_elements:
+        return 40.0
+
+    padding = (
+        section.directives.get("padding", SECTION_PADDING)
+        if section.directives
+        else SECTION_PADDING
+    )
+    content_width = max(10.0, available_width - 2 * padding)
+    content_height = max(10.0, available_height - 2 * padding)
+    mark_related_elements(section_elements)
+
+    total_content_height = 0.0
+    for i, element in enumerate(section_elements):
+        if element.element_type == ElementType.IMAGE:
+            from markdowndeck.layout.metrics.image import calculate_image_display_size
+
+            element_width, element_height = calculate_image_display_size(
+                element, content_width, content_height
+            )
+        else:
+            element_width = calculator._calculate_element_width(element, content_width)
+            element_height = calculator.calculate_element_height_with_proactive_scaling(
+                element, element_width, 0
+            )
+        element.size = (element_width, element_height)
+        total_content_height += element_height
+        if i < len(section_elements) - 1:
+            total_content_height += adjust_vertical_spacing(
+                element, calculator.VERTICAL_SPACING
+            )
+
+    total_height = total_content_height + (2 * padding)
+    return max(total_height, 20.0)
 
 
 def _distribute_and_position_sections_unified(
@@ -37,16 +113,6 @@ def _distribute_and_position_sections_unified(
 ) -> None:
     """
     Distribute space among sections using the unified sequential model.
-
-    This implements the specification's requirements:
-    - Rule #2: Horizontal Division with equal space for columns without explicit width
-    - Rule #3: Vertical Division with sequential, content-aware positioning
-
-    Args:
-        calculator: The PositionCalculator instance
-        sections: List of sections to position
-        area: (left, top, width, height) of available area
-        is_vertical_layout: True for vertical stacking, False for horizontal
     """
     if not sections:
         return
@@ -346,9 +412,12 @@ def _calculate_predictable_dimensions(
 def _position_elements_in_all_sections(calculator, slide: Slide) -> None:
     """
     Position elements within all sections.
+    REFACTORED: Starts traversal from the single root_section.
     """
+    if not slide.root_section:
+        return
     leaf_sections = []
-    _collect_leaf_sections(slide.sections, leaf_sections)
+    _collect_leaf_sections([slide.root_section], leaf_sections)
     for section in leaf_sections:
         if [child for child in section.children if not hasattr(child, "children")]:
             _position_elements_within_section(calculator, section)

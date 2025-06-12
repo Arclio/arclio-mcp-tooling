@@ -41,20 +41,29 @@ class Section:
 class Slide:
     """Represents a slide in a presentation."""
 
+    # REFACTORED: The `elements` list is now the primary inventory of all elements created by the parser.
+    # It is used by the LayoutManager and then cleared during finalization.
     elements: list[Element] = field(default_factory=list)
+    # REFACTORED: `renderable_elements` is populated by the LayoutManager and OverflowManager and is the
+    # final source of truth for the API Generator.
     renderable_elements: list[Element] = field(default_factory=list)
-    layout: SlideLayout = SlideLayout.TITLE_AND_BODY
+
+    # REFACTORED: `root_section` is the new single entry point for the slide's body content hierarchy.
+    # This aligns with ARCHITECTURE.md Sec 3.
+    root_section: Section | None = None
+    # REFACTORED: `is_continuation` flag added per DATA_MODELS.md Sec 3.1.
+    is_continuation: bool = False
+
+    layout: SlideLayout = SlideLayout.BLANK
     notes: str | None = None
     object_id: str | None = None
     footer: str | None = None
-    sections: list[Section] = field(default_factory=list)
     background: dict[str, Any] | None = None
     title: str = ""  # Store the title text for easier reference
-    title_directives: dict[str, Any] = field(
-        default_factory=dict
-    )  # Store title directives
     speaker_notes_object_id: str | None = None
-    placeholder_mappings: dict[Any, str] = field(default_factory=dict)
+
+    # REMOVED: `sections`, `title_directives`, `subtitle_directives`, and `placeholder_mappings`
+    # are obsolete under the new architecture. Directives are stored directly on elements.
 
     def __post_init__(self):
         """Extract title from elements for convenience."""

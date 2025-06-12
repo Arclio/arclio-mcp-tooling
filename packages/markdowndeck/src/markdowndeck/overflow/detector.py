@@ -11,22 +11,9 @@ logger = logging.getLogger(__name__)
 class OverflowDetector:
     """
     Overflow detector that enforces strict jurisdictional boundaries.
-
-    Per the specification: The Overflow Handler's logic is triggered ONLY when a section's
-    external bounding box overflows the slide's available height. It MUST IGNORE internal
-    content overflow within a section whose bounding box fits on the slide.
     """
 
-    # REFACTORED: Removed static height calculation from __init__.
-    # JUSTIFICATION: Body height is dynamic and depends on the presence of meta-elements on each slide.
     def __init__(self, slide_height: float, top_margin: float):
-        """
-        Initialize the overflow detector.
-
-        Args:
-            slide_height: The total height of the slide canvas.
-            top_margin: The slide's top margin.
-        """
         self.slide_height = slide_height
         self.top_margin = top_margin
         logger.debug(
@@ -35,57 +22,48 @@ class OverflowDetector:
 
     def find_first_overflowing_section(self, slide: "Slide") -> "Section | None":
         """
-        Find the first section whose EXTERNAL BOUNDING BOX overflows the slide's body height.
-
-        This method strictly enforces the jurisdictional boundary: it only considers
-        external section overflow, completely ignoring any internal content overflow
-        within sections that have user-defined, fixed sizes.
-
-        Args:
-            slide: The slide to analyze for overflow
-
-        Returns:
-            The first externally overflowing Section, or None if no external overflow
+        Finds if the root section's EXTERNAL BOUNDING BOX overflows the slide's body height.
+        REFACTORED: To check only the single slide.root_section per the new architecture.
         """
-        if not slide.sections:
-            logger.debug("No sections in slide - no overflow possible")
+        # REFACTORED: Check for root_section, not a list of sections.
+        if not slide.root_section:
+            logger.debug("No root_section in slide - no overflow possible")
             return None
 
-        # FIXED: Dynamically calculate body_end_y for this specific slide.
         body_start_y, body_end_y = self._calculate_body_boundaries(slide)
         logger.debug(
-            f"Checking {len(slide.sections)} top-level sections for EXTERNAL overflow against body_end_y={body_end_y}"
+            f"Checking root_section for EXTERNAL overflow against body_end_y={body_end_y}"
         )
 
-        for i, section in enumerate(slide.sections):
-            if not section.position or not section.size:
-                logger.warning(
-                    f"Section {i} missing position or size - skipping overflow check"
-                )
-                continue
-
-            section_top = section.position[1]
-            section_height = section.size[1]
-            section_bottom = section_top + section_height
-
-            logger.debug(
-                f"Section {i}: external_top={section_top}, height={section_height}, "
-                f"external_bottom={section_bottom}, body_end_y={body_end_y}"
+        section = slide.root_section
+        if not section.position or not section.size:
+            logger.warning(
+                f"Root section {section.id} missing position or size - skipping overflow check"
             )
+            return None
 
-            if section_bottom > body_end_y:
-                if self._is_overflow_acceptable(section):
-                    logger.info(
-                        f"Section {i} external overflow is ACCEPTABLE - skipping"
-                    )
-                    continue
+        section_top = section.position[1]
+        section_height = section.size[1]
+        section_bottom = section_top + section_height
 
+        logger.debug(
+            f"Root section: external_top={section_top}, height={section_height}, "
+            f"external_bottom={section_bottom}, body_end_y={body_end_y}"
+        )
+
+        if section_bottom > body_end_y:
+            if self._is_overflow_acceptable(section):
                 logger.info(
-                    f"Found EXTERNAL overflowing section {i}: bottom={section_bottom} > body_end_y={body_end_y}"
+                    f"Root section {section.id} external overflow is ACCEPTABLE - skipping"
                 )
-                return section
+                return None
 
-        logger.debug("No externally overflowing sections found")
+            logger.info(
+                f"Found EXTERNAL overflowing root_section {section.id}: bottom={section_bottom} > body_end_y={body_end_y}"
+            )
+            return section
+
+        logger.debug("No externally overflowing section found")
         return None
 
     def _calculate_body_boundaries(self, slide: "Slide") -> tuple[float, float]:
@@ -100,7 +78,8 @@ class OverflowDetector:
 
         title = slide.get_title_element()
         if title and title.size and title.position:
-            top_offset = title.position[1] + title.size[1] + HEADER_TO_BODY_SPACING
+            title_bottom = title.position[1] + title.size[1]
+            top_offset = title_bottom + HEADER_TO_BODY_SPACING
 
         footer = slide.get_footer_element()
         if footer and footer.size and footer.position:

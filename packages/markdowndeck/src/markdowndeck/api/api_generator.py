@@ -51,31 +51,26 @@ class ApiRequestGenerator:
         Generate a batch of requests for a single slide.
         """
         requests = []
-
-        # Create the slide
         slide_request = self.slide_builder.create_slide_request(slide)
         requests.append(slide_request)
 
-        # Set slide background if present
         if slide.background:
             background_request = self.slide_builder.create_background_request(slide)
             if background_request:
                 requests.append(background_request)
 
         for element in slide.renderable_elements:
-            # Pass the entire slide object for context (e.g., title_directives)
             element_requests = self._generate_element_requests(element, slide)
             if element_requests:
                 requests.extend(element_requests)
 
-        # Add speaker notes if present
         if slide.notes and slide.speaker_notes_object_id:
             notes_requests = self.slide_builder.create_notes_request(slide)
             if isinstance(notes_requests, list):
                 requests.extend(notes_requests)
             elif notes_requests:
                 requests.append(notes_requests)
-        elif slide.notes and not slide.speaker_notes_object_id:
+        elif slide.notes:
             logger.debug(
                 f"Slide {slide.object_id} has notes but no speaker_notes_object_id yet. Notes will be added in a second pass."
             )
@@ -91,43 +86,42 @@ class ApiRequestGenerator:
             logger.warning(f"Skipping None element for slide {slide.object_id}")
             return []
 
-        # REFACTORED: Deepcopy element to ensure statelessness and apply context-specific directives.
-        # JUSTIFICATION: This is the fix for API-C-03 and E2E-F-04. It ensures that title/subtitle
-        # directives parsed by the SlideExtractor are correctly applied to the final element
-        # without modifying the original slide object from the IR.
         element = deepcopy(element)
 
-        # Apply slide-level meta directives to the element copy
-        if element.element_type == ElementType.TITLE and slide.title_directives:
-            # Directives on the element itself (e.g., from a section) are base,
-            # title-specific directives (from same-line parsing) override them.
-            merged_directives = element.directives.copy()
-            merged_directives.update(slide.title_directives)
-            element.directives = merged_directives
-            logger.debug(
-                f"Applied title directives to element {element.object_id}: {slide.title_directives}"
-            )
+        # REFACTORED: Removed obsolete logic for merging slide.title_directives and subtitle_directives.
+        # Directives are now self-contained within each element, making this logic unnecessary and non-compliant.
+        # MAINTAINS: The principle of statelessness via deepcopy.
+        # JUSTIFICATION: Aligns with the new architecture where directives are parsed directly onto elements.
 
+        # ADDED: Handle continuation titles per API_GEN_SPEC.md Rule #3.
         if (
-            element.element_type == ElementType.SUBTITLE
-            and hasattr(slide, "subtitle_directives")
-            and slide.subtitle_directives
+            slide.is_continuation
+            and element.element_type == ElementType.TITLE
+            and hasattr(element, "text")
         ):
-            merged_directives = element.directives.copy()
-            merged_directives.update(slide.subtitle_directives)
-            element.directives = merged_directives
+            element.text = f"{element.text} (continued)"
             logger.debug(
-                f"Applied subtitle directives to element {element.object_id}: {slide.subtitle_directives}"
+                f"Appended continuation suffix to title for slide {slide.object_id}"
             )
 
-        # Ensure a unique objectId if one isn't present
+        # ADDED: Safety check for zero-dimension elements per API_GEN_SPEC.md Rule #4.
+        if (
+            hasattr(element, "size")
+            and element.size == (0, 0)
+            and (
+                element.directives.get("background") or element.directives.get("border")
+            )
+        ):
+            logger.warning(
+                f"Skipping createShape for element {element.object_id} on slide {slide.object_id} "
+                "due to zero dimensions with visual directives. This prevents an API error."
+            )
+            return []
+
         if not getattr(element, "object_id", None):
             element_type_name = getattr(element.element_type, "value", "unknown")
             element.object_id = self.slide_builder._generate_id(
                 f"{element_type_name}_{slide.object_id}"
-            )
-            logger.debug(
-                f"Generated missing object_id for element copy: {element.object_id}"
             )
 
         element_type = getattr(element, "element_type", None)

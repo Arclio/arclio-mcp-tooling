@@ -36,8 +36,6 @@ class Parser:
         Returns:
             Deck object representing the complete presentation
         """
-        # REFACTORED: Removed theme_id parameter.
-        # JUSTIFICATION: Aligns with "Blank Canvas First" principle.
         logger.info("Starting to parse markdown into presentation deck")
         slides_data = self.slide_extractor.extract_slides(markdown)
         logger.info(f"Extracted {len(slides_data)} slides from markdown")
@@ -45,22 +43,18 @@ class Parser:
         slides = []
         for slide_index, slide_data in enumerate(slides_data):
             try:
-                section_models = self.section_parser.parse_sections(
+                # REFACTORED: Expect a single root section from the section parser
+                # per PARSER_SPEC.md, Rule #4.1.
+                root_section_model = self.section_parser.parse_sections(
                     slide_data["content"]
                 )
-                for section_model in section_models:
-                    self.directive_parser.parse_directives(section_model)
-                    child_sections = [
-                        c for c in section_model.children if hasattr(c, "children")
-                    ]
-                    if section_model.type == "row" and child_sections:
-                        for subsection_model in child_sections:
-                            self.directive_parser.parse_directives(subsection_model)
 
+                # REFACTORED: The content parser now operates on the children of the root section.
+                # We pass the root section in a list to maintain a consistent interface for the content parser.
                 elements = self.content_parser.parse_content(
                     slide_title_text=slide_data["title"],
                     subtitle_text=slide_data.get("subtitle"),
-                    sections=section_models,
+                    sections=[root_section_model] if root_section_model else [],
                     slide_footer_text=slide_data.get("footer"),
                     title_directives=slide_data.get("title_directives", {}),
                     subtitle_directives=slide_data.get("subtitle_directives", {}),
@@ -69,15 +63,16 @@ class Parser:
                 # Per spec, all slides are now BLANK layout
                 layout = SlideLayout.BLANK
 
+                # REFACTORED: Construct the Slide object with the new `root_section` model.
+                # REMOVED: Obsolete attributes `sections` and `title_directives` are no longer set.
                 slide = Slide(
                     elements=elements,
                     layout=layout,
                     notes=slide_data.get("notes"),
                     footer=slide_data.get("footer"),
                     background=slide_data.get("background"),
-                    title_directives=slide_data.get("title_directives", {}),
                     object_id=f"slide_{slide_index}",
-                    sections=section_models,
+                    root_section=root_section_model,
                 )
                 slides.append(slide)
 
