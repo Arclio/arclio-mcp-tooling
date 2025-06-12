@@ -1,5 +1,3 @@
-"""Slide request builder for Google Slides API requests."""
-
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
@@ -16,17 +14,12 @@ class SlideRequestBuilder(BaseRequestBuilder):
         """
         Create a request to make a new slide with a BLANK layout.
         """
-        # REFACTORED: Removed all placeholder mapping logic.
-        # JUSTIFICATION: Aligns with API_GEN_SPEC.md Rule #5 ("Blank Canvas First").
-        # The generator no longer uses theme placeholders. This also fixes the statelessness
-        # bug where the slide's placeholder_mappings attribute was being mutated.
         if not slide.object_id:
             slide.object_id = self._generate_id("slide")
 
         request = {
             "createSlide": {
                 "objectId": slide.object_id,
-                # Per spec, all slides are created with a BLANK layout.
                 "slideLayoutReference": {"predefinedLayout": SlideLayout.BLANK.value},
             }
         }
@@ -35,39 +28,93 @@ class SlideRequestBuilder(BaseRequestBuilder):
         )
         return request
 
-    def create_background_request(self, slide: Slide) -> dict:
+    def create_background_request(self, slide: Slide) -> dict | None:
+        """
+        Creates a valid background update request for either a color or an image.
+        """
         if not slide.background:
-            return {}
+            return None
+
         background_type = slide.background.get("type")
         background_value = slide.background.get("value")
         page_background_fill = {}
         fields_mask_parts = []
 
-        if background_type == "color":
-            if background_value.startswith("#"):
-                rgb = self._hex_to_rgb(background_value)
-                page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
-                fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
-            else:
-                page_background_fill["solidFill"] = {
-                    "color": {"themeColor": background_value.upper()}
-                }
-                fields_mask_parts.append(
-                    "pageBackgroundFill.solidFill.color.themeColor"
-                )
-
-        elif background_type == "image":
+        if background_type == "image":
             if not is_valid_image_url(background_value):
                 logger.warning(f"Background image URL is invalid: {background_value}")
-                return {}
+                return None
             page_background_fill["stretchedPictureFill"] = {
                 "contentUrl": background_value
             }
             fields_mask_parts.append(
                 "pageBackgroundFill.stretchedPictureFill.contentUrl"
             )
+
+        elif background_type == "color":
+            color_value_str = str(background_value).strip()
+
+            # Check for hex color
+            if color_value_str.startswith("#"):
+                rgb = self._hex_to_rgb(color_value_str)
+                page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
+                fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
+            else:
+                # Handle named colors by converting them to hex first
+                named_colors = {
+                    "black": "#000000",
+                    "white": "#FFFFFF",
+                    "red": "#FF0000",
+                    "green": "#008000",
+                    "blue": "#0000FF",
+                    "yellow": "#FFFF00",
+                    "cyan": "#00FFFF",
+                    "magenta": "#FF00FF",
+                    "silver": "#C0C0C0",
+                    "gray": "#808080",
+                    "maroon": "#800000",
+                    "olive": "#808000",
+                    "purple": "#800080",
+                    "teal": "#008080",
+                    "navy": "#000080",
+                }
+                theme_colors = {
+                    "TEXT1",
+                    "TEXT2",
+                    "BACKGROUND1",
+                    "BACKGROUND2",
+                    "ACCENT1",
+                    "ACCENT2",
+                    "ACCENT3",
+                    "ACCENT4",
+                    "ACCENT5",
+                    "ACCENT6",
+                }
+
+                if color_value_str.lower() in named_colors:
+                    rgb = self._hex_to_rgb(named_colors[color_value_str.lower()])
+                    page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
+                    fields_mask_parts.append(
+                        "pageBackgroundFill.solidFill.color.rgbColor"
+                    )
+                # Check for theme color
+                elif color_value_str.upper() in theme_colors:
+                    page_background_fill["solidFill"] = {
+                        "color": {"themeColor": color_value_str.upper()}
+                    }
+                    fields_mask_parts.append(
+                        "pageBackgroundFill.solidFill.color.themeColor"
+                    )
+                else:
+                    logger.warning(
+                        f"Invalid color value for background: '{color_value_str}'. It is not a valid hex, named, or theme color."
+                    )
+                    return None
         else:
-            return {}
+            return None
+
+        if not page_background_fill:
+            return None
 
         return {
             "updatePageProperties": {
@@ -82,6 +129,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
         if not slide.notes or not getattr(slide, "speaker_notes_object_id", None):
             return []
 
+        # It's safer to delete existing text before inserting new text.
         return [
             {
                 "deleteText": {

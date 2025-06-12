@@ -1,5 +1,3 @@
-"""Media request builder for Google Slides API requests."""
-
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
@@ -25,15 +23,15 @@ class MediaRequestBuilder(BaseRequestBuilder):
         Returns:
             List of request dictionaries
         """
-        requests = []
-
+        # PREVENTATIVE_FIX: Validate the image URL before attempting to create a request.
         if not is_valid_image_url(element.url):
             logger.warning(
-                f"Image URL is invalid or inaccessible: {element.url}. "
-                f"Skipping image element creation."
+                f"Image URL is invalid, inaccessible, or too large: {element.url}. "
+                f"Skipping image element creation to prevent API errors."
             )
             return []
 
+        requests = []
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", None) or (300, 200)
 
@@ -66,11 +64,10 @@ class MediaRequestBuilder(BaseRequestBuilder):
         requests.append(create_image_request)
 
         if element.object_id and element.alt_text:
-            # REFACTORED: Set title to "Image" per API_GEN_SPEC.md.
             alt_text_request = {
                 "updatePageElementAltText": {
                     "objectId": element.object_id,
-                    "title": "Image",  # Set a meaningful title for accessibility.
+                    "title": "Image",
                     "description": element.alt_text,
                 }
             }

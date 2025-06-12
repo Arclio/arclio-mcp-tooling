@@ -136,20 +136,31 @@ class DirectiveParser:
         return directives, ""
 
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
-        """Internal helper to parse a string known to contain directives."""
+        """
+        Internal helper to parse a string known to contain directives.
+        REFACTORED: This is the core fix. It now correctly parses multiple
+        space-separated key=value pairs within a single bracket block.
+        """
         directives = {}
         # This pattern finds the content within each [...] block
         bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
-        # This pattern finds individual key=value or key pairs within a string.
-        pair_pattern = re.compile(r'([\w-]+)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?')
+        # This pattern splits a string by spaces, but respects quoted values.
+        re.compile(r'([^=\s]+(?:="[^"]*"|=\'[^\']*\'|=[^=\s]*))')
 
         for content in bracket_content_pattern.findall(directive_text):
-            for key, value in pair_pattern.findall(content):
+            # Split the content by space, but keep quoted values together. A simpler
+            # way is to just find all key=value or key pairs.
+            pairs = re.findall(
+                r'([\w-]+)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content
+            )
+
+            for key, value in pairs:
                 key = key.strip().lower()
-                value = value.strip().strip("'\"") if value else ""
+                value = value.strip().strip("'\"")
 
                 if key in self.directive_types:
                     directive_type = self.directive_types[key]
+                    # If value is empty, it might be a boolean flag
                     if not value and directive_type != "string":
                         directive_type = "bool"
 
@@ -167,9 +178,9 @@ class DirectiveParser:
                                 )
                             else:
                                 directives[key] = converted_value
-                        except ValueError:
+                        except ValueError as e:
                             logger.warning(
-                                f"Could not convert directive '{key}={value}' using {directive_type} converter. Storing as string."
+                                f"Could not convert directive '{key}={value}' using {directive_type} converter. Storing as string. Error: {e}"
                             )
                             directives[key] = value
                     else:
