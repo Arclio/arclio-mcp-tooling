@@ -841,6 +841,90 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("add_image", e)
 
+    def add_image_with_unit(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        image_url: str,
+        position: tuple[float, float] = (100, 100),
+        size: tuple[float, float] | None = None,
+        unit: str = "PT",
+    ) -> dict[str, Any]:
+        """
+        Add an image to a slide from a URL with support for different units.
+
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide
+            image_url: The URL of the image to add
+            position: Tuple of (x, y) coordinates for position
+            size: Optional tuple of (width, height) for the image
+            unit: Unit type - "PT" for points or "EMU" for English Metric Units
+
+        Returns:
+            Response data or error information
+        """
+        try:
+            # Create a unique element ID
+            image_id = f"image_{slide_id}_{hash(image_url) % 10000}"
+
+            # Define the base request
+            create_image_request = {
+                "createImage": {
+                    "objectId": image_id,
+                    "url": image_url,
+                    "elementProperties": {
+                        "pageObjectId": slide_id,
+                        "transform": {
+                            "scaleX": 1,
+                            "scaleY": 1,
+                            "translateX": position[0],
+                            "translateY": position[1],
+                            "unit": unit,  # Use the specified unit
+                        },
+                    },
+                }
+            }
+
+            # Add size if specified
+            if size:
+                create_image_request["createImage"]["elementProperties"]["size"] = {
+                    "width": {"magnitude": size[0], "unit": unit},
+                    "height": {"magnitude": size[1], "unit": unit},
+                }
+
+            logger.info(
+                f"Sending API request to create image with {unit} units: {json.dumps(create_image_request, indent=2)}"
+            )
+
+            # Execute the request
+            response = (
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id,
+                    body={"requests": [create_image_request]},
+                )
+                .execute()
+            )
+
+            # Extract the image ID from the response
+            if "replies" in response and len(response["replies"]) > 0:
+                image_id = response["replies"][0].get("createImage", {}).get("objectId")
+                logger.info(
+                    f"API response for image creation: {json.dumps(response, indent=2)}"
+                )
+                return {
+                    "presentationId": presentation_id,
+                    "slideId": slide_id,
+                    "imageId": image_id,
+                    "operation": "add_image_with_unit",
+                    "result": "success",
+                }
+
+            return response
+        except Exception as e:
+            return self.handle_api_error("add_image_with_unit", e)
+
     def add_table(
         self,
         presentation_id: str,

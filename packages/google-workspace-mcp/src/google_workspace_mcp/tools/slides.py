@@ -289,7 +289,7 @@ async def add_bulleted_list_to_slide(
 
 @mcp.tool(
     name="add_image_to_slide",
-    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL.",
+    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL with precise positioning support.",
 )
 async def add_image_to_slide(
     presentation_id: str,
@@ -299,6 +299,7 @@ async def add_image_to_slide(
     position_y: float = 100.0,
     size_width: float | None = None,
     size_height: float | None = None,
+    unit: str = "PT",
 ) -> dict[str, Any]:
     """
     Add an image to a slide from a publicly accessible URL.
@@ -307,10 +308,11 @@ async def add_image_to_slide(
         presentation_id: The ID of the presentation.
         slide_id: The ID of the slide.
         image_url: The publicly accessible URL of the image to add.
-        position_x: X coordinate for position (default 100.0 PT).
-        position_y: Y coordinate for position (default 100.0 PT).
-        size_width: Optional width of the image in points. If not specified, uses original size.
-        size_height: Optional height of the image in points. If not specified, uses original size.
+        position_x: X coordinate for position (default 100.0).
+        position_y: Y coordinate for position (default 100.0).
+        size_width: Optional width of the image. If not specified, uses original size.
+        size_height: Optional height of the image. If not specified, uses original size.
+        unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
 
     Returns:
         Response data confirming image addition or raises error.
@@ -318,12 +320,20 @@ async def add_image_to_slide(
     logger.info(
         f"Executing add_image_to_slide on slide '{slide_id}' with image '{image_url}'"
     )
+    logger.info(f"Position: ({position_x}, {position_y}) {unit}")
+    if size_width and size_height:
+        logger.info(f"Size: {size_width} x {size_height} {unit}")
+    
     if not presentation_id or not slide_id or not image_url:
         raise ValueError("Presentation ID, Slide ID, and Image URL are required")
 
     # Basic URL validation
     if not image_url.startswith(("http://", "https://")):
         raise ValueError("Image URL must be a valid HTTP or HTTPS URL")
+
+    # Validate unit
+    if unit not in ["PT", "EMU"]:
+        raise ValueError("Unit must be either 'PT' (points) or 'EMU' (English Metric Units)")
 
     slides_service = SlidesService()
 
@@ -332,12 +342,14 @@ async def add_image_to_slide(
     if size_width is not None and size_height is not None:
         size = (size_width, size_height)
 
-    result = slides_service.add_image(
+    # Use the enhanced add_image method with unit support
+    result = slides_service.add_image_with_unit(
         presentation_id=presentation_id,
         slide_id=slide_id,
         image_url=image_url,
         position=(position_x, position_y),
         size=size,
+        unit=unit,
     )
 
     if isinstance(result, dict) and result.get("error"):
