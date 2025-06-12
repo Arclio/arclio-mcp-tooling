@@ -24,6 +24,8 @@ class DirectiveParser:
 
     def __init__(self):
         """Initialize the directive parser with enhanced type support."""
+        # REFACTORED: This is the single pattern to find any directive block.
+        self.directive_block_pattern = re.compile(r"(\[[^\[\]]+\])")
 
         self.directive_types = {
             "width": "dimension",
@@ -59,8 +61,9 @@ class DirectiveParser:
             "box-shadow": "style",
             "transform": "style",
             "transition": "style",
-            # FIXED: Added 'gap' as a dimension type.
             "gap": "dimension",
+            "bold": "bool",
+            "italic": "bool",
         }
 
         self.converters = {
@@ -69,58 +72,98 @@ class DirectiveParser:
             "style": self._enhanced_convert_style,
             "float": self._safe_float_convert,
             "string": str,
+            "bool": lambda v: True,  # For valueless directives
         }
 
-        # Enhanced value converters
-        self.converters = {
-            "dimension": convert_dimension,
-            "alignment": convert_alignment,
-            "style": self._enhanced_convert_style,  # Use enhanced version
-            "float": self._safe_float_convert,
-            "string": str,
-        }
+    def parse_and_strip_from_text(self, text_line: str) -> tuple[str, dict[str, Any]]:
+        """
+        Finds and parses all directive blocks in a string, returning the cleaned string and a dict of directives.
+        This is the new canonical method for stripping inline directives.
+        """
+        if not text_line or "[" not in text_line:
+            return text_line, {}
+
+        directives = {}
+
+        # Use a callback with re.sub to both remove the directive and parse it.
+        def replacer(match):
+            directive_text = match.group(0)
+            parsed = self._parse_directive_text(directive_text)
+            directives.update(parsed)
+            return ""  # Remove the matched directive from the string
+
+        # Replace all occurrences of the directive pattern
+        cleaned_text = self.directive_block_pattern.sub(replacer, text_line)
+
+        return cleaned_text.strip(), directives
 
     def parse_directives(self, section: Section) -> None:
+        """Parses leading directive-only lines from a section's content."""
         if not section or not section.content:
             if section and section.directives is None:
                 section.directives = {}
             return
-        content = section.content.lstrip("\n\r ")
-        directive_block_pattern = r"^\s*((?:\[[^\[\]]+=[^\[\]]*\]\s*)+)"
-        match = re.match(directive_block_pattern, content)
-        if not match:
-            self._handle_malformed_directives(section, content)
-            return
-        directive_text = match.group(1).strip()
-        remaining_content = content[match.end(0) :]
-        directives = self._parse_directive_text(directive_text)
-        merged_directives = (section.directives or {}).copy()
-        merged_directives.update(directives)
-        section.directives = merged_directives
-        section.content = remaining_content.lstrip()
-        self._verify_directive_removal(section)
+
+        lines = section.content.lstrip("\n\r ").split("\n")
+        consumed_line_count = 0
+        directives = {}
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                consumed_line_count += 1
+                continue
+
+            line_directives, remaining_text = self.parse_inline_directives(stripped)
+            if line_directives and not remaining_text:
+                # This is a directive-only line
+                directives.update(line_directives)
+                consumed_line_count += 1
+            else:
+                # First non-directive line found
+                break
+
+        if directives:
+            merged_directives = (section.directives or {}).copy()
+            merged_directives.update(directives)
+            section.directives = merged_directives
+            section.content = "\n".join(lines[consumed_line_count:]).lstrip()
+            self._verify_directive_removal(section)
 
     def parse_inline_directives(self, text_line: str) -> tuple[dict[str, Any], str]:
+        """Parses a line that is expected to be only directives."""
         text_line = text_line.strip()
         if not text_line:
             return {}, ""
-        full_directive_pattern = r"^\s*((?:\s*\[[^\[\]]+=[^\[\]]*\]\s*)+)\s*$"
+
+        # Pattern to ensure the whole line is made of directives
+        full_directive_pattern = r"^\s*((?:\s*\[[^\[\]]+\]\s*)+)\s*$"
         match = re.match(full_directive_pattern, text_line)
+
         if not match:
             return {}, text_line
+
         directive_text = match.group(1)
         directives = self._parse_directive_text(directive_text)
         return directives, ""
 
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
+        """Internal helper to parse a string known to contain directives."""
         directives = {}
-        directive_pattern = r"\[([^=\[\]]+)=([^\[\]]*)\]"
+        # REFACTORED: Regex now supports valueless directives like [bold]
+        directive_pattern = r"\[\s*([^=\[\]\s]+)(?:\s*=\s*([^\[\]]*))?\s*\]"
         matches = re.findall(directive_pattern, directive_text)
+
         for key, value in matches:
             key = key.strip().lower()
-            value = value.strip()
+            value = value.strip("'\"")  # Strip quotes from value
+
             if key in self.directive_types:
                 directive_type = self.directive_types[key]
+                # If value is empty, it's a boolean flag
+                if not value:
+                    directive_type = "bool"
+
                 converter = self.converters.get(directive_type)
                 if converter:
                     try:
@@ -136,9 +179,11 @@ class DirectiveParser:
                         else:
                             directives[key] = converted_value
                     except ValueError:
-                        directives[key] = value
+                        directives[key] = value  # Keep as string if conversion fails
+                else:
+                    directives[key] = value or True
             else:
-                directives[key] = value
+                directives[key] = value or True  # Default for unknown keys
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
@@ -148,25 +193,6 @@ class DirectiveParser:
         try:
             return float(value)
         except ValueError:
-            return 0.0
-
-    def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
-        """
-        Enhanced style conversion with better CSS support.
-
-        ENHANCEMENT P8: Improved CSS value parsing.
-        """
-        value = value.strip()
-
-        # Delegate to the main convert_style function which has comprehensive handling
-        return convert_style(value)
-
-    def _safe_float_convert(self, value: str) -> float:
-        """Safely convert string to float with better error handling."""
-        try:
-            return float(value)
-        except ValueError:
-            logger.warning(f"Invalid float value: {value}, defaulting to 0.0")
             return 0.0
 
     def _process_style_directive_value(
@@ -196,24 +222,17 @@ class DirectiveParser:
         ):
             result[key] = style_value
         else:
-            # For any other style types, just store the value
             result[key] = style_value
 
         return result
 
     def _handle_malformed_directives(self, section: Section, content: str) -> None:
-        """Handle and clean up malformed directive patterns.
-
-        TASK 2.1 FIX: Only clean up content that actually looks like intended directives,
-        not markdown links or other bracket content.
-        """
-        # Only look for patterns that contain '=' which suggests they were intended as directives
+        """Handle and clean up malformed directive patterns."""
         malformed_pattern = r"^\s*(\[[^\[\]]*=[^\[\]]*\]\s*)"
         malformed_match = re.match(malformed_pattern, content)
 
         if malformed_match:
             bracket_content = malformed_match.group(1).strip()
-            # Check if it's a valid directive format
             if not re.match(r"^\s*\[[^=\[\]]+=[^\[\]]*\]\s*$", bracket_content):
                 malformed_text = malformed_match.group(1)
                 logger.warning(f"Removing malformed directive: {malformed_text!r}")
@@ -228,7 +247,6 @@ class DirectiveParser:
             logger.warning(
                 f"Potential directives remain in content: {section.content[:50]}"
             )
-            # Aggressive cleanup
             section.content = re.sub(
                 r"^\s*\[[^\[\]]+=[^\[\]]*\]", "", section.content
             ).lstrip()
