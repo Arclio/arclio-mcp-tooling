@@ -269,15 +269,15 @@ class PreciseSlidesPositioning(BaseGoogleService):
         self, presentation_id: str, slide_id: str
     ) -> Dict[str, Any]:
         """
-        Extract exact positions and dimensions of existing elements from a template slide.
-        Use this to reverse-engineer your template coordinates.
+        Extract exact positions, dimensions, and content of existing elements from a template slide.
+        Use this to reverse-engineer your template coordinates and understand element content.
 
         Args:
             presentation_id: The ID of the presentation
             slide_id: The ID of the slide
 
         Returns:
-            Dictionary of element positions or error details
+            Dictionary of element positions, content, and metadata or error details
         """
         try:
             response = (
@@ -291,16 +291,32 @@ class PreciseSlidesPositioning(BaseGoogleService):
             positions = {}
 
             for element in elements:
-                if (
-                    "objectId" in element
-                    and "size" in element
-                    and "transform" in element
-                ):
+                if "objectId" in element:
                     obj_id = element["objectId"]
-                    size = element["size"]
-                    transform = element["transform"]
-
+                    
+                    # Get basic positioning info
+                    size = element.get("size", {})
+                    transform = element.get("transform", {})
+                    
+                    # Determine element type and extract content
+                    element_info = self._extract_element_content(element)
+                    
+                    # Get scaling factors
+                    scale_x = transform.get("scaleX", 1)
+                    scale_y = transform.get("scaleY", 1)
+                    
+                    # Calculate actual visual positions
+                    actual_pos = self.calculate_actual_position(
+                        transform.get("translateX", 0),
+                        transform.get("translateY", 0),
+                        size.get("width", {}).get("magnitude", 0),
+                        size.get("height", {}).get("magnitude", 0),
+                        scale_x,
+                        scale_y
+                    )
+                    
                     positions[obj_id] = {
+                        # Raw position and size data
                         "x_emu": transform.get("translateX", 0),
                         "y_emu": transform.get("translateY", 0),
                         "width_emu": size.get("width", {}).get("magnitude", 0),
@@ -313,20 +329,217 @@ class PreciseSlidesPositioning(BaseGoogleService):
                         "height_inches": self.emu_to_inches(
                             size.get("height", {}).get("magnitude", 0)
                         ),
-                        "scaleX": transform.get("scaleX", 1),
-                        "scaleY": transform.get("scaleY", 1),
-                        "element_type": (
-                            list(element.keys())[1]
-                            if len(element.keys()) > 1
-                            else "unknown"
-                        ),
+                        "scaleX": scale_x,
+                        "scaleY": scale_y,
+                        
+                        # Actual visual positions (accounting for scaling)
+                        **actual_pos,
+                        
+                        # Content and type information
+                        **element_info
                     }
 
-            logger.info(f"Retrieved positions for {len(positions)} elements")
+            logger.info(f"Retrieved positions and content for {len(positions)} elements")
             return {"success": True, "elements": positions, "slide_id": slide_id}
 
         except Exception as error:
             return self.handle_api_error("get_existing_element_positions", error)
+
+    def _extract_element_content(self, element: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract content and metadata from a slide element.
+        
+        Args:
+            element: Raw element data from Google Slides API
+            
+        Returns:
+            Dictionary with element type, content, and metadata
+        """
+        element_info = {
+            "element_type": "unknown",
+            "content": None,
+            "content_type": None,
+            "metadata": {},
+            "raw_element_keys": list(element.keys())  # Debug: show all available keys
+        }
+        
+        # Text box or shape with text
+        if "shape" in element:
+            element_info["element_type"] = "shape"
+            shape = element["shape"]
+            
+            # Get shape type
+            shape_type = shape.get("shapeType", "UNSPECIFIED")
+            element_info["metadata"]["shape_type"] = shape_type
+            
+            # Extract text content
+            if "text" in shape:
+                text_content = self._extract_text_content(shape["text"])
+                element_info["content"] = text_content["text"]
+                element_info["content_type"] = "text"
+                element_info["metadata"]["text_formatting"] = text_content["formatting"]
+            else:
+                element_info["content_type"] = "shape_no_text"
+                
+        # Image element
+        elif "image" in element:
+            element_info["element_type"] = "image"
+            element_info["content_type"] = "image"
+            image = element["image"]
+            
+            # Get image properties
+            element_info["content"] = image.get("sourceUrl", "No URL available")
+            element_info["metadata"] = {
+                "image_properties": image.get("imageProperties", {}),
+                "content_url": image.get("contentUrl", None)
+            }
+            
+        # Line element
+        elif "line" in element:
+            element_info["element_type"] = "line"
+            element_info["content_type"] = "line"
+            line = element["line"]
+            element_info["metadata"] = {
+                "line_type": line.get("lineType", "UNKNOWN"),
+                "line_properties": line.get("lineProperties", {})
+            }
+            
+        # Video element
+        elif "video" in element:
+            element_info["element_type"] = "video"
+            element_info["content_type"] = "video"
+            video = element["video"]
+            element_info["content"] = video.get("url", "No URL available")
+            element_info["metadata"] = {
+                "video_properties": video.get("videoProperties", {})
+            }
+            
+        # Table element
+        elif "table" in element:
+            element_info["element_type"] = "table"
+            element_info["content_type"] = "table"
+            table = element["table"]
+            
+            # Extract table structure and content
+            table_content = self._extract_table_content(table)
+            element_info["content"] = table_content
+            element_info["metadata"] = {
+                "rows": table.get("rows", 0),
+                "columns": table.get("columns", 0)
+            }
+            
+        # Group element
+        elif "elementGroup" in element:
+            element_info["element_type"] = "group"
+            element_info["content_type"] = "group"
+            group = element["elementGroup"]
+            element_info["metadata"] = {
+                "children_count": len(group.get("children", [])),
+                "children_ids": [child.get("objectId") for child in group.get("children", [])]
+            }
+            
+        # Placeholder or other special elements
+        if "placeholder" in element:
+            placeholder = element["placeholder"]
+            element_info["metadata"]["placeholder"] = {
+                "type": placeholder.get("type", "UNKNOWN"),
+                "index": placeholder.get("index", 0)
+            }
+            
+        return element_info
+
+    def _extract_text_content(self, text_element: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract text content and formatting from a text element.
+        
+        Args:
+            text_element: Text element from Google Slides API
+            
+        Returns:
+            Dictionary with text content and formatting information
+        """
+        text_content = {
+            "text": "",
+            "formatting": []
+        }
+        
+        text_runs = text_element.get("textElements", [])
+        
+        for text_run in text_runs:
+            if "textRun" in text_run:
+                run = text_run["textRun"]
+                content = run.get("content", "")
+                text_content["text"] += content
+                
+                # Extract formatting if available
+                style = run.get("style", {})
+                if style:
+                    text_content["formatting"].append({
+                        "content": content,
+                        "font_family": style.get("fontFamily", ""),
+                        "font_size": style.get("fontSize", {}).get("magnitude", 0),
+                        "bold": style.get("bold", False),
+                        "italic": style.get("italic", False),
+                        "foreground_color": style.get("foregroundColor", {}),
+                        "background_color": style.get("backgroundColor", {})
+                    })
+                    
+            elif "autoText" in text_run:
+                # Handle auto text (like slide numbers, dates, etc.)
+                auto_text = text_run["autoText"]
+                text_content["text"] += f"[AUTO: {auto_text.get('type', 'UNKNOWN')}]"
+                
+        return text_content
+
+    def _extract_table_content(self, table_element: Dict[str, Any]) -> List[List[str]]:
+        """
+        Extract content from table cells.
+        
+        Args:
+            table_element: Table element from Google Slides API
+            
+        Returns:
+            2D list representing table content
+        """
+        table_content = []
+        
+        table_rows = table_element.get("tableRows", [])
+        for row in table_rows:
+            row_content = []
+            table_cells = row.get("tableCells", [])
+            
+            for cell in table_cells:
+                cell_text = ""
+                if "text" in cell:
+                    cell_text_data = self._extract_text_content(cell["text"])
+                    cell_text = cell_text_data["text"].strip()
+                row_content.append(cell_text)
+                
+            table_content.append(row_content)
+            
+        return table_content
+
+    def calculate_actual_position(self, x_emu: int, y_emu: int, width_emu: int, height_emu: int, 
+                                scale_x: float = 1.0, scale_y: float = 1.0) -> Dict[str, float]:
+        """
+        Calculate the actual visual position and size considering scaling.
+        
+        Args:
+            x_emu, y_emu: Position in EMU
+            width_emu, height_emu: Size in EMU
+            scale_x, scale_y: Scaling factors
+            
+        Returns:
+            Dictionary with actual positions and sizes in inches
+        """
+        return {
+            "actual_x_inches": self.emu_to_inches(x_emu),
+            "actual_y_inches": self.emu_to_inches(y_emu),
+            "actual_width_inches": self.emu_to_inches(width_emu) * scale_x,
+            "actual_height_inches": self.emu_to_inches(height_emu) * scale_y,
+            "visual_right_edge_inches": self.emu_to_inches(x_emu) + (self.emu_to_inches(width_emu) * scale_x),
+            "visual_bottom_edge_inches": self.emu_to_inches(y_emu) + (self.emu_to_inches(height_emu) * scale_y)
+        }
 
     def implement_complete_template(
         self,
@@ -781,6 +994,73 @@ class PreciseSlidesPositioning(BaseGoogleService):
 
 
 @mcp.tool(
+    name="analyze_presentation_layout",
+    description="Get a comprehensive overview of all slides in a presentation to identify the correct slide numbers and layouts.",
+)
+async def analyze_presentation_layout(
+    presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86"
+) -> Dict[str, Any]:
+    """
+    Get a comprehensive overview of all slides in a presentation.
+    
+    Args:
+        presentation_url: Google Slides URL (defaults to the provided template)
+    
+    Returns:
+        Dictionary with all slides and their basic information
+    """
+    try:
+        # Initialize the service
+        positioner = PreciseSlidesPositioning()
+        
+        # Extract presentation ID from URL
+        presentation_id = positioner.extract_presentation_id_from_url(presentation_url)
+        logger.info(f"Analyzing presentation: {presentation_id}")
+        
+        # Get all slides
+        slides_result = positioner.get_presentation_slides(presentation_id)
+        
+        if slides_result.get("success"):
+            logger.info(f"✅ Found {slides_result['total_slides']} slides in presentation")
+            logger.info(f"📝 Presentation: '{slides_result['presentation_title']}'")
+            
+            # Get basic content from each slide
+            for slide_info in slides_result["slides"]:
+                slide_num = slide_info["slide_number"]
+                slide_id = slide_info["slide_id"]
+                
+                # Get first few elements to understand slide content
+                elements_result = positioner.get_existing_element_positions(presentation_id, slide_id)
+                
+                if elements_result.get("success"):
+                    elements = elements_result["elements"]
+                    text_elements = []
+                    
+                    # Extract text content from elements to identify slide purpose
+                    for element_id, element_info in list(elements.items())[:3]:  # First 3 elements
+                        if element_info.get("content_type") == "text" and element_info.get("content"):
+                            text_content = element_info["content"].strip()
+                            if text_content and len(text_content) < 100:  # Short text likely to be titles
+                                text_elements.append(text_content)
+                    
+                    slide_info["sample_text"] = text_elements
+                    slide_info["total_elements"] = len(elements)
+                    
+                    logger.info(f"📄 Slide {slide_num}: {slide_info['total_elements']} elements")
+                    if text_elements:
+                        logger.info(f"   📝 Sample text: {', '.join(text_elements[:2])}")
+            
+            return slides_result
+        else:
+            logger.error(f"❌ Failed to analyze presentation: {slides_result}")
+            raise ValueError(f"Failed to analyze presentation: {slides_result}")
+            
+    except Exception as error:
+        logger.error(f"Error in analyze_presentation_layout: {error}")
+        raise ValueError(f"Error analyzing presentation: {error}")
+
+
+@mcp.tool(
     name="get_template_elements_from_slides",
     description="Extract element positions and dimensions from specific slides in a template presentation. Use this to analyze existing templates and get precise coordinates.",
 )
@@ -825,14 +1105,53 @@ async def get_template_elements_from_slides(
                 slide_num = slide_data["slide_number"]
                 elements_count = slide_data["elements_found"]
                 logger.info(f"📄 Slide {slide_num}: Found {elements_count} elements")
-
-                # Log element details in human-readable format
+                
+                # Log element details in human-readable format with content
                 for element_id, element_info in slide_data["elements"].items():
+                    # Get content preview
+                    content_preview = ""
+                    if element_info.get("content"):
+                        content = str(element_info["content"])
+                        if element_info["content_type"] == "text":
+                            # Show first 50 characters of text
+                            content_preview = f" - Text: '{content[:50]}{'...' if len(content) > 50 else ''}'"
+                        elif element_info["content_type"] == "image":
+                            content_preview = f" - Image URL: {content[:50]}{'...' if len(content) > 50 else ''}"
+                        elif element_info["content_type"] == "table":
+                            rows = len(content) if isinstance(content, list) else 0
+                            content_preview = f" - Table: {rows} rows"
+                    
+                    # Check for placeholder information
+                    placeholder_info = ""
+                    if "placeholder" in element_info.get("metadata", {}):
+                        placeholder = element_info["metadata"]["placeholder"]
+                        placeholder_info = f" [Placeholder: {placeholder.get('type', 'UNKNOWN')}]"
+                    
+                    # Show both raw and actual visual positions if they differ
+                    raw_pos = f"({element_info['x_inches']:.2f}\", {element_info['y_inches']:.2f}\")"
+                    raw_size = f"{element_info['width_inches']:.2f}\" × {element_info['height_inches']:.2f}\""
+                    
+                    if element_info.get('scaleX', 1) != 1 or element_info.get('scaleY', 1) != 1:
+                        # Show actual visual dimensions when scaled
+                        actual_size = f"{element_info.get('actual_width_inches', 0):.2f}\" × {element_info.get('actual_height_inches', 0):.2f}\""
+                        scale_info = f" [Scaled: {element_info.get('scaleX', 1):.2f}x, {element_info.get('scaleY', 1):.2f}x → {actual_size}]"
+                    else:
+                        scale_info = ""
+                    
                     logger.info(
                         f"  🔲 {element_id} ({element_info['element_type']}): "
-                        f"{element_info['width_inches']:.2f}\" × {element_info['height_inches']:.2f}\" "
-                        f"at ({element_info['x_inches']:.2f}\", {element_info['y_inches']:.2f}\")"
+                        f"{raw_size} at {raw_pos}{scale_info}"
+                        f"{content_preview}{placeholder_info}"
                     )
+                    
+                    # Log shape type for shapes
+                    if element_info["element_type"] == "shape" and "shape_type" in element_info.get("metadata", {}):
+                        shape_type = element_info["metadata"]["shape_type"]
+                        logger.info(f"    └─ Shape type: {shape_type}")
+                    
+                    # Log debug info about element structure
+                    if element_info.get("raw_element_keys"):
+                        logger.info(f"    └─ Raw element keys: {element_info['raw_element_keys']}")
 
             return result
         else:
