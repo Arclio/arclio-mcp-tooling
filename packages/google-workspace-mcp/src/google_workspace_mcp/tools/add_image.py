@@ -603,6 +603,152 @@ class PreciseSlidesPositioning(BaseGoogleService):
         except Exception as error:
             return self.handle_api_error("implement_complete_template", error)
 
+    def extract_template_zones_by_text(self, presentation_id: str, slide_id: str) -> Dict[str, Any]:
+        """
+        Extract positioning zones from a template slide by finding placeholder text elements.
+        This gives us the exact coordinates where content should be placed.
+        
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the template slide
+            
+        Returns:
+            Dictionary with zone information including coordinates in both EMU and inches
+        """
+        try:
+            elements_result = self.get_existing_element_positions(presentation_id, slide_id)
+            
+            if not elements_result.get("success"):
+                return {"error": "Failed to read template slide"}
+            
+            elements = elements_result["elements"]
+            template_zones = {}
+            
+            # Keywords to look for in template text (case-insensitive)
+            zone_keywords = {
+                "image block": "image_block",
+                "background image": "background_image", 
+                "full-bleed background": "background_image",
+                "copy block": "copy_block",
+                "slide title": "slide_title",
+                "logo": "logo_area",
+                "brand": "logo_area"
+            }
+            
+            # Scan all text elements for template keywords
+            for element_id, element_info in elements.items():
+                if element_info.get("content_type") == "text" and element_info.get("content"):
+                    content = element_info["content"].lower().strip()
+                    
+                    # Check if this text element matches any template zone
+                    for keyword, zone_name in zone_keywords.items():
+                        if keyword in content:
+                            # Use actual visual dimensions if element is scaled
+                            x_inches = element_info.get('x_inches', 0)
+                            y_inches = element_info.get('y_inches', 0)
+                            
+                            if element_info.get('actual_width_inches') and element_info.get('actual_height_inches'):
+                                width_inches = element_info['actual_width_inches']
+                                height_inches = element_info['actual_height_inches']
+                            else:
+                                width_inches = element_info.get('width_inches', 0)
+                                height_inches = element_info.get('height_inches', 0)
+                            
+                            template_zones[zone_name] = {
+                                "zone_name": zone_name,
+                                "original_text": element_info["content"],
+                                "element_id": element_id,
+                                # Coordinates in inches (human readable)
+                                "x_inches": x_inches,
+                                "y_inches": y_inches, 
+                                "width_inches": width_inches,
+                                "height_inches": height_inches,
+                                # Coordinates in EMU (for API calls)
+                                "x_emu": self.inches_to_emu(x_inches),
+                                "y_emu": self.inches_to_emu(y_inches),
+                                "width_emu": self.inches_to_emu(width_inches),
+                                "height_emu": self.inches_to_emu(height_inches),
+                                # Scaling info
+                                "scale_x": element_info.get('scaleX', 1),
+                                "scale_y": element_info.get('scaleY', 1),
+                                # ImageZone object for easy use
+                                "image_zone": ImageZone(
+                                    x=self.inches_to_emu(x_inches),
+                                    y=self.inches_to_emu(y_inches),
+                                    width=self.inches_to_emu(width_inches),
+                                    height=self.inches_to_emu(height_inches)
+                                )
+                            }
+                            
+                            logger.info(f"🎯 Found template zone '{zone_name}' from text '{content}': {width_inches:.2f}\"×{height_inches:.2f}\" at ({x_inches:.2f}\", {y_inches:.2f}\")")
+                            break  # Found a match, move to next element
+            
+            return {"success": True, "zones": template_zones, "slide_id": slide_id}
+            
+        except Exception as error:
+            return self.handle_api_error("extract_template_zones_by_text", error)
+
+    def place_image_in_template_zone(self, presentation_id: str, slide_id: str, 
+                                   zone_name: str, image_url: str, 
+                                   template_zones: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Place an image in a specific template zone, replacing the placeholder text.
+        
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide
+            zone_name: Name of the template zone (e.g., "image_block")
+            image_url: URL of the image to place
+            template_zones: Template zones extracted from extract_template_zones_by_text()
+            
+        Returns:
+            API response or error details
+        """
+        try:
+            zones = template_zones.get("zones", {})
+            if zone_name not in zones:
+                raise ValueError(f"Zone '{zone_name}' not found in template. Available zones: {list(zones.keys())}")
+            
+            zone_info = zones[zone_name]
+            image_zone = zone_info["image_zone"]
+            
+            object_id = f"{zone_name}_{int(__import__('time').time() * 1000)}"
+            
+            requests = [
+                {
+                    "createImage": {
+                        "objectId": object_id,
+                        "url": image_url,
+                        "elementProperties": {
+                            "pageObjectId": slide_id,
+                            **image_zone.to_dict(),
+                        },
+                    }
+                }
+            ]
+            
+            response = (
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
+            )
+            
+            logger.info(f"✅ Image placed in '{zone_name}' zone: {object_id}")
+            logger.info(f"📍 Position: {zone_info['width_inches']:.2f}\"×{zone_info['height_inches']:.2f}\" at ({zone_info['x_inches']:.2f}\", {zone_info['y_inches']:.2f}\")")
+            
+            return {
+                "success": True,
+                "object_id": object_id,
+                "zone_name": zone_name,
+                "zone_info": zone_info,
+                "response": response,
+            }
+            
+        except Exception as error:
+            return self.handle_api_error("place_image_in_template_zone", error)
+
     def create_presentation(self, title: str) -> Dict[str, Any]:
         """
         Create a new Google Slides presentation.
@@ -1209,6 +1355,213 @@ async def create_presentation_with_positioned_images(
     except Exception as error:
         logger.error(f"Error in create_presentation_with_positioned_images: {error}")
         raise ValueError(f"Error creating presentation: {error}")
+
+
+@mcp.tool(
+    name="create_slide_from_template_zones",
+    description="Extract template zones from a template slide and create a new slide with images placed in those exact zones.",
+)
+async def create_slide_from_template_zones(
+    template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
+    template_slide_number: int = 5,
+    new_presentation_title: str = "Template-Based Slides",
+    image_block_url: str = "https://i.ibb.co/HLWpZmPS/20250122-KEVI4992-kevinostaj.jpg",
+    background_image_url: str = "https://i.ibb.co/4RXQbYGB/IMG-7774.jpg"
+) -> Dict[str, Any]:
+    """
+    Extract template zones from a template slide and create a new slide with images placed exactly where the placeholder text indicates.
+    
+    Args:
+        template_presentation_url: URL of the template presentation
+        template_slide_number: Slide number to extract template zones from (e.g., 5 for "Image Block")
+        new_presentation_title: Title for the new presentation
+        image_block_url: URL for image to place in "Image Block" zone
+        background_image_url: URL for background image (if template has background zone)
+    
+    Returns:
+        Dictionary with template extraction results and new slide creation details
+    """
+    try:
+        # Initialize the service
+        positioner = PreciseSlidesPositioning()
+        
+        # Extract template presentation ID
+        template_presentation_id = positioner.extract_presentation_id_from_url(template_presentation_url)
+        logger.info(f"🔍 Analyzing template presentation: {template_presentation_id}")
+        
+        # Get template slide ID
+        slides_result = positioner.get_presentation_slides(template_presentation_id)
+        if not slides_result.get("success") or template_slide_number > len(slides_result["slides"]):
+            raise ValueError(f"Template slide {template_slide_number} not found")
+        
+        template_slide_id = slides_result["slides"][template_slide_number - 1]["slide_id"]
+        logger.info(f"📄 Using template slide {template_slide_number} (ID: {template_slide_id})")
+        
+        # Extract template zones from the template slide
+        template_zones = positioner.extract_template_zones_by_text(template_presentation_id, template_slide_id)
+        if not template_zones.get("success"):
+            raise ValueError(f"Failed to extract template zones: {template_zones}")
+        
+        zones = template_zones["zones"]
+        logger.info(f"🎯 Found {len(zones)} template zones: {list(zones.keys())}")
+        
+        # Create new presentation with one slide
+        new_pres_result = positioner.create_presentation_with_slides(new_presentation_title, slide_count=1)
+        if not new_pres_result.get("success"):
+            raise ValueError(f"Failed to create new presentation: {new_pres_result}")
+        
+        new_presentation_id = new_pres_result["presentation_id"]
+        new_slide_id = new_pres_result["slide_ids"][0]
+        
+        logger.info(f"✅ Created new presentation: {new_presentation_id}")
+        
+        # Place images in template zones
+        placement_results = []
+        
+        # Place background image if background zone exists
+        if "background_image" in zones and background_image_url:
+            bg_result = positioner.place_image_in_template_zone(
+                new_presentation_id, new_slide_id, "background_image", background_image_url, template_zones
+            )
+            placement_results.append({"zone": "background_image", "result": bg_result})
+        
+        # Place image in image block zone
+        if "image_block" in zones and image_block_url:
+            img_result = positioner.place_image_in_template_zone(
+                new_presentation_id, new_slide_id, "image_block", image_block_url, template_zones
+            )
+            placement_results.append({"zone": "image_block", "result": img_result})
+        
+        # Summary
+        successful_placements = [p for p in placement_results if p["result"].get("success")]
+        failed_placements = [p for p in placement_results if not p["result"].get("success")]
+        
+        final_result = {
+            "success": len(failed_placements) == 0,
+            "template_analysis": {
+                "template_presentation_id": template_presentation_id,
+                "template_slide_number": template_slide_number,
+                "template_slide_id": template_slide_id,
+                "zones_found": list(zones.keys()),
+                "zones_details": zones
+            },
+            "new_presentation": {
+                "presentation_id": new_presentation_id,
+                "presentation_url": new_pres_result["url"],
+                "slide_id": new_slide_id,
+                "title": new_presentation_title
+            },
+            "image_placements": {
+                "successful": len(successful_placements),
+                "failed": len(failed_placements),
+                "details": placement_results
+            }
+        }
+        
+        logger.info(f"🎉 Template-based slide creation completed!")
+        logger.info(f"📝 New presentation URL: {new_pres_result['url']}")
+        logger.info(f"🖼️  Successfully placed {len(successful_placements)} images")
+        
+        if failed_placements:
+            logger.warning(f"⚠️  {len(failed_placements)} image placements failed")
+        
+        return final_result
+        
+    except Exception as error:
+        logger.error(f"Error in create_slide_from_template_zones: {error}")
+        raise ValueError(f"Error creating slide from template: {error}")
+
+
+@mcp.tool(
+    name="extract_template_zones_only",
+    description="Extract positioning zones and coordinates from template slides by analyzing placeholder text elements. Returns precise coordinates and dimensions for LLM prompting.",
+)
+async def extract_template_zones_only(
+    template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
+    slide_numbers: str = "4,5"
+) -> Dict[str, Any]:
+    """
+    Extract template zones from specific slides by finding placeholder text elements.
+    Perfect for getting coordinates to use in LLM prompts for precise positioning.
+    
+    Args:
+        template_presentation_url: URL of the template presentation
+        slide_numbers: Comma-separated slide numbers to analyze (e.g., "4,5")
+    
+    Returns:
+        Dictionary with extracted template zones, coordinates, and dimensions for each slide
+    """
+    try:
+        # Initialize the service
+        positioner = PreciseSlidesPositioning()
+        
+        # Extract presentation ID from URL
+        presentation_id = positioner.extract_presentation_id_from_url(template_presentation_url)
+        logger.info(f"🔍 Extracting template zones from presentation: {presentation_id}")
+        
+        # Parse slide numbers
+        slide_nums = [int(num.strip()) for num in slide_numbers.split(",")]
+        logger.info(f"📄 Analyzing slides: {slide_nums}")
+        
+        # Get all slides info
+        slides_result = positioner.get_presentation_slides(presentation_id)
+        if not slides_result.get("success"):
+            raise ValueError(f"Failed to get presentation slides: {slides_result}")
+        
+        slides_info = slides_result["slides"]
+        results = {
+            "success": True,
+            "presentation_id": presentation_id,
+            "presentation_title": slides_result.get("presentation_title", "Unknown"),
+            "slides_analyzed": []
+        }
+        
+        # Extract template zones from each requested slide
+        for slide_num in slide_nums:
+            if slide_num < 1 or slide_num > len(slides_info):
+                logger.warning(f"Slide number {slide_num} is out of range (1-{len(slides_info)})")
+                continue
+            
+            slide_info = slides_info[slide_num - 1]  # Convert to 0-indexed
+            slide_id = slide_info["slide_id"]
+            
+            logger.info(f"🎯 Extracting template zones from slide {slide_num}")
+            
+            # Extract template zones from this slide
+            template_zones = positioner.extract_template_zones_by_text(presentation_id, slide_id)
+            
+            slide_data = {
+                "slide_number": slide_num,
+                "slide_id": slide_id,
+                "zones_found": len(template_zones.get("zones", {})),
+                "template_zones": template_zones.get("zones", {}),
+                "extraction_success": template_zones.get("success", False)
+            }
+            
+            if template_zones.get("success"):
+                zones = template_zones["zones"]
+                logger.info(f"✅ Slide {slide_num}: Found {len(zones)} template zones")
+                
+                # Log each zone for easy reference
+                for zone_name, zone_info in zones.items():
+                    logger.info(f"  🎯 {zone_name}: {zone_info['width_inches']:.2f}\"×{zone_info['height_inches']:.2f}\" at ({zone_info['x_inches']:.2f}\", {zone_info['y_inches']:.2f}\")")
+                    logger.info(f"      📝 Original text: '{zone_info['original_text']}'")
+                    logger.info(f"      📐 EMU coordinates: x={zone_info['x_emu']}, y={zone_info['y_emu']}, w={zone_info['width_emu']}, h={zone_info['height_emu']}")
+            else:
+                logger.warning(f"❌ Failed to extract zones from slide {slide_num}")
+            
+            results["slides_analyzed"].append(slide_data)
+        
+        # Summary logging
+        total_zones = sum(slide["zones_found"] for slide in results["slides_analyzed"])
+        logger.info(f"🎉 Template zone extraction completed!")
+        logger.info(f"📊 Total zones found across all slides: {total_zones}")
+        
+        return results
+        
+    except Exception as error:
+        logger.error(f"Error in extract_template_zones_only: {error}")
+        raise ValueError(f"Error extracting template zones: {error}")
 
 
 def main_with_creation():
