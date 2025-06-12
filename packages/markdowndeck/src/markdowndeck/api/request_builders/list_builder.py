@@ -135,7 +135,6 @@ class ListRequestBuilder(BaseRequestBuilder):
         slide_id: str,
     ) -> list[dict]:
         """Generate requests for a bullet list element."""
-        # REFACTORED: Removed subheading_data and theme_placeholders parameters.
         return self.generate_list_element_requests(
             element,
             slide_id,
@@ -151,10 +150,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         """
         Generate requests for a list element.
         """
-        # REFACTORED: Removed all logic related to subheading_data and theme_placeholders.
-        # JUSTIFICATION: Aligns with API_GEN_SPEC.md Rule #5.
         requests = []
-
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", None) or (400, 200)
 
@@ -182,37 +178,53 @@ class ListRequestBuilder(BaseRequestBuilder):
             }
         }
         requests.append(create_shape_request)
-
-        autofit_request = {
-            "updateShapeProperties": {
-                "objectId": element.object_id,
-                "fields": "autofit.autofitType",
-                "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+        requests.append(
+            {
+                "updateShapeProperties": {
+                    "objectId": element.object_id,
+                    "fields": "autofit.autofitType",
+                    "shapeProperties": {"autofit": {"autofitType": "NONE"}},
+                }
             }
-        }
-        requests.append(autofit_request)
+        )
 
         if not hasattr(element, "items") or not element.items:
             return requests
 
         text_content, text_ranges = self._format_list_with_nesting(element.items)
-
-        if text_content.strip():
-            requests.append(
-                {
-                    "insertText": {
-                        "objectId": element.object_id,
-                        "insertionIndex": 0,
-                        "text": text_content,
-                    }
-                }
-            )
-        else:
+        if not text_content.strip():
             return requests
 
+        # Insert all text content at once
+        requests.append(
+            {
+                "insertText": {
+                    "objectId": element.object_id,
+                    "insertionIndex": 0,
+                    "text": text_content,
+                }
+            }
+        )
+
+        text_length = len(text_content)
+
+        # Create bullets and apply formatting
         for range_info in text_ranges:
             start_index = range_info["start"]
             end_index = range_info["end"]
+
+            # PREVENTATIVE_FIX: Clamp ranges to be within the actual text length.
+            if start_index >= text_length:
+                logger.warning(
+                    f"List item range starts out of bounds. Skipping. Start: {start_index}, Text Length: {text_length}"
+                )
+                continue
+            end_index = min(end_index, text_length)
+            if start_index >= end_index:
+                logger.warning(
+                    f"List item range is invalid after clamping. Skipping. Start: {start_index}, End: {end_index}"
+                )
+                continue
 
             requests.append(
                 {
@@ -273,26 +285,28 @@ class ListRequestBuilder(BaseRequestBuilder):
                     }
                 )
 
-        for range_info in text_ranges:
             item = range_info.get("item")
-            offset_mapping = range_info.get("offset_mapping", {})
             if item and hasattr(item, "formatting") and item.formatting:
                 for text_format in item.formatting:
-                    adjusted_start = offset_mapping.get(
-                        text_format.start, range_info["start"]
+                    # Adjust format start/end to be relative to the entire text block
+                    fmt_start = start_index + text_format.start
+                    fmt_end = start_index + text_format.end
+
+                    # PREVENTATIVE_FIX: Clamp formatting ranges as well
+                    if fmt_start >= text_length:
+                        continue
+                    fmt_end = min(fmt_end, text_length)
+                    if fmt_start >= fmt_end:
+                        continue
+
+                    style_request = self._apply_text_formatting(
+                        element_id=element.object_id,
+                        style=self._format_to_style(text_format),
+                        fields=self._format_to_fields(text_format),
+                        start_index=fmt_start,
+                        end_index=fmt_end,
                     )
-                    adjusted_end = offset_mapping.get(
-                        text_format.end, range_info["end"]
-                    )
-                    if adjusted_start < adjusted_end:
-                        style_request = self._apply_text_formatting(
-                            element_id=element.object_id,
-                            style=self._format_to_style(text_format),
-                            fields=self._format_to_fields(text_format),
-                            start_index=adjusted_start,
-                            end_index=adjusted_end,
-                        )
-                        requests.append(style_request)
+                    requests.append(style_request)
 
         self._apply_color_directive(element, requests)
         self._apply_list_styling_directives(element, requests)
@@ -302,47 +316,32 @@ class ListRequestBuilder(BaseRequestBuilder):
     def _format_list_with_nesting(
         self, items: list[ListItem]
     ) -> tuple[str, list[dict[str, Any]]]:
-        """Format list items with proper nesting using tab characters."""
+        """
+        Formats list items into a single text string and calculates precise ranges.
+        REFACTORED: This is the core fix. It no longer uses tabs and calculates
+        ranges based on the exact text being added.
+        """
         text_content = ""
         text_ranges = []
 
         def process_items(items_list, level=0):
-            nonlocal text_content, text_ranges
+            nonlocal text_content
             for item in items_list:
-                item_text = (
-                    item.text.rstrip() if hasattr(item, "text") else str(item).rstrip()
-                )
-                tabs = "\t" * level
-                lines = item_text.split("\n")
-                tabbed_lines = [tabs + line for line in lines]
-                tabbed_item_text = "\n".join(tabbed_lines)
+                item_text = item.text.strip()
+
                 start_pos = len(text_content)
-                text_content += tabbed_item_text + " \n"
-                end_pos = len(text_content) - 2
-                if end_pos <= start_pos:
-                    end_pos = start_pos + 1
-                offset_mapping = {}
-                orig_pos = 0
-                tabbed_pos = start_pos
-                for line_idx, line in enumerate(lines):
-                    if line_idx > 0:
-                        tabbed_pos += 1
-                    tabbed_pos += len(tabs)
-                    for _i in range(len(line)):
-                        offset_mapping[orig_pos] = tabbed_pos
-                        orig_pos += 1
-                        tabbed_pos += 1
-                    if line_idx < len(lines) - 1:
-                        orig_pos += 1
+                text_content += item_text + "\n"
+                end_pos = start_pos + len(item_text)  # Range is just the text itself
+
                 text_ranges.append(
                     {
                         "start": start_pos,
                         "end": end_pos,
                         "level": level,
-                        "offset_mapping": offset_mapping,
                         "item": item,
                     }
                 )
+
                 if hasattr(item, "children") and item.children:
                     process_items(item.children, level + 1)
 
@@ -358,7 +357,6 @@ class ListRequestBuilder(BaseRequestBuilder):
             return
 
         try:
-            # Use _format_to_style to handle hex or theme colors
             color_format = TextFormat(
                 start=0, end=0, format_type=TextFormatType.COLOR, value=color_val
             )

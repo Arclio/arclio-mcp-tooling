@@ -24,7 +24,6 @@ class DirectiveParser:
 
     def __init__(self):
         """Initialize the directive parser with enhanced type support."""
-        # REFACTORED: This is the single pattern to find any directive block.
         self.directive_block_pattern = re.compile(r"(\[[^\[\]]+\])")
 
         self.directive_types = {
@@ -72,29 +71,23 @@ class DirectiveParser:
             "style": self._enhanced_convert_style,
             "float": self._safe_float_convert,
             "string": str,
-            "bool": lambda v: True,  # For valueless directives
+            "bool": lambda v: True,
         }
 
     def parse_and_strip_from_text(self, text_line: str) -> tuple[str, dict[str, Any]]:
-        """
-        Finds and parses all directive blocks in a string, returning the cleaned string and a dict of directives.
-        This is the new canonical method for stripping inline directives.
-        """
+        """Finds and parses all directive blocks in a string, returning the cleaned string and a dict of directives."""
         if not text_line or "[" not in text_line:
             return text_line, {}
 
         directives = {}
 
-        # Use a callback with re.sub to both remove the directive and parse it.
         def replacer(match):
             directive_text = match.group(0)
             parsed = self._parse_directive_text(directive_text)
             directives.update(parsed)
-            return ""  # Remove the matched directive from the string
+            return ""
 
-        # Replace all occurrences of the directive pattern
         cleaned_text = self.directive_block_pattern.sub(replacer, text_line)
-
         return cleaned_text.strip(), directives
 
     def parse_directives(self, section: Section) -> None:
@@ -116,11 +109,9 @@ class DirectiveParser:
 
             line_directives, remaining_text = self.parse_inline_directives(stripped)
             if line_directives and not remaining_text:
-                # This is a directive-only line
                 directives.update(line_directives)
                 consumed_line_count += 1
             else:
-                # First non-directive line found
                 break
 
         if directives:
@@ -136,13 +127,10 @@ class DirectiveParser:
         if not text_line:
             return {}, ""
 
-        # Pattern to ensure the whole line is made of directives
         full_directive_pattern = r"^\s*((?:\s*\[[^\[\]]+\]\s*)+)\s*$"
         match = re.match(full_directive_pattern, text_line)
-
         if not match:
             return {}, text_line
-
         directive_text = match.group(1)
         directives = self._parse_directive_text(directive_text)
         return directives, ""
@@ -150,40 +138,45 @@ class DirectiveParser:
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
         """Internal helper to parse a string known to contain directives."""
         directives = {}
-        # REFACTORED: Regex now supports valueless directives like [bold]
-        directive_pattern = r"\[\s*([^=\[\]\s]+)(?:\s*=\s*([^\[\]]*))?\s*\]"
-        matches = re.findall(directive_pattern, directive_text)
+        # This pattern finds the content within each [...] block
+        bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
+        # This pattern finds individual key=value or key pairs within a string.
+        pair_pattern = re.compile(r'([\w-]+)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?')
 
-        for key, value in matches:
-            key = key.strip().lower()
-            value = value.strip("'\"")  # Strip quotes from value
+        for content in bracket_content_pattern.findall(directive_text):
+            for key, value in pair_pattern.findall(content):
+                key = key.strip().lower()
+                value = value.strip().strip("'\"") if value else ""
 
-            if key in self.directive_types:
-                directive_type = self.directive_types[key]
-                # If value is empty, it's a boolean flag
-                if not value:
-                    directive_type = "bool"
+                if key in self.directive_types:
+                    directive_type = self.directive_types[key]
+                    if not value and directive_type != "string":
+                        directive_type = "bool"
 
-                converter = self.converters.get(directive_type)
-                if converter:
-                    try:
-                        converted_value = converter(value)
-                        if directive_type == "style" and isinstance(
-                            converted_value, tuple
-                        ):
-                            directives.update(
-                                self._process_style_directive_value(
-                                    key, converted_value
+                    converter = self.converters.get(directive_type)
+                    if converter:
+                        try:
+                            converted_value = converter(value)
+                            if directive_type == "style" and isinstance(
+                                converted_value, tuple
+                            ):
+                                directives.update(
+                                    self._process_style_directive_value(
+                                        key, converted_value
+                                    )
                                 )
+                            else:
+                                directives[key] = converted_value
+                        except ValueError:
+                            logger.warning(
+                                f"Could not convert directive '{key}={value}' using {directive_type} converter. Storing as string."
                             )
-                        else:
-                            directives[key] = converted_value
-                    except ValueError:
-                        directives[key] = value  # Keep as string if conversion fails
+                            directives[key] = value
+                    else:
+                        directives[key] = value or True
                 else:
+                    logger.warning(f"Unknown directive key '{key}'. Storing as is.")
                     directives[key] = value or True
-            else:
-                directives[key] = value or True  # Default for unknown keys
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:

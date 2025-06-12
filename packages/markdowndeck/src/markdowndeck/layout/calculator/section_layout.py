@@ -42,10 +42,9 @@ def _determine_layout_orientation(children: list[Element | Section]) -> bool:
     Determine whether sections should use vertical layout based on their directives.
     REFACTORED: Filters for Section objects before checking attributes.
     """
-    # CRITICAL FIX: Filter to only Section objects before accessing .type
     sections = [child for child in children if isinstance(child, Section)]
     if not sections:
-        return True  # Default to vertical if no subsections, only elements
+        return True
 
     has_height_only_directives = any(
         s.directives.get("height") and not s.directives.get("width") for s in sections
@@ -108,13 +107,16 @@ def _calculate_section_intrinsic_height_and_set_child_sizes(
 
 def _distribute_and_position_sections_unified(
     calculator,
-    sections: list[Section],
+    children: list[Element | Section],
     area: tuple[float, float, float, float],
     is_vertical_layout: bool,
 ) -> None:
     """
     Distribute space among sections using the unified sequential model.
     """
+    # REFACTORED: Filter for only Section objects to prevent AttributeErrors on malformed slides.
+    sections = [child for child in children if isinstance(child, Section)]
+
     if not sections:
         return
 
@@ -378,7 +380,6 @@ def _position_elements_within_section(calculator, section: Section) -> None:
     content_width = max(10.0, section_width - 2 * padding)
     content_height = max(10.0, section_height - 2 * padding)
 
-    # FIXED: Ensure all elements have a size before positioning them.
     for element in section_elements:
         if not element.size:
             element_width = calculator._calculate_element_width(element, content_width)
@@ -414,7 +415,6 @@ def _apply_vertical_alignment_and_position_unified(
         return
     vertical_gap = directives.get("gap", calculator.VERTICAL_SPACING)
 
-    # Calculate total height based on pre-calculated element sizes
     total_content_height = sum(element.size[1] for element in elements if element.size)
     total_content_height += adjust_vertical_spacing(elements[0], vertical_gap) * (
         len(elements) - 1
