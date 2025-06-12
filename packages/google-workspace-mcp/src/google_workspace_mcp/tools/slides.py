@@ -120,7 +120,9 @@ async def create_slide(
     Returns:
         Response data confirming slide creation or raises error.
     """
-    logger.info(f"Executing create_slide in presentation '{presentation_id}' with layout '{layout}'")
+    logger.info(
+        f"Executing create_slide in presentation '{presentation_id}' with layout '{layout}'"
+    )
     if not presentation_id or not presentation_id.strip():
         raise ValueError("Presentation ID cannot be empty")
     # Optional: Validate layout against known predefined layouts?
@@ -171,7 +173,9 @@ async def add_text_to_slide(
     # Validate shape_type
     valid_shape_types = {"TEXT_BOX"}
     if shape_type not in valid_shape_types:
-        raise ValueError(f"Invalid shape_type '{shape_type}' provided. Must be one of {valid_shape_types}.")
+        raise ValueError(
+            f"Invalid shape_type '{shape_type}' provided. Must be one of {valid_shape_types}."
+        )
 
     slides_service = SlidesService()
     result = slides_service.add_text(
@@ -279,6 +283,65 @@ async def add_bulleted_list_to_slide(
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error adding bulleted list to slide"))
+
+    return result
+
+
+@mcp.tool(
+    name="add_image_to_slide",
+    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL.",
+)
+async def add_image_to_slide(
+    presentation_id: str,
+    slide_id: str,
+    image_url: str,
+    position_x: float = 100.0,
+    position_y: float = 100.0,
+    size_width: float | None = None,
+    size_height: float | None = None,
+) -> dict[str, Any]:
+    """
+    Add an image to a slide from a publicly accessible URL.
+
+    Args:
+        presentation_id: The ID of the presentation.
+        slide_id: The ID of the slide.
+        image_url: The publicly accessible URL of the image to add.
+        position_x: X coordinate for position (default 100.0 PT).
+        position_y: Y coordinate for position (default 100.0 PT).
+        size_width: Optional width of the image in points. If not specified, uses original size.
+        size_height: Optional height of the image in points. If not specified, uses original size.
+
+    Returns:
+        Response data confirming image addition or raises error.
+    """
+    logger.info(
+        f"Executing add_image_to_slide on slide '{slide_id}' with image '{image_url}'"
+    )
+    if not presentation_id or not slide_id or not image_url:
+        raise ValueError("Presentation ID, Slide ID, and Image URL are required")
+
+    # Basic URL validation
+    if not image_url.startswith(("http://", "https://")):
+        raise ValueError("Image URL must be a valid HTTP or HTTPS URL")
+
+    slides_service = SlidesService()
+
+    # Prepare size parameter
+    size = None
+    if size_width is not None and size_height is not None:
+        size = (size_width, size_height)
+
+    result = slides_service.add_image(
+        presentation_id=presentation_id,
+        slide_id=slide_id,
+        image_url=image_url,
+        position=(position_x, position_y),
+        size=size,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error adding image to slide"))
 
     return result
 
@@ -434,12 +497,16 @@ async def delete_slide(
     Returns:
         Response data confirming slide deletion or raises error.
     """
-    logger.info(f"Executing delete_slide: slide '{slide_id}' from presentation '{presentation_id}'")
+    logger.info(
+        f"Executing delete_slide: slide '{slide_id}' from presentation '{presentation_id}'"
+    )
     if not presentation_id or not slide_id:
         raise ValueError("Presentation ID and Slide ID are required")
 
     slides_service = SlidesService()
-    result = slides_service.delete_slide(presentation_id=presentation_id, slide_id=slide_id)
+    result = slides_service.delete_slide(
+        presentation_id=presentation_id, slide_id=slide_id
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error deleting slide"))
@@ -466,13 +533,22 @@ async def create_presentation_from_markdown(
         Created presentation data or raises error.
     """
     logger.info(f"Executing create_presentation_from_markdown with title '{title}'")
-    if not title or not title.strip() or not markdown_content or not markdown_content.strip():
+    if (
+        not title
+        or not title.strip()
+        or not markdown_content
+        or not markdown_content.strip()
+    ):
         raise ValueError("Title and markdown content are required")
 
     slides_service = SlidesService()
-    result = slides_service.create_presentation_from_markdown(title=title, markdown_content=markdown_content)
+    result = slides_service.create_presentation_from_markdown(
+        title=title, markdown_content=markdown_content
+    )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(result.get("message", "Error creating presentation from Markdown"))
+        raise ValueError(
+            result.get("message", "Error creating presentation from Markdown")
+        )
 
     return result

@@ -27,7 +27,9 @@ class DriveService(BaseGoogleService):
         """Initialize the Drive service."""
         super().__init__("drive", "v3")
 
-    def search_files(self, query: str, page_size: int = 10, shared_drive_id: str | None = None) -> list[dict[str, Any]]:
+    def search_files(
+        self, query: str, page_size: int = 10, shared_drive_id: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Search for files in Google Drive.
 
@@ -40,13 +42,15 @@ class DriveService(BaseGoogleService):
             List of file metadata dictionaries (id, name, mimeType, etc.) or an error dictionary
         """
         try:
-            logger.info(f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}")
+            logger.info(
+                f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+            )
 
             # Validate and constrain page_size
             page_size = max(1, min(page_size, 1000))
 
-            # Format query with proper escaping
-            formatted_query = query.replace("'", "\\'")
+            # Use query as-is - Google Drive API handles proper escaping internally
+            formatted_query = query
 
             # Build list parameters with shared drive support
             list_params = {
@@ -59,9 +63,13 @@ class DriveService(BaseGoogleService):
 
             if shared_drive_id:
                 list_params["driveId"] = shared_drive_id
-                list_params["corpora"] = "drive"  # Search within the specified shared drive
+                list_params["corpora"] = (
+                    "drive"  # Search within the specified shared drive
+                )
             else:
-                list_params["corpora"] = "user"  # Default to user's files if no specific shared drive ID
+                list_params["corpora"] = (
+                    "user"  # Default to user's files if no specific shared drive ID
+                )
 
             results = self.service.files().list(**list_params).execute()
             files = results.get("files", [])
@@ -84,12 +92,18 @@ class DriveService(BaseGoogleService):
         """
         try:
             # Get file metadata
-            file_metadata = self.service.files().get(fileId=file_id, fields="mimeType, name").execute()
+            file_metadata = (
+                self.service.files()
+                .get(fileId=file_id, fields="mimeType, name")
+                .execute()
+            )
 
             original_mime_type = file_metadata.get("mimeType")
             file_name = file_metadata.get("name", "Unknown")
 
-            logger.info(f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}")
+            logger.info(
+                f"Reading file '{file_name}' ({file_id}) with mimeType: {original_mime_type}"
+            )
 
             # Handle Google Workspace files by exporting
             if original_mime_type.startswith("application/vnd.google-apps."):
@@ -129,7 +143,9 @@ class DriveService(BaseGoogleService):
                 .execute()
             )
 
-            logger.info(f"Successfully retrieved metadata for file: {file_metadata.get('name', 'Unknown')}")
+            logger.info(
+                f"Successfully retrieved metadata for file: {file_metadata.get('name', 'Unknown')}"
+            )
             return file_metadata
 
         except Exception as e:
@@ -185,13 +201,17 @@ class DriveService(BaseGoogleService):
 
             created_folder = self.service.files().create(**create_params).execute()
 
-            logger.info(f"Successfully created folder '{folder_name}' with ID: {created_folder.get('id')}")
+            logger.info(
+                f"Successfully created folder '{folder_name}' with ID: {created_folder.get('id')}"
+            )
             return created_folder
 
         except Exception as e:
             return self.handle_api_error("create_folder", e)
 
-    def _export_google_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
+    def _export_google_file(
+        self, file_id: str, file_name: str, mime_type: str
+    ) -> dict[str, Any]:
         """Export a Google Workspace file in an appropriate format."""
         # Determine export format
         export_mime_type = None
@@ -216,7 +236,9 @@ class DriveService(BaseGoogleService):
 
         # Export the file
         try:
-            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime_type, supportsAllDrives=True)
+            request = self.service.files().export_media(
+                fileId=file_id, mimeType=export_mime_type, supportsAllDrives=True
+            )
 
             content_bytes = self._download_content(request)
             if isinstance(content_bytes, dict) and content_bytes.get("error"):
@@ -248,7 +270,9 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("_export_google_file", e)
 
-    def _download_regular_file(self, file_id: str, file_name: str, mime_type: str) -> dict[str, Any]:
+    def _download_regular_file(
+        self, file_id: str, file_name: str, mime_type: str
+    ) -> dict[str, Any]:
         """Download a regular (non-Google Workspace) file."""
         request = self.service.files().get_media(fileId=file_id, supportsAllDrives=True)
 
@@ -262,7 +286,9 @@ class DriveService(BaseGoogleService):
                 content = content_bytes.decode("utf-8")
                 return {"mimeType": mime_type, "content": content, "encoding": "utf-8"}
             except UnicodeDecodeError:
-                logger.warning(f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64.")
+                logger.warning(
+                    f"UTF-8 decoding failed for file {file_id} ('{file_name}', {mime_type}). Using base64."
+                )
                 content = base64.b64encode(content_bytes).decode("utf-8")
                 return {
                     "mimeType": mime_type,
@@ -400,7 +426,11 @@ class DriveService(BaseGoogleService):
             # API allows pageSize up to 100 for drives.list
             actual_page_size = min(max(1, page_size), 100)
 
-            results = self.service.drives().list(pageSize=actual_page_size, fields="drives(id, name, kind)").execute()
+            results = (
+                self.service.drives()
+                .list(pageSize=actual_page_size, fields="drives(id, name, kind)")
+                .execute()
+            )
             drives = results.get("drives", [])
 
             # Filter for kind='drive#drive' just to be sure, though API should only return these
