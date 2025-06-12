@@ -4,8 +4,9 @@ Uses your existing BaseGoogleService infrastructure for authentication.
 """
 
 import logging
+import re
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from google_workspace_mcp.app import mcp  # Import from central app module
 from google_workspace_mcp.services.base import BaseGoogleService
@@ -645,46 +646,271 @@ class PreciseSlidesPositioning(BaseGoogleService):
         except Exception as error:
             return self.handle_api_error("create_complete_presentation_workflow", error)
 
+    @staticmethod
+    def extract_presentation_id_from_url(url: str) -> str:
+        """
+        Extract presentation ID from Google Slides URL.
+
+        Args:
+            url: Google Slides URL
+
+        Returns:
+            Presentation ID
+
+        Raises:
+            ValueError: If URL format is invalid
+        """
+        # Pattern to match Google Slides URLs
+        pattern = r"/presentation/d/([a-zA-Z0-9-_]+)"
+        match = re.search(pattern, url)
+
+        if not match:
+            raise ValueError(f"Invalid Google Slides URL format: {url}")
+
+        return match.group(1)
+
+    def get_presentation_slides(self, presentation_id: str) -> Dict[str, Any]:
+        """
+        Get all slides from a presentation with their IDs and basic info.
+
+        Args:
+            presentation_id: The ID of the presentation
+
+        Returns:
+            Dictionary with slide information or error details
+        """
+        try:
+            response = (
+                self.service.presentations()
+                .get(presentationId=presentation_id)
+                .execute()
+            )
+
+            slides_info = []
+            for i, slide in enumerate(response.get("slides", [])):
+                slides_info.append(
+                    {
+                        "slide_number": i + 1,
+                        "slide_id": slide["objectId"],
+                        "layout": slide.get("slideProperties", {}).get(
+                            "masterObjectId", "unknown"
+                        ),
+                    }
+                )
+
+            logger.info(f"Retrieved {len(slides_info)} slides from presentation")
+            return {
+                "success": True,
+                "presentation_id": presentation_id,
+                "presentation_title": response.get("title", "Unknown"),
+                "slides": slides_info,
+                "total_slides": len(slides_info),
+            }
+
+        except Exception as error:
+            return self.handle_api_error("get_presentation_slides", error)
+
+    def get_elements_from_specific_slides(
+        self, presentation_id: str, slide_numbers: List[int]
+    ) -> Dict[str, Any]:
+        """
+        Get element positions from specific slides by slide number.
+
+        Args:
+            presentation_id: The ID of the presentation
+            slide_numbers: List of slide numbers (1-indexed)
+
+        Returns:
+            Dictionary with elements from specified slides or error details
+        """
+        try:
+            # First get all slides to map numbers to IDs
+            slides_result = self.get_presentation_slides(presentation_id)
+            if not slides_result.get("success"):
+                return slides_result
+
+            slides_info = slides_result["slides"]
+            results = {
+                "success": True,
+                "presentation_id": presentation_id,
+                "slides_analyzed": [],
+            }
+
+            for slide_num in slide_numbers:
+                if slide_num < 1 or slide_num > len(slides_info):
+                    logger.warning(
+                        f"Slide number {slide_num} is out of range (1-{len(slides_info)})"
+                    )
+                    continue
+
+                slide_info = slides_info[slide_num - 1]  # Convert to 0-indexed
+                slide_id = slide_info["slide_id"]
+
+                # Get elements from this slide
+                elements_result = self.get_existing_element_positions(
+                    presentation_id, slide_id
+                )
+
+                slide_data = {
+                    "slide_number": slide_num,
+                    "slide_id": slide_id,
+                    "elements_found": (
+                        len(elements_result.get("elements", {}))
+                        if elements_result.get("success")
+                        else 0
+                    ),
+                    "elements": elements_result.get("elements", {}),
+                    "success": elements_result.get("success", False),
+                }
+
+                if elements_result.get("success"):
+                    logger.info(
+                        f"Retrieved {slide_data['elements_found']} elements from slide {slide_num}"
+                    )
+                else:
+                    logger.error(
+                        f"Failed to get elements from slide {slide_num}: {elements_result}"
+                    )
+
+                results["slides_analyzed"].append(slide_data)
+
+            return results
+
+        except Exception as error:
+            return self.handle_api_error("get_elements_from_specific_slides", error)
+
+
+@mcp.tool(
+    name="get_template_elements_from_slides",
+    description="Extract element positions and dimensions from specific slides in a template presentation. Use this to analyze existing templates and get precise coordinates.",
+)
+async def get_template_elements_from_slides(
+    presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
+    slide_numbers: str = "4,5",
+) -> Dict[str, Any]:
+    """
+    Extract element positions from specific slides in a template presentation.
+
+    Args:
+        presentation_url: Google Slides URL (defaults to the provided template)
+        slide_numbers: Comma-separated slide numbers to analyze (e.g., "4,5")
+
+    Returns:
+        Dictionary with element positions and dimensions from specified slides
+    """
+    try:
+        # Initialize the service
+        positioner = PreciseSlidesPositioning()
+
+        # Extract presentation ID from URL
+        presentation_id = positioner.extract_presentation_id_from_url(presentation_url)
+        logger.info(f"Extracted presentation ID: {presentation_id}")
+
+        # Parse slide numbers
+        slide_nums = [int(num.strip()) for num in slide_numbers.split(",")]
+        logger.info(f"Analyzing slides: {slide_nums}")
+
+        # Get elements from specified slides
+        result = positioner.get_elements_from_specific_slides(
+            presentation_id, slide_nums
+        )
+
+        if result.get("success"):
+            logger.info(
+                f"✅ Successfully analyzed {len(result['slides_analyzed'])} slides"
+            )
+
+            # Log detailed information about elements found
+            for slide_data in result["slides_analyzed"]:
+                slide_num = slide_data["slide_number"]
+                elements_count = slide_data["elements_found"]
+                logger.info(f"📄 Slide {slide_num}: Found {elements_count} elements")
+
+                # Log element details in human-readable format
+                for element_id, element_info in slide_data["elements"].items():
+                    logger.info(
+                        f"  🔲 {element_id} ({element_info['element_type']}): "
+                        f"{element_info['width_inches']:.2f}\" × {element_info['height_inches']:.2f}\" "
+                        f"at ({element_info['x_inches']:.2f}\", {element_info['y_inches']:.2f}\")"
+                    )
+
+            return result
+        else:
+            logger.error(f"❌ Failed to analyze slides: {result}")
+            raise ValueError(f"Failed to analyze slides: {result}")
+
+    except Exception as error:
+        logger.error(f"Error in get_template_elements_from_slides: {error}")
+        raise ValueError(f"Error analyzing template slides: {error}")
+
 
 @mcp.tool(
     name="create_presentation_with_positioned_images",
     description="Creates a Google Slides presentation with precisely positioned background and portrait images. Complete workflow with hardcoded images for testing.",
 )
-async def create_presentation_with_positioned_images() -> Dict[str, Any]:
-    """Creates a Google Slides presentation with precisely positioned background and portrait images."""
+async def create_presentation_with_positioned_images(
+    title: str = "Press Recap - Paris x Motorola",
+    background_url: str = "https://i.ibb.co/4RXQbYGB/IMG-7774.jpg",
+    portrait_url: str = "https://i.ibb.co/HLWpZmPS/20250122-KEVI4992-kevinostaj.jpg",
+) -> Dict[str, Any]:
+    """
+    Creates a Google Slides presentation with precisely positioned background and portrait images.
 
-    # Initialize the service
-    positioner = PreciseSlidesPositioning()
+    Args:
+        title: Title for the new presentation
+        background_url: URL for the background image (full slide)
+        portrait_url: URL for the portrait image (right block)
 
-    # Your image URLs
-    background_url = "https://i.ibb.co/4RXQbYGB/IMG-7774.jpg"
-    portrait_url = "https://i.ibb.co/HLWpZmPS/20250122-KEVI4992-kevinostaj.jpg"
+    Returns:
+        Dictionary with presentation details and operation results
+    """
+    try:
+        # Initialize the service
+        positioner = PreciseSlidesPositioning()
 
-    # Method 1: Complete workflow (recommended)
-    print("Creating complete presentation workflow...")
-    result = positioner.create_complete_presentation_workflow(
-        title="Press Recap - Paris x Motorola",
-        background_url=background_url,
-        portrait_url=portrait_url,
-    )
+        logger.info("Creating complete presentation workflow...")
+        result = positioner.create_complete_presentation_workflow(
+            title=title,
+            background_url=background_url,
+            portrait_url=portrait_url,
+        )
 
-    if result.get("success"):
-        logger.info(f"✅ Presentation created successfully!")
-        logger.info(f"📝 Presentation URL: {result['url']}")
-        logger.info(f"📄 Slide 1 (Background): {result['slides']['slide_1']['url']}")
-        logger.info(f"📄 Slide 2 (Portrait): {result['slides']['slide_2']['url']}")
-        return result
-    else:
-        logger.error(f"❌ Workflow failed: {result}")
-        raise ValueError(f"Workflow failed: {result}")
+        if result.get("success"):
+            logger.info(f"✅ Presentation created successfully!")
+            logger.info(f"📝 Presentation URL: {result['url']}")
+            logger.info(
+                f"📄 Slide 1 (Background): {result['slides']['slide_1']['url']}"
+            )
+            logger.info(f"📄 Slide 2 (Portrait): {result['slides']['slide_2']['url']}")
+            return result
+        else:
+            logger.error(f"❌ Workflow failed: {result}")
+            raise ValueError(f"Workflow failed: {result}")
+
+    except Exception as error:
+        logger.error(f"Error in create_presentation_with_positioned_images: {error}")
+        raise ValueError(f"Error creating presentation: {error}")
 
 
 def main_with_creation():
     """Standalone main function for testing without MCP."""
     import asyncio
 
-    result = asyncio.run(create_presentation_with_positioned_images())
-    print("Result:", result)
+    async def test_both_tools():
+        # Test template analysis
+        print("=== Testing Template Analysis ===")
+        template_result = await get_template_elements_from_slides()
+        print("Template analysis result:", template_result)
+
+        print("\n=== Testing Presentation Creation ===")
+        # Test presentation creation
+        creation_result = await create_presentation_with_positioned_images()
+        print("Creation result:", creation_result)
+
+        return template_result, creation_result
+
+    results = asyncio.run(test_both_tools())
+    print("All results:", results)
 
 
 if __name__ == "__main__":
