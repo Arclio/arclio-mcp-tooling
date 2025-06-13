@@ -136,10 +136,10 @@ async def create_slide(
     return result
 
 
-@mcp.tool(
-    name="add_text_to_slide",
-    description="Adds text to a specified slide in a Google Slides presentation.",
-)
+# @mcp.tool(
+#     name="add_text_to_slide",
+#     description="Adds text to a specified slide in a Google Slides presentation.",
+# )
 async def add_text_to_slide(
     presentation_id: str,
     slide_id: str,
@@ -240,10 +240,10 @@ async def add_formatted_text_to_slide(
     return result
 
 
-@mcp.tool(
-    name="add_bulleted_list_to_slide",
-    description="Adds a bulleted list to a slide in a Google Slides presentation.",
-)
+# @mcp.tool(
+#     name="add_bulleted_list_to_slide",
+#     description="Adds a bulleted list to a slide in a Google Slides presentation.",
+# )
 async def add_bulleted_list_to_slide(
     presentation_id: str,
     slide_id: str,
@@ -426,10 +426,10 @@ async def add_table_to_slide(
     return result
 
 
-@mcp.tool(
-    name="add_slide_notes",
-    description="Adds presenter notes to a slide in a Google Slides presentation.",
-)
+# @mcp.tool(
+#     name="add_slide_notes",
+#     description="Adds presenter notes to a slide in a Google Slides presentation.",
+# )
 async def add_slide_notes(
     presentation_id: str,
     slide_id: str,
