@@ -289,7 +289,7 @@ async def add_bulleted_list_to_slide(
 
 @mcp.tool(
     name="add_image_to_slide",
-    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL with precise positioning support.",
+    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL with precise positioning support. For full-height coverage, only specify size_height. For full-width coverage, only specify size_width. For exact dimensions, specify both.",
 )
 async def add_image_to_slide(
     presentation_id: str,
@@ -310,12 +310,19 @@ async def add_image_to_slide(
         image_url: The publicly accessible URL of the image to add.
         position_x: X coordinate for position (default 100.0).
         position_y: Y coordinate for position (default 100.0).
-        size_width: Optional width of the image. If not specified, uses original size.
-        size_height: Optional height of the image. If not specified, uses original size.
+        size_width: Optional width of the image. If not specified, uses original size or scales proportionally with height.
+        size_height: Optional height of the image. If not specified, uses original size or scales proportionally with width.
         unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
 
     Returns:
         Response data confirming image addition or raises error.
+
+    Note:
+        Image Sizing Best Practices:
+        - For full-height coverage: Only specify size_height parameter
+        - For full-width coverage: Only specify size_width parameter
+        - For exact dimensions: Specify both size_height and size_width
+        - Omitting a dimension allows proportional auto-scaling while maintaining aspect ratio
     """
     logger.info(
         f"Executing add_image_to_slide on slide '{slide_id}' with image '{image_url}'"
