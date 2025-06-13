@@ -108,7 +108,7 @@ async def create_presentation(
 )
 async def create_slide(
     presentation_id: str,
-    layout: str = "TITLE_AND_BODY",
+    layout: str = "BLANK",
 ) -> dict[str, Any]:
     """
     Add a new slide to a presentation.
