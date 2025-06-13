@@ -1233,24 +1233,23 @@ class SlidesService(BaseGoogleService):
         unit: str = "EMU",
         element_id: str | None = None,
         font_family: str = "Arial",
-        auto_size_font: bool = True,
+        font_size: float = 12,
+        auto_size_font: bool = False,
     ) -> dict[str, Any]:
         """
-        Create a text box with text and automatic font sizing to prevent overflow.
-
-        Note: Google Slides API does not support autofit (TEXT_AUTOFIT/SHAPE_AUTOFIT),
-        so we implement custom font size calculation to fit text within the box.
+        Create a text box with text and optional font formatting.
 
         Args:
             presentation_id: The ID of the presentation
             slide_id: The ID of the slide (page)
             text: The text content to insert
-            position: Tuple of (x, y) coordinates for position in PT
-            size: Tuple of (width, height) for the text box in PT
+            position: Tuple of (x, y) coordinates for position
+            size: Tuple of (width, height) for the text box
             unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "EMU").
             element_id: Optional custom element ID, auto-generated if not provided
             font_family: Font family to use (default "Arial")
-            auto_size_font: Whether to automatically calculate font size to fit (default True)
+            font_size: Font size in points (default 12)
+            auto_size_font: Whether to automatically calculate font size to fit (default False - DEPRECATED)
 
         Returns:
             Response data or error information
@@ -1272,19 +1271,10 @@ class SlidesService(BaseGoogleService):
             width = {"magnitude": size[0], "unit": unit}
             height = {"magnitude": size[1], "unit": unit}
 
-            # Calculate optimal font size if auto-sizing is enabled
-            font_size = 12  # Default
+            # Use provided font size instead of calculation
             if auto_size_font:
-                # Convert to points for calculation if using EMU
-                calc_width = (
-                    size[0] if unit == "PT" else size[0] / 12700
-                )  # EMU to PT conversion
-                calc_height = size[1] if unit == "PT" else size[1] / 12700
-                font_size = self.calculate_optimal_font_size(
-                    text, calc_width, calc_height, font_family
-                )
-                logger.info(
-                    f"Calculated optimal font size: {font_size}pt for text: '{text[:50]}...'"
+                logger.warning(
+                    "auto_size_font is deprecated - using provided font_size instead"
                 )
 
             # Build requests with proper sequence
@@ -1323,7 +1313,7 @@ class SlidesService(BaseGoogleService):
                         "text": text,
                     }
                 },
-                # Step 4: Apply calculated font size and family
+                # Step 4: Apply font size and family
                 {
                     "updateTextStyle": {
                         "objectId": element_id,
@@ -1338,7 +1328,7 @@ class SlidesService(BaseGoogleService):
             ]
 
             logger.info(
-                f"Creating autofit text box with font size {font_size}: {json.dumps(requests[0], indent=2)}"
+                f"Creating text box with font {font_family} {font_size}pt: {json.dumps(requests[0], indent=2)}"
             )
 
             # Execute the request
@@ -1364,7 +1354,8 @@ class SlidesService(BaseGoogleService):
                 "slideId": slide_id,
                 "elementId": created_object_id or element_id,
                 "text": text,
-                "calculatedFontSize": font_size,
+                "fontSize": font_size,
+                "fontFamily": font_family,
                 "operation": "create_textbox_with_text",
                 "result": "success",
                 "response": response,
@@ -1377,20 +1368,30 @@ class SlidesService(BaseGoogleService):
         presentation_id: str,
         element_id: str,
         formatted_text: str,
+        font_size: float | None = None,
+        font_family: str | None = None,
+        start_index: int | None = None,
+        end_index: int | None = None,
     ) -> dict[str, Any]:
         """
-        Update formatting of text in an existing text box.
+        Update formatting of text in an existing text box with support for font parameters.
 
         Args:
             presentation_id: The ID of the presentation
             element_id: The ID of the text box element
             formatted_text: Text with formatting markers (**, *, etc.)
+            font_size: Optional font size in points (e.g., 25, 7.5)
+            font_family: Optional font family (e.g., "Playfair Display", "Roboto", "Arial")
+            start_index: Optional start index for applying formatting to specific range (0-based)
+            end_index: Optional end index for applying formatting to specific range (exclusive)
 
         Returns:
             Response data or error information
         """
         try:
-            # Process the formatted text
+            import re
+
+            # First, replace the text content if needed
             plain_text = formatted_text
             # Remove bold markers
             plain_text = re.sub(r"\*\*(.*?)\*\*", r"\1", plain_text)
@@ -1399,37 +1400,168 @@ class SlidesService(BaseGoogleService):
             # Remove code markers if present
             plain_text = re.sub(r"`(.*?)`", r"\1", plain_text)
 
+            # Update the text content first if it has formatting markers
+            if plain_text != formatted_text:
+                update_text_request = {
+                    "deleteText": {"objectId": element_id, "textRange": {"type": "ALL"}}
+                }
+
+                insert_text_request = {
+                    "insertText": {
+                        "objectId": element_id,
+                        "insertionIndex": 0,
+                        "text": plain_text,
+                    }
+                }
+
+                # Execute text replacement
+                self.service.presentations().batchUpdate(
+                    presentationId=presentation_id,
+                    body={"requests": [update_text_request, insert_text_request]},
+                ).execute()
+
             # Generate style requests
             style_requests = []
 
-            # Process bold text
-            bold_pattern = r"\*\*(.*?)\*\*"
-            bold_matches = list(re.finditer(bold_pattern, formatted_text))
+            # If font_size or font_family are specified, apply them to the specified range or entire text
+            if font_size is not None or font_family is not None:
+                style = {}
+                fields = []
 
-            for match in bold_matches:
-                content = match.group(1)
-                start_pos = plain_text.find(content)
-                if start_pos >= 0:
-                    end_pos = start_pos + len(content)
+                if font_size is not None:
+                    style["fontSize"] = {"magnitude": font_size, "unit": "PT"}
+                    fields.append("fontSize")
+
+                if font_family is not None:
+                    style["fontFamily"] = font_family
+                    fields.append("fontFamily")
+
+                if style:
+                    text_range = {"type": "ALL"}
+                    if start_index is not None and end_index is not None:
+                        text_range = {
+                            "type": "FIXED_RANGE",
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                        }
+
                     style_requests.append(
                         {
                             "updateTextStyle": {
                                 "objectId": element_id,
-                                "textRange": {
-                                    "type": "FIXED_RANGE",  # Specify the range type
-                                    "startIndex": start_pos,
-                                    "endIndex": end_pos,
-                                },
-                                "style": {"bold": True},
-                                "fields": "bold",
+                                "textRange": text_range,
+                                "style": style,
+                                "fields": ",".join(fields),
                             }
                         }
                     )
 
-            # Process italic text (similar pattern for italic)
-            # ... (similar code for italic formatting)
+            # Process bold text formatting
+            bold_pattern = r"\*\*(.*?)\*\*"
+            bold_matches = list(re.finditer(bold_pattern, formatted_text))
 
+            text_offset = 0  # Track offset due to removed markers
+            for match in bold_matches:
+                content = match.group(1)
+                # Calculate position in plain text
+                start_pos = match.start() - text_offset
+                end_pos = start_pos + len(content)
+
+                style_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "objectId": element_id,
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": start_pos,
+                                "endIndex": end_pos,
+                            },
+                            "style": {"bold": True},
+                            "fields": "bold",
+                        }
+                    }
+                )
+
+                # Update offset (removed 4 characters: **)
+                text_offset += 4
+
+            # Process italic text formatting
+            italic_pattern = r"\*(.*?)\*"
+            italic_matches = list(re.finditer(italic_pattern, formatted_text))
+
+            text_offset = 0  # Reset offset for italic processing
+            for match in italic_matches:
+                content = match.group(1)
+                # Skip if this is part of a bold pattern
+                if any(
+                    bold_match.start() <= match.start() < bold_match.end()
+                    for bold_match in bold_matches
+                ):
+                    continue
+
+                start_pos = match.start() - text_offset
+                end_pos = start_pos + len(content)
+
+                style_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "objectId": element_id,
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": start_pos,
+                                "endIndex": end_pos,
+                            },
+                            "style": {"italic": True},
+                            "fields": "italic",
+                        }
+                    }
+                )
+
+                # Update offset (removed 2 characters: *)
+                text_offset += 2
+
+            # Process code text formatting
+            code_pattern = r"`(.*?)`"
+            code_matches = list(re.finditer(code_pattern, formatted_text))
+
+            text_offset = 0  # Reset offset for code processing
+            for match in code_matches:
+                content = match.group(1)
+                start_pos = match.start() - text_offset
+                end_pos = start_pos + len(content)
+
+                style_requests.append(
+                    {
+                        "updateTextStyle": {
+                            "objectId": element_id,
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": start_pos,
+                                "endIndex": end_pos,
+                            },
+                            "style": {
+                                "fontFamily": "Courier New",
+                                "backgroundColor": {
+                                    "opaqueColor": {
+                                        "rgbColor": {
+                                            "red": 0.95,
+                                            "green": 0.95,
+                                            "blue": 0.95,
+                                        }
+                                    }
+                                },
+                            },
+                            "fields": "fontFamily,backgroundColor",
+                        }
+                    }
+                )
+
+                # Update offset (removed 2 characters: `)
+                text_offset += 2
+
+            # Execute all style requests
             if style_requests:
+                logger.info(f"Applying {len(style_requests)} formatting requests")
                 response = (
                     self.service.presentations()
                     .batchUpdate(
@@ -1438,12 +1570,23 @@ class SlidesService(BaseGoogleService):
                     )
                     .execute()
                 )
+
                 return {
                     "presentationId": presentation_id,
                     "elementId": element_id,
+                    "appliedFormats": {
+                        "fontSize": font_size,
+                        "fontFamily": font_family,
+                        "textRange": (
+                            {"startIndex": start_index, "endIndex": end_index}
+                            if start_index is not None and end_index is not None
+                            else "ALL"
+                        ),
+                    },
                     "operation": "update_text_formatting",
                     "result": "success",
                 }
+
             return {"result": "no_formatting_applied"}
 
         except Exception as e:
