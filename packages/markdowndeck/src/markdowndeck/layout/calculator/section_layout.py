@@ -19,11 +19,20 @@ def calculate_recursive_layout(calculator, root_section: Section, area: tuple) -
     """Public entry point to start the recursive layout process."""
     if root_section is None:
         return
-    root_section.position = (area[0], area[1])
-    intrinsic_height = _calculate_section_intrinsic_height(
-        calculator, root_section, area[2]
+
+    # REFACTORED: Respect the width directive on the root section. This is the fix.
+    section_width = _calculate_dimension(
+        root_section.directives.get("width"), area[2], area[2]
     )
-    root_section.size = (area[2], intrinsic_height)
+
+    root_section.position = (area[0], area[1])
+    # Pass the calculated width to determine the intrinsic height.
+    intrinsic_height = _calculate_section_intrinsic_height(
+        calculator, root_section, section_width
+    )
+    # Use the calculated width for the section's final size.
+    root_section.size = (section_width, intrinsic_height)
+
     _layout_children_recursively(calculator, root_section)
 
 

@@ -210,16 +210,13 @@ class SlideExtractor:
                     )
 
         if title_line_index != -1:
-            next_content_line_index = -1
-            for i in range(title_line_index + 1, len(lines)):
-                if lines[i].strip():
-                    next_content_line_index = i
-                    break
-
-            if next_content_line_index != -1:
-                next_line = lines[next_content_line_index].strip()
+            # REFACTORED: Per PARSER_SPEC.md 4.3.1, a subtitle must *immediately* follow a title.
+            # This logic now correctly checks only the line directly after the title.
+            potential_subtitle_index = title_line_index + 1
+            if potential_subtitle_index < len(lines):
+                next_line = lines[potential_subtitle_index].strip()
                 if next_line.startswith("## "):
-                    subtitle_line_index = next_content_line_index
+                    subtitle_line_index = potential_subtitle_index
                     subtitle_text, subtitle_directives = (
                         self.directive_parser.parse_and_strip_from_text(
                             next_line[3:].strip()

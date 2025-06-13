@@ -10,6 +10,8 @@ from markdowndeck.models import (
     Deck,
     ElementType,
     ImageElement,
+    ListElement,
+    ListItem,
     Slide,
     TextElement,
 )
@@ -139,6 +141,40 @@ class TestApiRequestGenerator:
         rgb_color = style_payload["foregroundColor"]["opaqueColor"]["rgbColor"]
         assert abs(rgb_color["red"] - 1.0) < 0.01
 
+    def test_api_c_04_coordinate_transformation(
+        self, api_generator: ApiRequestGenerator
+    ):
+        """
+        Test Case: API-C-04.
+        Spec: Validates correct coordinate transformation into Google Slides API PT format.
+        """
+        # Arrange
+        element = TextElement(
+            element_type=ElementType.TEXT,
+            text="Positioned",
+            object_id="pos_el",
+            position=(100, 200),
+            size=(300, 50),
+        )
+        slide = Slide(object_id="pos_slide", renderable_elements=[element])
+        deck = Deck(slides=[slide])
+
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+        create_shape_req = next((r for r in requests if "createShape" in r), None)
+
+        # Assert
+        assert create_shape_req is not None
+        properties = create_shape_req["createShape"]["elementProperties"]
+        size = properties["size"]
+        transform = properties["transform"]
+
+        assert size["width"] == {"magnitude": 300, "unit": "PT"}
+        assert size["height"] == {"magnitude": 50, "unit": "PT"}
+        assert transform["translateX"] == 100
+        assert transform["translateY"] == 200
+        assert transform["unit"] == "PT"
+
     def test_api_c_05_and_c_06_blank_canvas_and_create_shape(
         self, api_generator: ApiRequestGenerator, finalized_slide: Slide
     ):
@@ -165,6 +201,25 @@ class TestApiRequestGenerator:
         assert (
             title_create_shape is not None
         ), "A createShape request MUST be generated for the TITLE element."
+
+    def test_api_c_07_empty_renderable_elements(
+        self, api_generator: ApiRequestGenerator
+    ):
+        """
+        Test Case: API-C-07.
+        Spec: Verify graceful handling of a slide with no renderable elements.
+        """
+        # Arrange
+        slide = Slide(object_id="empty_slide", renderable_elements=[])
+        deck = Deck(slides=[slide])
+
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+
+        # Assert
+        create_slide_req = next((r for r in requests if "createSlide" in r), None)
+        assert create_slide_req is not None, "createSlide request should always exist."
+        assert len(requests) == 1, "Only createSlide request should be generated."
 
     def test_api_c_08_continuation_title(self, api_generator: ApiRequestGenerator):
         """
@@ -228,3 +283,45 @@ class TestApiRequestGenerator:
         assert (
             shape_req is None
         ), "createShape request must not be generated for zero-dimension element with visual directives."
+
+    def test_api_c_10_list_indentation(self, api_generator: ApiRequestGenerator):
+        """
+        Test Case: API-C-10.
+        Spec: Verify that nested list items generate proper indentation requests.
+        """
+        # Arrange
+        list_element = ListElement(
+            element_type=ElementType.BULLET_LIST,
+            object_id="list_1",
+            position=(50, 50),
+            size=(400, 200),
+            items=[
+                ListItem(
+                    text="Level 0",
+                    level=0,
+                    children=[ListItem(text="Level 1", level=1)],
+                )
+            ],
+        )
+        slide = Slide(object_id="list_slide", renderable_elements=[list_element])
+        deck = Deck(slides=[slide])
+
+        # Act
+        requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
+        indent_request = next(
+            (
+                r
+                for r in requests
+                if "updateParagraphStyle" in r
+                and "indentStart" in r["updateParagraphStyle"]["style"]
+            ),
+            None,
+        )
+
+        # Assert
+        assert (
+            indent_request is not None
+        ), "Indentation request should be generated for nested list items."
+        style = indent_request["updateParagraphStyle"]["style"]
+        assert style["indentStart"]["magnitude"] > 0
+        assert style["indentStart"]["unit"] == "PT"

@@ -64,3 +64,33 @@ class TestTextElementSplit:
             assert all(
                 isinstance(item, TextFormat) for item in overflowing_part.formatting
             )
+
+    def test_data_flow_3_4_split_preserves_directives(self):
+        """
+        Test Case: DATA_FLOW.md, Sec 3.4
+        Spec: `.split()` must deep-copy directives to both fitted and overflowing parts.
+        """
+        # Arrange
+        long_text = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5"
+        text_element = TextElement(
+            element_type=ElementType.TEXT,
+            text=long_text,
+            size=(400, 100),
+            directives={"color": "red", "align": "center"},
+        )
+
+        # Act
+        fitted_part, overflowing_part = text_element.split(available_height=50)
+
+        # Assert
+        assert fitted_part is not None, "Fitted part should exist."
+        assert overflowing_part is not None, "Overflowing part should exist."
+
+        assert fitted_part.directives == {
+            "color": "red",
+            "align": "center",
+        }, "Fitted part must inherit directives."
+        assert overflowing_part.directives == {
+            "color": "red",
+            "align": "center",
+        }, "Overflowing part must inherit directives."
