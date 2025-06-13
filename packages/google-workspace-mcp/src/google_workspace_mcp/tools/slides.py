@@ -763,6 +763,74 @@ async def create_slide_from_template_data(
 
 
 @mcp.tool(
+    name="create_slide_with_elements",
+    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently.",
+)
+async def create_slide_with_elements(
+    presentation_id: str,
+    slide_id: str,
+    elements: list[dict[str, Any]],
+    background_color: str | None = None,
+) -> dict[str, Any]:
+    """
+    Create a complete slide with multiple elements in one batch operation.
+    
+    Args:
+        presentation_id: The ID of the presentation
+        slide_id: The ID of the slide  
+        elements: List of element dictionaries, example:
+            [
+                {
+                    "type": "textbox",
+                    "content": "Slide Title",
+                    "position": {"x": 282, "y": 558, "width": 600, "height": 45},
+                    "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True, "textAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
+                },
+                {
+                    "type": "textbox", 
+                    "content": "Description text...",
+                    "position": {"x": 282, "y": 1327, "width": 600, "height": 234},
+                    "style": {"fontSize": 12, "fontFamily": "Roboto"}
+                },
+                {
+                    "type": "textbox",
+                    "content": "43.4M", 
+                    "position": {"x": 333, "y": 4059, "width": 122, "height": 79},
+                    "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True}
+                },
+                {
+                    "type": "image",
+                    "content": "https://drive.google.com/file/d/.../view",
+                    "position": {"x": 675, "y": 0, "width": 238, "height": 514}
+                }
+            ]
+        background_color: Optional slide background color (e.g., "#f8cdcd4f")
+    
+    Returns:
+        Response data confirming slide creation or raises error
+    """
+    logger.info(f"Executing create_slide_with_elements on slide '{slide_id}' with {len(elements)} elements")
+    if not presentation_id or not slide_id or not elements:
+        raise ValueError("Presentation ID, Slide ID, and Elements are required")
+
+    if not isinstance(elements, list):
+        raise ValueError("Elements must be a list")
+
+    slides_service = SlidesService()
+    result = slides_service.create_slide_with_elements(
+        presentation_id=presentation_id,
+        slide_id=slide_id,
+        elements=elements,
+        background_color=background_color
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error creating slide with elements"))
+
+    return result
+
+
+@mcp.tool(
     name="update_text_formatting",
     description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
 )

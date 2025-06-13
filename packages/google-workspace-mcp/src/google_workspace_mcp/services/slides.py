@@ -1664,6 +1664,228 @@ class SlidesService(BaseGoogleService):
 
         return request
 
+    def create_slide_with_elements(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        elements: list[dict[str, Any]],
+        background_color: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Create a complete slide with multiple elements in a single batch operation.
+        This is a generic approach that treats all content as elements (text boxes, images, etc.).
+        
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide
+            elements: List of element dictionaries, each containing:
+                {
+                    "type": "textbox" | "image",
+                    "content": "text content" | "image_url",
+                    "position": {"x": float, "y": float, "width": float, "height": float},
+                    "style": {"fontSize": float, "fontFamily": str, "bold": bool, etc.} (for textbox only)
+                }
+            background_color: Optional slide background color (e.g., "#f8cdcd4f")
+                
+        Returns:
+            Response data or error information
+        """
+        try:
+            import time
+            
+            requests = []
+
+            # Set background color if specified
+            if background_color:
+                requests.append({
+                    "updatePageProperties": {
+                        "objectId": slide_id,
+                        "pageProperties": {
+                            "pageBackgroundFill": {
+                                "solidFill": {
+                                    "color": {
+                                        "rgbColor": self._hex_to_rgb(background_color)
+                                    }
+                                }
+                            }
+                        },
+                        "fields": "pageBackgroundFill.solidFill.color"
+                    }
+                })
+
+            # Process each element
+            for i, element in enumerate(elements):
+                element_id = f"element_{int(time.time() * 1000)}_{i}"
+                
+                if element["type"] == "textbox":
+                    requests.extend(
+                        self._build_textbox_requests_generic(element_id, slide_id, element)
+                    )
+                elif element["type"] == "image":
+                    requests.append(
+                        self._build_image_request_generic(element_id, slide_id, element)
+                    )
+
+            logger.info(f"Built {len(requests)} requests for slide with {len(elements)} elements")
+
+            # Execute batch update
+            return self.batch_update(presentation_id, requests)
+
+        except Exception as e:
+            return self.handle_api_error("create_slide_with_elements", e)
+
+    def _build_textbox_requests_generic(
+        self, object_id: str, slide_id: str, element: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Generic helper to build textbox creation requests"""
+        pos = element["position"]
+        style = element.get("style", {})
+        
+        requests = [
+            # Create shape
+            {
+                "createShape": {
+                    "objectId": object_id,
+                    "shapeType": "TEXT_BOX",
+                    "elementProperties": {
+                        "pageObjectId": slide_id,
+                        "size": {
+                            "width": {"magnitude": pos["width"], "unit": "PT"},
+                            "height": {"magnitude": pos["height"], "unit": "PT"}
+                        },
+                        "transform": {
+                            "scaleX": 1,
+                            "scaleY": 1,
+                            "translateX": pos["x"],
+                            "translateY": pos["y"],
+                            "unit": "PT"
+                        }
+                    }
+                }
+            },
+            # Insert text
+            {
+                "insertText": {
+                    "objectId": object_id,
+                    "text": element["content"]
+                }
+            }
+        ]
+        
+        # Add formatting if specified
+        if style:
+            format_request = {
+                "updateTextStyle": {
+                    "objectId": object_id,
+                    "textRange": {"type": "ALL"},
+                    "style": {},
+                    "fields": ""
+                }
+            }
+            
+            if "fontSize" in style:
+                format_request["updateTextStyle"]["style"]["fontSize"] = {
+                    "magnitude": style["fontSize"], 
+                    "unit": "PT"
+                }
+                format_request["updateTextStyle"]["fields"] += "fontSize,"
+                
+            if "fontFamily" in style:
+                format_request["updateTextStyle"]["style"]["fontFamily"] = style["fontFamily"]
+                format_request["updateTextStyle"]["fields"] += "fontFamily,"
+                
+            if style.get("bold"):
+                format_request["updateTextStyle"]["style"]["bold"] = True
+                format_request["updateTextStyle"]["fields"] += "bold,"
+
+            # Add text alignment
+            if style.get("textAlignment"):
+                alignment_map = {
+                    "LEFT": "START",
+                    "CENTER": "CENTER", 
+                    "RIGHT": "END",
+                    "MIDDLE": "CENTER"
+                }
+                api_alignment = alignment_map.get(style["textAlignment"].upper(), "START")
+                requests.append({
+                    "updateParagraphStyle": {
+                        "objectId": object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": {"alignment": api_alignment},
+                        "fields": "alignment"
+                    }
+                })
+
+            # Add vertical alignment
+            if style.get("verticalAlignment"):
+                valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
+                api_valign = valign_map.get(style["verticalAlignment"].upper(), "TOP")
+                requests.append({
+                    "updateShapeProperties": {
+                        "objectId": object_id,
+                        "shapeProperties": {"contentAlignment": api_valign},
+                        "fields": "contentAlignment"
+                    }
+                })
+                
+            # Clean up trailing comma and add format request
+            format_request["updateTextStyle"]["fields"] = format_request["updateTextStyle"]["fields"].rstrip(",")
+            
+            if format_request["updateTextStyle"]["fields"]:
+                requests.append(format_request)
+        
+        return requests
+
+    def _build_image_request_generic(
+        self, object_id: str, slide_id: str, element: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Generic helper to build image creation request"""
+        pos = element["position"]
+        
+        request = {
+            "createImage": {
+                "objectId": object_id,
+                "url": element["content"],  # For images, content is the URL
+                "elementProperties": {
+                    "pageObjectId": slide_id,
+                    "size": {
+                        "width": {"magnitude": pos["width"], "unit": "PT"},
+                        "height": {"magnitude": pos["height"], "unit": "PT"}
+                    },
+                    "transform": {
+                        "scaleX": 1,
+                        "scaleY": 1,
+                        "translateX": pos["x"],
+                        "translateY": pos["y"],
+                        "unit": "PT"
+                    }
+                }
+            }
+        }
+            
+        return request
+
+    def _hex_to_rgb(self, hex_color: str) -> dict[str, float]:
+        """Convert hex color to RGB values (0-1 range)"""
+        # Remove # if present
+        hex_color = hex_color.lstrip('#')
+        
+        # Handle 8-character hex (with alpha) by taking first 6 characters
+        if len(hex_color) == 8:
+            hex_color = hex_color[:6]
+            
+        # Convert to RGB
+        try:
+            r = int(hex_color[0:2], 16) / 255.0
+            g = int(hex_color[2:4], 16) / 255.0  
+            b = int(hex_color[4:6], 16) / 255.0
+            return {"red": r, "green": g, "blue": b}
+        except ValueError:
+            # Default to light pink if conversion fails
+            return {"red": 0.97, "green": 0.8, "blue": 0.8}
+
+
+
     def update_text_formatting(
         self,
         presentation_id: str,
