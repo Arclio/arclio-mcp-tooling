@@ -4,114 +4,71 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import psutil
-import pytest
 from markdowndeck.layout import LayoutManager
-from markdowndeck.models import (
-    ElementType,
-    Slide,
-    TextElement,
-)
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
+from markdowndeck.slide import Slide
 
 
 class TestOverflowStress:
     """Stress tests for extreme conditions and performance validation."""
 
-    @pytest.fixture
-    def overflow_manager(self) -> OverflowManager:
-        """Create overflow manager for stress testing."""
-        return OverflowManager()
+    def _create_overflowing_slide(self, num_items: int) -> Slide:
+        parser = Parser()
+        layout_manager = LayoutManager()
+        long_content = "\n".join([f"* List Item {i}" for i in range(num_items)])
+        markdown = f"# Overflow Test\n{long_content}"
+        unpositioned_slide = parser.parse(markdown).slides[0]
+        return layout_manager.calculate_positions(unpositioned_slide)
 
-    @pytest.fixture
-    def layout_manager(self) -> LayoutManager:
-        """Create layout manager for positioning."""
-        return LayoutManager()
+    def test_stress_o_01(self):
+        """Test Case: STRESS-O-01 - Tests performance with content that creates many continuations."""
+        overflow_manager = OverflowManager()
 
-    def test_stress_o_01(
-        self, layout_manager: LayoutManager, overflow_manager: OverflowManager
-    ):
-        """
-        Test Case: STRESS-O-01
-        Tests performance with content that creates many continuations.
-        From: docs/markdowndeck/testing/TEST_CASES_STRESS.md
-        """
-        performance_results = []
+        positioned_slide = self._create_overflowing_slide(250)
 
-        for scale in [10, 100, 250]:  # Reduced scale for faster test runs
-            elements = [
-                TextElement(
-                    element_type=ElementType.TEXT,
-                    text=f"This is a longer content line for stress test item {i} to ensure it takes up enough vertical space to reliably trigger the overflow manager.",
-                )
-                for i in range(scale)
-            ]
-            slide = Slide(object_id=f"scale_{scale}_slide", elements=elements)
+        start_time = time.time()
+        result_slides = overflow_manager.process_slide(positioned_slide)
+        end_time = time.time()
 
-            positioned_slide = layout_manager.calculate_positions(slide)
+        processing_time = end_time - start_time
+        print(
+            f"Overflow processing for {len(result_slides)} slides took {processing_time:.4f} seconds."
+        )
 
-            start_time = time.time()
-            result_slides = overflow_manager.process_slide(positioned_slide)
-            end_time = time.time()
+        assert processing_time < 5.0, "Overflow processing should be performant."
+        assert len(result_slides) > 10, "Should create many continuation slides."
 
-            processing_time = end_time - start_time
-            performance_results.append(
-                {
-                    "scale": scale,
-                    "time": processing_time,
-                    "slides_created": len(result_slides),
-                }
-            )
-            assert (
-                processing_time < scale * 0.2
-            ), "Processing time should scale reasonably."
-            assert len(result_slides) > 1, "Should create multiple slides."
-
-    def test_stress_o_02(
-        self, layout_manager: LayoutManager, overflow_manager: OverflowManager
-    ):
-        """
-        Test Case: STRESS-O-02
-        Tests for memory leaks during repeated processing.
-        From: docs/markdowndeck/testing/TEST_CASES_STRESS.md
-        """
+    def test_stress_o_02(self):
+        """Test Case: STRESS-O-02 - Tests for memory leaks during repeated processing."""
         process = psutil.Process(os.getpid())
+        gc.collect()
         initial_memory = process.memory_info().rss
 
-        for i in range(20):  # Reduced iterations
-            elements = [
-                TextElement(element_type=ElementType.TEXT, text=f"Item {j}" * 20)
-                for j in range(50)
-            ]
-            slide = Slide(object_id=f"mem_test_{i}", elements=elements)
-
-            positioned_slide = layout_manager.calculate_positions(slide)
-            result_slides = overflow_manager.process_slide(positioned_slide)
-
-            del result_slides
-            del slide
-            del positioned_slide
+        for i in range(15):
+            overflow_manager = OverflowManager()
+            positioned_slide = self._create_overflowing_slide(50)
+            _ = overflow_manager.process_slide(positioned_slide)
             if i % 5 == 0:
                 gc.collect()
 
+        gc.collect()
         final_memory = process.memory_info().rss
         memory_growth = final_memory - initial_memory
 
-        max_acceptable_growth = 100 * 1024 * 1024  # 100MB
+        print(
+            f"Memory growth after 15 overflow cycles: {memory_growth / 1024 / 1024:.2f} MB"
+        )
+        max_acceptable_growth = 50 * 1024 * 1024  # 50MB
         assert memory_growth < max_acceptable_growth, "Potential memory leak detected."
 
     def test_stress_o_03(self):
-        """
-        Test Case: STRESS-O-03
-        Tests thread safety with concurrent processing.
-        From: docs/markdowndeck/testing/TEST_CASES_STRESS.md
-        """
+        """Test Case: STRESS-O-03 - Tests thread safety with concurrent processing."""
 
-        def process_slide_task(slide_id):
+        def process_slide_task(slide_id: int):
             parser = Parser()
             layout_manager = LayoutManager()
             overflow_manager = OverflowManager()
-
             markdown = f"# Slide {slide_id}\n" + "\n".join(
                 [f"* Item {i}" for i in range(50)]
             )

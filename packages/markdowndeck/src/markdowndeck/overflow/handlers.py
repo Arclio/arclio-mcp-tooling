@@ -201,6 +201,15 @@ class StandardOverflowHandler:
             overflowing_section.children = overflowing_elements
             overflowing_section.position = None
             overflowing_section.size = None
+
+            # CRITICAL FIX: Clear position and size of ALL elements in overflowing section
+            # This ensures the layout manager recalculates everything from scratch
+            for element in overflowing_section.children:
+                if hasattr(element, "position"):
+                    element.position = None
+                if hasattr(element, "size"):
+                    element.size = None
+
             # FIXED: Do not propagate problematic directives per OVERFLOW_SPEC.md Rule #3.
             # This prevents infinite loops caused by fixed-height containers.
             if "height" in overflowing_section.directives:
@@ -240,7 +249,7 @@ class StandardOverflowHandler:
         self, section: "Section", available_height: float, visited: set[str]
     ) -> tuple["Section | None", "Section | None"]:
         """
-        Partition a section by moving whole child sections, not splitting them.
+        Partition a section by splitting child sections when they overflow.
         """
         fitted_children, overflowing_children = [], []
         has_overflowed = False
@@ -250,7 +259,16 @@ class StandardOverflowHandler:
             position = getattr(child_section, "position", None)
             size = getattr(child_section, "size", None)
 
-            if is_element or not position or not size:
+            if is_element:
+                # Handle elements directly
+                if not has_overflowed:
+                    fitted_children.append(deepcopy(child_section))
+                else:
+                    overflowing_children.append(deepcopy(child_section))
+                continue
+
+            if not position or not size:
+                # Section without position/size - treat as non-overflowing
                 if not has_overflowed:
                     fitted_children.append(deepcopy(child_section))
                 else:
@@ -259,10 +277,26 @@ class StandardOverflowHandler:
 
             section_bottom = position[1] + size[1]
             if not has_overflowed and section_bottom <= available_height:
+                # Section fits completely
                 fitted_children.append(deepcopy(child_section))
             else:
+                # Section overflows - try to split it
                 has_overflowed = True
-                overflowing_children.append(deepcopy(child_section))
+
+                # Calculate available height for this child section
+                child_available_height = (
+                    available_height - position[1] if position else available_height
+                )
+
+                # Recursively partition the child section
+                fitted_child, overflowing_child = self._partition_section(
+                    child_section, child_available_height, visited
+                )
+
+                if fitted_child:
+                    fitted_children.append(fitted_child)
+                if overflowing_child:
+                    overflowing_children.append(overflowing_child)
 
         fitted_section = deepcopy(section) if fitted_children else None
         if fitted_section:
@@ -273,6 +307,15 @@ class StandardOverflowHandler:
             overflowing_section.children = overflowing_children
             overflowing_section.position = None
             overflowing_section.size = None
+
+            # CRITICAL FIX: Clear position and size of ALL elements in overflowing section
+            # This ensures the layout manager recalculates everything from scratch
+            for child in overflowing_section.children:
+                if hasattr(child, "position"):
+                    child.position = None
+                if hasattr(child, "size"):
+                    child.size = None
+
             if "height" in overflowing_section.directives:
                 del overflowing_section.directives["height"]
 

@@ -20,6 +20,10 @@ def calculate_recursive_layout(calculator, root_section: Section, area: tuple) -
     if root_section is None:
         return
 
+    # Initialize background elements collection on the calculator
+    if not hasattr(calculator, "_section_background_elements"):
+        calculator._section_background_elements = []
+
     section_width = _calculate_dimension(
         root_section.directives.get("width"), area[2], area[2]
     )
@@ -67,6 +71,11 @@ def _layout_children_recursively(calculator, parent_section: Section) -> None:
     for child in parent_section.children:
         if isinstance(child, Section):
             _layout_children_recursively(calculator, child)
+        else:
+            # TASK 3: Apply section directives to elements during layout
+            # Merge parent section directives into element directives
+            if hasattr(calculator, "_merge_section_directives_to_element"):
+                calculator._merge_section_directives_to_element(child, parent_section)
 
 
 def _get_content_area(section: Section) -> tuple:
@@ -258,6 +267,17 @@ def _calculate_predictable_dimensions(
     unspecified_indices = []
     specified_total = 0.0
 
+    # Check if we're dealing with percentage-based widths that might need container-first clamping
+    has_percentage_widths = False
+    for section in sections:
+        directive_value = section.directives.get(dimension_key)
+        if directive_value is not None and (
+            (isinstance(directive_value, str) and "%" in directive_value)
+            or (isinstance(directive_value, float) and 0 < directive_value <= 1)
+        ):
+            has_percentage_widths = True
+            break
+
     # First pass: assign all specified dimensions
     for i, section in enumerate(sections):
         size = _calculate_dimension(
@@ -273,9 +293,53 @@ def _calculate_predictable_dimensions(
     # Second pass: handle clamping and distribution
     # Case 1: Specified dimensions exceed available space -> clamp and scale them down proportionally.
     if specified_total > usable_dimension:
-        scale_factor = usable_dimension / specified_total
-        for i in specified_indices:
-            dimensions[i] *= scale_factor
+        container_first_applied = False
+
+        # FIXED: Implement container-first clamping for percentage-based widths
+        # When dealing with percentage widths that exceed 100%, use a larger reference space
+        if (
+            has_percentage_widths and usable_dimension < 600
+        ):  # Heuristic: if parent is constrained, use larger reference
+            # Use a larger reference dimension for container-first clamping
+            # This ensures that percentage-based widths are normalized relative to a reasonable container size
+            reference_dimension = max(
+                usable_dimension * 2.5, 720.0
+            )  # Use slide-like width as reference
+
+            # Recalculate dimensions using the larger reference
+            for i in specified_indices:
+                directive_value = sections[i].directives.get(dimension_key)
+                if directive_value is not None:
+                    # Recalculate the size using the larger reference
+                    if isinstance(directive_value, str) and "%" in directive_value:
+                        percentage = float(directive_value.strip("%")) / 100.0
+                        dimensions[i] = reference_dimension * percentage
+                    elif (
+                        isinstance(directive_value, float) and 0 < directive_value <= 1
+                    ):
+                        dimensions[i] = reference_dimension * directive_value
+
+            # Recalculate total with new dimensions
+            specified_total = sum(dimensions[i] for i in specified_indices)
+
+            # Apply proportional scaling within the container-first context
+            # Normalize the proportions so they sum to 100% of the reference dimension
+            total_proportion = specified_total / reference_dimension
+            if total_proportion > 1.0:  # If proportions exceed 100%, normalize them
+                for i in specified_indices:
+                    # Normalize: each section gets its proportion of the reference dimension
+                    original_proportion = dimensions[i] / reference_dimension
+                    normalized_proportion = original_proportion / total_proportion
+                    dimensions[i] = normalized_proportion * reference_dimension
+
+            container_first_applied = True
+
+        # Apply proportional scaling only if container-first clamping was not applied
+        if not container_first_applied:
+            scale_factor = usable_dimension / specified_total
+            for i in specified_indices:
+                dimensions[i] *= scale_factor
+
         # Unspecified sections get no space in this case
         for i in unspecified_indices:
             dimensions[i] = 0.0

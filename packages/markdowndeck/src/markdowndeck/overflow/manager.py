@@ -135,7 +135,16 @@ class OverflowManager:
         slide.renderable_elements = final_renderable_elements
         # Per spec, section hierarchy is cleared after finalization.
         slide.root_section = None
-        slide.elements = []
+
+        # FIXED: Preserve title and footer elements in the elements list
+        # These are needed for get_title_element() and get_footer_element() methods
+        from markdowndeck.models.constants import ElementType
+
+        preserved_elements = []
+        for element in getattr(slide, "elements", []):
+            if element.element_type in (ElementType.TITLE, ElementType.FOOTER):
+                preserved_elements.append(element)
+        slide.elements = preserved_elements
 
         logger.info(
             f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."

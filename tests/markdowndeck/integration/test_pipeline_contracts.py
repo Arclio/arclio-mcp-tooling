@@ -278,7 +278,9 @@ class TestPipelineContracts:
         requests = result["slide_batches"][0]["requests"]
 
         # Assert
-        title_id = _find_shape_by_text(requests, "Title")
+        title_shape = _find_shape_by_text(requests, "Title")
+        assert title_shape is not None, "Could not find title shape."
+        title_id = title_shape["objectId"]
         style_req = next(
             (
                 r

@@ -119,6 +119,8 @@ class TestGoldenCase:
                 for r in slide_2_batch["requests"]
                 if "updateShapeProperties" in r
                 and r["updateShapeProperties"]["objectId"] == section_shape["objectId"]
+                and "shapeBackgroundFill.solidFill.color.rgbColor"
+                in r["updateShapeProperties"]["fields"]
             ),
             None,
         )

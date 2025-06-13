@@ -85,6 +85,8 @@ class ListElement(Element):
             items_to_measure = self.items[: i + 1]
             temp_element = deepcopy(self)
             temp_element.items = items_to_measure
+            # CRITICAL FIX: Clear size so height gets recalculated
+            temp_element.size = None
             required_height = calculate_element_height(temp_element, element_width)
 
             if required_height <= available_height:
@@ -125,6 +127,8 @@ class ListElement(Element):
         overflowing_part = deepcopy(self)
         overflowing_part.items = overflowing_items
         overflowing_part.position = None
+        # CRITICAL FIX: Clear size so the overflowing part gets recalculated with fewer items
+        overflowing_part.size = None
 
         logger.info(
             f"List split successful: {len(fitted_items)} items fitted, {len(overflowing_items)} items overflowing."

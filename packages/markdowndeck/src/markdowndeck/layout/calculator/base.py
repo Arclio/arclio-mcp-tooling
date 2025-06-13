@@ -60,14 +60,54 @@ class PositionCalculator:
 
         meta_elements = []
         if slide.get_title_element() and slide.get_title_element().position:
-            meta_elements.append(slide.get_title_element())
+            # TASK 3: Apply directive precedence per API_GEN_SPEC.md Rule #6
+            title_element = slide.get_title_element()
+            merged_directives = self._merge_directives_with_precedence(
+                slide.root_section.directives if slide.root_section else {},
+                title_element.directives,
+                slide.title_directives if hasattr(slide, "title_directives") else {},
+            )
+            title_element.directives = merged_directives
+            meta_elements.append(title_element)
         if slide.get_subtitle_element() and slide.get_subtitle_element().position:
-            meta_elements.append(slide.get_subtitle_element())
+            # TASK 3: Apply directive precedence per API_GEN_SPEC.md Rule #6
+            subtitle_element = slide.get_subtitle_element()
+            merged_directives = self._merge_directives_with_precedence(
+                slide.root_section.directives if slide.root_section else {},
+                subtitle_element.directives,
+                (
+                    slide.subtitle_directives
+                    if hasattr(slide, "subtitle_directives")
+                    else {}
+                ),
+            )
+            subtitle_element.directives = merged_directives
+            meta_elements.append(subtitle_element)
         if slide.get_footer_element() and slide.get_footer_element().position:
-            meta_elements.append(slide.get_footer_element())
+            # TASK 3: Apply directive precedence per API_GEN_SPEC.md Rule #6
+            footer_element = slide.get_footer_element()
+            merged_directives = self._merge_directives_with_precedence(
+                slide.root_section.directives if slide.root_section else {},
+                footer_element.directives,
+                slide.footer_directives if hasattr(slide, "footer_directives") else {},
+            )
+            footer_element.directives = merged_directives
+            meta_elements.append(footer_element)
 
         slide.renderable_elements.extend(meta_elements)
-        slide.elements = []
+
+        # FIXED: Preserve ALL title/footer elements (positioned and unpositioned)
+        # These are needed for get_title_element() and get_footer_element() methods
+        preserved_elements = []
+        for element in slide.elements:
+            if element.element_type in [
+                ElementType.TITLE,
+                ElementType.SUBTITLE,
+                ElementType.FOOTER,
+            ]:
+                preserved_elements.append(element)
+        slide.elements = preserved_elements
+
         return slide
 
     def calculate_element_height_with_proactive_scaling(
@@ -127,3 +167,68 @@ class PositionCalculator:
         if hasattr(element, "size") and element.size == (0, 0):
             return 0.0
         return container_width
+
+    def _merge_directives_with_precedence(
+        self,
+        root_section_directives: dict,
+        element_directives: dict,
+        slide_level_directives: dict,
+    ) -> dict:
+        """
+        Merge directives according to API_GEN_SPEC.md Rule #6 precedence:
+        1. Lowest Priority: inheritable directives from root_section
+        2. Medium Priority: directives from element itself
+        3. Highest Priority: slide-level directives (same-line user overrides)
+
+        The last-applied directive always wins.
+        """
+        # Define inheritable directives
+        inheritable_directives = {
+            "align",
+            "color",
+            "fontsize",
+            "font-family",
+            "bold",
+            "italic",
+        }
+
+        merged = {}
+
+        # 1. Apply inheritable directives from root_section (lowest priority)
+        for key, value in root_section_directives.items():
+            if key in inheritable_directives:
+                merged[key] = value
+
+        # 2. Apply element directives (medium priority)
+        for key, value in element_directives.items():
+            merged[key] = value
+
+        # 3. Apply slide-level directives (highest priority)
+        for key, value in slide_level_directives.items():
+            merged[key] = value
+
+        logger.debug(
+            f"Merged directives: root={root_section_directives} + "
+            f"element={element_directives} + slide={slide_level_directives} = {merged}"
+        )
+
+        return merged
+
+    def _merge_section_directives_to_element(self, element, parent_section):
+        """
+        TASK 3: Merge section directives into element directives during layout.
+        This applies section-level visual directives to elements within that section.
+        """
+        if not parent_section or not parent_section.directives:
+            return
+
+        # Merge section directives into element directives
+        # Element directives take precedence over section directives
+        merged_directives = parent_section.directives.copy()
+        merged_directives.update(element.directives)
+        element.directives = merged_directives
+
+        logger.debug(
+            f"Merged section directives into element: "
+            f"section={parent_section.directives} + element={element.directives} = {merged_directives}"
+        )
