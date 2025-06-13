@@ -1212,7 +1212,11 @@ class SlidesService(BaseGoogleService):
                                 "unit": unit,
                             },
                         },
-                        "autofit": {"autofitType": "TEXT_AUTOFIT"},
+                        "shapeProperties": {
+                            "autofit": {
+                                "autofitType": "TEXT_AUTOFIT"
+                            }
+                        }
                     }
                 },
                 # Insert text into the text box
