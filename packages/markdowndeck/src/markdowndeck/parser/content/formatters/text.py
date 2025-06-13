@@ -110,63 +110,68 @@ class TextFormatter(BaseFormatter):
         inline_index = start_index + 1
         if inline_index >= len(tokens) or tokens[inline_index].type != "inline":
             return [], start_index + 1
+
         inline_token = tokens[inline_index]
         close_index = self.find_closing_token(tokens, start_index, "paragraph_close")
+
         if not hasattr(inline_token, "children") or not inline_token.children:
             return [], close_index
 
-        # FIXED: Parse the entire line content first to extract trailing directives
-        # that should apply to image elements per task requirements
-        full_content = inline_token.content or ""
-        line_cleaned, line_directives = self.directive_parser.parse_and_strip_from_text(
-            full_content
-        )
-
         elements: list[Element] = []
-        text_tokens = []  # Collect text-related tokens for processing together
+        child_tokens = inline_token.children
+        i = 0
+        while i < len(child_tokens):
+            child_token = child_tokens[i]
 
-        for child_token in inline_token.children:
             if child_token.type == "image":
-                # Process any accumulated text tokens first
-                if text_tokens:
-                    text_element = self._create_text_element_from_tokens(
-                        text_tokens, directives
-                    )
-                    if text_element:
-                        elements.append(text_element)
-                    text_tokens = []
-
-                # Extract alt text and any directives within it
+                # Extract alt text and its embedded directives
                 alt_text_raw = "".join(c.content for c in child_token.children)
                 alt_text, alt_directives = (
                     self.directive_parser.parse_and_strip_from_text(alt_text_raw)
                 )
 
-                # FIXED: Merge section directives, line directives, and alt text directives
-                # Line directives (trailing directives) take precedence per task specification
+                # Look ahead for a trailing directive block
+                trailing_directives = {}
+                next_token_index = i + 1
+                if next_token_index < len(child_tokens):
+                    next_token = child_tokens[next_token_index]
+                    if next_token.type == "text":
+                        # Check if this text token contains ONLY directives
+                        line_directives, remaining_text = (
+                            self.directive_parser.parse_inline_directives(
+                                next_token.content
+                            )
+                        )
+                        if line_directives and not remaining_text.strip():
+                            trailing_directives = line_directives
+                            i += 1  # Consume the directive token
+
                 final_image_directives = {
                     **directives,
                     **alt_directives,
-                    **line_directives,
+                    **trailing_directives,
                 }
-
                 image_element = self.element_factory.create_image_element(
                     url=child_token.attrs.get("src", ""),
                     alt_text=alt_text,
                     directives=final_image_directives,
                 )
                 elements.append(image_element)
-            else:
-                # Collect all text-related tokens (text, formatting, etc.)
-                text_tokens.append(child_token)
 
-        # Process remaining text tokens
-        if text_tokens:
-            text_element = self._create_text_element_from_tokens(
-                text_tokens, directives
-            )
-            if text_element:
-                elements.append(text_element)
+            else:
+                # This is likely a block of text. Process until the next image or the end.
+                text_chunk_tokens = []
+                while i < len(child_tokens) and child_tokens[i].type != "image":
+                    text_chunk_tokens.append(child_tokens[i])
+                    i += 1
+                i -= 1  # Decrement to account for outer loop's increment
+
+                text_element = self._create_text_element_from_tokens(
+                    text_chunk_tokens, directives
+                )
+                if text_element:
+                    elements.append(text_element)
+            i += 1
 
         return elements, close_index
 
@@ -177,108 +182,32 @@ class TextFormatter(BaseFormatter):
         if not text_tokens:
             return None
 
-        # Extract plain text and formatting from the tokens
-        plain_text = ""
-        formatting_data = []
-        active_formats = []
+        # Create a temporary token to pass to the element factory's helpers
+        temp_inline_token = Token("inline", "", 0)
+        temp_inline_token.children = text_tokens
+        temp_inline_token.content = "".join(
+            t.content for t in text_tokens if hasattr(t, "content")
+        )
 
-        for token in text_tokens:
-            token_type = getattr(token, "type", "")
-
-            if token_type == "text":
-                plain_text += token.content
-            elif token_type == "code_inline":
-                start_pos = len(plain_text)
-                code_content = token.content
-                plain_text += code_content
-                if code_content.strip():
-                    from markdowndeck.models import TextFormat, TextFormatType
-
-                    formatting_data.append(
-                        TextFormat(
-                            start=start_pos,
-                            end=start_pos + len(code_content),
-                            format_type=TextFormatType.CODE,
-                        )
-                    )
-            elif token_type in ["softbreak", "hardbreak"]:
-                plain_text += "\n"
-            elif token_type.endswith("_open"):
-                base_type = token_type.split("_")[0]
-                format_type_enum = None
-                value: Any = True
-                if base_type == "strong":
-                    from markdowndeck.models import TextFormatType
-
-                    format_type_enum = TextFormatType.BOLD
-                elif base_type == "em":
-                    from markdowndeck.models import TextFormatType
-
-                    format_type_enum = TextFormatType.ITALIC
-                elif base_type == "s":
-                    from markdowndeck.models import TextFormatType
-
-                    format_type_enum = TextFormatType.STRIKETHROUGH
-                elif base_type == "link":
-                    from markdowndeck.models import TextFormatType
-
-                    format_type_enum = TextFormatType.LINK
-                    value = (
-                        token.attrs.get("href", "") if hasattr(token, "attrs") else ""
-                    )
-                if format_type_enum:
-                    active_formats.append((format_type_enum, len(plain_text), value))
-            elif token_type.endswith("_close"):
-                base_type = token_type.split("_")[0]
-                expected_format_type = None
-                if base_type == "strong":
-                    from markdowndeck.models import TextFormatType
-
-                    expected_format_type = TextFormatType.BOLD
-                elif base_type == "em":
-                    from markdowndeck.models import TextFormatType
-
-                    expected_format_type = TextFormatType.ITALIC
-                elif base_type == "s":
-                    from markdowndeck.models import TextFormatType
-
-                    expected_format_type = TextFormatType.STRIKETHROUGH
-                elif base_type == "link":
-                    from markdowndeck.models import TextFormatType
-
-                    expected_format_type = TextFormatType.LINK
-                for i in range(len(active_formats) - 1, -1, -1):
-                    fmt_type, start_pos, fmt_value = active_formats[i]
-                    if fmt_type == expected_format_type:
-                        if start_pos < len(plain_text):
-                            from markdowndeck.models import TextFormat
-
-                            formatting_data.append(
-                                TextFormat(
-                                    start=start_pos,
-                                    end=len(plain_text),
-                                    format_type=fmt_type,
-                                    value=fmt_value,
-                                )
-                            )
-                        active_formats.pop(i)
-                        break
+        plain_text = self._get_plain_text_from_inline_token(temp_inline_token)
 
         if not plain_text.strip():
             return None
 
-        # FIXED: Parse directives from the text content to support element-scoped directives
+        formatting_data = self.element_factory._extract_formatting_from_inline_token(
+            temp_inline_token
+        )
+
+        # Parse directives from the text content itself
         cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
             plain_text
         )
 
-        # Merge section directives with any element-specific directives found in the text
         final_directives = {**directives, **line_directives}
-
-        # Use the cleaned text (with directives removed) but keep the extracted formatting
         alignment = AlignmentType(final_directives.get("align", "left"))
+
         return self.element_factory.create_text_element(
-            cleaned_text if cleaned_text.strip() else plain_text,
+            cleaned_text.strip(),
             formatting_data,
             alignment,
             final_directives,

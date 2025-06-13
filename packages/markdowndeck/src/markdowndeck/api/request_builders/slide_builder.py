@@ -52,7 +52,11 @@ class SlideRequestBuilder(BaseRequestBuilder):
             )
 
         elif background_type == "color":
-            color_value_str = str(background_value).strip()
+            # The value might be a simple string or a nested dict
+            if isinstance(background_value, dict):
+                color_value_str = str(background_value.get("value")).strip()
+            else:
+                color_value_str = str(background_value).strip()
 
             # Check for hex color
             if color_value_str.startswith("#"):

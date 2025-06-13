@@ -103,11 +103,14 @@ class SlideExtractor:
 
         if notes:
             main_content_segment = re.sub(
-                r"<!--\s*notes:\s*.*?\s*-->", "", main_content_segment, flags=re.DOTALL
+                r"<!--\s*notes:\s*(.*?)\s*-->",
+                "",
+                main_content_segment,
+                flags=re.DOTALL,
             )
         if footer and notes:
             footer = re.sub(
-                r"<!--\s*notes:\s*.*?\s*-->", "", footer, flags=re.DOTALL
+                r"<!--\s*notes:\s*(.*?)\s*-->", "", footer, flags=re.DOTALL
             ).strip()
 
         slide_level_directives, main_content_segment = (
@@ -140,7 +143,7 @@ class SlideExtractor:
         return slide
 
     def _extract_slide_level_directives(self, content: str) -> tuple[dict, str]:
-        """Extracts slide-level directives from the top of the content block."""
+        """Extracts slide-level directives, leaving section-level directives in the content."""
         lines = content.lstrip().split("\n")
         all_directives = {}
         consumed_lines_count = 0
@@ -151,39 +154,34 @@ class SlideExtractor:
                 consumed_lines_count += 1
                 continue
 
-            # Use the robust parser to see if the entire line consists of directives
             line_directives, remaining_text = (
                 self.directive_parser.parse_inline_directives(stripped)
             )
 
             if line_directives and not remaining_text:
-                # This is a directive-only line
                 all_directives.update(line_directives)
-
-                # FIXED: Only consume lines that contain SLIDE-LEVEL directives
-                # Section-scoped directives should be left for the section parser
-                if "background" in line_directives:
-                    consumed_lines_count += 1
-                else:
-                    # This line contains section-scoped directives, don't consume it
-                    break
+                consumed_lines_count += 1
             else:
-                # First non-directive line found, stop processing
                 break
 
-        # Only extract 'background' as a slide-level directive
-        background = None
-        if "background" in all_directives:
-            background_value = all_directives["background"]
-            if (
-                isinstance(background_value, dict)
-                and background_value.get("type") == "url"
-            ):
-                background = {"type": "image", "value": background_value["value"]}
-            else:
-                background = {"type": "color", "value": background_value}
+        # Pop the background directive for the slide; leave others for the section parser
+        background = all_directives.pop("background", None)
 
         remaining_content = "\n".join(lines[consumed_lines_count:])
+
+        # Prepend the remaining (non-background) directives back onto the content
+        if all_directives:
+            # Reconstruct directive string from the remaining directives
+            directive_parts = []
+            for key, value in all_directives.items():
+                if isinstance(value, bool) and value:
+                    directive_parts.append(f"[{key}]")
+                else:
+                    directive_parts.append(f"[{key}={value}]")
+
+            directive_str = " ".join(directive_parts)
+            remaining_content = f"{directive_str}\n{remaining_content}"
+
         return {"background": background}, remaining_content
 
     def _extract_title_with_directives(
@@ -195,23 +193,23 @@ class SlideExtractor:
 
         title_line_index = -1
         subtitle_line_index = -1
-        all_h1_indices = []
+        consumed_indices = set()
 
+        # Find the first H1, which is always the title
         for i, line in enumerate(lines):
             stripped_line = line.strip()
-            if stripped_line.startswith("# "):
-                all_h1_indices.append(i)
-                if title_line_index == -1:
-                    title_line_index = i
-                    title_text, title_directives = (
-                        self.directive_parser.parse_and_strip_from_text(
-                            stripped_line[2:].strip()
-                        )
+            if stripped_line.startswith("# ") and not stripped_line.startswith("##"):
+                title_line_index = i
+                title_text, title_directives = (
+                    self.directive_parser.parse_and_strip_from_text(
+                        stripped_line[2:].strip()
                     )
+                )
+                consumed_indices.add(i)
+                break  # Only the first H1 can be a title
 
+        # A subtitle must immediately follow the title
         if title_line_index != -1:
-            # REFACTORED: Per PARSER_SPEC.md 4.3.1, a subtitle must *immediately* follow a title.
-            # This logic now correctly checks only the line directly after the title.
             potential_subtitle_index = title_line_index + 1
             if potential_subtitle_index < len(lines):
                 next_line = lines[potential_subtitle_index].strip()
@@ -222,10 +220,7 @@ class SlideExtractor:
                             next_line[3:].strip()
                         )
                     )
-
-        consumed_indices = set(all_h1_indices)
-        if subtitle_line_index != -1:
-            consumed_indices.add(subtitle_line_index)
+                    consumed_indices.add(subtitle_line_index)
 
         remaining_lines = [
             line for i, line in enumerate(lines) if i not in consumed_indices

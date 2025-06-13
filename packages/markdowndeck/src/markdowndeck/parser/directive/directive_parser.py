@@ -1,5 +1,3 @@
-"""Updated directive parser with specification compliance."""
-
 import logging
 import re
 from typing import Any
@@ -163,12 +161,11 @@ class DirectiveParser:
             # Split the content by space, but keep quoted values together. A simpler
             # way is to just find all key=value or key pairs.
             pairs = re.findall(
-                r'([\w-]+)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content
+                r'([\w-]+(?:-[\w-]+)*)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content
             )
-
             for key, value in pairs:
                 key = key.strip().lower()
-                value = value.strip().strip("'\"")
+                value = (value or "").strip().strip("'\"")
 
                 if key in self.directive_types:
                     directive_type = self.directive_types[key]
@@ -180,9 +177,8 @@ class DirectiveParser:
                     if converter:
                         try:
                             converted_value = converter(value)
-                            if directive_type == "style" and isinstance(
-                                converted_value, tuple
-                            ):
+                            # This is the fix: Style directives are now processed correctly
+                            if directive_type == "style":
                                 directives.update(
                                     self._process_style_directive_value(
                                         key, converted_value
@@ -202,7 +198,6 @@ class DirectiveParser:
                     logger.warning(
                         f"Unsupported directive key '{key}' (per DIRECTIVES.md). Ignoring."
                     )
-
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
@@ -217,28 +212,16 @@ class DirectiveParser:
     def _process_style_directive_value(
         self, key: str, style_tuple: tuple[str, Any]
     ) -> dict[str, Any]:
-        """Process style directive tuples into clean format."""
+        """Process style directive tuples into a clean, unified format."""
         style_type, style_value = style_tuple
         result = {}
 
-        if style_type == "color":
-            result[key] = style_value
-        elif style_type == "url":
-            if key == "background":
-                result["background_type"] = "image"
-                result["background_image_url"] = style_value["value"]
+        if key == "background":
+            if style_type == "url":
+                result[key] = {"type": "image", "value": style_value["value"]}
             else:
-                result[f"{key}_url"] = style_value["value"]
-        elif style_type == "border":
-            result[key] = style_value
-        elif style_type == "border_style":
-            result[key] = {"style": style_value}
-        elif (
-            style_type == "shadow"
-            or style_type == "transform"
-            or style_type == "animation"
-            or style_type == "gradient"
-        ):
+                result[key] = {"type": "color", "value": style_value}
+        elif style_type == "color":
             result[key] = style_value
         else:
             result[key] = style_value
