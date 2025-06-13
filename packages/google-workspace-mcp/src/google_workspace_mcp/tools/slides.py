@@ -79,17 +79,21 @@ async def get_slides(presentation_id: str) -> dict[str, Any]:
 )
 async def create_presentation(
     title: str,
+    delete_default_slide: bool = False,
 ) -> dict[str, Any]:
     """
     Create a new presentation.
 
     Args:
         title: The title for the new presentation.
+        delete_default_slide: If True, deletes the default slide created by Google Slides API.
 
     Returns:
         Created presentation data or raises error.
     """
-    logger.info(f"Executing create_presentation with title: '{title}'")
+    logger.info(
+        f"Executing create_presentation with title: '{title}', delete_default_slide: {delete_default_slide}"
+    )
     if not title or not title.strip():
         raise ValueError("Presentation title cannot be empty")
 
@@ -98,6 +102,24 @@ async def create_presentation(
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error creating presentation"))
+
+    # If requested, delete the default slide
+    if delete_default_slide and result.get("presentationId"):
+        # Get the first slide ID and delete it
+        presentation_data = slides_service.get_presentation(
+            presentation_id=result["presentationId"]
+        )
+        if presentation_data.get("slides") and len(presentation_data["slides"]) > 0:
+            first_slide_id = presentation_data["slides"][0]["objectId"]
+            delete_result = slides_service.delete_slide(
+                presentation_id=result["presentationId"], slide_id=first_slide_id
+            )
+            if isinstance(delete_result, dict) and delete_result.get("error"):
+                logger.warning(
+                    f"Failed to delete default slide: {delete_result.get('message')}"
+                )
+            else:
+                logger.info("Successfully deleted default slide")
 
     return result
 
@@ -651,14 +673,14 @@ async def slides_batch_update(
     """
     Apply a list of raw Google Slides API update requests to a presentation.
     For advanced users familiar with Slides API request structures.
-    
+
     Args:
         presentation_id: The ID of the presentation
         requests: List of Google Slides API request objects (e.g., createShape, insertText, updateTextStyle, createImage, etc.)
-    
+
     Returns:
         Response data confirming batch operation or raises error
-        
+
     Example request structure:
     [
         {
@@ -683,14 +705,13 @@ async def slides_batch_update(
     logger.info(f"Executing slides_batch_update with {len(requests)} requests")
     if not presentation_id or not requests:
         raise ValueError("Presentation ID and requests list are required")
-    
+
     if not isinstance(requests, list):
         raise ValueError("Requests must be a list of API request objects")
 
     slides_service = SlidesService()
     result = slides_service.batch_update(
-        presentation_id=presentation_id,
-        requests=requests
+        presentation_id=presentation_id, requests=requests
     )
 
     if isinstance(result, dict) and result.get("error"):
@@ -710,20 +731,20 @@ async def create_slide_from_template_data(
 ) -> dict[str, Any]:
     """
     Create a complete slide from template data in a single batch operation.
-    
+
     Args:
         presentation_id: The ID of the presentation
         slide_id: The ID of the slide
         template_data: Dictionary containing slide elements, example:
             {
                 "title": {
-                    "text": "Frank's RedHot Campaign", 
+                    "text": "Frank's RedHot Campaign",
                     "position": {"x": 32, "y": 35, "width": 330, "height": 40},
                     "style": {"fontSize": 18, "fontFamily": "Roboto"}
                 },
                 "description": {
                     "text": "Campaign description...",
-                    "position": {"x": 32, "y": 95, "width": 330, "height": 160}, 
+                    "position": {"x": 32, "y": 95, "width": 330, "height": 160},
                     "style": {"fontSize": 12, "fontFamily": "Roboto"}
                 },
                 "stats": [
@@ -738,7 +759,7 @@ async def create_slide_from_template_data(
                     "size": {"width": 285, "height": 215}
                 }
             }
-    
+
     Returns:
         Response data confirming slide creation or raises error
     """
@@ -751,13 +772,13 @@ async def create_slide_from_template_data(
 
     slides_service = SlidesService()
     result = slides_service.create_slide_from_template_data(
-        presentation_id=presentation_id,
-        slide_id=slide_id,
-        template_data=template_data
+        presentation_id=presentation_id, slide_id=slide_id, template_data=template_data
     )
 
     if isinstance(result, dict) and result.get("error"):
-        raise ValueError(result.get("message", "Error creating slide from template data"))
+        raise ValueError(
+            result.get("message", "Error creating slide from template data")
+        )
 
     return result
 
@@ -774,10 +795,10 @@ async def create_slide_with_elements(
 ) -> dict[str, Any]:
     """
     Create a complete slide with multiple elements in one batch operation.
-    
+
     Args:
         presentation_id: The ID of the presentation
-        slide_id: The ID of the slide  
+        slide_id: The ID of the slide
         elements: List of element dictionaries, example:
             [
                 {
@@ -787,14 +808,14 @@ async def create_slide_with_elements(
                     "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True, "textAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
                 },
                 {
-                    "type": "textbox", 
+                    "type": "textbox",
                     "content": "Description text...",
                     "position": {"x": 282, "y": 1327, "width": 600, "height": 234},
                     "style": {"fontSize": 12, "fontFamily": "Roboto"}
                 },
                 {
                     "type": "textbox",
-                    "content": "43.4M", 
+                    "content": "43.4M",
                     "position": {"x": 333, "y": 4059, "width": 122, "height": 79},
                     "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True}
                 },
@@ -805,11 +826,13 @@ async def create_slide_with_elements(
                 }
             ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
-    
+
     Returns:
         Response data confirming slide creation or raises error
     """
-    logger.info(f"Executing create_slide_with_elements on slide '{slide_id}' with {len(elements)} elements")
+    logger.info(
+        f"Executing create_slide_with_elements on slide '{slide_id}' with {len(elements)} elements"
+    )
     if not presentation_id or not slide_id or not elements:
         raise ValueError("Presentation ID, Slide ID, and Elements are required")
 
@@ -821,7 +844,7 @@ async def create_slide_with_elements(
         presentation_id=presentation_id,
         slide_id=slide_id,
         elements=elements,
-        background_color=background_color
+        background_color=background_color,
     )
 
     if isinstance(result, dict) and result.get("error"):
@@ -839,10 +862,10 @@ async def convert_template_zones_to_pt(
 ) -> dict[str, Any]:
     """
     Convert template zones coordinates from EMU to PT for easier slide element creation.
-    
+
     Args:
         template_zones: Template zones from extract_template_zones_only
-    
+
     Returns:
         Template zones with additional PT coordinates (x_pt, y_pt, width_pt, height_pt)
     """
