@@ -7,7 +7,7 @@ import psutil
 from markdowndeck.layout import LayoutManager
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
-from markdowndeck.slide import Slide
+from markdowndeck.models.slide import Slide
 
 
 class TestOverflowStress:

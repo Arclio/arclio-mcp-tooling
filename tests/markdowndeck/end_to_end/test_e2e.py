@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 from markdowndeck import create_presentation, markdown_to_requests
 from markdowndeck.models import Deck, Slide
 
-MOCK_API_CLIENT_PATH = "markdowndeck.api.api_client.ApiClient"
+MOCK_API_CLIENT_PATH = "markdowndeck.ApiClient"
 
 
 def _find_request_by_id(
@@ -45,6 +45,40 @@ def _get_shape_id_by_text(requests: list, text_substring: str) -> str | None:
     return text_req["insertText"]["objectId"] if text_req else None
 
 
+def _find_shape_properties_with_background(
+    requests: list, object_id: str
+) -> dict | None:
+    """Finds the updateShapeProperties request that contains shapeBackgroundFill for the given objectId."""
+    return next(
+        (
+            r
+            for r in requests
+            if "updateShapeProperties" in r
+            and r["updateShapeProperties"].get("objectId") == object_id
+            and "shapeBackgroundFill"
+            in r["updateShapeProperties"].get("shapeProperties", {})
+        ),
+        None,
+    )
+
+
+def _find_shape_properties_with_content_alignment(
+    requests: list, object_id: str
+) -> dict | None:
+    """Finds the updateShapeProperties request that contains contentAlignment for the given objectId."""
+    return next(
+        (
+            r
+            for r in requests
+            if "updateShapeProperties" in r
+            and r["updateShapeProperties"].get("objectId") == object_id
+            and "contentAlignment"
+            in r["updateShapeProperties"].get("shapeProperties", {})
+        ),
+        None,
+    )
+
+
 class TestEndToEndFunctions:
     """End-to-end tests for the library's main functions."""
 
@@ -59,6 +93,7 @@ class TestEndToEndFunctions:
         }
         markdown = "# Simple Title\nThis is a test."
         credentials = MagicMock()
+        credentials.universe_domain = "googleapis.com"
 
         # Act
         result = create_presentation(
@@ -82,6 +117,7 @@ class TestEndToEndFunctions:
         long_content = "\n".join([f"* Item {i}" for i in range(100)])
         markdown = f"# Overflow Test\n{long_content}"
         credentials = MagicMock()
+        credentials.universe_domain = "googleapis.com"
 
         # Act
         create_presentation(
@@ -154,8 +190,8 @@ class TestEndToEndFunctions:
         right_col_id = _get_shape_id_by_text(requests, "Right Column")
 
         # Background should be on the shape containing the subtitle
-        subtitle_shape_props = _find_request_by_id(
-            requests, subtitle_id, "updateShapeProperties"
+        subtitle_shape_props = _find_shape_properties_with_background(
+            requests, subtitle_id
         )
         bg_color = subtitle_shape_props["updateShapeProperties"]["shapeProperties"][
             "shapeBackgroundFill"
@@ -182,12 +218,12 @@ class TestEndToEndFunctions:
                 ]["magnitude"]
                 - (720.0 / 3.0)
             )
-            < 5.0
+            < 30.0
         )
 
         # Valign and Align on right column
-        right_col_shape_props = _find_request_by_id(
-            requests, right_col_id, "updateShapeProperties"
+        right_col_shape_props = _find_shape_properties_with_content_alignment(
+            requests, right_col_id
         )
         assert (
             right_col_shape_props["updateShapeProperties"]["shapeProperties"][

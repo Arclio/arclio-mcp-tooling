@@ -83,7 +83,7 @@ class TestLayoutManager:
             positioned_slide.root_section.children[0].position is not None
         ), "Body element must be positioned."
 
-    @patch("markdowndeck.api.validation.is_valid_image_url", return_value=True)
+    @patch("markdowndeck.layout.metrics.image.is_valid_image_url", return_value=True)
     def test_layout_c_02_proactive_image_scaling(
         self, mock_is_valid, layout_manager: LayoutManager
     ):

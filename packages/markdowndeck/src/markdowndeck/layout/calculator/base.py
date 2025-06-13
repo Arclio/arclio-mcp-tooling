@@ -96,17 +96,7 @@ class PositionCalculator:
 
         slide.renderable_elements.extend(meta_elements)
 
-        # FIXED: Preserve ALL title/footer elements (positioned and unpositioned)
-        # These are needed for get_title_element() and get_footer_element() methods
-        preserved_elements = []
-        for element in slide.elements:
-            if element.element_type in [
-                ElementType.TITLE,
-                ElementType.SUBTITLE,
-                ElementType.FOOTER,
-            ]:
-                preserved_elements.append(element)
-        slide.elements = preserved_elements
+        slide.elements = []
 
         return slide
 
