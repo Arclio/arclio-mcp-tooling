@@ -1220,6 +1220,18 @@ class SlidesService(BaseGoogleService):
                         },
                     }
                 },
+                # Set autofit properties (must be done AFTER creating the shape)
+                {
+                    "updateShapeProperties": {
+                        "objectId": element_id,
+                        "shapeProperties": {
+                            "autofit": {
+                                "autofitType": "TEXT_AUTOFIT"
+                            }
+                        },
+                        "fields": "autofit.autofitType",
+                    }
+                },
                 # Insert text into the text box
                 {
                     "insertText": {
