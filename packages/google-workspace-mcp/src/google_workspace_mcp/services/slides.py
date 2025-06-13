@@ -1157,6 +1157,72 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("duplicate_slide", e)
 
+    def calculate_optimal_font_size(
+        self,
+        text: str,
+        box_width: float,
+        box_height: float,
+        font_family: str = "Arial",
+        max_font_size: int = 48,
+        min_font_size: int = 8,
+    ) -> int:
+        """
+        Calculate optimal font size to fit text within given dimensions.
+        Uses simple estimation since PIL may not be available.
+        """
+        try:
+            # Try to import PIL for accurate measurement
+            from PIL import Image, ImageDraw, ImageFont
+
+            def get_text_dimensions(text, font_size, font_family):
+                try:
+                    img = Image.new("RGB", (1000, 1000), color="white")
+                    draw = ImageDraw.Draw(img)
+
+                    try:
+                        font = ImageFont.truetype(f"{font_family}.ttf", font_size)
+                    except:
+                        font = ImageFont.load_default()
+
+                    bbox = draw.textbbox((0, 0), text, font=font)
+                    text_width = bbox[2] - bbox[0]
+                    text_height = bbox[3] - bbox[1]
+
+                    return text_width, text_height
+                except Exception:
+                    # Fallback calculation
+                    char_width = font_size * 0.6
+                    text_width = len(text) * char_width
+                    text_height = font_size * 1.2
+                    return text_width, text_height
+
+            # Binary search for optimal font size
+            low, high = min_font_size, max_font_size
+            optimal_size = min_font_size
+
+            while low <= high:
+                mid = (low + high) // 2
+                text_width, text_height = get_text_dimensions(text, mid, font_family)
+
+                if text_width <= box_width and text_height <= box_height:
+                    optimal_size = mid
+                    low = mid + 1
+                else:
+                    high = mid - 1
+
+            return optimal_size
+
+        except ImportError:
+            # Fallback to simple estimation if PIL not available
+            logger.info("PIL not available, using simple font size estimation")
+            chars_per_line = int(box_width / (12 * 0.6))  # Base font size 12
+
+            if len(text) <= chars_per_line:
+                return min(max_font_size, 12)
+
+            scale_factor = chars_per_line / len(text)
+            return max(min_font_size, int(12 * scale_factor))
+
     def create_textbox_with_text(
         self,
         presentation_id: str,
@@ -1166,10 +1232,14 @@ class SlidesService(BaseGoogleService):
         size: tuple[float, float],
         unit: str = "EMU",
         element_id: str | None = None,
+        font_family: str = "Arial",
+        auto_size_font: bool = True,
     ) -> dict[str, Any]:
         """
-        Create a text box with text following the Google API example pattern.
-        This method creates both the text box shape and inserts text in one operation.
+        Create a text box with text and automatic font sizing to prevent overflow.
+
+        Note: Google Slides API does not support autofit (TEXT_AUTOFIT/SHAPE_AUTOFIT),
+        so we implement custom font size calculation to fit text within the box.
 
         Args:
             presentation_id: The ID of the presentation
@@ -1179,6 +1249,8 @@ class SlidesService(BaseGoogleService):
             size: Tuple of (width, height) for the text box in PT
             unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "EMU").
             element_id: Optional custom element ID, auto-generated if not provided
+            font_family: Font family to use (default "Arial")
+            auto_size_font: Whether to automatically calculate font size to fit (default True)
 
         Returns:
             Response data or error information
@@ -1189,20 +1261,35 @@ class SlidesService(BaseGoogleService):
                 raise ValueError(
                     "Unit must be either 'PT' (points) or 'EMU' (English Metric Units)"
                 )
-            
+
             # Generate element ID if not provided
             if element_id is None:
                 import time
 
                 element_id = f"TextBox_{int(time.time() * 1000)}"
 
-            # Convert size to Google API format
+            # Convert size to API format
             width = {"magnitude": size[0], "unit": unit}
             height = {"magnitude": size[1], "unit": unit}
 
-            # Build requests following the Google API example exactly
+            # Calculate optimal font size if auto-sizing is enabled
+            font_size = 12  # Default
+            if auto_size_font:
+                # Convert to points for calculation if using EMU
+                calc_width = (
+                    size[0] if unit == "PT" else size[0] / 12700
+                )  # EMU to PT conversion
+                calc_height = size[1] if unit == "PT" else size[1] / 12700
+                font_size = self.calculate_optimal_font_size(
+                    text, calc_width, calc_height, font_family
+                )
+                logger.info(
+                    f"Calculated optimal font size: {font_size}pt for text: '{text[:50]}...'"
+                )
+
+            # Build requests with proper sequence
             requests = [
-                # Create text box shape
+                # Step 1: Create text box shape (no autofit - API limitation)
                 {
                     "createShape": {
                         "objectId": element_id,
@@ -1220,19 +1307,15 @@ class SlidesService(BaseGoogleService):
                         },
                     }
                 },
-                # Set autofit properties (must be done AFTER creating the shape)
+                # Step 2: Set autofit to NONE (only supported value)
                 {
                     "updateShapeProperties": {
                         "objectId": element_id,
-                        "shapeProperties": {
-                            "autofit": {
-                                "autofitType": "TEXT_AUTOFIT"
-                            }
-                        },
+                        "shapeProperties": {"autofit": {"autofitType": "NONE"}},
                         "fields": "autofit.autofitType",
                     }
                 },
-                # Insert text into the text box
+                # Step 3: Insert text into the text box
                 {
                     "insertText": {
                         "objectId": element_id,
@@ -1240,10 +1323,22 @@ class SlidesService(BaseGoogleService):
                         "text": text,
                     }
                 },
+                # Step 4: Apply calculated font size and family
+                {
+                    "updateTextStyle": {
+                        "objectId": element_id,
+                        "textRange": {"type": "ALL"},
+                        "style": {
+                            "fontSize": {"magnitude": font_size, "unit": "PT"},
+                            "fontFamily": font_family,
+                        },
+                        "fields": "fontSize,fontFamily",
+                    }
+                },
             ]
 
             logger.info(
-                f"Creating text box with text using requests: {json.dumps(requests, indent=2)}"
+                f"Creating autofit text box with font size {font_size}: {json.dumps(requests[0], indent=2)}"
             )
 
             # Execute the request
@@ -1269,6 +1364,7 @@ class SlidesService(BaseGoogleService):
                 "slideId": slide_id,
                 "elementId": created_object_id or element_id,
                 "text": text,
+                "calculatedFontSize": font_size,
                 "operation": "create_textbox_with_text",
                 "result": "success",
                 "response": response,
