@@ -103,25 +103,44 @@ async def create_presentation(
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error creating presentation"))
 
+    # Extract essential information
+    presentation_id = result.get("presentationId")
+    if not presentation_id:
+        raise ValueError("Failed to get presentation ID from creation result")
+
+    # Prepare clean response
+    clean_result = {
+        "presentationId": presentation_id,
+        "title": title,
+        "status": "created_successfully",
+    }
+
     # If requested, delete the default slide
-    if delete_default_slide and result.get("presentationId"):
+    if delete_default_slide and presentation_id:
         # Get the first slide ID and delete it
         presentation_data = slides_service.get_presentation(
-            presentation_id=result["presentationId"]
+            presentation_id=presentation_id
         )
         if presentation_data.get("slides") and len(presentation_data["slides"]) > 0:
             first_slide_id = presentation_data["slides"][0]["objectId"]
             delete_result = slides_service.delete_slide(
-                presentation_id=result["presentationId"], slide_id=first_slide_id
+                presentation_id=presentation_id, slide_id=first_slide_id
             )
             if isinstance(delete_result, dict) and delete_result.get("error"):
                 logger.warning(
                     f"Failed to delete default slide: {delete_result.get('message')}"
                 )
+                clean_result["default_slide_deleted"] = False
+                clean_result["delete_error"] = delete_result.get("message")
             else:
                 logger.info("Successfully deleted default slide")
+                clean_result["default_slide_deleted"] = True
+                clean_result["status"] = "created_successfully_no_default_slide"
+        else:
+            clean_result["default_slide_deleted"] = False
+            clean_result["delete_error"] = "No slides found to delete"
 
-    return result
+    return clean_result
 
 
 @mcp.tool(
