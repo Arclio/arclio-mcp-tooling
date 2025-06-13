@@ -58,10 +58,15 @@ class ContentParser:
             cleaned_title, line_directives = (
                 self.directive_parser.parse_and_strip_from_text(slide_title_text)
             )
+            # REFACTORED: Per PARSER_SPEC.md, same-line directives on meta-elements
+            # are stored at the slide level. We must merge them into the provided dict.
             final_title_directives = {**(title_directives or {}), **line_directives}
+
             formatting = self.element_factory.extract_formatting_from_text(
                 cleaned_title, self.md
             )
+            # The element itself gets the merged directives for layout purposes.
+            # The API Generator will use the slide-level dict for final styling precedence.
             title_element = self.element_factory.create_title_element(
                 cleaned_title, formatting, final_title_directives
             )
@@ -71,6 +76,7 @@ class ContentParser:
             cleaned_subtitle, line_directives = (
                 self.directive_parser.parse_and_strip_from_text(subtitle_text)
             )
+            # REFACTORED: Correctly merge directives for subtitles as well.
             final_subtitle_directives = {
                 **(subtitle_directives or {}),
                 **line_directives,

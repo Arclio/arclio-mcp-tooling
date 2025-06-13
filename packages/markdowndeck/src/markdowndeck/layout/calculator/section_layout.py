@@ -20,17 +20,14 @@ def calculate_recursive_layout(calculator, root_section: Section, area: tuple) -
     if root_section is None:
         return
 
-    # REFACTORED: Respect the width directive on the root section. This is the fix.
     section_width = _calculate_dimension(
         root_section.directives.get("width"), area[2], area[2]
     )
 
     root_section.position = (area[0], area[1])
-    # Pass the calculated width to determine the intrinsic height.
     intrinsic_height = _calculate_section_intrinsic_height(
         calculator, root_section, section_width
     )
-    # Use the calculated width for the section's final size.
     root_section.size = (section_width, intrinsic_height)
 
     _layout_children_recursively(calculator, root_section)
@@ -244,17 +241,24 @@ def _calculate_predictable_dimensions(
     spacing: float,
     dimension_key: str,
 ) -> list[float]:
-    """Calculate predictable dimensions for sections with explicit and implicit sizing."""
+    """
+    REFACTORED: Correctly calculates dimensions, including clamping for over-subscribed layouts.
+    This logic now proportionally scales down sections if their combined specified
+    widths exceed the available space.
+    """
     num_sections = len(sections)
     if num_sections == 0:
         return []
+
     total_spacing = spacing * (num_sections - 1) if num_sections > 1 else 0
     usable_dimension = max(0, available_dimension - total_spacing)
 
     dimensions = [0.0] * num_sections
-    specified_total = 0
+    specified_indices = []
     unspecified_indices = []
+    specified_total = 0.0
 
+    # First pass: assign all specified dimensions
     for i, section in enumerate(sections):
         size = _calculate_dimension(
             section.directives.get(dimension_key), usable_dimension, None
@@ -262,15 +266,27 @@ def _calculate_predictable_dimensions(
         if size is not None:
             dimensions[i] = size
             specified_total += size
+            specified_indices.append(i)
         else:
             unspecified_indices.append(i)
 
-    remaining_dim = usable_dimension - specified_total
-    if unspecified_indices:
-        per_unspecified = (
-            remaining_dim / len(unspecified_indices) if remaining_dim > 0 else 0
-        )
+    # Second pass: handle clamping and distribution
+    # Case 1: Specified dimensions exceed available space -> clamp and scale them down proportionally.
+    if specified_total > usable_dimension:
+        scale_factor = usable_dimension / specified_total
+        for i in specified_indices:
+            dimensions[i] *= scale_factor
+        # Unspecified sections get no space in this case
         for i in unspecified_indices:
-            dimensions[i] = per_unspecified
+            dimensions[i] = 0.0
+    # Case 2: Specified dimensions are within available space -> distribute remainder to unspecified sections.
+    else:
+        remaining_dim = usable_dimension - specified_total
+        if unspecified_indices:
+            per_unspecified = (
+                remaining_dim / len(unspecified_indices) if remaining_dim > 0 else 0
+            )
+            for i in unspecified_indices:
+                dimensions[i] = per_unspecified
 
     return dimensions

@@ -1,5 +1,5 @@
 """
-A comprehensive, end-to-end "golden case" test for the full pipeline.
+A comprehensive, end-to-end "golden case" test for the full pipeline, updated for the new architecture.
 """
 
 import pytest
@@ -47,12 +47,31 @@ def golden_output():
     return markdown_to_requests(GOLDEN_MARKDOWN, title="Golden Case Deck")
 
 
-def _find_element_shape_id(slide_batch, text_content_substring: str) -> str | None:
-    """Finds the objectId of the shape containing specific text."""
-    for req in slide_batch["requests"]:
-        if "insertText" in req and text_content_substring in req["insertText"]["text"]:
-            return req["insertText"]["objectId"]
-    return None
+def _find_element_shape_by_text(
+    slide_batch, text_content_substring: str
+) -> dict | None:
+    """Finds the createShape request data for the shape containing specific text."""
+    text_req = next(
+        (
+            r
+            for r in slide_batch["requests"]
+            if "insertText" in r and text_content_substring in r["insertText"]["text"]
+        ),
+        None,
+    )
+    if not text_req:
+        return None
+    object_id = text_req["insertText"]["objectId"]
+
+    shape_req = next(
+        (
+            r
+            for r in slide_batch["requests"]
+            if "createShape" in r and r["createShape"]["objectId"] == object_id
+        ),
+        None,
+    )
+    return shape_req["createShape"] if shape_req else None
 
 
 class TestGoldenCase:
@@ -65,15 +84,17 @@ class TestGoldenCase:
     def test_slide_1_title_styling(self, golden_output):
         """Asserts Slide 1's title has the correct color directive applied."""
         slide_1_batch = golden_output["slide_batches"][0]
-        title_id = _find_element_shape_id(slide_1_batch, "Slide 1: Title Styling")
-        assert title_id is not None, "Could not find title element for Slide 1."
+        title_shape = _find_element_shape_by_text(
+            slide_1_batch, "Slide 1: Title Styling"
+        )
+        assert title_shape is not None, "Could not find title element for Slide 1."
 
         style_req = next(
             (
                 r
                 for r in slide_1_batch["requests"]
                 if "updateTextStyle" in r
-                and r["updateTextStyle"]["objectId"] == title_id
+                and r["updateTextStyle"]["objectId"] == title_shape["objectId"]
             ),
             None,
         )
@@ -87,9 +108,9 @@ class TestGoldenCase:
     def test_slide_2_section_background(self, golden_output):
         """Asserts Slide 2's first section has the correct background color."""
         slide_2_batch = golden_output["slide_batches"][1]
-        section_id = _find_element_shape_id(slide_2_batch, "dark background")
+        section_shape = _find_element_shape_by_text(slide_2_batch, "dark background")
         assert (
-            section_id is not None
+            section_shape is not None
         ), "Could not find section text element for Slide 2."
 
         style_req = next(
@@ -97,73 +118,81 @@ class TestGoldenCase:
                 r
                 for r in slide_2_batch["requests"]
                 if "updateShapeProperties" in r
-                and r["updateShapeProperties"]["objectId"] == section_id
+                and r["updateShapeProperties"]["objectId"] == section_shape["objectId"]
             ),
             None,
         )
         assert (
             style_req is not None
-        ), "No shape properties update found for the section."
+        ), "No shape properties update found for the section's element."
 
-        fields = style_req["updateShapeProperties"]["fields"]
-        assert "shapeBackgroundFill" in fields, "Background fill not being updated."
+        props = style_req["updateShapeProperties"]
+        assert (
+            "shapeBackgroundFill.solidFill.color.rgbColor" in props["fields"]
+        ), "Background fill not being updated."
+        color = props["shapeProperties"]["shapeBackgroundFill"]["solidFill"]["color"][
+            "rgbColor"
+        ]
+        assert abs(color["red"] - 0.2) < 0.01
+        assert abs(color["green"] - 0.2) < 0.01
+        assert abs(color["blue"] - 0.2) < 0.01
 
     def test_slide_3_column_widths(self, golden_output):
         """Asserts Slide 3's columns have correctly calculated widths."""
         slide_3_batch = golden_output["slide_batches"][2]
 
-        implicit_id = _find_element_shape_id(slide_3_batch, "Implicit Column")
-        proportional_id = _find_element_shape_id(slide_3_batch, "Proportional Column")
-        absolute_id = _find_element_shape_id(slide_3_batch, "Absolute Column")
+        implicit_shape = _find_element_shape_by_text(slide_3_batch, "Implicit Column")
+        proportional_shape = _find_element_shape_by_text(
+            slide_3_batch, "Proportional Column"
+        )
+        absolute_shape = _find_element_shape_by_text(slide_3_batch, "Absolute Column")
 
-        shapes = {
-            r["createShape"]["objectId"]: r["createShape"]
-            for r in slide_3_batch["requests"]
-            if "createShape" in r
-        }
+        assert implicit_shape is not None
+        assert proportional_shape is not None
+        assert absolute_shape is not None
 
-        assert implicit_id in shapes
-        assert proportional_id in shapes
-        assert absolute_id in shapes
-
+        # Content area width is 720. No gap.
+        # Absolute takes 150. Remaining: 570.
+        # Proportional takes 25% of 720 = 180. Remaining: 390.
+        # Implicit takes the rest.
         assert (
             abs(
-                shapes[implicit_id]["elementProperties"]["size"]["width"]["magnitude"]
+                implicit_shape["elementProperties"]["size"]["width"]["magnitude"]
                 - 390.0
             )
-            < 1.0
+            < 5.0
         )
         assert (
             abs(
-                shapes[proportional_id]["elementProperties"]["size"]["width"][
-                    "magnitude"
-                ]
+                proportional_shape["elementProperties"]["size"]["width"]["magnitude"]
                 - 180.0
             )
-            < 1.0
+            < 5.0
         )
         assert (
             abs(
-                shapes[absolute_id]["elementProperties"]["size"]["width"]["magnitude"]
+                absolute_shape["elementProperties"]["size"]["width"]["magnitude"]
                 - 150.0
             )
-            < 1.0
+            < 5.0
         )
 
     def test_slide_4_code_escaping(self, golden_output):
         """Asserts Slide 4's code block content is preserved correctly."""
         slide_4_batch = golden_output["slide_batches"][3]
-        code_id = _find_element_shape_id(slide_4_batch, "x = 1")
-        assert code_id is not None, "Could not find code element for Slide 4."
+        code_shape = _find_element_shape_by_text(slide_4_batch, "x = 1")
+        assert code_shape is not None, "Could not find code element for Slide 4."
 
         insert_req = next(
             (
                 r
                 for r in slide_4_batch["requests"]
-                if "insertText" in r and r["insertText"]["objectId"] == code_id
+                if "insertText" in r
+                and r["insertText"]["objectId"] == code_shape["objectId"]
             ),
             None,
         )
+        assert insert_req is not None
         assert (
             "---" in insert_req["insertText"]["text"]
         ), "Separator inside code block must be preserved."

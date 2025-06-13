@@ -1,6 +1,7 @@
 import pytest
 from markdowndeck import markdown_to_requests
 from markdowndeck.layout import LayoutManager
+from markdowndeck.models import Element, Section
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
 
@@ -34,15 +35,15 @@ def _find_shape_by_text(requests: list, text_substring: str) -> dict | None:
 class TestPipelineContracts:
     """Validates data integrity between pipeline stages."""
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def parser(self) -> Parser:
         return Parser()
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def layout_manager(self) -> LayoutManager:
         return LayoutManager()
 
-    @pytest.fixture(scope="class")
+    @pytest.fixture
     def overflow_manager(self) -> OverflowManager:
         return OverflowManager()
 
@@ -50,7 +51,6 @@ class TestPipelineContracts:
         """
         Test Case: INTEGRATION-P-01
         Validates the Parser produces a valid "Unpositioned" slide.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
         """
         # Arrange
         markdown = "# Title\nContent"
@@ -60,21 +60,22 @@ class TestPipelineContracts:
         slide = deck.slides[0]
 
         # Assert: Validate the "Unpositioned" state
-        assert slide.sections is not None
-        assert len(slide.sections) > 0
+        assert slide.root_section is not None
 
-        def check_unpositioned(sections):
-            for section in sections:
-                assert section.position is None, "Section position should be None"
-                assert section.size is None, "Section size should be None"
-                for child in section.children:
-                    if not hasattr(child, "children"):  # Is an Element
-                        assert child.position is None, "Element position should be None"
-                        assert child.size is None, "Element size should be None"
-                    else:  # Is a Section
-                        check_unpositioned([child])
+        def check_unpositioned(section: Section):
+            assert section.position is None, "Section position should be None"
+            assert section.size is None, "Section size should be None"
+            for child in section.children:
+                if isinstance(child, Section):
+                    check_unpositioned(child)
+                elif isinstance(child, Element):
+                    assert child.position is None, "Element position should be None"
+                    assert child.size is None, "Element size should be None"
 
-        check_unpositioned(slide.sections)
+        check_unpositioned(slide.root_section)
+        for el in slide.elements:
+            assert el.position is None
+            assert el.size is None
 
     def test_p_02_layout_to_overflow_contract_no_overflow(
         self,
@@ -84,8 +85,7 @@ class TestPipelineContracts:
     ):
         """
         Test Case: INTEGRATION-P-02
-        Validates the "Positioned" to "Finalized" state transition for a slide that fits.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
+        Validates "Positioned" to "Finalized" state transition for a slide that fits.
         """
         # Arrange
         markdown = "# Title\nContent"
@@ -95,10 +95,10 @@ class TestPipelineContracts:
         positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
 
         # Assert 1: Validate "Positioned" state
-        assert positioned_slide.sections[0].position is not None
-        assert positioned_slide.sections[0].size is not None
-        assert positioned_slide.sections[0].children[0].position is not None
-        assert positioned_slide.sections[0].children[0].size is not None
+        assert positioned_slide.root_section.position is not None
+        assert positioned_slide.root_section.size is not None
+        assert positioned_slide.root_section.children[0].position is not None
+        assert positioned_slide.root_section.children[0].size is not None
 
         # Act 2: Get "Finalized" state
         finalized_slides = overflow_manager.process_slide(positioned_slide)
@@ -107,8 +107,8 @@ class TestPipelineContracts:
         assert len(finalized_slides) == 1
         final_slide = finalized_slides[0]
         assert (
-            final_slide.sections == []
-        ), "Finalized slide must have empty sections list"
+            final_slide.root_section is None
+        ), "Finalized slide must have root_section cleared"
         assert (
             len(final_slide.renderable_elements) > 0
         ), "Finalized slide must have renderable elements"
@@ -124,10 +124,9 @@ class TestPipelineContracts:
     ):
         """
         Test Case: INTEGRATION-P-03
-        Validates that an overflowing slide results in a list of multiple "Finalized" slides.
-        From: docs/markdowndeck/testing/TEST_CASES_INTEGRATION_PIPELINE.md
+        Validates an overflowing slide results in a list of multiple "Finalized" slides.
         """
-        # Arrange: Create markdown guaranteed to overflow
+        # Arrange
         long_content = "\n".join([f"* List Item {i}" for i in range(100)])
         markdown = f"# Overflow Test\n{long_content}"
         unpositioned_slide = parser.parse(markdown).slides[0]
@@ -138,16 +137,18 @@ class TestPipelineContracts:
 
         # Assert
         assert len(finalized_slides) > 1, "Overflow should result in multiple slides"
-
-        # Verify all resulting slides are in the "Finalized" state
         for i, slide in enumerate(finalized_slides):
-            assert slide.sections == [], f"Slide {i} must have empty sections list"
+            assert (
+                slide.root_section is None
+            ), f"Slide {i} must have root_section cleared"
             assert (
                 len(slide.renderable_elements) > 0
             ), f"Slide {i} must have renderable elements"
             if i > 0:
+                title_element = slide.get_title_element()
+                assert title_element is not None
                 assert (
-                    "(continued)" in slide.title
+                    "(continued)" in title_element.text
                 ), f"Continuation slide {i} must have a continuation title"
 
     def test_p_04_full_pipeline_via_markdown_to_requests(self):
@@ -222,3 +223,78 @@ class TestPipelineContracts:
         assert (
             abs(actual_gap - 30.0) < 5.0
         ), "The gap between elements must be ~30 points."
+
+    def test_p_10_container_clamping(self):
+        """Test Case: INTEGRATION-P-10 - Verify "Container-First" clamping behavior."""
+        # Arrange: Two columns each want 60% of width, which is impossible.
+        markdown = "[width=60%]\nLeft\n***\n[width=60%]\nRight"
+
+        # Act
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        # Assert
+        left_shape = _find_shape_by_text(requests, "Left")
+        right_shape = _find_shape_by_text(requests, "Right")
+        assert left_shape and right_shape, "Could not find shapes for both columns."
+
+        # Each should be clamped to 50% of the available width (720pts).
+        expected_width = 360.0
+        left_width = left_shape["elementProperties"]["size"]["width"]["magnitude"]
+        right_width = right_shape["elementProperties"]["size"]["width"]["magnitude"]
+
+        assert (
+            abs(left_width - expected_width) < 1.0
+        ), "Left column width was not clamped correctly."
+        assert (
+            abs(right_width - expected_width) < 1.0
+        ), "Right column width was not clamped correctly."
+
+    def test_p_11_invalid_image_url_e2e(self):
+        """Test Case: INTEGRATION-P-11 - End-to-end handling of an invalid image URL."""
+        # Arrange
+        markdown = "![alt](http://localhost/invalid.png)"
+
+        # Act
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        # Assert
+        image_req = next((r for r in requests if "createImage" in r), None)
+        assert (
+            image_req is None
+        ), "createImage request should not be generated for an invalid URL."
+
+        # The alt text might still be rendered as a caption, which is acceptable.
+        # The critical part is that the image itself is not created.
+
+    def test_p_12_directive_precedence(self):
+        """Test Case: INTEGRATION-P-12 - Verify directive precedence for meta-elements."""
+        # Arrange: Section-level directive is red, title's same-line directive is blue.
+        markdown = "[color=red]\n# Title [color=blue]"
+
+        # Act
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        # Assert
+        title_id = _find_shape_by_text(requests, "Title")
+        style_req = next(
+            (
+                r
+                for r in requests
+                if "updateTextStyle" in r
+                and r["updateTextStyle"]["objectId"] == title_id
+            ),
+            None,
+        )
+        assert style_req is not None, "Could not find style request for title."
+
+        color = style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
+            "rgbColor"
+        ]
+        assert (
+            abs(color["red"]) < 1e-9
+            and abs(color["green"]) < 1e-9
+            and abs(color["blue"] - 1.0) < 1e-9
+        ), "Title color should be blue, not red."
