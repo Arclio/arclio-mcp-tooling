@@ -21,7 +21,7 @@ class SectionParser:
         self.content_splitter = ContentSplitter()
         self.directive_parser = DirectiveParser()
 
-    def parse_sections(self, content: str) -> Section | None:
+    def parse_sections(self, content: str) -> Section:
         """
         Parse slide content into a single root section containing a hierarchy
         of vertical and horizontal sections.
@@ -30,14 +30,13 @@ class SectionParser:
             content: Slide content without title/footer
 
         Returns:
-            A single root Section model instance, or None if content is empty.
+            A single root Section model instance. Per spec, this is never None.
         """
         logger.debug("Parsing slide content into a root section using ContentSplitter")
 
         normalized_content = content.replace("\r\n", "\n").replace("\r", "\n").strip()
-        if not normalized_content:
-            logger.debug("No content to parse into sections")
-            return None
+
+        # REFACTORED: Removed early `return None` to ensure a root_section is always created.
 
         content_preview = (
             normalized_content[:100] + "..."
@@ -51,8 +50,7 @@ class SectionParser:
         # The top-level content is parsed into vertical sections.
         top_level_sections = self._parse_vertical_sections(normalized_content)
 
-        # REFACTORED: Create a single root section to hold all top-level content sections.
-        # This aligns with the new architecture.
+        # Create a single root section to hold all top-level content sections.
         root_section = Section(
             id=f"root-{self._generate_id()}",
             type="section",

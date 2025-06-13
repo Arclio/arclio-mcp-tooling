@@ -254,3 +254,60 @@ class TestLayoutManager:
         # Assert
         vertical_gap = p_el2.position[1] - (p_el1.position[1] + p_el1.size[1])
         assert abs(vertical_gap) < 1.0, "Default vertical gap should be zero."
+
+    def test_layout_c_09_padding_directive_offsets_children(
+        self, layout_manager: LayoutManager
+    ):
+        """
+        Test Case: LAYOUT-C-08
+        Spec: Verify that `padding` directive on a Section correctly offsets children.
+        """
+        # Arrange
+        child_element = TextElement(element_type=ElementType.TEXT, text="Padded")
+        section = Section(
+            id="padded_sec", directives={"padding": 20}, children=[child_element]
+        )
+        slide = _create_unpositioned_slide(root_section=section)
+
+        # Act
+        # The root section will be positioned at (0, 0) by default in the test fixture
+        positioned_slide = layout_manager.calculate_positions(slide)
+        positioned_child = positioned_slide.root_section.children[0]
+
+        # Assert
+        assert positioned_child.position == (
+            20,
+            20,
+        ), "Child position should be offset by parent padding."
+
+    def test_principles_c_06_b_zero_default_horizontal_spacing(
+        self, layout_manager: LayoutManager
+    ):
+        """
+        Test Case: PRINCIPLES-C-06-B
+        Spec: Verify that default horizontal spacing (`gap`) between columns is zero.
+        """
+        # Arrange
+        col1 = Section(
+            id="c1",
+            directives={"width": "30%"},
+            children=[TextElement(element_type=ElementType.TEXT, text="Col 1")],
+        )
+        col2 = Section(
+            id="c2",
+            directives={"width": "70%"},
+            children=[TextElement(element_type=ElementType.TEXT, text="Col 2")],
+        )
+        # This row has no `gap` directive
+        row = Section(id="row", type="row", children=[col1, col2])
+        slide = _create_unpositioned_slide(root_section=row)
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(slide)
+        p_col1, p_col2 = positioned_slide.root_section.children
+
+        # Assert
+        horizontal_gap = p_col2.position[0] - (p_col1.position[0] + p_col1.size[0])
+        assert (
+            abs(horizontal_gap) < 1.0
+        ), "Default horizontal gap between columns should be zero."

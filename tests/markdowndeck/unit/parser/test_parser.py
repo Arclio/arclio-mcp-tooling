@@ -188,3 +188,22 @@ class TestParser:
         assert len(body_elements) == 1
         assert body_elements[0].element_type == ElementType.TEXT
         assert body_elements[0].text == "Not a subtitle"
+
+    def test_parser_c_13_correct_subtitle_parsing(self, parser: Parser):
+        """
+        Test Case: PARSER-C-13
+        Spec: A `##` immediately following a `#` is parsed as a SUBTITLE element.
+        """
+        # Arrange
+        markdown = "# Title\n## Subtitle"
+
+        # Act
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+
+        # Assert
+        assert slide.get_title_element() is not None
+        assert slide.get_subtitle_element() is not None
+        assert slide.get_subtitle_element().text == "Subtitle"
+        # The body should be empty
+        assert not slide.root_section.children
