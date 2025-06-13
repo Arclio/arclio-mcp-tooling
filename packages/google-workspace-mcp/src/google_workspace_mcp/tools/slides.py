@@ -577,7 +577,7 @@ async def create_presentation_from_markdown(
 
 @mcp.tool(
     name="create_textbox_with_text",
-    description="Creates a text box with text content and font formatting in one operation. Perfect for adding text boxes to slides with specific font requirements.",
+    description="Creates a text box with text content, font formatting, and alignment in one operation. Perfect for adding text boxes to slides with specific font and alignment requirements.",
 )
 async def create_textbox_with_text(
     presentation_id: str,
@@ -591,9 +591,11 @@ async def create_textbox_with_text(
     element_id: str | None = None,
     font_family: str = "Arial",
     font_size: float = 12,
+    text_alignment: str | None = None,
+    vertical_alignment: str | None = None,
 ) -> dict[str, Any]:
     """
-    Create a text box with text and font formatting.
+    Create a text box with text, font formatting, and alignment.
 
     Args:
         presentation_id: The ID of the presentation.
@@ -607,6 +609,8 @@ async def create_textbox_with_text(
         element_id: Optional custom element ID, auto-generated if not provided.
         font_family: Font family (e.g., "Playfair Display", "Roboto", "Arial").
         font_size: Font size in points (e.g., 25, 7.5).
+        text_alignment: Optional horizontal alignment ("LEFT", "CENTER", "RIGHT", "JUSTIFY").
+        vertical_alignment: Optional vertical alignment ("TOP", "MIDDLE", "BOTTOM").
 
     Returns:
         Response data confirming text box creation or raises error.
@@ -626,6 +630,8 @@ async def create_textbox_with_text(
         element_id=element_id,
         font_family=font_family,
         font_size=font_size,
+        text_alignment=text_alignment,
+        vertical_alignment=vertical_alignment,
     )
 
     if isinstance(result, dict) and result.get("error"):
@@ -636,7 +642,7 @@ async def create_textbox_with_text(
 
 @mcp.tool(
     name="update_text_formatting",
-    description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, and font family. Supports applying different formatting to specific text ranges within the same textbox.",
+    description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
 )
 async def update_text_formatting(
     presentation_id: str,
@@ -644,6 +650,8 @@ async def update_text_formatting(
     formatted_text: str,
     font_size: float | None = None,
     font_family: str | None = None,
+    text_alignment: str | None = None,
+    vertical_alignment: str | None = None,
     start_index: int | None = None,
     end_index: int | None = None,
 ) -> dict[str, Any]:
@@ -656,6 +664,8 @@ async def update_text_formatting(
         formatted_text: Text with formatting markers (**, *, etc.)
         font_size: Optional font size in points (e.g., 25, 7.5)
         font_family: Optional font family (e.g., "Playfair Display", "Roboto", "Arial")
+        text_alignment: Optional horizontal alignment ("LEFT", "CENTER", "RIGHT", "JUSTIFY")
+        vertical_alignment: Optional vertical alignment ("TOP", "MIDDLE", "BOTTOM")
         start_index: Optional start index for applying formatting to specific range (0-based)
         end_index: Optional end index for applying formatting to specific range (exclusive)
 
@@ -673,6 +683,8 @@ async def update_text_formatting(
         formatted_text=formatted_text,
         font_size=font_size,
         font_family=font_family,
+        text_alignment=text_alignment,
+        vertical_alignment=vertical_alignment,
         start_index=start_index,
         end_index=end_index,
     )

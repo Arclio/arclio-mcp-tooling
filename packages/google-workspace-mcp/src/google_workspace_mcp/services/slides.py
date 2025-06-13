@@ -1234,10 +1234,12 @@ class SlidesService(BaseGoogleService):
         element_id: str | None = None,
         font_family: str = "Arial",
         font_size: float = 12,
+        text_alignment: str | None = None,
+        vertical_alignment: str | None = None,
         auto_size_font: bool = False,
     ) -> dict[str, Any]:
         """
-        Create a text box with text and optional font formatting.
+        Create a text box with text, font formatting, and alignment.
 
         Args:
             presentation_id: The ID of the presentation
@@ -1249,6 +1251,8 @@ class SlidesService(BaseGoogleService):
             element_id: Optional custom element ID, auto-generated if not provided
             font_family: Font family to use (default "Arial")
             font_size: Font size in points (default 12)
+            text_alignment: Optional horizontal alignment ("LEFT", "CENTER", "RIGHT", "JUSTIFY")
+            vertical_alignment: Optional vertical alignment ("TOP", "MIDDLE", "BOTTOM")
             auto_size_font: Whether to automatically calculate font size to fit (default False - DEPRECATED)
 
         Returns:
@@ -1327,8 +1331,46 @@ class SlidesService(BaseGoogleService):
                 },
             ]
 
+            # Step 5: Add text alignment if specified
+            if text_alignment is not None:
+                alignment_map = {
+                    "LEFT": "START",
+                    "CENTER": "CENTER", 
+                    "RIGHT": "END",
+                    "JUSTIFY": "JUSTIFIED"
+                }
+                
+                api_alignment = alignment_map.get(text_alignment.upper())
+                if api_alignment:
+                    requests.append({
+                        "updateParagraphStyle": {
+                            "objectId": element_id,
+                            "textRange": {"type": "ALL"},
+                            "style": {"alignment": api_alignment},
+                            "fields": "alignment",
+                        }
+                    })
+
+            # Step 6: Add vertical alignment if specified
+            if vertical_alignment is not None:
+                valign_map = {
+                    "TOP": "TOP",
+                    "MIDDLE": "MIDDLE",
+                    "BOTTOM": "BOTTOM"
+                }
+                
+                api_valign = valign_map.get(vertical_alignment.upper())
+                if api_valign:
+                    requests.append({
+                        "updateShapeProperties": {
+                            "objectId": element_id,
+                            "shapeProperties": {"contentAlignment": api_valign},
+                            "fields": "contentAlignment",
+                        }
+                    })
+
             logger.info(
-                f"Creating text box with font {font_family} {font_size}pt: {json.dumps(requests[0], indent=2)}"
+                f"Creating text box with font {font_family} {font_size}pt, align: {text_alignment}/{vertical_alignment}"
             )
 
             # Execute the request
@@ -1356,6 +1398,8 @@ class SlidesService(BaseGoogleService):
                 "text": text,
                 "fontSize": font_size,
                 "fontFamily": font_family,
+                "textAlignment": text_alignment,
+                "verticalAlignment": vertical_alignment,
                 "operation": "create_textbox_with_text",
                 "result": "success",
                 "response": response,
@@ -1370,11 +1414,13 @@ class SlidesService(BaseGoogleService):
         formatted_text: str,
         font_size: float | None = None,
         font_family: str | None = None,
+        text_alignment: str | None = None,
+        vertical_alignment: str | None = None,
         start_index: int | None = None,
         end_index: int | None = None,
     ) -> dict[str, Any]:
         """
-        Update formatting of text in an existing text box with support for font parameters.
+        Update formatting of text in an existing text box with support for font and alignment parameters.
 
         Args:
             presentation_id: The ID of the presentation
@@ -1382,6 +1428,8 @@ class SlidesService(BaseGoogleService):
             formatted_text: Text with formatting markers (**, *, etc.)
             font_size: Optional font size in points (e.g., 25, 7.5)
             font_family: Optional font family (e.g., "Playfair Display", "Roboto", "Arial")
+            text_alignment: Optional horizontal alignment ("LEFT", "CENTER", "RIGHT", "JUSTIFY")
+            vertical_alignment: Optional vertical alignment ("TOP", "MIDDLE", "BOTTOM")
             start_index: Optional start index for applying formatting to specific range (0-based)
             end_index: Optional end index for applying formatting to specific range (exclusive)
 
@@ -1452,6 +1500,54 @@ class SlidesService(BaseGoogleService):
                                 "textRange": text_range,
                                 "style": style,
                                 "fields": ",".join(fields),
+                            }
+                        }
+                    )
+
+            # Handle text alignment (paragraph-level formatting)
+            if text_alignment is not None:
+                # Map alignment values to Google Slides API format
+                alignment_map = {
+                    "LEFT": "START",
+                    "CENTER": "CENTER",
+                    "RIGHT": "END",
+                    "JUSTIFY": "JUSTIFIED",
+                }
+
+                api_alignment = alignment_map.get(text_alignment.upper())
+                if api_alignment:
+                    text_range = {"type": "ALL"}
+                    if start_index is not None and end_index is not None:
+                        text_range = {
+                            "type": "FIXED_RANGE",
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                        }
+
+                    style_requests.append(
+                        {
+                            "updateParagraphStyle": {
+                                "objectId": element_id,
+                                "textRange": text_range,
+                                "style": {"alignment": api_alignment},
+                                "fields": "alignment",
+                            }
+                        }
+                    )
+
+            # Handle vertical alignment (content alignment for the entire text box)
+            if vertical_alignment is not None:
+                # Map vertical alignment values to Google Slides API format
+                valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
+
+                api_valign = valign_map.get(vertical_alignment.upper())
+                if api_valign:
+                    style_requests.append(
+                        {
+                            "updateShapeProperties": {
+                                "objectId": element_id,
+                                "shapeProperties": {"contentAlignment": api_valign},
+                                "fields": "contentAlignment",
                             }
                         }
                     )
@@ -1577,6 +1673,8 @@ class SlidesService(BaseGoogleService):
                     "appliedFormats": {
                         "fontSize": font_size,
                         "fontFamily": font_family,
+                        "textAlignment": text_alignment,
+                        "verticalAlignment": vertical_alignment,
                         "textRange": (
                             {"startIndex": start_index, "endIndex": end_index}
                             if start_index is not None and end_index is not None
