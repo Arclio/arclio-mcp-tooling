@@ -647,6 +647,15 @@ class PreciseSlidesPositioning(BaseGoogleService):
                 "slide title": "slide_title",
                 "logo": "logo_area",
                 "brand": "logo_area",
+                # Add more keywords for stat blocks and phone images
+                "stat a": "stat_a",
+                "stat b": "stat_b",
+                "stat c": "stat_c",
+                "stat d": "stat_d",
+                "phone image a": "phone_image_a",
+                "phone image b": "phone_image_b",
+                "phone image c": "phone_image_c",
+                "image title": "image_title",
             }
 
             # Scan all text elements for template keywords
