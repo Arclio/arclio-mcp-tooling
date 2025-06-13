@@ -1162,9 +1162,9 @@ class SlidesService(BaseGoogleService):
         presentation_id: str,
         slide_id: str,
         text: str,
-        position: tuple[float, float] = (350, 100),
-        size: tuple[float, float] = (350, 350),
-        unit: str = "PT",
+        position: tuple[float, float],
+        size: tuple[float, float],
+        unit: str = "EMU",
         element_id: str | None = None,
     ) -> dict[str, Any]:
         """
@@ -1177,7 +1177,7 @@ class SlidesService(BaseGoogleService):
             text: The text content to insert
             position: Tuple of (x, y) coordinates for position in PT
             size: Tuple of (width, height) for the text box in PT
-            unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
+            unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "EMU").
             element_id: Optional custom element ID, auto-generated if not provided
 
         Returns:

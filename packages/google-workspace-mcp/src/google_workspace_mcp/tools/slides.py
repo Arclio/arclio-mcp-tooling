@@ -583,11 +583,11 @@ async def create_textbox_with_text(
     presentation_id: str,
     slide_id: str,
     text: str,
-    position_x: float = 350.0,
-    position_y: float = 100.0,
-    size_width: float = 350.0,
-    size_height: float = 350.0,
-    unit: str = "PT",
+    position_x: float,
+    position_y: float,
+    size_width: float,
+    size_height: float,
+    unit: str = "EMU",
     element_id: str | None = None,
 ) -> dict[str, Any]:
     """
@@ -598,11 +598,11 @@ async def create_textbox_with_text(
         presentation_id: The ID of the presentation.
         slide_id: The ID of the slide.
         text: The text content to insert.
-        position_x: X coordinate for position (default 350.0 PT).
-        position_y: Y coordinate for position (default 100.0 PT).
-        size_width: Width of the text box (default 350.0 PT).
-        size_height: Height of the text box (default 350.0 PT).
-        unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "PT").
+        position_x: X coordinate for position.
+        position_y: Y coordinate for position.
+        size_width: Width of the text box.
+        size_height: Height of the text box.
+        unit: Unit type - "PT" for points or "EMU" for English Metric Units (default "EMU").
         element_id: Optional custom element ID, auto-generated if not provided.
 
     Returns:
