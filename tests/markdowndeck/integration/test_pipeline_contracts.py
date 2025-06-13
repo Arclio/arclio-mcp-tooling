@@ -1,7 +1,7 @@
 import pytest
 from markdowndeck import markdown_to_requests
 from markdowndeck.layout import LayoutManager
-from markdowndeck.models import Element, Section
+from markdowndeck.models import Element, ElementType, Section
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
 
@@ -300,3 +300,121 @@ class TestPipelineContracts:
             and abs(color["green"]) < 1e-9
             and abs(color["blue"] - 1.0) < 1e-9
         ), "Title color should be blue, not red."
+
+    def test_p_13_image_in_bounded_column_no_overflow(
+        self,
+        parser: Parser,
+        layout_manager: LayoutManager,
+        overflow_manager: OverflowManager,
+    ):
+        """
+        Test Case: INTEGRATION-P-13 (Custom)
+        Validates that an image, when placed in a column with a defined width,
+        is correctly scaled by the LayoutManager and does NOT trigger the
+        OverflowManager, preventing an infinite loop.
+        """
+        # Arrange
+        markdown = """
+
+# Image in a Column
+
+[width=50%]
+![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200)
+***
+[width=50%]
+Some text content in the other column.
+"""
+        # This image is tall and would cause overflow if not scaled correctly
+        # within its 50% width container.
+
+        unpositioned_slide = parser.parse(markdown).slides[0]
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
+        finalized_slides = overflow_manager.process_slide(positioned_slide)
+
+        # Assert
+        assert (
+            len(finalized_slides) == 1
+        ), "An image scaled within its container should not cause an overflow."
+        final_slide = finalized_slides[0]
+        image_element = next(
+            (
+                el
+                for el in final_slide.renderable_elements
+                if el.element_type == ElementType.IMAGE
+            ),
+            None,
+        )
+        assert image_element is not None, "Image element should be in the final slide."
+        assert (
+            image_element.size[1] < overflow_manager.slide_height
+        ), "Image height must be scaled to be less than the slide height."
+
+    def test_p_14_image_and_text_in_column_no_overflow(
+        self,
+        parser: Parser,
+        layout_manager: LayoutManager,
+        overflow_manager: OverflowManager,
+    ):
+        """
+        Test Case: INTEGRATION-P-14 (Custom)
+        Validates that an image stacked with text inside a column is correctly
+        scaled and laid out by the LayoutManager, preventing a false overflow trigger.
+        """
+        # Arrange
+        markdown = """
+
+# Image in a Column
+
+[width=50%]
+![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200)
+A short line of text below the image.
+
+---
+
+[width=50%]
+Some text content in the other column.
+"""
+        # The image is very tall and would cause an overflow if its height
+        # were not constrained by the slide's body height during intrinsic calculation.
+
+        unpositioned_slide = parser.parse(markdown).slides[0]
+
+        # Act
+        positioned_slide = layout_manager.calculate_positions(unpositioned_slide)
+        finalized_slides = overflow_manager.process_slide(positioned_slide)
+
+        # Assert
+        assert (
+            len(finalized_slides) == 1
+        ), "A correctly scaled image and text in a column should not cause an overflow."
+        final_slide = finalized_slides[0]
+
+        image_element = next(
+            (
+                el
+                for el in final_slide.renderable_elements
+                if el.element_type == ElementType.IMAGE
+            ),
+            None,
+        )
+        assert image_element is not None, "Image element should be in the final slide."
+        assert (
+            image_element.size[1] < overflow_manager.slide_height
+        ), "Image height must be scaled to be less than the slide height."
+
+        text_element = next(
+            (
+                el
+                for el in final_slide.renderable_elements
+                if el.element_type == ElementType.TEXT and "A short line" in el.text
+            ),
+            None,
+        )
+        assert text_element is not None, "Text element should be present below image."
+
+        # Check that the text is positioned below the image.
+        image_bottom = image_element.position[1] + image_element.size[1]
+        text_top = text_element.position[1]
+        assert text_top >= image_bottom, "Text must be positioned below the image."

@@ -1,4 +1,30 @@
+"""
+Refactored Section Layout Calculator - Two-Pass Algorithm
+
+ARCHITECTURAL FLAW RESOLVED:
+The original implementation suffered from a circular dependency where parent section
+sizing depended on child sizing, which in turn depended on parent available space.
+This led to inconsistent calculations causing both visual compression and false overflow.
+
+NEW ARCHITECTURE - TWO-PASS ALGORITHM:
+
+Pass 1: Intrinsic Size Calculation (Bottom-Up)
+- Calculate natural sizes of all elements based on content
+- Apply container constraints and proactive image scaling
+- Propagate sizes up the section hierarchy
+- Respects Law #1 (Container-First) and Law #2 (Proactive Image Scaling)
+
+Pass 2: Position Assignment (Top-Down)
+- With all sizes determined, assign final positions
+- Distribute space according to layout directives
+- Respects Law #3 (Explicit Layout with zero defaults)
+
+This eliminates circular dependencies and ensures stable, predictable layout calculations
+that strictly adhere to the Container-First sizing model and Blank Canvas principles.
+"""
+
 import logging
+from typing import Optional, Tuple
 
 from markdowndeck.layout.calculator.element_utils import (
     adjust_vertical_spacing,
@@ -16,74 +42,264 @@ logger = logging.getLogger(__name__)
 
 
 def calculate_recursive_layout(calculator, root_section: Section, area: tuple) -> None:
-    """Public entry point to start the recursive layout process."""
+    """
+    Public entry point for the new two-pass layout algorithm.
+
+    Args:
+        calculator: The position calculator instance
+        root_section: The root section to layout
+        area: (x, y, width, height) of available area
+    """
     if root_section is None:
         return
 
-    # Initialize background elements collection on the calculator
+    # Initialize background elements collection
     if not hasattr(calculator, "_section_background_elements"):
         calculator._section_background_elements = []
 
-    section_width = _calculate_dimension(
-        root_section.directives.get("width"), area[2], area[2]
+    area_x, area_y, area_width, area_height = area
+
+    # PASS 1: Calculate intrinsic sizes bottom-up
+    logger.debug("Starting Pass 1: Intrinsic size calculation")
+    intrinsic_width, intrinsic_height = _calculate_intrinsic_size(
+        calculator, root_section, area_width, area_height
     )
 
-    root_section.position = (area[0], area[1])
-    intrinsic_height = _calculate_section_intrinsic_height(
-        calculator, root_section, section_width
+    # Set the root section's final size
+    root_section.size = (intrinsic_width, intrinsic_height)
+    root_section.position = (area_x, area_y)
+
+    # PASS 2: Assign positions top-down
+    logger.debug("Starting Pass 2: Position assignment")
+    _assign_positions_recursive(calculator, root_section)
+
+
+def _calculate_intrinsic_size(
+    calculator, section: Section, available_width: float, available_height: float
+) -> Tuple[float, float]:
+    """
+    Pass 1: Calculate the intrinsic size needed by a section and all its children.
+    This is a bottom-up calculation that resolves sizes before positioning.
+
+    Returns: (width, height) that this section requires
+    """
+    if not section.children:
+        min_width = _calculate_dimension(
+            section.directives.get("width"), available_width, 50.0
+        )
+        min_height = _calculate_dimension(
+            section.directives.get("height"), available_height, MIN_SECTION_HEIGHT
+        )
+        return min_width, min_height
+
+    # Calculate padding that affects content area
+    padding_val = float(
+        section.directives.get("padding", SECTION_PADDING)
+        if isinstance(section.directives.get("padding"), (int, float))
+        else 0.0
     )
-    root_section.size = (section_width, intrinsic_height)
+    content_width = max(10.0, available_width - 2 * padding_val)
+    content_height = max(10.0, available_height - 2 * padding_val)
 
-    _layout_children_recursively(calculator, root_section)
+    # Determine layout direction
+    is_horizontal = section.type == "row"
+    gap = float(
+        section.directives.get(
+            "gap",
+            (
+                calculator.HORIZONTAL_SPACING
+                if is_horizontal
+                else calculator.VERTICAL_SPACING
+            ),
+        )
+    )
+
+    if is_horizontal:
+        return _calculate_horizontal_intrinsic_size(
+            calculator, section, content_width, content_height, gap, padding_val
+        )
+    else:
+        return _calculate_vertical_intrinsic_size(
+            calculator, section, content_width, content_height, gap, padding_val
+        )
 
 
-def _layout_children_recursively(calculator, parent_section: Section) -> None:
+def _calculate_vertical_intrinsic_size(
+    calculator,
+    section: Section,
+    content_width: float,
+    content_height: float,
+    gap: float,
+    padding_val: float,
+) -> Tuple[float, float]:
+    """Calculate intrinsic size for vertical (stacked) layout."""
+    total_height = 0.0
+    max_child_width = 0.0
+
+    for i, child in enumerate(section.children):
+        if isinstance(child, Section):
+            # Recursive call for child sections
+            child_width, child_height = _calculate_intrinsic_size(
+                calculator, child, content_width, content_height
+            )
+            child.size = (child_width, child_height)
+        else:
+            # Element sizing with proactive scaling
+            child_width = _calculate_element_width(child, content_width)
+            child_height = _calculate_element_height_with_constraints(
+                calculator, child, child_width, content_height
+            )
+            child.size = (child_width, child_height)
+
+        total_height += child.size[1]
+        max_child_width = max(max_child_width, child.size[0])
+
+        # Add gap between children (not after last child)
+        if i < len(section.children) - 1:
+            total_height += gap
+
+    # Apply section size directives if present
+    final_width = _calculate_dimension(
+        section.directives.get("width"), content_width, max_child_width
+    )
+    final_height = _calculate_dimension(
+        section.directives.get("height"), content_height, total_height
+    )
+
+    # Add padding to final dimensions
+    return final_width + 2 * padding_val, final_height + 2 * padding_val
+
+
+def _calculate_horizontal_intrinsic_size(
+    calculator,
+    section: Section,
+    content_width: float,
+    content_height: float,
+    gap: float,
+    padding_val: float,
+) -> Tuple[float, float]:
+    """Calculate intrinsic size for horizontal (row) layout."""
+    total_width = 0.0
+    max_child_height = 0.0
+
+    # First pass: calculate preferred widths for sections with width directives
+    section_children = [c for c in section.children if isinstance(c, Section)]
+    if section_children:
+        col_widths = _calculate_predictable_dimensions(
+            section_children, content_width, gap, "width"
+        )
+        width_idx = 0
+
+    for i, child in enumerate(section.children):
+        if isinstance(child, Section):
+            # Use calculated column width for sections
+            child_width = col_widths[width_idx] if section_children else content_width
+            width_idx += 1
+
+            # Calculate height with the determined width
+            _, child_height = _calculate_intrinsic_size(
+                calculator, child, child_width, content_height
+            )
+            child.size = (child_width, child_height)
+        else:
+            # Elements in horizontal layout take full available width for height calc
+            child_width = content_width
+            child_height = _calculate_element_height_with_constraints(
+                calculator, child, child_width, content_height
+            )
+            child.size = (child_width, child_height)
+
+        total_width += child.size[0]
+        max_child_height = max(max_child_height, child.size[1])
+
+        # Add gap between children (not after last child)
+        if i < len(section.children) - 1:
+            total_width += gap
+
+    # Apply section size directives if present
+    final_width = _calculate_dimension(
+        section.directives.get("width"), content_width, total_width
+    )
+    final_height = _calculate_dimension(
+        section.directives.get("height"), content_height, max_child_height
+    )
+
+    # Add padding to final dimensions
+    return final_width + 2 * padding_val, final_height + 2 * padding_val
+
+
+def _calculate_element_height_with_constraints(
+    calculator, element, available_width: float, available_height: float
+) -> float:
     """
-    A truly recursive function that lays out the direct children (Elements and Sections)
-    of a given parent section within its assigned area.
+    Calculate element height with both width and height constraints.
+    This implements Law #2 (Proactive Image Scaling) by passing both constraints.
     """
-    if not parent_section.children:
+    if element.element_type == ElementType.IMAGE:
+        # For images, apply proactive scaling with both width and height constraints
+        from markdowndeck.layout.metrics.image import calculate_image_display_size
+
+        _, scaled_height = calculate_image_display_size(
+            element, available_width, available_height
+        )
+        return scaled_height
+    else:
+        # For other elements, use the standard height calculation
+        return calculator.calculate_element_height_with_proactive_scaling(
+            element, available_width, available_height
+        )
+
+
+def _calculate_element_width(element, container_width: float) -> float:
+    """Calculate element width, respecting zero-size elements."""
+    # If an element has its size explicitly set to (0, 0), its width is 0
+    if hasattr(element, "size") and element.size == (0, 0):
+        return 0.0
+
+    # Check for width directive on the element
+    if hasattr(element, "directives") and "width" in element.directives:
+        return _calculate_dimension(
+            element.directives["width"], container_width, container_width
+        )
+
+    return container_width
+
+
+def _assign_positions_recursive(calculator, section: Section) -> None:
+    """
+    Pass 2: Assign final positions to all children within a section.
+    This is a top-down pass that uses the sizes calculated in Pass 1.
+    """
+    if not section.children or not section.position or not section.size:
         return
 
-    content_area = _get_content_area(parent_section)
-    is_vertical_layout = parent_section.type != "row"
+    content_area = _get_content_area(section)
+    is_horizontal = section.type == "row"
 
-    for child in parent_section.children:
-        if isinstance(child, Section):
-            width = _calculate_dimension(
-                child.directives.get("width"), content_area[2], content_area[2]
-            )
-            height = _calculate_section_intrinsic_height(calculator, child, width)
-            child.size = (width, height)
-        else:
-            width = calculator._calculate_element_width(child, content_area[2])
-            height = calculator.calculate_element_height_with_proactive_scaling(
-                child, width, content_area[3]
-            )
-            child.size = (width, height)
-            child.parent = parent_section
-
-    if is_vertical_layout:
-        _position_vertical_children(calculator, parent_section.children, content_area)
+    if is_horizontal:
+        _position_horizontal_children(
+            calculator, section.children, content_area, section
+        )
     else:
-        _position_horizontal_children(calculator, parent_section.children, content_area)
+        _position_vertical_children(calculator, section.children, content_area, section)
 
-    for child in parent_section.children:
+    # Recursively assign positions to child sections
+    for child in section.children:
         if isinstance(child, Section):
-            _layout_children_recursively(calculator, child)
+            _assign_positions_recursive(calculator, child)
         else:
-            # TASK 3: Apply section directives to elements during layout
-            # Merge parent section directives into element directives
+            # Apply section directives to elements during layout (Task 3)
             if hasattr(calculator, "_merge_section_directives_to_element"):
-                calculator._merge_section_directives_to_element(child, parent_section)
+                calculator._merge_section_directives_to_element(child, section)
 
 
 def _get_content_area(section: Section) -> tuple:
-    """Calculates the available area for children inside a section, accounting for padding."""
+    """Calculate the available area for children inside a section, accounting for padding."""
     pos = section.position or (0, 0)
     size = section.size or (0, 0)
     padding = section.directives.get("padding", SECTION_PADDING)
-    padding_val = float(padding) if isinstance(padding, int | float) else 0.0
+    padding_val = float(padding) if isinstance(padding, (int, float)) else 0.0
+
     return (
         pos[0] + padding_val,
         pos[1] + padding_val,
@@ -92,133 +308,58 @@ def _get_content_area(section: Section) -> tuple:
     )
 
 
-def _position_vertical_children(calculator, children, area):
-    """Positions children in a top-to-bottom stack, respecting valign."""
+def _position_vertical_children(calculator, children, area, parent_section):
+    """Position children in a vertical stack using pre-calculated sizes."""
     if not children:
         return
+
     area_left, area_top, area_width, area_height = area
-    parent = getattr(children[0], "parent", None)
-    parent_directives = parent.directives if parent else {}
+    parent_directives = parent_section.directives if parent_section else {}
     gap = parent_directives.get("gap", calculator.VERTICAL_SPACING)
 
-    child_heights = [child.size[1] for child in children]
+    # Calculate total height needed by all children
+    child_heights = [child.size[1] for child in children if child.size]
+    total_children_height = sum(child_heights) + max(0, len(child_heights) - 1) * gap
+
+    # Apply vertical alignment
     start_y = _apply_vertical_alignment(
         area_top, area_height, child_heights, gap, parent_directives
     )
+
     current_y = start_y
     for child in children:
+        if not child.size:
+            continue
+
         apply_horizontal_alignment(
             child, area_left, area_width, current_y, parent_directives
         )
         current_y += child.size[1] + adjust_vertical_spacing(child, gap)
 
 
-def _position_horizontal_children(calculator, children, area):
-    """Positions children in a left-to-right row."""
+def _position_horizontal_children(calculator, children, area, parent_section):
+    """Position children horizontally using pre-calculated sizes."""
     if not children:
         return
+
     area_left, area_top, area_width, area_height = area
-    parent = getattr(children[0], "parent", None)
-    parent_directives = parent.directives if parent else {}
+    parent_directives = parent_section.directives if parent_section else {}
     gap = parent_directives.get("gap", calculator.HORIZONTAL_SPACING)
 
-    section_children = [c for c in children if isinstance(c, Section)]
-    col_widths = _calculate_predictable_dimensions(
-        section_children, area_width, gap, "width"
-    )
-    current_x, width_idx = area_left, 0
+    current_x = area_left
     for child in children:
-        if isinstance(child, Section):
-            child_width = col_widths[width_idx]
-            width_idx += 1
-            child_height = _calculate_dimension(
-                child.directives.get("height"), area_height, area_height
-            )
-            child.size = (child_width, child_height)
-            child.position = (current_x, area_top)
-            current_x += child_width + gap
-        else:
-            child.size = (area_width, child.size[1])
-            apply_horizontal_alignment(
-                child, area_left, area_width, area_top, parent_directives
-            )
+        if not child.size:
+            continue
 
-
-def _calculate_section_intrinsic_height(
-    calculator, section: Section, available_width: float
-) -> float:
-    """
-    Recursively calculates the height a section needs to contain its children.
-    FIXED: Now correctly considers the minimum required height for scaled images.
-    """
-    if not section.children:
-        return MIN_SECTION_HEIGHT
-
-    is_vertical = section.type != "row"
-    gap = section.directives.get("gap", calculator.VERTICAL_SPACING)
-    padding_val = float(
-        section.directives.get("padding", SECTION_PADDING)
-        if isinstance(section.directives.get("padding"), int | float)
-        else 0.0
-    )
-    content_width = max(10.0, available_width - 2 * padding_val)
-    total_height = 0
-
-    if is_vertical:
-        child_heights = []
-        for child in section.children:
-            width = _calculate_dimension(
-                child.directives.get("width"), content_width, content_width
-            )
-            height = (
-                _calculate_section_intrinsic_height(calculator, child, width)
-                if isinstance(child, Section)
-                else calculator.calculate_element_height_with_proactive_scaling(
-                    child, width
-                )
-            )
-            child_heights.append(height)
-        total_height = sum(child_heights) + max(0, len(child_heights) - 1) * gap
-    else:  # Horizontal
-        max_child_height = 0
-        section_children = [c for c in section.children if isinstance(c, Section)]
-        col_widths = _calculate_predictable_dimensions(
-            section_children, content_width, gap, "width"
-        )
-        width_idx = 0
-        for child in section.children:
-            height = 0
-            if isinstance(child, Section):
-                width = col_widths[width_idx]
-                width_idx += 1
-                height = _calculate_section_intrinsic_height(calculator, child, width)
-            else:
-                # Element in a row takes full width of the row for intrinsic height calculation
-                width = content_width
-                # FIXED: Correctly calculate the height of child elements, especially images.
-                if child.element_type == ElementType.IMAGE:
-                    # When calculating intrinsic height of a row, we don't have a vertical limit yet.
-                    from markdowndeck.layout.metrics.image import (
-                        calculate_image_display_size,
-                    )
-
-                    _, scaled_height = calculate_image_display_size(child, width, 0)
-                    height = scaled_height
-                else:
-                    height = calculator.calculate_element_height_with_proactive_scaling(
-                        child, width
-                    )
-
-            max_child_height = max(max_child_height, height)
-        total_height = max_child_height
-
-    return total_height + 2 * padding_val
+        child.position = (current_x, area_top)
+        current_x += child.size[0] + gap
 
 
 def _apply_vertical_alignment(area_top, area_height, child_heights, gap, directives):
-    """Calculates the starting Y position based on valign directive."""
+    """Calculate the starting Y position based on valign directive."""
     valign = directives.get("valign", "top").lower()
     total_content_height = sum(child_heights) + max(0, len(child_heights) - 1) * gap
+
     if valign == VALIGN_MIDDLE and total_content_height < area_height:
         return area_top + (area_height - total_content_height) / 2
     if valign == VALIGN_BOTTOM and total_content_height < area_height:
@@ -227,9 +368,10 @@ def _apply_vertical_alignment(area_top, area_height, child_heights, gap, directi
 
 
 def _calculate_dimension(directive_value, total_dimension, default_value) -> float:
-    """Helper to parse a width/height directive, now always returning a float."""
+    """Helper to parse a width/height directive, always returning a float."""
     if directive_value is None:
         return default_value
+
     try:
         # Percentage value (e.g., 50% or 0.5)
         if isinstance(directive_value, str) and "%" in directive_value:
@@ -237,10 +379,11 @@ def _calculate_dimension(directive_value, total_dimension, default_value) -> flo
         if isinstance(directive_value, float) and 0 < directive_value <= 1:
             return total_dimension * directive_value
         # Absolute point value
-        if isinstance(directive_value, int | float) and directive_value > 1:
+        if isinstance(directive_value, (int, float)) and directive_value > 1:
             return min(float(directive_value), total_dimension)
     except (ValueError, TypeError):
         pass
+
     return default_value
 
 
@@ -251,9 +394,8 @@ def _calculate_predictable_dimensions(
     dimension_key: str,
 ) -> list[float]:
     """
-    REFACTORED: Correctly calculates dimensions, including clamping for over-subscribed layouts.
-    This logic now proportionally scales down sections if their combined specified
-    widths exceed the available space.
+    Calculate dimensions for sections with explicit width/height directives.
+    Handles container-first clamping for over-subscribed layouts.
     """
     num_sections = len(sections)
     if num_sections == 0:
@@ -267,17 +409,6 @@ def _calculate_predictable_dimensions(
     unspecified_indices = []
     specified_total = 0.0
 
-    # Check if we're dealing with percentage-based widths that might need container-first clamping
-    has_percentage_widths = False
-    for section in sections:
-        directive_value = section.directives.get(dimension_key)
-        if directive_value is not None and (
-            (isinstance(directive_value, str) and "%" in directive_value)
-            or (isinstance(directive_value, float) and 0 < directive_value <= 1)
-        ):
-            has_percentage_widths = True
-            break
-
     # First pass: assign all specified dimensions
     for i, section in enumerate(sections):
         size = _calculate_dimension(
@@ -290,61 +421,16 @@ def _calculate_predictable_dimensions(
         else:
             unspecified_indices.append(i)
 
-    # Second pass: handle clamping and distribution
-    # Case 1: Specified dimensions exceed available space -> clamp and scale them down proportionally.
+    # Second pass: handle over-subscription by proportional scaling
     if specified_total > usable_dimension:
-        container_first_applied = False
-
-        # FIXED: Implement container-first clamping for percentage-based widths
-        # When dealing with percentage widths that exceed 100%, use a larger reference space
-        if (
-            has_percentage_widths and usable_dimension < 600
-        ):  # Heuristic: if parent is constrained, use larger reference
-            # Use a larger reference dimension for container-first clamping
-            # This ensures that percentage-based widths are normalized relative to a reasonable container size
-            reference_dimension = max(
-                usable_dimension * 2.5, 720.0
-            )  # Use slide-like width as reference
-
-            # Recalculate dimensions using the larger reference
-            for i in specified_indices:
-                directive_value = sections[i].directives.get(dimension_key)
-                if directive_value is not None:
-                    # Recalculate the size using the larger reference
-                    if isinstance(directive_value, str) and "%" in directive_value:
-                        percentage = float(directive_value.strip("%")) / 100.0
-                        dimensions[i] = reference_dimension * percentage
-                    elif (
-                        isinstance(directive_value, float) and 0 < directive_value <= 1
-                    ):
-                        dimensions[i] = reference_dimension * directive_value
-
-            # Recalculate total with new dimensions
-            specified_total = sum(dimensions[i] for i in specified_indices)
-
-            # Apply proportional scaling within the container-first context
-            # Normalize the proportions so they sum to 100% of the reference dimension
-            total_proportion = specified_total / reference_dimension
-            if total_proportion > 1.0:  # If proportions exceed 100%, normalize them
-                for i in specified_indices:
-                    # Normalize: each section gets its proportion of the reference dimension
-                    original_proportion = dimensions[i] / reference_dimension
-                    normalized_proportion = original_proportion / total_proportion
-                    dimensions[i] = normalized_proportion * reference_dimension
-
-            container_first_applied = True
-
-        # Apply proportional scaling only if container-first clamping was not applied
-        if not container_first_applied:
-            scale_factor = usable_dimension / specified_total
-            for i in specified_indices:
-                dimensions[i] *= scale_factor
-
-        # Unspecified sections get no space in this case
+        scale_factor = usable_dimension / specified_total
+        for i in specified_indices:
+            dimensions[i] *= scale_factor
+        # Unspecified sections get no space
         for i in unspecified_indices:
             dimensions[i] = 0.0
-    # Case 2: Specified dimensions are within available space -> distribute remainder to unspecified sections.
     else:
+        # Distribute remaining space to unspecified sections
         remaining_dim = usable_dimension - specified_total
         if unspecified_indices:
             per_unspecified = (

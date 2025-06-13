@@ -1,10 +1,17 @@
-"""Updated overflow handlers with clean imports and improved error handling."""
+"""
+Enhanced overflow handler integrated with the new two-pass layout system.
+
+IMPROVEMENTS:
+- Better integration with the new layout algorithm
+- Proper handling of unsplittable elements (Rule #2 compliance)
+- Enhanced position/size clearing for continuation slides
+- Improved problematic directive removal (Rule #3 compliance)
+"""
 
 import logging
 from copy import deepcopy
 from typing import TYPE_CHECKING
 
-# Clean import organization - avoid duplicates
 if TYPE_CHECKING:
     from markdowndeck.models import Slide
     from markdowndeck.models.slide import Section
@@ -17,15 +24,16 @@ logger = logging.getLogger(__name__)
 
 class StandardOverflowHandler:
     """
-    Standard overflow handling strategy implementing the unanimous consent model.
-    Updated with cleaner imports and better error handling.
+    Enhanced overflow handling strategy implementing the unanimous consent model
+    with better integration for the new two-pass layout system.
     """
 
     def __init__(self, slide_height: float, top_margin: float):
         self.slide_height = slide_height
         self.top_margin = top_margin
         logger.debug(
-            f"StandardOverflowHandler initialized. Slide height: {self.slide_height}, Top margin: {self.top_margin}"
+            f"StandardOverflowHandler initialized. Slide height: {self.slide_height}, "
+            f"Top margin: {self.top_margin}"
         )
 
     def handle_overflow(
@@ -35,13 +43,16 @@ class StandardOverflowHandler:
         Handle overflow by partitioning the overflowing section and creating a continuation slide.
         """
         logger.info(
-            f"Handling overflow for section {overflowing_section.id} at position {overflowing_section.position}"
+            f"Handling overflow for section {overflowing_section.id} "
+            f"at position {overflowing_section.position}"
         )
 
         _body_start_y, body_end_y = self._calculate_body_boundaries(slide)
         available_height = body_end_y
+
         logger.debug(
-            f"Using absolute boundary for overflow section: {available_height} (body_end_y={body_end_y})"
+            f"Using absolute boundary for overflow section: {available_height} "
+            f"(body_end_y={body_end_y})"
         )
 
         fitted_part, overflowing_part = self._partition_section(
@@ -69,12 +80,13 @@ class StandardOverflowHandler:
         modified_original.root_section = fitted_part
 
         logger.info(
-            f"Created continuation slide with root section '{getattr(overflowing_part, 'id', 'N/A')}'"
+            f"Created continuation slide with root section "
+            f"'{getattr(overflowing_part, 'id', 'N/A')}'"
         )
         return modified_original, continuation_slide
 
     def _calculate_body_boundaries(self, slide: "Slide") -> tuple[float, float]:
-        """Calculates the dynamic body area for a specific slide."""
+        """Calculate the dynamic body area for a specific slide."""
         from markdowndeck.layout.constants import (
             DEFAULT_MARGIN_BOTTOM,
             HEADER_TO_BODY_SPACING,
@@ -82,14 +94,18 @@ class StandardOverflowHandler:
 
         top_offset = self.top_margin
         bottom_offset = DEFAULT_MARGIN_BOTTOM
+
         title = slide.get_title_element()
         if title and title.size and title.position:
             top_offset = title.position[1] + title.size[1] + HEADER_TO_BODY_SPACING
+
         footer = slide.get_footer_element()
         if footer and footer.size and footer.position:
             bottom_offset = self.slide_height - footer.position[1]
+
         body_start_y = top_offset
         body_end_y = self.slide_height - bottom_offset
+
         return body_start_y, body_end_y
 
     def _partition_section(
@@ -97,6 +113,7 @@ class StandardOverflowHandler:
     ) -> tuple["Section | None", "Section | None"]:
         """
         Recursively partition a section to fit within available height.
+        Enhanced to work with the new two-pass layout system.
         """
         if visited is None:
             visited = set()
@@ -111,6 +128,7 @@ class StandardOverflowHandler:
             f"Partitioning section {section.id} with available_height={available_height}"
         )
 
+        # Separate elements and child sections
         section_elements = [
             child for child in section.children if not hasattr(child, "children")
         ]
@@ -126,7 +144,7 @@ class StandardOverflowHandler:
             return self._partition_section_with_subsections(
                 section, available_height, visited
             )
-        if section_elements:
+        elif section_elements:
             return self._apply_rule_a(section, available_height)
 
         logger.warning(f"Empty section {section.id} encountered during partitioning")
@@ -137,6 +155,7 @@ class StandardOverflowHandler:
     ) -> tuple["Section | None", "Section | None"]:
         """
         Rule A: Standard section partitioning with elements.
+        Enhanced with better unsplittable element handling.
         """
         section_elements = [
             child for child in section.children if not hasattr(child, "children")
@@ -144,8 +163,10 @@ class StandardOverflowHandler:
         if not section_elements:
             return None, None
 
+        # Find the first element that overflows
         overflow_element_index = -1
         overflow_element = None
+
         for i, element in enumerate(section_elements):
             if element.position and element.size and element.size[1] > 0:
                 element_bottom = element.position[1] + element.size[1]
@@ -155,33 +176,28 @@ class StandardOverflowHandler:
                     break
 
         if overflow_element_index == -1:
+            # No overflow detected
             return section, None
 
+        # Calculate remaining height for the overflowing element
         element_top = overflow_element.position[1] if overflow_element.position else 0
         remaining_height = max(0.0, available_height - element_top)
 
-        # FIXED: Proactively check for unsplittable elements per OVERFLOW_SPEC.md Rule #2.
-        # This avoids calling .split() on an ImageElement, which would raise NotImplementedError.
-        if overflow_element.element_type in [ElementType.IMAGE]:
-            logger.debug(
-                f"Unsplittable element {overflow_element.element_type.value} caused overflow. Moving entirely."
-            )
-            fitted_part, overflowing_part = None, deepcopy(overflow_element)
-        elif hasattr(overflow_element, "split"):
-            fitted_part, overflowing_part = overflow_element.split(remaining_height)
-        else:
-            logger.warning(
-                f"Element type {overflow_element.element_type.value} does not have a .split() method. Treating as atomic."
-            )
-            fitted_part, overflowing_part = None, deepcopy(overflow_element)
+        # Handle element splitting with proper unsplittable element detection
+        fitted_part, overflowing_part = self._split_element_safely(
+            overflow_element, remaining_height
+        )
 
+        # Restore position for fitted part if it exists
         if fitted_part and overflow_element.position:
             fitted_part.position = overflow_element.position
 
+        # Build fitted section
         fitted_elements = deepcopy(section_elements[:overflow_element_index])
         if fitted_part:
             fitted_elements.append(fitted_part)
 
+        # Build overflowing section
         overflowing_elements = []
         if overflowing_part:
             overflowing_elements.append(overflowing_part)
@@ -190,35 +206,64 @@ class StandardOverflowHandler:
                 deepcopy(section_elements[overflow_element_index + 1 :])
             )
 
+        # Create fitted section
         fitted_section = None
         if fitted_elements:
             fitted_section = deepcopy(section)
             fitted_section.children = fitted_elements
 
+        # Create overflowing section with enhanced cleanup
         overflowing_section = None
         if overflowing_elements:
             overflowing_section = deepcopy(section)
             overflowing_section.children = overflowing_elements
-            overflowing_section.position = None
-            overflowing_section.size = None
 
-            # CRITICAL FIX: Clear position and size of ALL elements in overflowing section
-            # This ensures the layout manager recalculates everything from scratch
-            for element in overflowing_section.children:
-                if hasattr(element, "position"):
-                    element.position = None
-                if hasattr(element, "size"):
-                    element.size = None
-
-            # FIXED: Do not propagate problematic directives per OVERFLOW_SPEC.md Rule #3.
-            # This prevents infinite loops caused by fixed-height containers.
-            if "height" in overflowing_section.directives:
-                logger.debug(
-                    f"Removing problematic [height] directive from overflowing section {overflowing_section.id}"
-                )
-                del overflowing_section.directives["height"]
+            # Enhanced cleanup for continuation slides
+            self._cleanup_for_continuation(overflowing_section)
 
         return fitted_section, overflowing_section
+
+    def _split_element_safely(self, element, remaining_height: float) -> tuple:
+        """
+        Safely split an element, proactively checking for unsplittable types.
+        This implements Rule #2 by avoiding calls to .split() on unsplittable elements.
+        """
+        # Proactively check for known unsplittable element types
+        if element.element_type in [ElementType.IMAGE]:
+            logger.debug(
+                f"Element {element.element_type.value} is unsplittable by design. "
+                f"Moving entirely to continuation slide."
+            )
+            return None, deepcopy(element)
+
+        # Try to split splittable elements
+        if hasattr(element, "split") and callable(element.split):
+            try:
+                fitted_part, overflowing_part = element.split(remaining_height)
+                logger.debug(
+                    f"Successfully split {element.element_type.value} element. "
+                    f"Fitted: {fitted_part is not None}, "
+                    f"Overflowing: {overflowing_part is not None}"
+                )
+                return fitted_part, overflowing_part
+            except NotImplementedError:
+                logger.warning(
+                    f"Element {element.element_type.value} .split() raised "
+                    f"NotImplementedError. Treating as unsplittable."
+                )
+                return None, deepcopy(element)
+            except Exception as e:
+                logger.error(
+                    f"Error splitting {element.element_type.value}: {e}. "
+                    f"Treating as unsplittable."
+                )
+                return None, deepcopy(element)
+        else:
+            logger.warning(
+                f"Element type {element.element_type.value} does not have a "
+                f".split() method. Treating as atomic."
+            )
+            return None, deepcopy(element)
 
     def _apply_rule_b_unanimous_consent(
         self, row_section: "Section", available_height: float, visited: set[str]
@@ -232,18 +277,25 @@ class StandardOverflowHandler:
         if not child_sections:
             return row_section, None
 
+        # Check if the entire row overflows
         row_bottom = (
             (row_section.position[1] + row_section.size[1])
             if row_section.position and row_section.size
             else 0
         )
+
         if row_bottom <= available_height:
             return row_section, None
 
         logger.info(
             f"Row section {row_section.id} overflows. Promoting entire row to next slide."
         )
-        return None, deepcopy(row_section)
+
+        # Create a cleaned copy for the continuation slide
+        overflowing_row = deepcopy(row_section)
+        self._cleanup_for_continuation(overflowing_row)
+
+        return None, overflowing_row
 
     def _partition_section_with_subsections(
         self, section: "Section", available_height: float, visited: set[str]
@@ -298,6 +350,7 @@ class StandardOverflowHandler:
                 if overflowing_child:
                     overflowing_children.append(overflowing_child)
 
+        # Create sections
         fitted_section = deepcopy(section) if fitted_children else None
         if fitted_section:
             fitted_section.children = fitted_children
@@ -305,30 +358,57 @@ class StandardOverflowHandler:
         overflowing_section = deepcopy(section) if overflowing_children else None
         if overflowing_section:
             overflowing_section.children = overflowing_children
-            overflowing_section.position = None
-            overflowing_section.size = None
-
-            # CRITICAL FIX: Clear position and size of ALL elements in overflowing section
-            # This ensures the layout manager recalculates everything from scratch
-            for child in overflowing_section.children:
-                if hasattr(child, "position"):
-                    child.position = None
-                if hasattr(child, "size"):
-                    child.size = None
-
-            if "height" in overflowing_section.directives:
-                del overflowing_section.directives["height"]
+            self._cleanup_for_continuation(overflowing_section)
 
         return fitted_section, overflowing_section
 
+    def _cleanup_for_continuation(self, section: "Section") -> None:
+        """
+        Enhanced cleanup for continuation slides that works with the new layout system.
+        """
+        # Clear position and size for the section itself
+        section.position = None
+        section.size = None
+
+        # Remove problematic directives per Rule #3
+        problematic_directives = ["height"]
+        for directive in problematic_directives:
+            if directive in section.directives:
+                logger.debug(
+                    f"Removing problematic [{directive}] directive from "
+                    f"overflowing section {section.id}"
+                )
+                del section.directives[directive]
+
+        # Recursively clear position and size of all children
+        self._clear_positions_recursive(section)
+
+    def _clear_positions_recursive(self, section: "Section") -> None:
+        """
+        Recursively clear position and size for all children to ensure
+        the layout manager recalculates everything from scratch.
+        """
+        for child in section.children:
+            if hasattr(child, "position"):
+                child.position = None
+            if hasattr(child, "size"):
+                child.size = None
+
+            # Recursively clear child sections
+            if hasattr(child, "children"):
+                self._clear_positions_recursive(child)
+
     def _has_actual_content(self, sections: list["Section"]) -> bool:
+        """Check if sections contain any actual renderable content."""
         if not sections:
             return False
+
         for section in sections:
             if not section:
                 continue
             for child in section.children:
                 if not hasattr(child, "children"):
+                    # This is an element, so we have content
                     return True
                 if self._has_actual_content([child]):
                     return True

@@ -1,4 +1,5 @@
 import logging
+import textwrap
 from io import BytesIO
 
 import matplotlib.patches as patches
@@ -136,9 +137,32 @@ def _render_text(ax, element):
     font_size, font_family = _get_font_for_element(element)
     font_color = parse_color(directives.get("color"), default_color="#000000")
 
-    padding = float(directives.get("padding", 5.0))
-    ha = directives.get("align", "left")
-    va = directives.get("valign", "top")
+    # Handle padding directive - could be a single value or tuple
+    padding_directive = directives.get("padding", 5.0)
+    if isinstance(padding_directive, tuple | list):
+        # Use the first value if it's a tuple/list
+        padding = float(padding_directive[0]) if padding_directive else 5.0
+    else:
+        padding = float(padding_directive)
+    align_directive = directives.get("align", "left")
+    # Map alignment values to matplotlib-compatible values
+    ha_mapping = {
+        "left": "left",
+        "center": "center",
+        "right": "right",
+        "justify": "left",  # Map justify to left for matplotlib compatibility
+    }
+    ha = ha_mapping.get(align_directive, "left")
+
+    valign_directive = directives.get("valign", "top")
+    # Map vertical alignment values to matplotlib-compatible values
+    va_mapping = {
+        "top": "top",
+        "middle": "center",
+        "bottom": "bottom",
+        "center": "center",  # Alternative name for middle
+    }
+    va = va_mapping.get(valign_directive, "top")
 
     # Use font_metrics to get accurate wrapped text dimensions
     wrapped_text_width, wrapped_text_height = calculate_text_bbox(
@@ -150,10 +174,10 @@ def _render_text(ax, element):
         text_x = pos_x + size_w / 2
     elif ha == "right":
         text_x = pos_x + size_w - padding
-    else:  # left
+    else:  # left (includes justify case)
         text_x = pos_x + padding
 
-    if va == "middle":
+    if va == "center":  # middle maps to center
         text_y = pos_y + (size_h - wrapped_text_height) / 2
     elif va == "bottom":
         text_y = pos_y + size_h - wrapped_text_height - padding
@@ -172,11 +196,9 @@ def _render_text(ax, element):
         wrap=True,
         zorder=3,
         bbox={
-            "boxstyle": f"square,pad=0",
+            "boxstyle": "square,pad=0",
             "fc": "none",
             "ec": "none",
-            "width": size_w - 2 * padding,
-            "height": size_h - 2 * padding,
         },
     )
 
@@ -236,7 +258,6 @@ def _render_list(ax, element):
                 "boxstyle": "square,pad=0",
                 "fc": "none",
                 "ec": "none",
-                "width": text_width,
             },
         )
 

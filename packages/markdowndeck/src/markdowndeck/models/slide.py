@@ -58,21 +58,32 @@ class Slide:
     # These should be derived from elements when needed
 
     def get_title_element(self) -> Element | None:
-        """Get the title element if present."""
+        """Get the title element if present, searching authoritative lists first."""
+        # Search renderable_elements first, as it's authoritative for positioned/finalized slides.
+        for element in self.renderable_elements:
+            if element.element_type == ElementType.TITLE:
+                return element
+        # Fallback to the initial elements inventory for unpositioned slides.
         for element in self.elements:
             if element.element_type == ElementType.TITLE:
                 return element
         return None
 
     def get_subtitle_element(self) -> Element | None:
-        """Get the subtitle element if present."""
+        """Get the subtitle element if present, searching authoritative lists first."""
+        for element in self.renderable_elements:
+            if element.element_type == ElementType.SUBTITLE:
+                return element
         for element in self.elements:
             if element.element_type == ElementType.SUBTITLE:
                 return element
         return None
 
     def get_footer_element(self) -> Element | None:
-        """Get the footer element if present."""
+        """Get the footer element if present, searching authoritative lists first."""
+        for element in self.renderable_elements:
+            if element.element_type == ElementType.FOOTER:
+                return element
         for element in self.elements:
             if element.element_type == ElementType.FOOTER:
                 return element
