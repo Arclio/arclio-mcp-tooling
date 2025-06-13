@@ -289,7 +289,7 @@ async def add_bulleted_list_to_slide(
 
 @mcp.tool(
     name="add_image_to_slide",
-    description="Adds an image to a slide in a Google Slides presentation from a publicly accessible URL with precise positioning support. For full-height coverage, only specify size_height. For full-width coverage, only specify size_width. For exact dimensions, specify both.",
+    description="Adds a single image to a slide from a publicly accessible URL with smart sizing. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. For full-height coverage, only specify size_height. For full-width coverage, only specify size_width. For exact dimensions, specify both.",
 )
 async def add_image_to_slide(
     presentation_id: str,
@@ -577,7 +577,7 @@ async def create_presentation_from_markdown(
 
 @mcp.tool(
     name="create_textbox_with_text",
-    description="Creates a text box with text content, font formatting, and alignment in one operation. Perfect for adding text boxes to slides with specific font and alignment requirements.",
+    description="Creates a single text box with text content, font formatting, and alignment. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. Good for adding individual text boxes to existing slides.",
 )
 async def create_textbox_with_text(
     presentation_id: str,

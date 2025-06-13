@@ -1852,7 +1852,7 @@ class SlidesService(BaseGoogleService):
     def _build_image_request_generic(
         self, object_id: str, slide_id: str, element: dict[str, Any]
     ) -> dict[str, Any]:
-        """Generic helper to build image creation request"""
+        """Generic helper to build image creation request with smart sizing support"""
         pos = element["position"]
 
         request = {
@@ -1861,10 +1861,6 @@ class SlidesService(BaseGoogleService):
                 "url": element["content"],  # For images, content is the URL
                 "elementProperties": {
                     "pageObjectId": slide_id,
-                    "size": {
-                        "width": {"magnitude": pos["width"], "unit": "PT"},
-                        "height": {"magnitude": pos["height"], "unit": "PT"},
-                    },
                     "transform": {
                         "scaleX": 1,
                         "scaleY": 1,
@@ -1875,6 +1871,26 @@ class SlidesService(BaseGoogleService):
                 },
             }
         }
+        
+        # Smart sizing: only add size if both width and height are specified
+        # This allows proportional scaling when only one dimension is given
+        if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
+            # Both dimensions specified - exact sizing
+            request["createImage"]["elementProperties"]["size"] = {
+                "width": {"magnitude": pos["width"], "unit": "PT"},
+                "height": {"magnitude": pos["height"], "unit": "PT"},
+            }
+        elif "width" in pos and pos["width"]:
+            # Only width specified - proportional height
+            request["createImage"]["elementProperties"]["size"] = {
+                "width": {"magnitude": pos["width"], "unit": "PT"}
+            }
+        elif "height" in pos and pos["height"]:
+            # Only height specified - proportional width (full-height coverage)
+            request["createImage"]["elementProperties"]["size"] = {
+                "height": {"magnitude": pos["height"], "unit": "PT"}
+            }
+        # If neither width nor height specified, use original image size
 
         return request
 
