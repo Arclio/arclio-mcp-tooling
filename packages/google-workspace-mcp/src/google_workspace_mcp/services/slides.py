@@ -1335,39 +1335,39 @@ class SlidesService(BaseGoogleService):
             if text_alignment is not None:
                 alignment_map = {
                     "LEFT": "START",
-                    "CENTER": "CENTER", 
+                    "CENTER": "CENTER",
                     "RIGHT": "END",
-                    "JUSTIFY": "JUSTIFIED"
+                    "JUSTIFY": "JUSTIFIED",
                 }
-                
+
                 api_alignment = alignment_map.get(text_alignment.upper())
                 if api_alignment:
-                    requests.append({
-                        "updateParagraphStyle": {
-                            "objectId": element_id,
-                            "textRange": {"type": "ALL"},
-                            "style": {"alignment": api_alignment},
-                            "fields": "alignment",
+                    requests.append(
+                        {
+                            "updateParagraphStyle": {
+                                "objectId": element_id,
+                                "textRange": {"type": "ALL"},
+                                "style": {"alignment": api_alignment},
+                                "fields": "alignment",
+                            }
                         }
-                    })
+                    )
 
             # Step 6: Add vertical alignment if specified
             if vertical_alignment is not None:
-                valign_map = {
-                    "TOP": "TOP",
-                    "MIDDLE": "MIDDLE",
-                    "BOTTOM": "BOTTOM"
-                }
-                
+                valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
+
                 api_valign = valign_map.get(vertical_alignment.upper())
                 if api_valign:
-                    requests.append({
-                        "updateShapeProperties": {
-                            "objectId": element_id,
-                            "shapeProperties": {"contentAlignment": api_valign},
-                            "fields": "contentAlignment",
+                    requests.append(
+                        {
+                            "updateShapeProperties": {
+                                "objectId": element_id,
+                                "shapeProperties": {"contentAlignment": api_valign},
+                                "fields": "contentAlignment",
+                            }
                         }
-                    })
+                    )
 
             logger.info(
                 f"Creating text box with font {font_family} {font_size}pt, align: {text_alignment}/{vertical_alignment}"
@@ -1406,6 +1406,263 @@ class SlidesService(BaseGoogleService):
             }
         except Exception as e:
             return self.handle_api_error("create_textbox_with_text", e)
+
+    def batch_update(
+        self, presentation_id: str, requests: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """
+        Apply a list of raw Google Slides API update requests to a presentation in a single operation.
+        For advanced users familiar with Slides API request structures.
+        Allows creating multiple elements (text boxes, images, shapes) in a single API call.
+
+        Args:
+            presentation_id: The ID of the presentation
+            requests: List of Google Slides API request objects
+
+        Returns:
+            API response data or error information
+        """
+        try:
+            logger.info(
+                f"Executing batch update with {len(requests)} requests on presentation {presentation_id}"
+            )
+
+            # Execute all requests in a single batch operation
+            response = (
+                self.service.presentations()
+                .batchUpdate(
+                    presentationId=presentation_id, body={"requests": requests}
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Batch update completed successfully. Response: {json.dumps(response, indent=2)}"
+            )
+
+            return {
+                "presentationId": presentation_id,
+                "operation": "batch_update",
+                "requestCount": len(requests),
+                "result": "success",
+                "replies": response.get("replies", []),
+                "writeControl": response.get("writeControl", {}),
+            }
+        except Exception as e:
+            return self.handle_api_error("batch_update", e)
+
+    def create_slide_from_template_data(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        template_data: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Create a complete slide from template data in a single batch operation.
+
+        Args:
+            presentation_id: The ID of the presentation
+            slide_id: The ID of the slide
+            template_data: Dictionary containing slide elements data structure:
+                {
+                    "title": {"text": "...", "position": {"x": 32, "y": 35, "width": 330, "height": 40}, "style": {"fontSize": 18, "fontFamily": "Roboto"}},
+                    "description": {"text": "...", "position": {"x": 32, "y": 95, "width": 330, "height": 160}, "style": {"fontSize": 12, "fontFamily": "Roboto"}},
+                    "stats": [
+                        {"value": "43.4M", "label": "TOTAL IMPRESSIONS", "position": {"x": 374.5, "y": 268.5}},
+                        {"value": "134K", "label": "TOTAL ENGAGEMENTS", "position": {"x": 516.5, "y": 268.5}},
+                        # ... more stats
+                    ],
+                    "image": {"url": "...", "position": {"x": 375, "y": 35}, "size": {"width": 285, "height": 215}}
+                }
+
+        Returns:
+            Response data or error information
+        """
+        try:
+            import time
+
+            requests = []
+            element_counter = 0
+
+            # Build title element
+            if "title" in template_data:
+                title_id = f"title_{int(time.time() * 1000)}_{element_counter}"
+                requests.extend(
+                    self._build_textbox_requests(
+                        title_id, slide_id, template_data["title"]
+                    )
+                )
+                element_counter += 1
+
+            # Build description element
+            if "description" in template_data:
+                desc_id = f"description_{int(time.time() * 1000)}_{element_counter}"
+                requests.extend(
+                    self._build_textbox_requests(
+                        desc_id, slide_id, template_data["description"]
+                    )
+                )
+                element_counter += 1
+
+            # Build stats elements
+            for i, stat in enumerate(template_data.get("stats", [])):
+                # Stat value
+                stat_id = f"stat_value_{int(time.time() * 1000)}_{i}"
+                stat_data = {
+                    "text": stat["value"],
+                    "position": stat["position"],
+                    "style": {
+                        "fontSize": 25,
+                        "fontFamily": "Playfair Display",
+                        "bold": True,
+                    },
+                }
+                requests.extend(
+                    self._build_textbox_requests(stat_id, slide_id, stat_data)
+                )
+
+                # Stat label
+                label_id = f"stat_label_{int(time.time() * 1000)}_{i}"
+                label_pos = {
+                    "x": stat["position"]["x"],
+                    "y": stat["position"]["y"] + 33.5,  # Position label below value
+                    "width": stat["position"].get("width", 142),
+                    "height": stat["position"].get("height", 40),
+                }
+                label_data = {
+                    "text": stat["label"],
+                    "position": label_pos,
+                    "style": {"fontSize": 7.5, "fontFamily": "Roboto"},
+                }
+                requests.extend(
+                    self._build_textbox_requests(label_id, slide_id, label_data)
+                )
+
+            # Build image element
+            if "image" in template_data:
+                image_id = f"image_{int(time.time() * 1000)}_{element_counter}"
+                requests.append(
+                    self._build_image_request(
+                        image_id, slide_id, template_data["image"]
+                    )
+                )
+
+            logger.info(f"Built {len(requests)} requests for slide creation")
+
+            # Execute batch update
+            return self.batch_update(presentation_id, requests)
+
+        except Exception as e:
+            return self.handle_api_error("create_slide_from_template_data", e)
+
+    def _build_textbox_requests(
+        self, object_id: str, slide_id: str, textbox_data: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Helper to build textbox creation requests"""
+        pos = textbox_data["position"]
+        style = textbox_data.get("style", {})
+
+        requests = [
+            # Create shape
+            {
+                "createShape": {
+                    "objectId": object_id,
+                    "shapeType": "TEXT_BOX",
+                    "elementProperties": {
+                        "pageObjectId": slide_id,
+                        "size": {
+                            "width": {"magnitude": pos.get("width", 142), "unit": "PT"},
+                            "height": {
+                                "magnitude": pos.get("height", 40),
+                                "unit": "PT",
+                            },
+                        },
+                        "transform": {
+                            "scaleX": 1,
+                            "scaleY": 1,
+                            "translateX": pos["x"],
+                            "translateY": pos["y"],
+                            "unit": "PT",
+                        },
+                    },
+                }
+            },
+            # Insert text
+            {"insertText": {"objectId": object_id, "text": textbox_data["text"]}},
+        ]
+
+        # Add formatting if specified
+        if style:
+            format_request = {
+                "updateTextStyle": {
+                    "objectId": object_id,
+                    "textRange": {"type": "ALL"},
+                    "style": {},
+                    "fields": "",
+                }
+            }
+
+            if "fontSize" in style:
+                format_request["updateTextStyle"]["style"]["fontSize"] = {
+                    "magnitude": style["fontSize"],
+                    "unit": "PT",
+                }
+                format_request["updateTextStyle"]["fields"] += "fontSize,"
+
+            if "fontFamily" in style:
+                format_request["updateTextStyle"]["style"]["fontFamily"] = style[
+                    "fontFamily"
+                ]
+                format_request["updateTextStyle"]["fields"] += "fontFamily,"
+
+            if style.get("bold"):
+                format_request["updateTextStyle"]["style"]["bold"] = True
+                format_request["updateTextStyle"]["fields"] += "bold,"
+
+            # Clean up trailing comma
+            format_request["updateTextStyle"]["fields"] = format_request[
+                "updateTextStyle"
+            ]["fields"].rstrip(",")
+
+            if format_request["updateTextStyle"][
+                "fields"
+            ]:  # Only add if there are fields to update
+                requests.append(format_request)
+
+        return requests
+
+    def _build_image_request(
+        self, object_id: str, slide_id: str, image_data: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Helper to build image creation request"""
+        pos = image_data["position"]
+        size = image_data.get("size", {})
+
+        request = {
+            "createImage": {
+                "objectId": object_id,
+                "url": image_data["url"],
+                "elementProperties": {
+                    "pageObjectId": slide_id,
+                    "transform": {
+                        "scaleX": 1,
+                        "scaleY": 1,
+                        "translateX": pos["x"],
+                        "translateY": pos["y"],
+                        "unit": "PT",
+                    },
+                },
+            }
+        }
+
+        # Add size if specified
+        if size:
+            request["createImage"]["elementProperties"]["size"] = {
+                "width": {"magnitude": size["width"], "unit": "PT"},
+                "height": {"magnitude": size["height"], "unit": "PT"},
+            }
+
+        return request
 
     def update_text_formatting(
         self,

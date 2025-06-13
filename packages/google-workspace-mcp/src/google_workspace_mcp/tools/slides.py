@@ -641,6 +641,128 @@ async def create_textbox_with_text(
 
 
 @mcp.tool(
+    name="slides_batch_update",
+    description="Apply a list of raw Google Slides API update requests to a presentation in a single batch operation. Allows creating multiple elements (text boxes, images, shapes) efficiently in one API call instead of multiple individual calls.",
+)
+async def slides_batch_update(
+    presentation_id: str,
+    requests: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """
+    Apply a list of raw Google Slides API update requests to a presentation.
+    For advanced users familiar with Slides API request structures.
+    
+    Args:
+        presentation_id: The ID of the presentation
+        requests: List of Google Slides API request objects (e.g., createShape, insertText, updateTextStyle, createImage, etc.)
+    
+    Returns:
+        Response data confirming batch operation or raises error
+        
+    Example request structure:
+    [
+        {
+            "createShape": {
+                "objectId": "textbox1",
+                "shapeType": "TEXT_BOX",
+                "elementProperties": {
+                    "pageObjectId": "slide_id",
+                    "size": {"width": {"magnitude": 300, "unit": "PT"}, "height": {"magnitude": 50, "unit": "PT"}},
+                    "transform": {"translateX": 100, "translateY": 100, "unit": "PT"}
+                }
+            }
+        },
+        {
+            "insertText": {
+                "objectId": "textbox1",
+                "text": "Hello World"
+            }
+        }
+    ]
+    """
+    logger.info(f"Executing slides_batch_update with {len(requests)} requests")
+    if not presentation_id or not requests:
+        raise ValueError("Presentation ID and requests list are required")
+    
+    if not isinstance(requests, list):
+        raise ValueError("Requests must be a list of API request objects")
+
+    slides_service = SlidesService()
+    result = slides_service.batch_update(
+        presentation_id=presentation_id,
+        requests=requests
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error executing batch update"))
+
+    return result
+
+
+@mcp.tool(
+    name="create_slide_from_template_data",
+    description="Create a complete slide with multiple elements (title, description, stats, image) in a single batch operation. Much faster than individual API calls - reduces 15+ calls to 1 call.",
+)
+async def create_slide_from_template_data(
+    presentation_id: str,
+    slide_id: str,
+    template_data: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Create a complete slide from template data in a single batch operation.
+    
+    Args:
+        presentation_id: The ID of the presentation
+        slide_id: The ID of the slide
+        template_data: Dictionary containing slide elements, example:
+            {
+                "title": {
+                    "text": "Frank's RedHot Campaign", 
+                    "position": {"x": 32, "y": 35, "width": 330, "height": 40},
+                    "style": {"fontSize": 18, "fontFamily": "Roboto"}
+                },
+                "description": {
+                    "text": "Campaign description...",
+                    "position": {"x": 32, "y": 95, "width": 330, "height": 160}, 
+                    "style": {"fontSize": 12, "fontFamily": "Roboto"}
+                },
+                "stats": [
+                    {"value": "43.4M", "label": "TOTAL IMPRESSIONS", "position": {"x": 374.5, "y": 268.5}},
+                    {"value": "134K", "label": "TOTAL ENGAGEMENTS", "position": {"x": 516.5, "y": 268.5}},
+                    {"value": "4.8B", "label": "AGGREGATE READERSHIP", "position": {"x": 374.5, "y": 350.5}},
+                    {"value": "$9.1M", "label": "AD EQUIVALENCY", "position": {"x": 516.5, "y": 350.5}}
+                ],
+                "image": {
+                    "url": "https://images.unsplash.com/...",
+                    "position": {"x": 375, "y": 35},
+                    "size": {"width": 285, "height": 215}
+                }
+            }
+    
+    Returns:
+        Response data confirming slide creation or raises error
+    """
+    logger.info(f"Executing create_slide_from_template_data on slide '{slide_id}'")
+    if not presentation_id or not slide_id or not template_data:
+        raise ValueError("Presentation ID, Slide ID, and Template Data are required")
+
+    if not isinstance(template_data, dict):
+        raise ValueError("Template data must be a dictionary")
+
+    slides_service = SlidesService()
+    result = slides_service.create_slide_from_template_data(
+        presentation_id=presentation_id,
+        slide_id=slide_id,
+        template_data=template_data
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error creating slide from template data"))
+
+    return result
+
+
+@mcp.tool(
     name="update_text_formatting",
     description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
 )
