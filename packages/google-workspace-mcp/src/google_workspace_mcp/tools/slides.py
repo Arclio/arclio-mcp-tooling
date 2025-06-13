@@ -831,6 +831,32 @@ async def create_slide_with_elements(
 
 
 @mcp.tool(
+    name="convert_template_zones_to_pt",
+    description="Convert template zones from EMU coordinates to PT coordinates for easier usage in slide creation. Simplifies coordinate handling for LLM.",
+)
+async def convert_template_zones_to_pt(
+    template_zones: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Convert template zones coordinates from EMU to PT for easier slide element creation.
+    
+    Args:
+        template_zones: Template zones from extract_template_zones_only
+    
+    Returns:
+        Template zones with additional PT coordinates (x_pt, y_pt, width_pt, height_pt)
+    """
+    logger.info(f"Converting {len(template_zones)} template zones to PT coordinates")
+    if not template_zones:
+        raise ValueError("Template zones are required")
+
+    slides_service = SlidesService()
+    result = slides_service.convert_template_zones_to_pt(template_zones)
+
+    return {"success": True, "converted_zones": result}
+
+
+@mcp.tool(
     name="update_text_formatting",
     description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
 )
