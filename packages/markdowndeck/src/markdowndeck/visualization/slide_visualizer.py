@@ -1,3 +1,9 @@
+# File: packages/markdowndeck/src/markdowndeck/visualization/slide_visualizer.py
+# Purpose: Main slide visualizer class for MarkdownDeck.
+# Key Changes:
+# - REFACTORED: `_render_single_slide` now checks for `slide.root_section` and passes it to `render_sections`.
+#   This aligns the visualizer with the current `root_section` data model defined in ARCHITECTURE.md.
+
 """
 Main slide visualizer class for MarkdownDeck.
 
@@ -133,23 +139,27 @@ class SlideVisualizer:
 
         if show_zones:
             render_layout_zones(ax, self.layout_manager)
-        if show_sections and hasattr(slide, "sections"):
-            render_sections(ax, slide.sections)
+
+        # REFACTORED: Check for root_section instead of the obsolete `sections` list.
+        # JUSTIFICATION: This aligns the visualizer with the authoritative data model (DATA_MODELS.md).
+        if show_sections and hasattr(slide, "root_section") and slide.root_section:
+            render_sections(ax, slide.root_section)
 
         # Enhanced debugging - check finalized IR state
         total_renderable_elements = len(getattr(slide, "renderable_elements", []))
-        total_sections = len(getattr(slide, "sections", []))
+        # REFACTORED: Check for root_section presence.
+        has_root_section = getattr(slide, "root_section", None) is not None
         logger.info(
-            f"Slide {slide_idx + 1}: {total_renderable_elements} renderable elements, {total_sections} sections"
+            f"Slide {slide_idx + 1}: {total_renderable_elements} renderable elements, has_root_section={has_root_section}"
         )
 
         # Per TASK_005: Use renderable_elements as authoritative source after OverflowManager
         all_elements = getattr(slide, "renderable_elements", [])
 
         # Check for slides that haven't been processed by OverflowManager
-        if not all_elements and total_sections > 0:
+        if not all_elements and has_root_section:
             logger.warning(
-                f"Slide {slide_idx + 1} has empty renderable_elements but {total_sections} sections. "
+                f"Slide {slide_idx + 1} has empty renderable_elements but has a root_section. "
                 "This slide may not have been processed by the OverflowManager yet."
             )
 

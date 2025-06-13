@@ -159,7 +159,14 @@ class SlideExtractor:
             if line_directives and not remaining_text:
                 # This is a directive-only line
                 all_directives.update(line_directives)
-                consumed_lines_count += 1
+
+                # FIXED: Only consume lines that contain SLIDE-LEVEL directives
+                # Section-scoped directives should be left for the section parser
+                if "background" in line_directives:
+                    consumed_lines_count += 1
+                else:
+                    # This line contains section-scoped directives, don't consume it
+                    break
             else:
                 # First non-directive line found, stop processing
                 break

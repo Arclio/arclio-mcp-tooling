@@ -49,10 +49,11 @@ class ImageElement(Element):
         Raises:
             NotImplementedError: Always, as images are unsplittable by design.
         """
-        # REFACTORED: Aligned with DATA_MODELS.md (Sec 3.4).
+        # REFACTORED: Aligned with DATA_MODELS.md (Sec 3.4) and OVERFLOW_SPEC.md Rule #2.
         # MAINTAINS: The principle that images are atomic.
         # BREAKING_CHANGE: This method no longer returns (self, None). It raises an exception.
-        # JUSTIFICATION: DATA_MODELS.md Sec 3.4 requires this behavior.
+        # JUSTIFICATION: DATA_MODELS.md Sec 3.4 and OVERFLOW_SPEC.md Rule #2 require this behavior.
+        # The Overflow Handler must proactively check element types and not call .split() on images.
         raise NotImplementedError(
             "ImageElement.split should never be called. "
             "Images are proactively scaled by the LayoutManager and are considered atomic."

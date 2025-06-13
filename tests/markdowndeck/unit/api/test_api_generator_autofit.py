@@ -19,7 +19,7 @@ class TestApiGeneratorAutofit:
         self, api_generator: ApiRequestGenerator
     ):
         """
-        Test Case: API-C-10 (new)
+        Test Case: API-C-10
         Validates that any 'createShape' request for a TEXT_BOX is immediately
         followed by an 'updateShapeProperties' request to disable autofit.
         This confirms our layout instructions are being sent correctly.
@@ -60,7 +60,6 @@ class TestApiGeneratorAutofit:
                 create_shape_index != -1
             ), f"createShape request not found for {obj_id}."
 
-            # The very next request should be to disable autofit.
             assert create_shape_index + 1 < len(
                 requests
             ), f"No request found after createShape for {obj_id}."

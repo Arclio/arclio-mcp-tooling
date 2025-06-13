@@ -65,11 +65,11 @@ class Parser:
 
                 # REFACTORED: Construct the Slide object with the new `root_section` model.
                 # REMOVED: Obsolete attributes `sections` and `title_directives` are no longer set.
+                # FIXED: Removed the obsolete `footer` keyword argument.
                 slide = Slide(
                     elements=elements,
                     layout=layout,
                     notes=slide_data.get("notes"),
-                    footer=slide_data.get("footer"),
                     background=slide_data.get("background"),
                     object_id=f"slide_{slide_index}",
                     root_section=root_section_model,

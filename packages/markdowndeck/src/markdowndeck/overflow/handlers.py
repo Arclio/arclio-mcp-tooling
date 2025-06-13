@@ -1,12 +1,15 @@
+"""Updated overflow handlers with clean imports and improved error handling."""
+
 import logging
 from copy import deepcopy
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
+# Clean import organization - avoid duplicates
 if TYPE_CHECKING:
     from markdowndeck.models import Slide
-    from markdowndeck.models.elements.base import Element
     from markdowndeck.models.slide import Section
 
+from markdowndeck.models.constants import ElementType
 from markdowndeck.overflow.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
@@ -15,6 +18,7 @@ logger = logging.getLogger(__name__)
 class StandardOverflowHandler:
     """
     Standard overflow handling strategy implementing the unanimous consent model.
+    Updated with cleaner imports and better error handling.
     """
 
     def __init__(self, slide_height: float, top_margin: float):
@@ -65,7 +69,7 @@ class StandardOverflowHandler:
         modified_original.root_section = fitted_part
 
         logger.info(
-            f"Created continuation slide with root section '{overflowing_part.id}'"
+            f"Created continuation slide with root section '{getattr(overflowing_part, 'id', 'N/A')}'"
         )
         return modified_original, continuation_slide
 
@@ -114,8 +118,6 @@ class StandardOverflowHandler:
             child for child in section.children if hasattr(child, "children")
         ]
 
-        if section_elements:
-            return self._apply_rule_a(section, available_height, visited)
         if child_sections:
             if section.type == "row":
                 return self._apply_rule_b_unanimous_consent(
@@ -124,12 +126,14 @@ class StandardOverflowHandler:
             return self._partition_section_with_subsections(
                 section, available_height, visited
             )
+        if section_elements:
+            return self._apply_rule_a(section, available_height)
 
         logger.warning(f"Empty section {section.id} encountered during partitioning")
         return None, None
 
     def _apply_rule_a(
-        self, section: "Section", available_height: float, visited: set[str]
+        self, section: "Section", available_height: float
     ) -> tuple["Section | None", "Section | None"]:
         """
         Rule A: Standard section partitioning with elements.
@@ -139,25 +143,45 @@ class StandardOverflowHandler:
         ]
         if not section_elements:
             return None, None
+
         overflow_element_index = -1
         overflow_element = None
         for i, element in enumerate(section_elements):
-            if element.position and element.size:
+            if element.position and element.size and element.size[1] > 0:
                 element_bottom = element.position[1] + element.size[1]
                 if element_bottom > available_height:
                     overflow_element_index = i
                     overflow_element = element
                     break
+
         if overflow_element_index == -1:
             return section, None
+
         element_top = overflow_element.position[1] if overflow_element.position else 0
         remaining_height = max(0.0, available_height - element_top)
-        fitted_part, overflowing_part = overflow_element.split(remaining_height)
+
+        # FIXED: Proactively check for unsplittable elements per OVERFLOW_SPEC.md Rule #2.
+        # This avoids calling .split() on an ImageElement, which would raise NotImplementedError.
+        if overflow_element.element_type in [ElementType.IMAGE]:
+            logger.debug(
+                f"Unsplittable element {overflow_element.element_type.value} caused overflow. Moving entirely."
+            )
+            fitted_part, overflowing_part = None, deepcopy(overflow_element)
+        elif hasattr(overflow_element, "split"):
+            fitted_part, overflowing_part = overflow_element.split(remaining_height)
+        else:
+            logger.warning(
+                f"Element type {overflow_element.element_type.value} does not have a .split() method. Treating as atomic."
+            )
+            fitted_part, overflowing_part = None, deepcopy(overflow_element)
+
         if fitted_part and overflow_element.position:
             fitted_part.position = overflow_element.position
+
         fitted_elements = deepcopy(section_elements[:overflow_element_index])
         if fitted_part:
             fitted_elements.append(fitted_part)
+
         overflowing_elements = []
         if overflowing_part:
             overflowing_elements.append(overflowing_part)
@@ -165,16 +189,26 @@ class StandardOverflowHandler:
             overflowing_elements.extend(
                 deepcopy(section_elements[overflow_element_index + 1 :])
             )
+
         fitted_section = None
         if fitted_elements:
             fitted_section = deepcopy(section)
             fitted_section.children = fitted_elements
+
         overflowing_section = None
         if overflowing_elements:
             overflowing_section = deepcopy(section)
             overflowing_section.children = overflowing_elements
             overflowing_section.position = None
             overflowing_section.size = None
+            # FIXED: Do not propagate problematic directives per OVERFLOW_SPEC.md Rule #3.
+            # This prevents infinite loops caused by fixed-height containers.
+            if "height" in overflowing_section.directives:
+                logger.debug(
+                    f"Removing problematic [height] directive from overflowing section {overflowing_section.id}"
+                )
+                del overflowing_section.directives["height"]
+
         return fitted_section, overflowing_section
 
     def _apply_rule_b_unanimous_consent(
@@ -183,91 +217,52 @@ class StandardOverflowHandler:
         """
         Rule B: Coordinated row of columns partitioning with unanimous consent model.
         """
-        from markdowndeck.models.slide import Section
-
-        child_sections = cast(
-            list[Section],
-            [child for child in row_section.children if hasattr(child, "children")],
-        )
-        logger.debug(
-            f"Applying Rule B (unanimous consent) to row section {row_section.id} with {len(child_sections)} columns"
-        )
+        child_sections = [
+            child for child in row_section.children if hasattr(child, "children")
+        ]
         if not child_sections:
-            return None, None
+            return row_section, None
 
-        can_split_flags = []
-        for column in child_sections:
-            overflowing_element = self._find_overflowing_element_in_column(
-                column, available_height
-            )
-            if not overflowing_element:
-                can_split_flags.append(True)
-                continue
-            remaining_height = self._calculate_remaining_height_for_element(
-                column, overflowing_element, available_height
-            )
-            can_split_flags.append(
-                self._is_element_splittable(overflowing_element, remaining_height)
-            )
+        row_bottom = (
+            (row_section.position[1] + row_section.size[1])
+            if row_section.position and row_section.size
+            else 0
+        )
+        if row_bottom <= available_height:
+            return row_section, None
 
-        if not all(can_split_flags):
-            logger.info(
-                f"Unanimous consent FAILED for row section {row_section.id}. Promoting entire row."
-            )
-            return None, deepcopy(row_section)
-
-        logger.info(f"Unanimous consent ACHIEVED for row section {row_section.id}.")
-        fitted_columns, overflowing_columns = [], []
-        for column in child_sections:
-            fitted_col, overflowing_col = self._partition_section(
-                column, available_height, visited.copy()
-            )
-            fitted_columns.append(fitted_col or self._create_empty_section_like(column))
-            if overflowing_col:
-                overflowing_columns.append(overflowing_col)
-
-        fitted_row = deepcopy(row_section)
-        fitted_row.children = fitted_columns
-        overflowing_row = None
-        if any(col.children for col in overflowing_columns if col is not None):
-            overflowing_row = deepcopy(row_section)
-            overflowing_row.children = overflowing_columns
-            overflowing_row.position = None
-            overflowing_row.size = None
-
-        return fitted_row, overflowing_row
+        logger.info(
+            f"Row section {row_section.id} overflows. Promoting entire row to next slide."
+        )
+        return None, deepcopy(row_section)
 
     def _partition_section_with_subsections(
         self, section: "Section", available_height: float, visited: set[str]
     ) -> tuple["Section | None", "Section | None"]:
-        """Partition a section that contains other nested sections."""
-        from markdowndeck.models.slide import Section
-
+        """
+        Partition a section by moving whole child sections, not splitting them.
+        """
         fitted_children, overflowing_children = [], []
-        has_overflow = False
-        child_sections = cast(list[Section], section.children)
+        has_overflowed = False
 
-        for child_section in child_sections:
-            if has_overflow:
-                overflowing_children.append(deepcopy(child_section))
+        for child_section in section.children:
+            is_element = not hasattr(child_section, "children")
+            position = getattr(child_section, "position", None)
+            size = getattr(child_section, "size", None)
+
+            if is_element or not position or not size:
+                if not has_overflowed:
+                    fitted_children.append(deepcopy(child_section))
+                else:
+                    overflowing_children.append(deepcopy(child_section))
                 continue
 
-            section_bottom = (
-                (child_section.position[1] + child_section.size[1])
-                if child_section.position and child_section.size
-                else 0
-            )
-            if section_bottom > available_height:
-                has_overflow = True
-                fitted_part, overflowing_part = self._partition_section(
-                    child_section, available_height, visited.copy()
-                )
-                if fitted_part:
-                    fitted_children.append(fitted_part)
-                if overflowing_part:
-                    overflowing_children.append(overflowing_part)
-            else:
+            section_bottom = position[1] + size[1]
+            if not has_overflowed and section_bottom <= available_height:
                 fitted_children.append(deepcopy(child_section))
+            else:
+                has_overflowed = True
+                overflowing_children.append(deepcopy(child_section))
 
         fitted_section = deepcopy(section) if fitted_children else None
         if fitted_section:
@@ -278,6 +273,8 @@ class StandardOverflowHandler:
             overflowing_section.children = overflowing_children
             overflowing_section.position = None
             overflowing_section.size = None
+            if "height" in overflowing_section.directives:
+                del overflowing_section.directives["height"]
 
         return fitted_section, overflowing_section
 
@@ -293,35 +290,3 @@ class StandardOverflowHandler:
                 if self._has_actual_content([child]):
                     return True
         return False
-
-    def _find_overflowing_element_in_column(
-        self, column: "Section", available_height: float
-    ) -> "Element | None":
-        for element in column.children:
-            if not hasattr(element, "children") and element.position and element.size:
-                if element.position[1] + element.size[1] > available_height:
-                    return cast("Element", element)
-        return None
-
-    def _calculate_remaining_height_for_element(
-        self, column: "Section", target_element: "Element", available_height: float
-    ) -> float:
-        if target_element.position:
-            return max(0.0, available_height - target_element.position[1])
-        return available_height
-
-    def _is_element_splittable(
-        self, element: "Element", available_height: float
-    ) -> bool:
-        if not hasattr(element, "split"):
-            return False
-        try:
-            fitted, _ = element.split(available_height)
-            return fitted is not None
-        except Exception:
-            return False
-
-    def _create_empty_section_like(self, section: "Section") -> "Section":
-        empty_section = deepcopy(section)
-        empty_section.children = []
-        return empty_section

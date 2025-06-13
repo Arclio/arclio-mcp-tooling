@@ -1,4 +1,5 @@
 import logging
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -82,10 +83,17 @@ class OverflowManager:
             final_slides.append(fitted_slide)
 
             if continuation_slide:
+                # VERIFIED: This re-layout call is the circuit breaker per OVERFLOW_SPEC.md Rule #6.
+                # It ensures overflowing elements (like images) are re-scaled in their new context.
+                # FIXED: Create a deep copy to prevent object identity issues during finalization
+                continuation_copy = deepcopy(continuation_slide)
                 repositioned_continuation = self.layout_manager.calculate_positions(
-                    continuation_slide
+                    continuation_copy
                 )
-                slides_to_process.append(repositioned_continuation)
+                # FIXED: Ensure we get a proper deep copy back from layout manager
+                # to prevent any shared references that could cause premature finalization
+                final_repositioned = deepcopy(repositioned_continuation)
+                slides_to_process.append(final_repositioned)
 
         logger.info(
             f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"

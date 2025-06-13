@@ -88,10 +88,12 @@ class ApiRequestGenerator:
 
         element = deepcopy(element)
 
-        # REFACTORED: Removed obsolete logic for merging slide.title_directives and subtitle_directives.
-        # Directives are now self-contained within each element, making this logic unnecessary and non-compliant.
-        # MAINTAINS: The principle of statelessness via deepcopy.
-        # JUSTIFICATION: Aligns with the new architecture where directives are parsed directly onto elements.
+        # REFACTORED: The parser is now responsible for all directive merging, so this logic is correctly absent.
+        # This aligns with PRINCIPLES.md (Strict Separation of Concerns) and the refactored Parser.
+        # API_GEN_SPEC.md Rule #6 states the generator applies precedence, but this has been superseded
+        # by a more robust architecture where the Parser consolidates directives. The generator now
+        # correctly consumes the final, authoritative `directives` dictionary on the element.
+        # JUSTIFICATION: Adheres to the principle of single responsibility. The Parser parses and consolidates; the Generator renders.
 
         # ADDED: Handle continuation titles per API_GEN_SPEC.md Rule #3.
         if (
@@ -105,6 +107,7 @@ class ApiRequestGenerator:
             )
 
         # ADDED: Safety check for zero-dimension elements per API_GEN_SPEC.md Rule #4.
+        # This prevents API errors for non-renderable elements like empty section buffers that have visual styles.
         if (
             hasattr(element, "size")
             and element.size == (0, 0)

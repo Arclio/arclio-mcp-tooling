@@ -1,3 +1,5 @@
+"""Updated directive parser with specification compliance."""
+
 import logging
 import re
 from typing import Any
@@ -15,54 +17,56 @@ logger = logging.getLogger(__name__)
 class DirectiveParser:
     """
     Parse layout directives with comprehensive value conversion.
-
-    ENHANCEMENTS:
-    - P8: Enhanced CSS value parsing
-    - Improved directive detection and validation
-    - Better error handling and recovery
+    Updated to only include supported directives per DIRECTIVES.md.
     """
 
     def __init__(self):
-        """Initialize the directive parser with enhanced type support."""
+        """Initialize the directive parser with only supported directives."""
         self.directive_block_pattern = re.compile(r"(\[[^\[\]]+\])")
 
+        # FIXED: Removed unsupported directives per DIRECTIVES.md Section 10.1
+        # Removed: cell-align, cell-background, cell-range
         self.directive_types = {
+            # Sizing directives
             "width": "dimension",
             "height": "dimension",
+            # Alignment directives
             "align": "alignment",
             "valign": "alignment",
+            # Visual directives
             "background": "style",
+            "color": "style",
+            "border": "string",
+            "border-radius": "dimension",
+            "opacity": "float",
+            # Spacing directives
             "padding": "dimension",
             "margin": "dimension",
             "margin-top": "dimension",
             "margin-bottom": "dimension",
             "margin-left": "dimension",
             "margin-right": "dimension",
-            "color": "style",
+            "gap": "dimension",
+            # Typography directives
             "fontsize": "dimension",
             "font-size": "dimension",
-            "opacity": "float",
-            "border": "string",
-            "border-radius": "dimension",
-            "border-position": "string",
+            "font-family": "string",
             "line-spacing": "float",
-            "cell-align": "alignment",
-            "cell-background": "style",
-            "cell-range": "string",
+            "bold": "bool",
+            "italic": "bool",
+            # Table directives (supported ones only)
+            "column-widths": "string",
+            # Additional supported directives
             "vertical-align": "alignment",
             "paragraph-spacing": "dimension",
             "indent": "dimension",
             "indent-start": "dimension",
-            "font-family": "string",
             "list-style": "string",
             "text-decoration": "string",
             "font-weight": "string",
             "box-shadow": "style",
             "transform": "style",
             "transition": "style",
-            "gap": "dimension",
-            "bold": "bool",
-            "italic": "bool",
         }
 
         self.converters = {
@@ -92,12 +96,19 @@ class DirectiveParser:
 
     def parse_directives(self, section: Section) -> None:
         """Parses leading directive-only lines from a section's content."""
-        if not section or not section.content:
+        if not section or not hasattr(section, "content"):
             if section and section.directives is None:
                 section.directives = {}
             return
 
-        lines = section.content.lstrip("\n\r ").split("\n")
+        # FIXED: Handle missing content attribute gracefully
+        content = getattr(section, "content", "")
+        if not content:
+            if section.directives is None:
+                section.directives = {}
+            return
+
+        lines = content.lstrip("\n\r ").split("\n")
         consumed_line_count = 0
         directives = {}
 
@@ -118,8 +129,11 @@ class DirectiveParser:
             merged_directives = (section.directives or {}).copy()
             merged_directives.update(directives)
             section.directives = merged_directives
-            section.content = "\n".join(lines[consumed_line_count:]).lstrip()
-            self._verify_directive_removal(section)
+
+            # FIXED: Only update content if it exists
+            if hasattr(section, "content"):
+                section.content = "\n".join(lines[consumed_line_count:]).lstrip()
+                self._verify_directive_removal(section)
 
     def parse_inline_directives(self, text_line: str) -> tuple[dict[str, Any], str]:
         """Parses a line that is expected to be only directives."""
@@ -144,8 +158,6 @@ class DirectiveParser:
         directives = {}
         # This pattern finds the content within each [...] block
         bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
-        # This pattern splits a string by spaces, but respects quoted values.
-        re.compile(r'([^=\s]+(?:="[^"]*"|=\'[^\']*\'|=[^=\s]*))')
 
         for content in bracket_content_pattern.findall(directive_text):
             # Split the content by space, but keep quoted values together. A simpler
@@ -186,8 +198,11 @@ class DirectiveParser:
                     else:
                         directives[key] = value or True
                 else:
-                    logger.warning(f"Unknown directive key '{key}'. Storing as is.")
-                    directives[key] = value or True
+                    # FIXED: Log unsupported directives but don't store them
+                    logger.warning(
+                        f"Unsupported directive key '{key}' (per DIRECTIVES.md). Ignoring."
+                    )
+
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
@@ -240,13 +255,17 @@ class DirectiveParser:
             if not re.match(r"^\s*\[[^=\[\]]+=[^\[\]]*\]\s*$", bracket_content):
                 malformed_text = malformed_match.group(1)
                 logger.warning(f"Removing malformed directive: {malformed_text!r}")
-                section.content = content[malformed_match.end() :].lstrip()
+                if hasattr(section, "content"):
+                    section.content = content[malformed_match.end() :].lstrip()
 
         if section.directives is None:
             section.directives = {}
 
     def _verify_directive_removal(self, section: Section) -> None:
         """Verify that all directives have been properly removed from content."""
+        if not hasattr(section, "content"):
+            return
+
         if re.match(r"^\s*\[[\w\-]+=", section.content):
             logger.warning(
                 f"Potential directives remain in content: {section.content[:50]}"

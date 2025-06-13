@@ -33,8 +33,6 @@ class ContentParser:
         self.element_factory = ElementFactory()
         self.directive_parser = DirectiveParser()
         self.formatters: list[BaseFormatter] = [
-            # ImageFormatter is now simpler and only handles `image` tokens.
-            # TextFormatter handles complex paragraphs with images.
             ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
             TableFormatter(self.element_factory),
@@ -54,7 +52,7 @@ class ContentParser:
         Parse content into slide elements and populate section.children.
         """
         logger.debug("Parsing content with improved directive handling")
-        all_elements: list[Element] = []
+        meta_elements: list[Element] = []
 
         if slide_title_text:
             cleaned_title, line_directives = (
@@ -67,7 +65,7 @@ class ContentParser:
             title_element = self.element_factory.create_title_element(
                 cleaned_title, formatting, final_title_directives
             )
-            all_elements.append(title_element)
+            meta_elements.append(title_element)
 
         if subtitle_text:
             cleaned_subtitle, line_directives = (
@@ -89,10 +87,25 @@ class ContentParser:
                 alignment=subtitle_alignment,
                 directives=final_subtitle_directives,
             )
-            all_elements.append(subtitle_element)
+            meta_elements.append(subtitle_element)
+
+        # FIXED: This loop populates the section hierarchy recursively.
+        # It no longer adds to a master list to prevent duplication.
+        for section in sections:
+            self._process_section_recursively(section)
+
+        # FIXED: After the hierarchy is fully built, extract all elements from it ONCE.
+        body_elements: list[Element] = []
+
+        def extract_elements(sec: Section):
+            for child in sec.children:
+                if isinstance(child, Section):
+                    extract_elements(child)
+                else:
+                    body_elements.append(child)
 
         for section in sections:
-            self._process_section_recursively(section, all_elements)
+            extract_elements(section)
 
         if slide_footer_text:
             cleaned_footer, line_directives = (
@@ -104,35 +117,44 @@ class ContentParser:
             footer_element = self.element_factory.create_footer_element(
                 cleaned_footer, formatting
             )
-            # Apply directives to footer if any were found
             if line_directives:
                 footer_element.directives = line_directives
-            all_elements.append(footer_element)
+            meta_elements.append(footer_element)
 
+        all_elements = meta_elements + body_elements
         logger.info(f"Created {len(all_elements)} total elements from content")
         return all_elements
 
-    def _process_section_recursively(
-        self, section: Section, all_elements: list[Element]
-    ):
+    def _process_section_recursively(self, section: Section):
         """
-        Process a section and its children recursively, populating elements.
-        """
-        if section.content:
-            tokens = self.md.parse(section.content)
-            parsed_elements = self._process_tokens_with_directive_detection(
-                tokens, section.directives
-            )
-            section.children.extend(parsed_elements)
-            all_elements.extend(parsed_elements)
-            section.content = ""
+        Process a section and its children recursively, populating section.children.
 
+        This is the ONLY function that should populate section.children hierarchy.
+        Per PARSER_SPEC.md, this creates the authoritative element structure.
+        """
+        # First, recursively process any child sections
         child_sections = [
             child for child in section.children if isinstance(child, Section)
         ]
         for child_section in child_sections:
-            self._process_section_recursively(child_section, all_elements)
+            self._process_section_recursively(child_section)
 
+        # Only process content for leaf sections (sections without child sections)
+        # This prevents duplication where both sections and elements would be in children
+        content = getattr(section, "content", None)
+        if content and not child_sections:
+            tokens = self.md.parse(content)
+            parsed_elements = self._process_tokens_with_directive_detection(
+                tokens, section.directives
+            )
+            # For leaf sections, replace children with parsed elements
+            section.children = parsed_elements
+            delattr(section, "content")
+        elif content:
+            # For non-leaf sections, just remove the content since children are sections
+            delattr(section, "content")
+
+    # All other methods in this file remain the same as the previous correct version.
     def _process_tokens_with_directive_detection(
         self, tokens: list[Token], section_directives: dict[str, Any]
     ) -> list[Element]:
@@ -200,7 +222,6 @@ class ContentParser:
     def find_closing_token(
         self, tokens: list[Token], open_token_index: int, close_tag_type: str
     ) -> int:
-        """Finds the index of the matching closing token."""
         open_token = tokens[open_token_index]
         depth = 1
         for i in range(open_token_index + 1, len(tokens)):
@@ -215,7 +236,6 @@ class ContentParser:
         return len(tokens) - 1
 
     def _analyze_headings(self, tokens: list[Token]) -> dict[int, dict]:
-        """Analyzes heading tokens to classify them."""
         heading_info = {}
         first_h1_index = -1
         for i, token in enumerate(tokens):
@@ -238,19 +258,14 @@ class ContentParser:
         element_directives: dict[str, Any],
         heading_info: dict,
     ) -> tuple[list[Element], int]:
-        """Dispatches token processing to the appropriate formatter."""
         if current_index >= len(tokens):
             return [], current_index
-
         token = tokens[current_index]
-
-        # A paragraph can contain anything, so TextFormatter is the general handler.
         if token.type == "paragraph_open":
             formatter = self.formatters[-1]  # TextFormatter
             return formatter.process(
                 tokens, current_index, section_directives, element_directives
             )
-
         for formatter in self.formatters:
             if formatter.can_handle(token, tokens[current_index:]):
                 try:
@@ -264,7 +279,6 @@ class ContentParser:
                             heading_data.get("type") == "section"
                         )
                         kwargs["is_subtitle"] = heading_data.get("type") == "subtitle"
-
                     elements, end_index = formatter.process(
                         tokens,
                         current_index,
@@ -278,5 +292,4 @@ class ContentParser:
                     logger.error(
                         f"Error in {formatter.__class__.__name__}: {e}", exc_info=True
                     )
-
         return [], current_index

@@ -1,4 +1,4 @@
-"""Slide model for presentations."""
+"""Slide model for presentations - Updated for specification compliance."""
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -11,7 +11,7 @@ from markdowndeck.models.elements.base import Element
 class Section:
     """Represents a section in a slide (vertical or horizontal)."""
 
-    content: str = ""
+    # REMOVED: content field - not in DATA_MODELS.md specification
     directives: dict[str, Any] = field(default_factory=dict)
     children: list["Element | Section"] = field(default_factory=list)
     type: str = "section"  # "section" or "row"
@@ -39,40 +39,23 @@ class Section:
 
 @dataclass
 class Slide:
-    """Represents a slide in a presentation."""
+    """Represents a slide in a presentation - Updated for specification compliance."""
 
-    # REFACTORED: The `elements` list is now the primary inventory of all elements created by the parser.
-    # It is used by the LayoutManager and then cleared during finalization.
+    # Core data structure per DATA_MODELS.md
     elements: list[Element] = field(default_factory=list)
-    # REFACTORED: `renderable_elements` is populated by the LayoutManager and OverflowManager and is the
-    # final source of truth for the API Generator.
     renderable_elements: list[Element] = field(default_factory=list)
-
-    # REFACTORED: `root_section` is the new single entry point for the slide's body content hierarchy.
-    # This aligns with ARCHITECTURE.md Sec 3.
     root_section: Section | None = None
-    # REFACTORED: `is_continuation` flag added per DATA_MODELS.md Sec 3.1.
     is_continuation: bool = False
 
+    # Standard slide properties
     layout: SlideLayout = SlideLayout.BLANK
     notes: str | None = None
     object_id: str | None = None
-    footer: str | None = None
     background: dict[str, Any] | None = None
-    title: str = ""  # Store the title text for easier reference
     speaker_notes_object_id: str | None = None
 
-    # REMOVED: `sections`, `title_directives`, `subtitle_directives`, and `placeholder_mappings`
-    # are obsolete under the new architecture. Directives are stored directly on elements.
-
-    def __post_init__(self):
-        """Extract title from elements for convenience."""
-        if not self.title:
-            for element in self.elements:
-                if element.element_type == ElementType.TITLE:
-                    if hasattr(element, "text"):
-                        self.title = getattr(element, "text", "")
-                    break
+    # REMOVED: footer and title fields - not in DATA_MODELS.md specification
+    # These should be derived from elements when needed
 
     def get_title_element(self) -> Element | None:
         """Get the title element if present."""
@@ -109,3 +92,15 @@ class Slide:
         return [
             element for element in self.elements if element.element_type == element_type
         ]
+
+    @property
+    def title(self) -> str:
+        """Get title text from title element (for backward compatibility)."""
+        title_element = self.get_title_element()
+        return getattr(title_element, "text", "") if title_element else ""
+
+    @property
+    def footer(self) -> str | None:
+        """Get footer text from footer element (for backward compatibility)."""
+        footer_element = self.get_footer_element()
+        return getattr(footer_element, "text", None) if footer_element else None

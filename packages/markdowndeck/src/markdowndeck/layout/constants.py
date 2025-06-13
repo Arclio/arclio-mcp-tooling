@@ -140,11 +140,10 @@ IMAGE_MAX_HEIGHT_FRACTION = 0.8  # Max height as fraction of container
 DEFAULT_SLIDE_WIDTH = 720.0  # 10 inches at 72 DPI
 DEFAULT_SLIDE_HEIGHT = 405.0  # 5.625 inches at 72 DPI (16:9 aspect ratio)
 
-# Default Margins
-# REFACTORED: All margins set to 0.0 per "Zero Default Spacing" principle.
+# Default Margins - FIXED: All margins set to 0.0 per "Zero Default Spacing" principle
 DEFAULT_MARGIN_TOP = 0.0  # Top margin
 DEFAULT_MARGIN_RIGHT = 0.0  # Right margin
-DEFAULT_MARGIN_BOTTOM = 20.0  # Bottom margin
+DEFAULT_MARGIN_BOTTOM = 0.0  # Bottom margin - FIXED: was 20.0
 DEFAULT_MARGIN_LEFT = 0.0  # Left margin
 
 # =============================================================================
@@ -165,8 +164,3 @@ VALIGN_BOTTOM = "bottom"
 # =============================================================================
 # CALCULATION SAFETY CONSTANTS
 # =============================================================================
-
-# Safety Margins (to prevent calculation errors)
-CALCULATION_EPSILON = 0.1  # Minimum meaningful dimension difference
-MAX_ITERATIONS = 100  # Maximum layout calculation iterations
-OVERFLOW_TOLERANCE = 1000.0  # Maximum allowed overflow before warning

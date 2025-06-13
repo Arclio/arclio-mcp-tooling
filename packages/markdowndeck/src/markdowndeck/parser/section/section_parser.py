@@ -59,7 +59,11 @@ class SectionParser:
             children=top_level_sections,
             directives={},  # Root section can have its own directives if any are at the very top.
         )
+        # The content of the root section is the entire normalized content, which allows
+        # root-level directives to be parsed. This is a temporary attribute.
+        root_section.content = normalized_content
         self.directive_parser.parse_directives(root_section)
+        # The content attribute is cleared by parse_directives, which is desired.
 
         logger.info(
             f"Created root section '{root_section.id}' with {len(top_level_sections)} top-level children."
@@ -113,15 +117,16 @@ class SectionParser:
 
             if len(horizontal_sections) > 1:
                 row_id = f"row-{v_idx}-{self._generate_id()}"
-                final_sections.append(
-                    Section(
-                        type="row",
-                        directives={},
-                        children=horizontal_sections,
-                        id=row_id,
-                        content="",
-                    )
+                row_section = Section(
+                    type="row",
+                    directives={},
+                    children=horizontal_sections,
+                    id=row_id,
                 )
+                # Attach content to parse directives for the row itself
+                row_section.content = v_part_content
+                self.directive_parser.parse_directives(row_section)
+                final_sections.append(row_section)
                 logger.debug(
                     f"Added row section {row_id} with {len(horizontal_sections)} horizontal subsections."
                 )
@@ -174,12 +179,15 @@ class SectionParser:
                 continue
 
             subsection_id = f"section-{v_id_prefix}-h{h_idx}-{self._generate_id()}"
+
+            # FIXED: Instantiate Section without `content`, then set it as a temporary attribute.
             temp_section = Section(
                 type="section",
-                content=h_part_content.strip(),
                 directives={},
                 id=subsection_id,
             )
+            # This temporary attribute allows the directive parser to read the content.
+            temp_section.content = h_part_content.strip()
 
             self.directive_parser.parse_directives(temp_section)
 

@@ -179,4 +179,12 @@ class ListFormatter(BaseFormatter):
     def _extract_list_item_directives_with_trailing(
         self, content: str
     ) -> tuple[dict[str, Any], str, dict[str, Any]]:
-        return {}, content, {}
+        """Extract directives from list item content, including trailing directives."""
+        # Parse and strip directives from the content
+        cleaned_content, directives = self.directive_parser.parse_and_strip_from_text(
+            content
+        )
+
+        # For now, treat all found directives as applying to the list element
+        # In the future, we might distinguish between item-level and element-level directives
+        return directives, cleaned_content, {}

@@ -47,27 +47,19 @@ ELEMENT_FONT_SIZES = {
 
 def render_layout_zones(ax, layout_manager):
     """Renders the header, body, and footer zones based on LayoutManager dimensions."""
-    # Access zone attributes from the position_calculator
-    calc = layout_manager.position_calculator
+    # This function is not fully functional with the current LayoutManager structure
+    # but provides a template for how it would work.
+    # We will assume a simplified body zone for now.
+    lm_calc = layout_manager.position_calculator
+    (
+        body_left,
+        body_top,
+        body_width,
+        body_height,
+    ) = lm_calc.get_body_zone_area()
+
     zones = {
-        "header": (
-            calc.header_left,
-            calc.header_top,
-            calc.header_width,
-            calc.header_height,
-        ),
-        "body": (
-            calc.body_left,
-            calc.body_top,
-            calc.body_width,
-            calc.body_height,
-        ),
-        "footer": (
-            calc.footer_left,
-            calc.footer_top,
-            calc.footer_width,
-            calc.footer_height,
-        ),
+        "body": (body_left, body_top, body_width, body_height),
     }
 
     for name, (x, y, w, h) in zones.items():
@@ -94,17 +86,18 @@ def render_layout_zones(ax, layout_manager):
         )
 
 
-def render_sections(ax, sections, level=0):
-    """Recursively renders all sections and subsections with nested coloring."""
-    if not sections:
+def render_sections(ax, root_section, level=0):
+    """
+    Recursively renders a section and all its children.
+    REFACTORED: This function now takes a single root_section and traverses the hierarchy.
+    """
+    if not root_section:
         return
 
-    for idx, section in enumerate(sections):
-        if not (_has_valid_position(section) and _has_valid_size(section)):
-            continue
-
-        pos_x, pos_y = section.position
-        size_w, size_h = section.size
+    # Draw the current section
+    if _has_valid_position(root_section) and _has_valid_size(root_section):
+        pos_x, pos_y = root_section.position
+        size_w, size_h = root_section.size
         color = SECTION_COLORS[level % len(SECTION_COLORS)]
 
         rect = patches.Rectangle(
@@ -114,14 +107,13 @@ def render_sections(ax, sections, level=0):
             linewidth=1.2,
             edgecolor=color,
             facecolor="none",
-            linestyle=(0, (2, 2)),  # Dotted line (offset, (dash_pattern))
+            linestyle=(0, (2, 2)),  # Dotted line
             alpha=0.6,
             zorder=1,
         )
         ax.add_patch(rect)
 
-        # Create a concise label
-        label = f"Sec: {section.id or idx}"
+        label = f"Sec: {root_section.id or 'root'}"
         ax.text(
             pos_x,
             pos_y - 2,
@@ -130,7 +122,7 @@ def render_sections(ax, sections, level=0):
             color=color,
             va="bottom",
             ha="left",
-            zorder=1,
+            zorder=1.1,
             bbox={
                 "boxstyle": "round,pad=0.1",
                 "facecolor": "white",
@@ -139,9 +131,11 @@ def render_sections(ax, sections, level=0):
             },
         )
 
-        child_sections = [c for c in section.children if hasattr(c, "children")]
-        if child_sections:
-            render_sections(ax, child_sections, level + 1)
+    # Recursively render child sections
+    child_sections = [c for c in root_section.children if hasattr(c, "children")]
+    if child_sections:
+        for section in child_sections:
+            render_sections(ax, section, level + 1)
 
 
 # --- Element Renderer ---

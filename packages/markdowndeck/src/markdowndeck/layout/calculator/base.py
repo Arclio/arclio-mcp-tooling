@@ -1,4 +1,4 @@
-"""Refactored base position calculator with flexible body area calculation."""
+"""Refactored base position calculator with flexible body area calculation and specification compliance."""
 
 import logging
 
@@ -9,7 +9,6 @@ from markdowndeck.layout.constants import (
     VERTICAL_SPACING,
 )
 from markdowndeck.models import ElementType, Slide
-from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
 
@@ -43,75 +42,49 @@ class PositionCalculator:
 
     def calculate_positions(self, slide: Slide) -> Slide:
         """Calculate positions for all elements and sections in a slide."""
-        # CRITICAL FIX: Process meta-elements for ALL slides, including continuation slides
         header_height = self._position_header_elements(slide)
         footer_height = self._position_footer_elements(slide)
+
         self.body_top = self.margins["top"] + header_height
         self.body_height = (
             self.slide_height - self.margins["bottom"] - footer_height - self.body_top
         )
+        body_area = (self.body_left, self.body_top, self.body_width, self.body_height)
 
-        # REFACTORED: The layout process now starts from the single root_section.
-        slide.root_section = self._ensure_section_based_layout(slide)
+        if slide.root_section:
+            from markdowndeck.layout.calculator.section_layout import (
+                calculate_recursive_layout,
+            )
 
-        from markdowndeck.layout.calculator.section_layout import (
-            calculate_section_based_positions,
-        )
+            calculate_recursive_layout(self, slide.root_section, body_area)
 
-        final_slide = calculate_section_based_positions(self, slide)
-
-        # Populate renderable_elements with positioned meta-elements.
-        # This must happen for ALL slides, not just the first one
         meta_elements = []
-        if slide.get_title_element():
-            title_elem = slide.get_title_element()
-            if title_elem.position:
-                meta_elements.append(title_elem)
-        if slide.get_subtitle_element():
-            subtitle_elem = slide.get_subtitle_element()
-            if subtitle_elem.position:
-                meta_elements.append(subtitle_elem)
-        if slide.get_footer_element():
-            footer_elem = slide.get_footer_element()
-            if footer_elem.position:
-                meta_elements.append(footer_elem)
+        if slide.get_title_element() and slide.get_title_element().position:
+            meta_elements.append(slide.get_title_element())
+        if slide.get_subtitle_element() and slide.get_subtitle_element().position:
+            meta_elements.append(slide.get_subtitle_element())
+        if slide.get_footer_element() and slide.get_footer_element().position:
+            meta_elements.append(slide.get_footer_element())
 
-        final_slide.renderable_elements.extend(meta_elements)
-
-        # Clear the original element inventory list as it's now stale.
-        final_slide.elements = []
-        return final_slide
+        slide.renderable_elements.extend(meta_elements)
+        slide.elements = []
+        return slide
 
     def calculate_element_height_with_proactive_scaling(
         self, element, available_width: float, available_height: float = 0
     ) -> float:
         """Calculate element height with proactive image scaling applied."""
         if element.element_type == ElementType.IMAGE:
-            from markdowndeck.layout.metrics.image import calculate_image_element_height
+            from markdowndeck.layout.metrics.image import calculate_image_display_size
 
-            return calculate_image_element_height(
+            _, height = calculate_image_display_size(
                 element, available_width, available_height
             )
+            return height
+
         from markdowndeck.layout.metrics import calculate_element_height
 
         return calculate_element_height(element, available_width)
-
-    def _ensure_section_based_layout(self, slide: Slide) -> Section:
-        """
-        Ensures a root section exists for the slide's body content.
-        REFACTORED: To work with slide.root_section instead of slide.sections.
-        """
-        if slide.root_section:
-            return slide.root_section
-
-        # If no root_section, create one from the body elements.
-        logger.warning(
-            f"Slide {slide.object_id} has no root_section. Creating a default one."
-        )
-        body_elements = self.get_body_elements(slide)
-        return Section(
-            id="root", children=body_elements, position=(self.body_left, self.body_top)
-        )
 
     def _position_header_elements(self, slide: Slide) -> float:
         total_height = 0
@@ -123,7 +96,6 @@ class PositionCalculator:
             title.size = (self.max_content_width, title_height)
             title.position = (self.margins["left"], self.margins["top"])
             total_height += title_height
-
         subtitle = slide.get_subtitle_element()
         if subtitle:
             from markdowndeck.layout.metrics import calculate_element_height
@@ -133,7 +105,6 @@ class PositionCalculator:
             subtitle_y = self.margins["top"] + total_height
             subtitle.position = (self.margins["left"], subtitle_y)
             total_height += subtitle_height
-
         return total_height
 
     def _position_footer_elements(self, slide: Slide) -> float:
@@ -150,10 +121,9 @@ class PositionCalculator:
         return total_height
 
     def _calculate_element_width(self, element, container_width: float) -> float:
+        """Calculates element width, respecting zero-size elements."""
+        # FIXED: If an element (like an invalid image) has its size explicitly set to (0, 0),
+        # its width for layout purposes must also be 0.
+        if hasattr(element, "size") and element.size == (0, 0):
+            return 0.0
         return container_width
-
-    def get_body_elements(self, slide: Slide) -> list:
-        return slide.get_content_elements()
-
-    def get_body_zone_area(self) -> tuple[float, float, float, float]:
-        return (self.body_left, self.body_top, self.body_width, self.body_height)

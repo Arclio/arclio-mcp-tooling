@@ -1,7 +1,9 @@
 """API client for Google Slides API."""
 
 import logging
+import random
 import time
+from typing import Any, Callable
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource, build
@@ -36,8 +38,10 @@ class ApiClient:
         """
         self.credentials = credentials
         self.service = service
-        self.max_retries = 3
-        self.retry_delay = 2  # seconds
+        # PRESERVED: The retry logic is preserved but its parameters are enhanced for production readiness.
+        # ENHANCED: Increased retries and delay to make the client more resilient.
+        self.max_retries = 5
+        self.retry_delay = 5  # seconds
         self.batch_size = 50  # Maximum number of requests per batch
 
         if service:
@@ -51,6 +55,49 @@ class ApiClient:
 
         self.request_generator = ApiRequestGenerator()
         logger.info("ApiClient initialized successfully")
+
+    def _execute_request_with_retry(self, request_func: Callable[[], Any]) -> Any:
+        """
+        Executes a Google API request with a retry mechanism for transient errors.
+
+        # REFACTORED: This is a new private method to centralize retry logic.
+        # MAINTAINS: The exponential backoff strategy from the original `execute_batch_update`.
+        # JUSTIFICATION: Prevents code duplication and ensures all critical API calls
+        # are resilient to transient errors like 503 Service Unavailable and 429 Rate Limit Exceeded.
+
+        Args:
+            request_func: A callable (e.g., a lambda) that executes the Google API request.
+
+        Returns:
+            The result of the API request execution.
+
+        Raises:
+            HttpError: If the request fails after all retries or for a non-retryable reason.
+        """
+        retries = 0
+        while True:
+            try:
+                return request_func()
+            except HttpError as error:
+                # Retry on 429 (Rate Limit), 500 (Internal Error), 503 (Service Unavailable)
+                if error.resp.status in [429, 500, 503] and retries < self.max_retries:
+                    retries += 1
+                    # ENHANCED: Added jitter to the exponential backoff to prevent synchronized retries.
+                    wait_time = self.retry_delay * (2 ** (retries - 1))
+                    jitter = random.uniform(0, 1)  # Add up to 1 second of random jitter
+                    total_wait = wait_time + jitter
+                    # ENHANCED: Improved logging to include the error reason.
+                    error_reason = getattr(error, "_get_reason", lambda: "Unknown")()
+                    logger.warning(
+                        f'API request failed with status {error.resp.status}: "{error_reason}". '
+                        f"Retrying in {total_wait:.2f}s... (Attempt {retries}/{self.max_retries})"
+                    )
+                    time.sleep(total_wait)
+                else:
+                    logger.error(
+                        f"Unrecoverable API request failed: {error}", exc_info=True
+                    )
+                    raise
 
     def create_presentation_from_deck(self, deck: Deck) -> dict:
         """
@@ -66,17 +113,10 @@ class ApiClient:
             f"Creating presentation: '{deck.title}' with {len(deck.slides)} slides"
         )
 
-        # REFACTORED: Removed theme_id. create_presentation now creates a blank presentation.
-        # JUSTIFICATION: Aligns with PRINCIPLES.md (Sec 6) and API_GEN_SPEC.md (Rule #5).
         presentation = self.create_presentation(deck.title)
         presentation_id = presentation["presentationId"]
         logger.info(f"Created presentation with ID: {presentation_id}")
 
-        # REFACTORED: Removed call to _delete_default_slides. This is a theme-related
-        # concept that is now obsolete under the "Blank Canvas First" principle.
-        # MAINTAINS: The core pipeline flow of creating the presentation then adding content.
-
-        # Generate and execute batched requests to create content
         batches = self.request_generator.generate_batch_requests(deck, presentation_id)
         logger.info(f"Generated {len(batches)} batch requests")
 
@@ -89,12 +129,10 @@ class ApiClient:
             else:
                 self.execute_batch_update(batch)
 
-        # Get updated presentation to retrieve speaker notes IDs
         updated_presentation = self.get_presentation(
             presentation_id,
             fields="slides(objectId,slideProperties.notesPage.pageElements)",
         )
-        # Create a second batch of requests for speaker notes
         notes_batches = []
         slides_with_notes = 0
 
@@ -169,22 +207,17 @@ class ApiClient:
         Raises:
             HttpError: If API call fails
         """
-        # REFACTORED: Removed all theme-related logic.
-        # MAINTAINS: Core functionality of creating a presentation.
-        # JUSTIFICATION: Aligns with "Blank Canvas First" principle.
-        try:
-            body = {"title": title}
-            logger.debug("Creating presentation without theme")
-            presentation = (
-                self.slides_service.presentations().create(body=body).execute()
-            )
-            logger.info(
-                f"Created presentation with ID: {presentation['presentationId']}"
-            )
-            return presentation
-        except HttpError as error:
-            logger.error(f"Failed to create presentation: {error}")
-            raise
+        body = {"title": title}
+        logger.debug("Creating presentation without theme")
+
+        request_func = (
+            lambda: self.slides_service.presentations().create(body=body).execute()
+        )
+
+        presentation = self._execute_request_with_retry(request_func)
+
+        logger.info(f"Created presentation with ID: {presentation['presentationId']}")
+        return presentation
 
     def get_presentation(self, presentation_id: str, fields: str = None) -> dict:
         """Get a presentation by ID."""
@@ -192,44 +225,35 @@ class ApiClient:
             kwargs = {}
             if fields:
                 kwargs["fields"] = fields
-            return (
-                self.slides_service.presentations()
+
+            request_func = (
+                lambda: self.slides_service.presentations()
                 .get(presentationId=presentation_id, **kwargs)
                 .execute()
             )
+
+            return self._execute_request_with_retry(request_func)
+
         except HttpError as error:
             logger.error(f"Failed to get presentation: {error}")
             raise
 
     def execute_batch_update(self, batch: dict) -> dict:
-        """Execute a batch update request with retry logic."""
+        """
+        Execute a batch update request with retry logic.
+        """
         batch = validate_batch_requests(batch)
-        retries = 0
-        while retries <= self.max_retries:
-            try:
-                return (
-                    self.slides_service.presentations()
-                    .batchUpdate(
-                        presentationId=batch["presentationId"],
-                        body={"requests": batch["requests"]},
-                    )
-                    .execute()
-                )
-            except HttpError as error:
-                if error.resp.status in [429, 500, 503]:
-                    retries += 1
-                    if retries <= self.max_retries:
-                        wait_time = self.retry_delay * (2 ** (retries - 1))
-                        logger.warning(
-                            f"Rate limit or server error. Retrying in {wait_time}s..."
-                        )
-                        time.sleep(wait_time)
-                        continue
-                logger.error(
-                    f"Unrecoverable batch update failed: {error}", exc_info=True
-                )
-                raise
-        return {}
+
+        request_func = lambda: (
+            self.slides_service.presentations()
+            .batchUpdate(
+                presentationId=batch["presentationId"],
+                body={"requests": batch["requests"]},
+            )
+            .execute()
+        )
+
+        return self._execute_request_with_retry(request_func)
 
     def _split_batch(self, batch: dict) -> list[dict]:
         """Split a large batch into smaller batches."""

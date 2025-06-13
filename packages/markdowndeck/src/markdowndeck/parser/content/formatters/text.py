@@ -75,48 +75,29 @@ class TextFormatter(BaseFormatter):
         is_section_heading: bool = False,
         is_subtitle: bool = False,
     ) -> tuple[TextElement | None, int]:
-        """Process heading tokens with proper classification."""
         open_token = tokens[start_index]
         level = int(open_token.tag[1])
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
-
         inline_token_index = start_index + 1
         if (
             inline_token_index >= len(tokens)
             or tokens[inline_token_index].type != "inline"
         ):
             return None, end_idx
-
         inline_token = tokens[inline_token_index]
         raw_content = inline_token.content or ""
-
-        # REFACTORED: Use centralized parser to strip directives from anywhere in the line.
         cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
             raw_content
         )
         final_directives = {**directives, **line_directives}
-
         text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
-
         if not text_content:
             return None, end_idx
-
-        if level == 1:
-            element = self.element_factory.create_title_element(
-                text_content, formatting, final_directives
-            )
-        elif is_subtitle or (level == 2 and not is_section_heading):
-            alignment = AlignmentType(final_directives.get("align", "center"))
-            element = self.element_factory.create_subtitle_element(
-                text_content, formatting, alignment, final_directives
-            )
-        else:
-            final_directives.setdefault("fontsize", {2: 18, 3: 16}.get(level, 14))
-            alignment = AlignmentType(final_directives.get("align", "left"))
-            element = self.element_factory.create_text_element(
-                text_content, formatting, alignment, final_directives
-            )
-
+        final_directives.setdefault("heading_level", level)
+        alignment = AlignmentType(final_directives.get("align", "left"))
+        element = self.element_factory.create_text_element(
+            text_content, formatting, alignment, final_directives
+        )
         logger.debug(
             f"Created heading element: {element.element_type}, text: '{text_content[:30]}'"
         )
@@ -129,74 +110,183 @@ class TextFormatter(BaseFormatter):
         inline_index = start_index + 1
         if inline_index >= len(tokens) or tokens[inline_index].type != "inline":
             return [], start_index + 1
-
         inline_token = tokens[inline_index]
         close_index = self.find_closing_token(tokens, start_index, "paragraph_close")
-
         if not hasattr(inline_token, "children") or not inline_token.children:
             return [], close_index
 
+        # FIXED: Parse the entire line content first to extract trailing directives
+        # that should apply to image elements per task requirements
+        full_content = inline_token.content or ""
+        line_cleaned, line_directives = self.directive_parser.parse_and_strip_from_text(
+            full_content
+        )
+
         elements: list[Element] = []
-        text_buffer = ""
+        text_tokens = []  # Collect text-related tokens for processing together
 
         for child_token in inline_token.children:
             if child_token.type == "image":
-                # If there's pending text, process it first
-                if text_buffer.strip():
-                    elements.extend(
-                        self._create_text_elements_from_buffer(text_buffer, directives)
+                # Process any accumulated text tokens first
+                if text_tokens:
+                    text_element = self._create_text_element_from_tokens(
+                        text_tokens, directives
                     )
-                    text_buffer = ""
+                    if text_element:
+                        elements.append(text_element)
+                    text_tokens = []
 
-                # Process the image
+                # Extract alt text and any directives within it
+                alt_text_raw = "".join(c.content for c in child_token.children)
+                alt_text, alt_directives = (
+                    self.directive_parser.parse_and_strip_from_text(alt_text_raw)
+                )
+
+                # FIXED: Merge section directives, line directives, and alt text directives
+                # Line directives (trailing directives) take precedence per task specification
+                final_image_directives = {
+                    **directives,
+                    **alt_directives,
+                    **line_directives,
+                }
+
                 image_element = self.element_factory.create_image_element(
                     url=child_token.attrs.get("src", ""),
-                    alt_text="".join(c.content for c in child_token.children),
-                    directives=directives,  # Directives from section apply
+                    alt_text=alt_text,
+                    directives=final_image_directives,
                 )
                 elements.append(image_element)
             else:
-                text_buffer += child_token.content
+                # Collect all text-related tokens (text, formatting, etc.)
+                text_tokens.append(child_token)
 
-        # Process any remaining text in the buffer
-        if text_buffer.strip():
-            elements.extend(
-                self._create_text_elements_from_buffer(text_buffer, directives)
+        # Process remaining text tokens
+        if text_tokens:
+            text_element = self._create_text_element_from_tokens(
+                text_tokens, directives
             )
+            if text_element:
+                elements.append(text_element)
 
         return elements, close_index
 
-    def _create_text_elements_from_buffer(
-        self, text_buffer: str, directives: dict[str, Any]
-    ) -> list[Element]:
-        """Creates a text element from a buffer, stripping directives."""
+    def _create_text_element_from_tokens(
+        self, text_tokens: list[Token], directives: dict[str, Any]
+    ) -> Element | None:
+        """Create a text element from a list of inline tokens, preserving formatting."""
+        if not text_tokens:
+            return None
+
+        # Extract plain text and formatting from the tokens
+        plain_text = ""
+        formatting_data = []
+        active_formats = []
+
+        for token in text_tokens:
+            token_type = getattr(token, "type", "")
+
+            if token_type == "text":
+                plain_text += token.content
+            elif token_type == "code_inline":
+                start_pos = len(plain_text)
+                code_content = token.content
+                plain_text += code_content
+                if code_content.strip():
+                    from markdowndeck.models import TextFormat, TextFormatType
+
+                    formatting_data.append(
+                        TextFormat(
+                            start=start_pos,
+                            end=start_pos + len(code_content),
+                            format_type=TextFormatType.CODE,
+                        )
+                    )
+            elif token_type in ["softbreak", "hardbreak"]:
+                plain_text += "\n"
+            elif token_type.endswith("_open"):
+                base_type = token_type.split("_")[0]
+                format_type_enum = None
+                value: Any = True
+                if base_type == "strong":
+                    from markdowndeck.models import TextFormatType
+
+                    format_type_enum = TextFormatType.BOLD
+                elif base_type == "em":
+                    from markdowndeck.models import TextFormatType
+
+                    format_type_enum = TextFormatType.ITALIC
+                elif base_type == "s":
+                    from markdowndeck.models import TextFormatType
+
+                    format_type_enum = TextFormatType.STRIKETHROUGH
+                elif base_type == "link":
+                    from markdowndeck.models import TextFormatType
+
+                    format_type_enum = TextFormatType.LINK
+                    value = (
+                        token.attrs.get("href", "") if hasattr(token, "attrs") else ""
+                    )
+                if format_type_enum:
+                    active_formats.append((format_type_enum, len(plain_text), value))
+            elif token_type.endswith("_close"):
+                base_type = token_type.split("_")[0]
+                expected_format_type = None
+                if base_type == "strong":
+                    from markdowndeck.models import TextFormatType
+
+                    expected_format_type = TextFormatType.BOLD
+                elif base_type == "em":
+                    from markdowndeck.models import TextFormatType
+
+                    expected_format_type = TextFormatType.ITALIC
+                elif base_type == "s":
+                    from markdowndeck.models import TextFormatType
+
+                    expected_format_type = TextFormatType.STRIKETHROUGH
+                elif base_type == "link":
+                    from markdowndeck.models import TextFormatType
+
+                    expected_format_type = TextFormatType.LINK
+                for i in range(len(active_formats) - 1, -1, -1):
+                    fmt_type, start_pos, fmt_value = active_formats[i]
+                    if fmt_type == expected_format_type:
+                        if start_pos < len(plain_text):
+                            from markdowndeck.models import TextFormat
+
+                            formatting_data.append(
+                                TextFormat(
+                                    start=start_pos,
+                                    end=len(plain_text),
+                                    format_type=fmt_type,
+                                    value=fmt_value,
+                                )
+                            )
+                        active_formats.pop(i)
+                        break
+
+        if not plain_text.strip():
+            return None
+
+        # FIXED: Parse directives from the text content to support element-scoped directives
         cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
-            text_buffer
+            plain_text
         )
 
-        if not cleaned_text.strip():
-            # If only directives were in the buffer, apply them to the last element if possible
-            # This handles `![img](...)\n[width=100]`
-            # For simplicity, this is not implemented here to avoid statefulness.
-            # The recommended pattern is `![img](...) [width=100]` on the same line.
-            return []
-
+        # Merge section directives with any element-specific directives found in the text
         final_directives = {**directives, **line_directives}
-        text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
 
-        if not text_content:
-            return []
-
+        # Use the cleaned text (with directives removed) but keep the extracted formatting
         alignment = AlignmentType(final_directives.get("align", "left"))
-        element = self.element_factory.create_text_element(
-            text_content, formatting, alignment, final_directives
+        return self.element_factory.create_text_element(
+            cleaned_text if cleaned_text.strip() else plain_text,
+            formatting_data,
+            alignment,
+            final_directives,
         )
-        return [element]
 
     def _process_quote(
         self, tokens: list[Token], start_index: int, directives: dict[str, Any]
     ) -> tuple[TextElement | None, int]:
-        """Process blockquote tokens."""
         end_idx = self.find_closing_token(tokens, start_index, "blockquote_close")
         text_parts = []
         i = start_index + 1
@@ -210,17 +300,14 @@ class TextFormatter(BaseFormatter):
                     text_parts.append(tokens[para_inline_idx].content)
                 i = self.find_closing_token(tokens, i, "paragraph_close")
             i += 1
-
         full_text = "\n".join(text_parts)
         cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
             full_text
         )
         final_directives = {**directives, **line_directives}
-
         text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
         if not text_content:
             return None, end_idx
-
         alignment = AlignmentType(final_directives.get("align", "left"))
         element = self.element_factory.create_quote_element(
             text_content, formatting, alignment, final_directives
@@ -230,11 +317,11 @@ class TextFormatter(BaseFormatter):
     def _extract_clean_text_and_formatting(
         self, cleaned_text: str
     ) -> tuple[str, list[TextFormat]]:
-        """Extracts formatting from a pre-cleaned text string."""
         if not cleaned_text.strip():
             return "", []
 
         tokens = self.md.parse(cleaned_text.strip())
+
         for token in tokens:
             if token.type == "inline":
                 plain_text = self._get_plain_text_from_inline_token(token)
@@ -242,4 +329,5 @@ class TextFormatter(BaseFormatter):
                     token
                 )
                 return plain_text, formatting
+
         return cleaned_text.strip(), []
