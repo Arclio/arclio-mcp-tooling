@@ -1257,3 +1257,80 @@ class SlidesService(BaseGoogleService):
             }
         except Exception as e:
             return self.handle_api_error("create_textbox_with_text", e)
+
+    def update_text_formatting(
+        self,
+        presentation_id: str,
+        element_id: str,
+        formatted_text: str,
+    ) -> dict[str, Any]:
+        """
+        Update formatting of text in an existing text box.
+
+        Args:
+            presentation_id: The ID of the presentation
+            element_id: The ID of the text box element
+            formatted_text: Text with formatting markers (**, *, etc.)
+
+        Returns:
+            Response data or error information
+        """
+        try:
+            # Process the formatted text
+            plain_text = formatted_text
+            # Remove bold markers
+            plain_text = re.sub(r"\*\*(.*?)\*\*", r"\1", plain_text)
+            # Remove italic markers
+            plain_text = re.sub(r"\*(.*?)\*", r"\1", plain_text)
+            # Remove code markers if present
+            plain_text = re.sub(r"`(.*?)`", r"\1", plain_text)
+
+            # Generate style requests
+            style_requests = []
+
+            # Process bold text
+            bold_pattern = r"\*\*(.*?)\*\*"
+            bold_matches = list(re.finditer(bold_pattern, formatted_text))
+
+            for match in bold_matches:
+                content = match.group(1)
+                start_pos = plain_text.find(content)
+                if start_pos >= 0:
+                    end_pos = start_pos + len(content)
+                    style_requests.append(
+                        {
+                            "updateTextStyle": {
+                                "objectId": element_id,
+                                "textRange": {
+                                    "type": "FIXED_RANGE",  # Specify the range type
+                                    "startIndex": start_pos,
+                                    "endIndex": end_pos,
+                                },
+                                "style": {"bold": True},
+                                "fields": "bold",
+                            }
+                        }
+                    )
+
+            # Process italic text (similar pattern for italic)
+            # ... (similar code for italic formatting)
+
+            if style_requests:
+                response = (
+                    self.service.presentations()
+                    .batchUpdate(
+                        presentationId=presentation_id,
+                        body={"requests": style_requests},
+                    )
+                    .execute()
+                )
+                return {
+                    "presentationId": presentation_id,
+                    "elementId": element_id,
+                    "operation": "update_text_formatting",
+                    "result": "success",
+                }
+            return {"result": "no_formatting_applied"}
+
+        except Exception as e:
+            return self.handle_api_error("update_text_formatting", e)

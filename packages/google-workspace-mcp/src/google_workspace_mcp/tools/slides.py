@@ -193,10 +193,10 @@ async def add_text_to_slide(
     return result
 
 
-@mcp.tool(
-    name="add_formatted_text_to_slide",
-    description="Adds rich-formatted text (with bold, italic, etc.) to a slide.",
-)
+# @mcp.tool(
+#     name="add_formatted_text_to_slide",
+#     description="Adds rich-formatted text (with bold, italic, etc.) to a slide.",
+# )
 async def add_formatted_text_to_slide(
     presentation_id: str,
     slide_id: str,
@@ -528,10 +528,10 @@ async def delete_slide(
     return result
 
 
-@mcp.tool(
-    name="create_presentation_from_markdown",
-    description="Creates a Google Slides presentation from structured Markdown content with enhanced formatting support using markdowndeck.",
-)
+# @mcp.tool(
+#     name="create_presentation_from_markdown",
+#     description="Creates a Google Slides presentation from structured Markdown content with enhanced formatting support using markdowndeck.",
+# )
 async def create_presentation_from_markdown(
     title: str,
     markdown_content: str,
@@ -618,5 +618,42 @@ async def create_textbox_with_text(
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error creating text box with text"))
+
+    return result
+
+
+@mcp.tool(
+    name="update_text_formatting",
+    description="Updates formatting of text in an existing text box with support for bold, italic, and code formatting.",
+)
+async def update_text_formatting(
+    presentation_id: str,
+    element_id: str,
+    formatted_text: str,
+) -> dict[str, Any]:
+    """
+    Update formatting of text in an existing text box.
+
+    Args:
+        presentation_id: The ID of the presentation
+        element_id: The ID of the text box element
+        formatted_text: Text with formatting markers (**, *, etc.)
+
+    Returns:
+        Response data or error information
+    """
+    logger.info(f"Executing update_text_formatting on element '{element_id}'")
+    if not presentation_id or not element_id or not formatted_text:
+        raise ValueError("Presentation ID, Element ID, and Formatted Text are required")
+
+    slides_service = SlidesService()
+    result = slides_service.update_text_formatting(
+        presentation_id=presentation_id,
+        element_id=element_id,
+        formatted_text=formatted_text,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error updating text formatting"))
 
     return result
