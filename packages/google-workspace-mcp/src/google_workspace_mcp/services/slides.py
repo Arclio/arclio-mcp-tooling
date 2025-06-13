@@ -1184,6 +1184,12 @@ class SlidesService(BaseGoogleService):
             Response data or error information
         """
         try:
+            # Validate unit
+            if unit not in ["PT", "EMU"]:
+                raise ValueError(
+                    "Unit must be either 'PT' (points) or 'EMU' (English Metric Units)"
+                )
+            
             # Generate element ID if not provided
             if element_id is None:
                 import time
@@ -1212,11 +1218,6 @@ class SlidesService(BaseGoogleService):
                                 "unit": unit,
                             },
                         },
-                        "shapeProperties": {
-                            "autofit": {
-                                "autofitType": "TEXT_AUTOFIT"
-                            }
-                        }
                     }
                 },
                 # Insert text into the text box
