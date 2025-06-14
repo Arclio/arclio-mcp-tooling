@@ -100,9 +100,7 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Validated (and potentially fixed) batch
     """
-    modified_requests = [
-        req for req in batch.get("requests", []) if validate_api_request(req)
-    ]
+    modified_requests = [req for req in batch.get("requests", []) if validate_api_request(req)]
     result_batch = batch.copy()
     result_batch["requests"] = modified_requests
     return result_batch
@@ -118,17 +116,13 @@ def is_valid_image_url(url: str) -> bool:
     try:
         # REFACTORED: Use a streaming GET request, which is more reliable than HEAD.
         # We only inspect headers, so this is still efficient.
-        with requests.get(
-            url, stream=True, timeout=5, allow_redirects=True
-        ) as response:
+        with requests.get(url, stream=True, timeout=5, allow_redirects=True) as response:
             response.raise_for_status()
 
             # 1. Check Content-Type
             content_type = response.headers.get("content-type", "").lower()
             if not content_type.startswith("image/"):
-                logger.warning(
-                    f"URL does not appear to be an image (Content-Type: {content_type}): {url}"
-                )
+                logger.warning(f"URL does not appear to be an image (Content-Type: {content_type}): {url}")
                 return False
 
             # 2. Check Content-Length for file size
@@ -143,20 +137,14 @@ def is_valid_image_url(url: str) -> bool:
                         )
                         return False
                 except ValueError:
-                    logger.warning(
-                        f"Could not parse Content-Length header: {content_length_str}"
-                    )
+                    logger.warning(f"Could not parse Content-Length header: {content_length_str}")
             else:
-                logger.debug(
-                    f"Content-Length header not found for {url}. Cannot pre-validate size."
-                )
+                logger.debug(f"Content-Length header not found for {url}. Cannot pre-validate size.")
 
             return True
 
     except requests.exceptions.RequestException as e:
-        logger.warning(
-            f"Image URL verification failed (request exception): {url}. Error: {e}"
-        )
+        logger.warning(f"Image URL verification failed (request exception): {url}. Error: {e}")
         return False
     except Exception as e:
         logger.error(

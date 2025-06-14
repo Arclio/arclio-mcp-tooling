@@ -37,9 +37,7 @@ class StandardOverflowHandler:
         REFACTORED: This method has been entirely rewritten to use a robust,
         path-based partitioning algorithm that correctly handles nested content.
         """
-        logger.debug(
-            f"--- Overflow Handling Started for Element: {self._get_node_id(overflowing_element)} ---"
-        )
+        logger.debug(f"--- Overflow Handling Started for Element: {self._get_node_id(overflowing_element)} ---")
 
         # CRITICAL FIX: Store the original element ID before splitting
         original_element_id = self._get_node_id(overflowing_element)
@@ -57,9 +55,7 @@ class StandardOverflowHandler:
         logger.debug(f"Available height for splitting: {available_height:.2f}pt")
 
         # 2. Ask the element to split itself.
-        fitted_part, overflow_part = self._split_element_safely(
-            overflowing_element, available_height
-        )
+        fitted_part, overflow_part = self._split_element_safely(overflowing_element, available_height)
 
         # CRITICAL FIX: Ensure the fitted part retains the original's position.
         if fitted_part and overflowing_element.position:
@@ -67,9 +63,7 @@ class StandardOverflowHandler:
 
         if overflow_part:
             overflow_part._overflow_moved = True
-        logger.debug(
-            f"Element split result: has_fitted_part={bool(fitted_part)}, has_overflow_part={bool(overflow_part)}"
-        )
+        logger.debug(f"Element split result: has_fitted_part={bool(fitted_part)}, has_overflow_part={bool(overflow_part)}")
 
         # 3. Create a deep copy of the original root section to modify for the fitted slide.
         fitted_root = deepcopy(slide.root_section)
@@ -89,16 +83,10 @@ class StandardOverflowHandler:
         # Work backwards from the immediate parent up to the root.
         for i in range(len(path_to_parent) - 1, -1, -1):
             parent_section = path_to_parent[i]
-            child_node = (
-                path_to_parent[i + 1]
-                if i + 1 < len(path_to_parent)
-                else overflowing_element
-            )
+            child_node = path_to_parent[i + 1] if i + 1 < len(path_to_parent) else overflowing_element
 
             try:
-                child_index = [
-                    self._get_node_id(c) for c in parent_section.children
-                ].index(self._get_node_id(child_node))
+                child_index = [self._get_node_id(c) for c in parent_section.children].index(self._get_node_id(child_node))
             except ValueError:
                 logger.error(
                     f"Logic Error: Node {self._get_node_id(child_node)} not found in parent {parent_section.id}. Aborting."
@@ -121,9 +109,7 @@ class StandardOverflowHandler:
         # FINAL FIX: Reverse the list to restore correct document order.
         continuation_content.reverse()
 
-        logger.debug(
-            f"Partitioning complete. Continuation has {len(continuation_content)} items."
-        )
+        logger.debug(f"Partitioning complete. Continuation has {len(continuation_content)} items.")
 
         # 6. Build the final slide objects.
         fitted_slide = deepcopy(slide)
@@ -132,17 +118,11 @@ class StandardOverflowHandler:
         continuation_slide = None
         if any(c is not None for c in continuation_content):
             slide_builder = SlideBuilder(slide)
-            new_continuation_root = Section(
-                id="cont_root", children=continuation_content
-            )
-            continuation_slide = slide_builder.create_continuation_slide(
-                new_continuation_root, continuation_number
-            )
+            new_continuation_root = Section(id="cont_root", children=continuation_content)
+            continuation_slide = slide_builder.create_continuation_slide(new_continuation_root, continuation_number)
             logger.debug("Continuation slide created.")
         else:
-            logger.debug(
-                "No continuation content, so no continuation slide will be created."
-            )
+            logger.debug("No continuation content, so no continuation slide will be created.")
 
         logger.debug("--- Overflow Handling Finished ---")
         return fitted_slide, continuation_slide
@@ -151,9 +131,7 @@ class StandardOverflowHandler:
         """Safely gets the unique ID of a Section (.id) or an Element (.object_id)."""
         return getattr(node, "id", getattr(node, "object_id", None))
 
-    def _find_path_to_parent(
-        self, root: Section, target_id: str
-    ) -> list[Section] | None:
+    def _find_path_to_parent(self, root: Section, target_id: str) -> list[Section] | None:
         """
         Performs a DFS to find the path of Sections leading to the target's parent.
         Returns the list of sections, e.g., [root, child_section, grandchild_section].
@@ -209,29 +187,19 @@ class StandardOverflowHandler:
 
         return top_offset, body_end_y
 
-    def _split_element_safely(
-        self, element: "Element", height: float
-    ) -> tuple[Optional["Element"], Optional["Element"]]:
+    def _split_element_safely(self, element: "Element", height: float) -> tuple[Optional["Element"], Optional["Element"]]:
         """Safely calls the element's split method and handles table header duplication."""
         if not callable(getattr(element, "split", None)):
             return None, deepcopy(element)
         try:
             fitted, overflow = element.split(height)
-            if (
-                element.element_type == ElementType.TABLE
-                and overflow
-                and isinstance(overflow, TableElement)
-            ):
+            if element.element_type == ElementType.TABLE and overflow and isinstance(overflow, TableElement):
                 original = cast(TableElement, element)
                 if original.headers and not overflow.headers:
                     overflow.headers = deepcopy(original.headers)
                     if original.row_directives:
-                        overflow.row_directives.insert(
-                            0, deepcopy(original.row_directives[0])
-                        )
+                        overflow.row_directives.insert(0, deepcopy(original.row_directives[0]))
             return fitted, overflow
         except Exception as e:
-            logger.error(
-                f"Error splitting {self._get_node_id(element)}: {e}", exc_info=True
-            )
+            logger.error(f"Error splitting {self._get_node_id(element)}: {e}", exc_info=True)
             return None, deepcopy(element)

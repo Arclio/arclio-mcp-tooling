@@ -69,9 +69,7 @@ class SlideVisualizer:
         fig_width = 8
         fig_height = (fig_width / aspect_ratio) * rows + (1 * rows)
 
-        fig, axes = plt.subplots(
-            rows, cols, figsize=(fig_width, fig_height), squeeze=False
-        )
+        fig, axes = plt.subplots(rows, cols, figsize=(fig_width, fig_height), squeeze=False)
         return fig, axes.flatten()
 
     def _render_single_slide(self, ax, slide, slide_idx, show_sections):
@@ -93,9 +91,7 @@ class SlideVisualizer:
         if getattr(slide, "renderable_elements", None):
             # Finalized state: `renderable_elements` is the source of truth
             elements_to_render = slide.renderable_elements
-            logger.debug(
-                f"Slide {slide_idx+1} is Finalized. Rendering from `renderable_elements`."
-            )
+            logger.debug(f"Slide {slide_idx + 1} is Finalized. Rendering from `renderable_elements`.")
         elif getattr(slide, "root_section", None):
             # Positioned state: Traverse root_section to find elements
             def extract_elements(section):
@@ -109,23 +105,13 @@ class SlideVisualizer:
 
             elements_to_render = extract_elements(slide.root_section)
             # Also render meta-elements from the `elements` inventory
-            elements_to_render.extend(
-                [
-                    e
-                    for e in slide.elements
-                    if e.element_type.value in ["title", "subtitle", "footer"]
-                ]
-            )
+            elements_to_render.extend([e for e in slide.elements if e.element_type.value in ["title", "subtitle", "footer"]])
             root_section_to_render = slide.root_section
-            logger.debug(
-                f"Slide {slide_idx+1} is Positioned. Rendering from `root_section` and meta-elements."
-            )
+            logger.debug(f"Slide {slide_idx + 1} is Positioned. Rendering from `root_section` and meta-elements.")
         else:
             # Unpositioned or simple state: use the `elements` inventory
             elements_to_render = slide.elements
-            logger.debug(
-                f"Slide {slide_idx+1} is Unpositioned. Rendering from `elements`."
-            )
+            logger.debug(f"Slide {slide_idx + 1} is Unpositioned. Rendering from `elements`.")
 
         # Render section boundaries if requested and available
         if show_sections and root_section_to_render:

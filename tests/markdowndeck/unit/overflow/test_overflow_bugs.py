@@ -38,9 +38,7 @@ def overflow_manager() -> OverflowManager:
 class TestOverflowBugReproduction:
     """Tests designed to fail, exposing known bugs in overflow handling."""
 
-    def test_bug_long_text_split_but_not_moved_to_new_slide(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_bug_long_text_split_but_not_moved_to_new_slide(self, overflow_manager: OverflowManager):
         """
         Test Case: OVERFLOW-BUG-01
         Description: Exposes the bug where a long text element is split, but the overflowing
@@ -58,30 +56,20 @@ class TestOverflowBugReproduction:
 
         # Mock the split method to ensure it returns two distinct parts
         # FIXED: Added element_type to constructors.
-        fitted_part = TextElement(
-            element_type=ElementType.TEXT, text="Fitted part", size=(620, 300)
-        )
-        overflow_part = TextElement(
-            element_type=ElementType.TEXT, text="Overflowing part", size=(620, 500)
-        )
+        fitted_part = TextElement(element_type=ElementType.TEXT, text="Fitted part", size=(620, 300))
+        overflow_part = TextElement(element_type=ElementType.TEXT, text="Overflowing part", size=(620, 500))
         text_element.split = MagicMock(return_value=(fitted_part, overflow_part))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 800), children=[text_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 800), children=[text_element])
         slide = Slide(object_id="s1", root_section=root_section)
 
         # Act
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert
-        assert (
-            len(final_slides) > 1
-        ), "The overflowing text should have been moved to a new, second slide."
+        assert len(final_slides) > 1, "The overflowing text should have been moved to a new, second slide."
 
-    def test_bug_list_overflows_and_is_not_split(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_bug_list_overflows_and_is_not_split(self, overflow_manager: OverflowManager):
         """
         Test Case: OVERFLOW-BUG-02
         Description: Exposes the bug where a long list overflows the slide but is not split.
@@ -97,22 +85,16 @@ class TestOverflowBugReproduction:
             size=(620, 1000),  # Very tall
         )
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 1000), children=[list_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 1000), children=[list_element])
         slide = Slide(object_id="s1", root_section=root_section)
 
         # Act
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert
-        assert (
-            len(final_slides) > 1
-        ), "The overflowing list should have been split across multiple slides."
+        assert len(final_slides) > 1, "The overflowing list should have been split across multiple slides."
 
-    def test_bug_table_overflows_and_is_not_split(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_bug_table_overflows_and_is_not_split(self, overflow_manager: OverflowManager):
         """
         Test Case: OVERFLOW-BUG-03
         Description: Exposes the bug where a tall table overflows the slide but is not split.
@@ -129,15 +111,11 @@ class TestOverflowBugReproduction:
             size=(620, 900),  # Very tall
         )
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 900), children=[table_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 900), children=[table_element])
         slide = Slide(object_id="s1", root_section=root_section)
 
         # Act
         final_slides = overflow_manager.process_slide(slide)
 
         # Assert
-        assert (
-            len(final_slides) > 1
-        ), "The overflowing table should have been split across multiple slides."
+        assert len(final_slides) > 1, "The overflowing table should have been split across multiple slides."

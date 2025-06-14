@@ -25,9 +25,7 @@ class TestTextMetricsAccuracy:
 
         # Assert
         # For comparison, get a more accurate height using the underlying font metrics directly.
-        font_size, line_height_multiplier, padding, min_height = _get_typography_params(
-            ElementType.TEXT, {}
-        )
+        font_size, line_height_multiplier, padding, min_height = _get_typography_params(ElementType.TEXT, {})
         # REFACTORED: Unpack all 3 return values to fix the ValueError.
         _, accurate_text_height, _ = calculate_text_bbox(
             long_text,

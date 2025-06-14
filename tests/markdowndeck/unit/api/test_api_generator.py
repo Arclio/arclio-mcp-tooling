@@ -70,27 +70,15 @@ class TestApiRequestGenerator:
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
         title_req = next(
-            (
-                r
-                for r in requests
-                if r.get("createShape", {}).get("objectId") == "el_title"
-            ),
+            (r for r in requests if r.get("createShape", {}).get("objectId") == "el_title"),
             None,
         )
         body_req = next(
-            (
-                r
-                for r in requests
-                if r.get("createShape", {}).get("objectId") == "el_body"
-            ),
+            (r for r in requests if r.get("createShape", {}).get("objectId") == "el_body"),
             None,
         )
-        assert (
-            title_req is not None
-        ), "Request for title in renderable_elements not found."
-        assert (
-            body_req is not None
-        ), "Request for body in renderable_elements not found."
+        assert title_req is not None, "Request for title in renderable_elements not found."
+        assert body_req is not None, "Request for body in renderable_elements not found."
         image_req = next((r for r in requests if "createImage" in r), None)
         assert image_req is None, "Junk data from stale attributes must be ignored."
 
@@ -102,13 +90,9 @@ class TestApiRequestGenerator:
         original_slide_copy = deepcopy(finalized_slide)
         deck = Deck(slides=[finalized_slide])
         api_generator.generate_batch_requests(deck, "pres_id")
-        assert (
-            finalized_slide == original_slide_copy
-        ), "Generator must not modify input."
+        assert finalized_slide == original_slide_copy, "Generator must not modify input."
 
-    def test_api_c_03_visual_styling(
-        self, api_generator: ApiRequestGenerator, finalized_slide: Slide
-    ):
+    def test_api_c_03_visual_styling(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
         """
         Test Case: API-C-03 (from spec)
         Validates interpretation of visual styling directives on an element.
@@ -132,12 +116,7 @@ class TestApiRequestGenerator:
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and r["updateTextStyle"]["objectId"] == "styled_el"
-            ),
+            (r for r in requests if "updateTextStyle" in r and r["updateTextStyle"]["objectId"] == "styled_el"),
             None,
         )
         assert style_req is not None, "A request to update text style should exist."
@@ -147,9 +126,7 @@ class TestApiRequestGenerator:
         rgb_color = style_payload["foregroundColor"]["opaqueColor"]["rgbColor"]
         assert abs(rgb_color["red"] - 1.0) < 0.01
 
-    def test_api_c_04_coordinate_transformation(
-        self, api_generator: ApiRequestGenerator
-    ):
+    def test_api_c_04_coordinate_transformation(self, api_generator: ApiRequestGenerator):
         """
         Test Case: API-C-04.
         Spec: Validates correct coordinate transformation into Google Slides API PT format.
@@ -181,9 +158,7 @@ class TestApiRequestGenerator:
         assert transform["translateY"] == 200
         assert transform["unit"] == "PT"
 
-    def test_api_c_05_and_c_06_blank_canvas_and_create_shape(
-        self, api_generator: ApiRequestGenerator, finalized_slide: Slide
-    ):
+    def test_api_c_05_and_c_06_blank_canvas_and_create_shape(self, api_generator: ApiRequestGenerator, finalized_slide: Slide):
         """
         Test Cases: API-C-05 & API-C-06 (from spec)
         Validates that all slides use BLANK layout and all elements are new shapes.
@@ -192,25 +167,14 @@ class TestApiRequestGenerator:
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
         create_slide_req = next((r for r in requests if "createSlide" in r), None)
         assert create_slide_req is not None
-        assert (
-            create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"]
-            == "BLANK"
-        )
+        assert create_slide_req["createSlide"]["slideLayoutReference"]["predefinedLayout"] == "BLANK"
         title_create_shape = next(
-            (
-                r
-                for r in requests
-                if "createShape" in r and r["createShape"]["objectId"] == "el_title"
-            ),
+            (r for r in requests if "createShape" in r and r["createShape"]["objectId"] == "el_title"),
             None,
         )
-        assert (
-            title_create_shape is not None
-        ), "A createShape request MUST be generated for the TITLE element."
+        assert title_create_shape is not None, "A createShape request MUST be generated for the TITLE element."
 
-    def test_api_c_07_empty_renderable_elements(
-        self, api_generator: ApiRequestGenerator
-    ):
+    def test_api_c_07_empty_renderable_elements(self, api_generator: ApiRequestGenerator):
         """
         Test Case: API-C-07.
         Spec: Verify graceful handling of a slide with no renderable elements.
@@ -245,11 +209,7 @@ class TestApiRequestGenerator:
         deck = Deck(slides=[slide])
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
         insert_text_req = next(
-            (
-                r
-                for r in requests
-                if "insertText" in r and r["insertText"]["objectId"] == "el_cont_title"
-            ),
+            (r for r in requests if "insertText" in r and r["insertText"]["objectId"] == "el_cont_title"),
             None,
         )
         assert insert_text_req is not None
@@ -276,16 +236,12 @@ class TestApiRequestGenerator:
         deck = Deck(slides=[slide])
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
         shape_req = next(
-            (
-                r
-                for r in requests
-                if r.get("createShape", {}).get("objectId") == "el_zero_dim"
-            ),
+            (r for r in requests if r.get("createShape", {}).get("objectId") == "el_zero_dim"),
             None,
         )
-        assert (
-            shape_req is None
-        ), "createShape request must not be generated for zero-dimension element with visual directives."
+        assert shape_req is None, (
+            "createShape request must not be generated for zero-dimension element with visual directives."
+        )
 
     def test_api_c_10_list_indentation(self, api_generator: ApiRequestGenerator):
         """
@@ -310,25 +266,16 @@ class TestApiRequestGenerator:
 
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
         indent_request = next(
-            (
-                r
-                for r in requests
-                if "updateParagraphStyle" in r
-                and "indentStart" in r["updateParagraphStyle"]["style"]
-            ),
+            (r for r in requests if "updateParagraphStyle" in r and "indentStart" in r["updateParagraphStyle"]["style"]),
             None,
         )
 
-        assert (
-            indent_request is not None
-        ), "Indentation request should be generated for nested list items."
+        assert indent_request is not None, "Indentation request should be generated for nested list items."
         style = indent_request["updateParagraphStyle"]["style"]
         assert style["indentStart"]["magnitude"] > 0
         assert style["indentStart"]["unit"] == "PT"
 
-    def test_api_c_11_continuation_context_title(
-        self, api_generator: ApiRequestGenerator
-    ):
+    def test_api_c_11_continuation_context_title(self, api_generator: ApiRequestGenerator):
         """
         Test Case: NEW, based on API_GEN_SPEC.md Rule #11
         Validates rendering of the `continuation_context_title`.
@@ -343,29 +290,15 @@ class TestApiRequestGenerator:
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
         create_shape_req = next(
-            (
-                r
-                for r in requests
-                if "createShape" in r
-                and "context_title" in r["createShape"]["objectId"]
-            ),
+            (r for r in requests if "createShape" in r and "context_title" in r["createShape"]["objectId"]),
             None,
         )
         insert_text_req = next(
-            (
-                r
-                for r in requests
-                if "insertText" in r and "context_title" in r["insertText"]["objectId"]
-            ),
+            (r for r in requests if "insertText" in r and "context_title" in r["insertText"]["objectId"]),
             None,
         )
         style_req = next(
-            (
-                r
-                for r in requests
-                if "updateTextStyle" in r
-                and "context_title" in r["updateTextStyle"]["objectId"]
-            ),
+            (r for r in requests if "updateTextStyle" in r and "context_title" in r["updateTextStyle"]["objectId"]),
             None,
         )
 
@@ -373,8 +306,6 @@ class TestApiRequestGenerator:
         assert insert_text_req is not None, "Text for context title must be inserted."
         assert style_req is not None, "Style for context title must be applied."
 
-        assert (
-            insert_text_req["insertText"]["text"] == "Continuing list from: Parent Item"
-        )
+        assert insert_text_req["insertText"]["text"] == "Continuing list from: Parent Item"
         assert style_req["updateTextStyle"]["style"]["italic"] is True
         assert style_req["updateTextStyle"]["style"]["fontSize"]["magnitude"] == 10

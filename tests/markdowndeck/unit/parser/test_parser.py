@@ -79,13 +79,9 @@ class TestParser:
         assert table.headers == ["Header", "Data"]
         assert table.rows == [["R1", "D1"], ["R2", "D2"]]
         assert len(table.row_directives) == 3
-        assert table.row_directives[0] == {
-            "background": {"type": "color", "value": {"type": "named", "value": "gray"}}
-        }
+        assert table.row_directives[0] == {"background": {"type": "color", "value": {"type": "named", "value": "gray"}}}
         assert table.row_directives[1] == {}
-        assert table.row_directives[2] == {
-            "color": {"type": "color", "value": {"type": "named", "value": "red"}}
-        }
+        assert table.row_directives[2] == {"color": {"type": "color", "value": {"type": "named", "value": "red"}}}
 
     def test_image_with_required_dimensions_succeeds_in_paragraph(self, parser: Parser):
         """Validates that an image with width and height directives is parsed correctly."""
@@ -103,9 +99,7 @@ class TestParser:
         slide = deck.slides[0]
         title_element = slide.get_title_element()
         assert "Error in Slide" in title_element.text
-        text_element = next(
-            e for e in slide.elements if e.element_type == ElementType.TEXT
-        )
+        text_element = next(e for e in slide.elements if e.element_type == ElementType.TEXT)
         assert "must have both [width] and [height]" in text_element.text
 
     def test_slide_with_base_directives(self, parser: Parser):

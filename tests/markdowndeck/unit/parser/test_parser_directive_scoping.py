@@ -33,11 +33,7 @@ class TestParserDirectiveScoping:
         # Base directives apply to the slide, not the root section
         assert slide.base_directives.get("align") == "center"
         # The content parser will apply this to the element
-        text_element = next(
-            e
-            for e in slide.elements
-            if e.element_type == ElementType.TEXT and e.text == "Centered Content"
-        )
+        text_element = next(e for e in slide.elements if e.element_type == ElementType.TEXT and e.text == "Centered Content")
         assert text_element.directives.get("align") == "center"
 
     def test_directive_precedence(self, parser: Parser):
@@ -50,13 +46,9 @@ class TestParserDirectiveScoping:
         assert slide.base_directives.get("align") == "center"
 
         # The text element inherits the base directive
-        text_element = next(
-            e for e in slide.elements if e.element_type == ElementType.TEXT
-        )
+        text_element = next(e for e in slide.elements if e.element_type == ElementType.TEXT)
         assert text_element.directives.get("align") == "center"
 
         # The list element overrides the base directive
-        list_element = next(
-            e for e in slide.elements if e.element_type == ElementType.BULLET_LIST
-        )
+        list_element = next(e for e in slide.elements if e.element_type == ElementType.BULLET_LIST)
         assert list_element.directives.get("align") == "left"

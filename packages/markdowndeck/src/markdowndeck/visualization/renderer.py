@@ -93,9 +93,7 @@ def render_elements(ax, elements):
         return
     for element in elements:
         if not (element and element.position and element.size):
-            logger.warning(
-                f"Skipping render for element with missing layout: {element}"
-            )
+            logger.warning(f"Skipping render for element with missing layout: {element}")
             continue
 
         # Draw the element's main bounding box with styles from directives
@@ -173,9 +171,7 @@ def _render_text(ax, element):
     va = va_map.get(directives.get("valign", "top"), "top")
 
     # Calculate actual text block height for precise vertical alignment
-    _wrapped_width, wrapped_height, _ = calculate_text_bbox(
-        content, font_size, font_family, max_width=text_area_width
-    )
+    _wrapped_width, wrapped_height, _ = calculate_text_bbox(content, font_size, font_family, max_width=text_area_width)
 
     # Calculate text position
     text_x = pos_x + padding
@@ -225,9 +221,7 @@ def _render_code(ax, element):
     padding = 8.0
     text_area_width = size_w - (padding * 2)
 
-    _wrapped_width, wrapped_height, _ = calculate_text_bbox(
-        content, font_size, font_family, max_width=text_area_width
-    )
+    _wrapped_width, wrapped_height, _ = calculate_text_bbox(content, font_size, font_family, max_width=text_area_width)
 
     text_x = pos_x + padding
     text_y = pos_y + padding
@@ -282,9 +276,7 @@ def _render_list(ax, element):
 
         # Render text
         text_width = size_w - (30 + indent + 10)
-        _, text_height, _ = calculate_text_bbox(
-            item.text, font_size, font_family, text_width
-        )
+        _, text_height, _ = calculate_text_bbox(item.text, font_size, font_family, text_width)
         ax.text(
             pos_x + 30 + indent,
             current_y,
@@ -419,9 +411,7 @@ def render_slide_background(ax, slide, slide_width, slide_height):
                 )
                 return  # Skip drawing solid color background
             except Exception as e:
-                logger.warning(
-                    f"Failed to render background image from {bg_value}: {e}"
-                )
+                logger.warning(f"Failed to render background image from {bg_value}: {e}")
                 bg_color = "#E0E0E0"  # Fallback color on image load failure
 
     background_rect = patches.Rectangle(

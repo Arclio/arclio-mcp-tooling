@@ -30,9 +30,7 @@ class OverflowDetector:
 
         return self._find_overflowing_element_recursive(slide.root_section, body_end_y)
 
-    def _find_overflowing_element_recursive(
-        self, section: "Section", body_end_y: float
-    ) -> Optional["Element"]:
+    def _find_overflowing_element_recursive(self, section: "Section", body_end_y: float) -> Optional["Element"]:
         """
         Recursively search for the first element that overflows the boundary.
         """
@@ -48,9 +46,7 @@ class OverflowDetector:
 
         for child in section.children:
             if isinstance(child, SectionModel):
-                overflowing = self._find_overflowing_element_recursive(
-                    child, body_end_y
-                )
+                overflowing = self._find_overflowing_element_recursive(child, body_end_y)
                 if overflowing:
                     return overflowing
             elif child.position and child.size:

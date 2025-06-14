@@ -62,11 +62,7 @@ def _calculate_intrinsic_size(
     # FIXED: If this section is a child of a row, the available_width passed here
     # is already the correctly calculated column width from _calculate_predictable_dimensions.
     # Don't recalculate it using _calculate_dimension as that would double-apply the fraction.
-    if (
-        parent_section
-        and parent_section.type == "row"
-        and section.directives.get("width")
-    ):
+    if parent_section and parent_section.type == "row" and section.directives.get("width"):
         # Use the available_width directly - it's already the correctly calculated width
         explicit_width = available_width
         logger.debug(
@@ -113,25 +109,17 @@ def _calculate_intrinsic_size(
     gap = float(
         section.directives.get(
             "gap",
-            (
-                calculator.HORIZONTAL_SPACING
-                if is_horizontal
-                else calculator.VERTICAL_SPACING
-            ),
+            (calculator.HORIZONTAL_SPACING if is_horizontal else calculator.VERTICAL_SPACING),
         )
     )
 
     if is_horizontal:
-        intrinsic_child_width, intrinsic_child_height = (
-            _calculate_horizontal_intrinsic_size(
-                calculator, section, child_content_width, child_content_height, gap
-            )
+        intrinsic_child_width, intrinsic_child_height = _calculate_horizontal_intrinsic_size(
+            calculator, section, child_content_width, child_content_height, gap
         )
     else:
-        intrinsic_child_width, intrinsic_child_height = (
-            _calculate_vertical_intrinsic_size(
-                calculator, section, child_content_width, child_content_height, gap
-            )
+        intrinsic_child_width, intrinsic_child_height = _calculate_vertical_intrinsic_size(
+            calculator, section, child_content_width, child_content_height, gap
         )
 
     # The section's final size is its explicit size, NOT the intrinsic size of its children.
@@ -139,11 +127,7 @@ def _calculate_intrinsic_size(
     # However, for layout purposes, the explicit size is the source of truth.
     final_width = explicit_width
     # If height was not explicitly set, it's inferred from children.
-    final_height = (
-        explicit_height
-        if "height" in section.directives
-        else intrinsic_child_height + (2 * padding_val)
-    )
+    final_height = explicit_height if "height" in section.directives else intrinsic_child_height + (2 * padding_val)
 
     return final_width, final_height
 
@@ -166,16 +150,10 @@ def _calculate_vertical_intrinsic_size(
             )
             child.size = (child_width, child_height)
         else:
-            _calculate_element_height_with_constraints(
-                calculator, child, content_width, content_height
-            )
+            _calculate_element_height_with_constraints(calculator, child, content_width, content_height)
             if not child.size:
-                child_width = _calculate_element_width(
-                    child, content_width, calculator, section
-                )
-                child_height = _calculate_element_height_with_constraints(
-                    calculator, child, child_width, content_height
-                )
+                child_width = _calculate_element_width(child, content_width, calculator, section)
+                child_height = _calculate_element_height_with_constraints(calculator, child, child_width, content_height)
                 child.size = (child_width, child_height)
 
         total_height += child.size[1]
@@ -199,15 +177,11 @@ def _calculate_horizontal_intrinsic_size(
     max_child_height = 0.0
 
     child_sections = [c for c in section.children if isinstance(c, Section)]
-    col_widths = _calculate_predictable_dimensions(
-        child_sections, content_width, gap, "width", calculator, section
-    )
+    col_widths = _calculate_predictable_dimensions(child_sections, content_width, gap, "width", calculator, section)
 
     for i, child in enumerate(child_sections):
         child_width = col_widths[i]
-        _, child_height = _calculate_intrinsic_size(
-            calculator, child, child_width, content_height, parent_section=section
-        )
+        _, child_height = _calculate_intrinsic_size(calculator, child, child_width, content_height, parent_section=section)
         child.size = (child_width, child_height)
         total_width += child.size[0]
         max_child_height = max(max_child_height, child.size[1])
@@ -218,9 +192,7 @@ def _calculate_horizontal_intrinsic_size(
     return total_width, max_child_height
 
 
-def _calculate_element_height_with_constraints(
-    calculator, element, available_width: float, available_height: float
-) -> float:
+def _calculate_element_height_with_constraints(calculator, element, available_width: float, available_height: float) -> float:
     """
     Calculate element height with both width and height constraints.
     This implements Law #2 (Proactive Image Scaling) by passing both constraints.
@@ -229,21 +201,15 @@ def _calculate_element_height_with_constraints(
         # For images, apply proactive scaling with both width and height constraints
         from markdowndeck.layout.metrics.image import calculate_image_display_size
 
-        scaled_width, scaled_height = calculate_image_display_size(
-            element, available_width, available_height
-        )
+        scaled_width, scaled_height = calculate_image_display_size(element, available_width, available_height)
         # This is where the invalid image size was being lost. Set it on the element.
         element.size = (scaled_width, scaled_height)
         return scaled_height
     # For other elements, use the standard height calculation
-    return calculator.calculate_element_height_with_proactive_scaling(
-        element, available_width, available_height
-    )
+    return calculator.calculate_element_height_with_proactive_scaling(element, available_width, available_height)
 
 
-def _calculate_element_width(
-    element, container_width: float, calculator, parent_section: Section
-) -> float:
+def _calculate_element_width(element, container_width: float, calculator, parent_section: Section) -> float:
     """Calculate element width, respecting zero-size elements."""
     # If an element has its size explicitly set to (0, 0), its width is 0
     if hasattr(element, "size") and element.size == (0, 0):
@@ -277,9 +243,7 @@ def _assign_positions_recursive(calculator, section: Section) -> None:
     is_horizontal = section.type == "row"
 
     if is_horizontal:
-        _position_horizontal_children(
-            calculator, section.children, content_area, section
-        )
+        _position_horizontal_children(calculator, section.children, content_area, section)
     else:
         _position_vertical_children(calculator, section.children, content_area, section)
 
@@ -322,18 +286,14 @@ def _position_vertical_children(calculator, children, area, parent_section):
     sum(child_heights) + max(0, len(child_heights) - 1) * gap
 
     # Apply vertical alignment
-    start_y = _apply_vertical_alignment(
-        area_top, area_height, child_heights, gap, parent_directives
-    )
+    start_y = _apply_vertical_alignment(area_top, area_height, child_heights, gap, parent_directives)
 
     current_y = start_y
     for child in children:
         if not child.size:
             continue
 
-        apply_horizontal_alignment(
-            child, area_left, area_width, current_y, parent_directives
-        )
+        apply_horizontal_alignment(child, area_left, area_width, current_y, parent_directives)
         current_y += child.size[1] + adjust_vertical_spacing(child, gap)
 
 
@@ -393,11 +353,7 @@ def _calculate_dimension(
         if (isinstance(directive_value, str) and "%" in directive_value) or (
             isinstance(directive_value, float) and 0 < directive_value <= 1
         ):
-            percentage = (
-                float(directive_value.strip("%")) / 100.0
-                if isinstance(directive_value, str)
-                else directive_value
-            )
+            percentage = float(directive_value.strip("%")) / 100.0 if isinstance(directive_value, str) else directive_value
             # Implement Percentage Dimension Resolution Algorithm
             if parent_section and (dimension_type in parent_section.directives):
                 # Rule #9.1: Parent has explicit size, use its container dimension.
@@ -458,9 +414,7 @@ def _calculate_predictable_dimensions(
             # FIXED: Fractions like 1/3 (0.333...) are already converted by directive parser
             # They represent a proportion of the usable dimension, not a percentage
             proportional_indices.append(i)
-            proportional_percent += (
-                d_val  # d_val is already the decimal fraction (0.333 for 1/3)
-            )
+            proportional_percent += d_val  # d_val is already the decimal fraction (0.333 for 1/3)
         elif isinstance(d_val, int | float) and d_val > 1:
             absolute_indices.append(i)
             absolute_dim += float(d_val)
@@ -469,12 +423,8 @@ def _calculate_predictable_dimensions(
 
     # FIXED: Add debugging to understand the calculation
     logger.debug(f"Width calculation for {num_sections} sections:")
-    logger.debug(
-        f"  available_dimension={available_dimension}, spacing={spacing}, usable_dimension={usable_dimension}"
-    )
-    logger.debug(
-        f"  absolute_dim={absolute_dim}, proportional_percent={proportional_percent}"
-    )
+    logger.debug(f"  available_dimension={available_dimension}, spacing={spacing}, usable_dimension={usable_dimension}")
+    logger.debug(f"  absolute_dim={absolute_dim}, proportional_percent={proportional_percent}")
     logger.debug(
         f"  absolute_indices={absolute_indices}, proportional_indices={proportional_indices}, implicit_indices={implicit_indices}"
     )
@@ -484,9 +434,7 @@ def _calculate_predictable_dimensions(
     proportional_dim_request = proportional_percent * usable_dimension
     total_specified_dim = absolute_dim + proportional_dim_request
 
-    logger.debug(
-        f"  proportional_dim_request={proportional_dim_request}, total_specified_dim={total_specified_dim}"
-    )
+    logger.debug(f"  proportional_dim_request={proportional_dim_request}, total_specified_dim={total_specified_dim}")
 
     if total_specified_dim <= usable_dimension:
         # Undersubscribed or fits perfectly
@@ -494,11 +442,7 @@ def _calculate_predictable_dimensions(
             dimensions[i] = float(sections[i].directives.get(dimension_key))
         for i in proportional_indices:
             d_val = sections[i].directives.get(dimension_key)
-            percentage = (
-                float(str(d_val).strip("%")) / 100.0
-                if isinstance(d_val, str)
-                else float(d_val)
-            )
+            percentage = float(str(d_val).strip("%")) / 100.0 if isinstance(d_val, str) else float(d_val)
             dimensions[i] = usable_dimension * percentage
 
         remaining_for_implicit = usable_dimension - sum(dimensions)
@@ -513,26 +457,18 @@ def _calculate_predictable_dimensions(
         for i in implicit_indices:
             dimensions[i] = 0.0
 
-        scale_factor = (
-            usable_dimension / total_specified_dim if total_specified_dim > 0 else 0
-        )
+        scale_factor = usable_dimension / total_specified_dim if total_specified_dim > 0 else 0
 
         logger.debug(f"  Oversubscribed: scale_factor={scale_factor}")
 
         for i in absolute_indices:
             original_val = float(sections[i].directives.get(dimension_key))
             dimensions[i] = original_val * scale_factor
-            logger.debug(
-                f"    Absolute column {i}: {original_val} * {scale_factor} = {dimensions[i]}"
-            )
+            logger.debug(f"    Absolute column {i}: {original_val} * {scale_factor} = {dimensions[i]}")
 
         for i in proportional_indices:
             d_val = sections[i].directives.get(dimension_key)
-            percentage = (
-                float(str(d_val).strip("%")) / 100.0
-                if isinstance(d_val, str)
-                else float(d_val)
-            )
+            percentage = float(str(d_val).strip("%")) / 100.0 if isinstance(d_val, str) else float(d_val)
             # FIXED: Don't double-scale! proportional_dim_request already includes the percentage calculation
             # We should scale based on the original request, not double-scale
             original_request = usable_dimension * percentage

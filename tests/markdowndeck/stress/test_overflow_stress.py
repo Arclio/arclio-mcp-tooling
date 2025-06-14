@@ -32,9 +32,7 @@ class TestOverflowStress:
         end_time = time.time()
 
         processing_time = end_time - start_time
-        print(
-            f"Overflow processing for {len(result_slides)} slides took {processing_time:.4f} seconds."
-        )
+        print(f"Overflow processing for {len(result_slides)} slides took {processing_time:.4f} seconds.")
 
         assert processing_time < 5.0, "Overflow processing should be performant."
         assert len(result_slides) > 10, "Should create many continuation slides."
@@ -56,9 +54,7 @@ class TestOverflowStress:
         final_memory = process.memory_info().rss
         memory_growth = final_memory - initial_memory
 
-        print(
-            f"Memory growth after 15 overflow cycles: {memory_growth / 1024 / 1024:.2f} MB"
-        )
+        print(f"Memory growth after 15 overflow cycles: {memory_growth / 1024 / 1024:.2f} MB")
         max_acceptable_growth = 50 * 1024 * 1024  # 50MB
         assert memory_growth < max_acceptable_growth, "Potential memory leak detected."
 
@@ -69,9 +65,7 @@ class TestOverflowStress:
             parser = Parser()
             layout_manager = LayoutManager()
             overflow_manager = OverflowManager()
-            markdown = f"# Slide {slide_id}\n" + "\n".join(
-                [f"* Item {i}" for i in range(50)]
-            )
+            markdown = f"# Slide {slide_id}\n" + "\n".join([f"* Item {i}" for i in range(50)])
             deck = parser.parse(markdown)
             positioned_slide = layout_manager.calculate_positions(deck.slides[0])
             final_slides = overflow_manager.process_slide(positioned_slide)
@@ -82,6 +76,4 @@ class TestOverflowStress:
             results = [future.result() for future in futures]
 
         assert len(results) == 8
-        assert all(
-            res > 1 for res in results
-        ), "All concurrent tasks should result in overflow."
+        assert all(res > 1 for res in results), "All concurrent tasks should result in overflow."

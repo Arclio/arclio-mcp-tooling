@@ -44,30 +44,18 @@ class ImageFormatter(BaseFormatter):
             return [], start_index
 
         # Merge section and element-specific directives
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
-        src = (
-            current_token.attrs.get("src", "")
-            if hasattr(current_token, "attrs")
-            else ""
-        )
+        src = current_token.attrs.get("src", "") if hasattr(current_token, "attrs") else ""
         # The 'alt text' is stored in the children of the image token
-        alt_text = (
-            "".join(c.content for c in current_token.children if c.type == "text")
-            if current_token.children
-            else ""
-        )
+        alt_text = "".join(c.content for c in current_token.children if c.type == "text") if current_token.children else ""
 
         # Directives may follow the image on the same line, which markdown-it
         # parses as a text token. We need to check the next token.
         if start_index + 1 < len(tokens):
             next_token = tokens[start_index + 1]
             if next_token.type == "text":
-                line_directives, remaining_text = (
-                    self.directive_parser.parse_and_strip_from_text(next_token.content)
-                )
+                line_directives, remaining_text = self.directive_parser.parse_and_strip_from_text(next_token.content)
                 if line_directives and not remaining_text.strip():
                     merged_directives.update(line_directives)
                     # Since we consumed the directive text token, we should advance the index
@@ -77,15 +65,11 @@ class ImageFormatter(BaseFormatter):
                         image_element = self.element_factory.create_image_element(
                             url=src, alt_text=alt_text, directives=merged_directives
                         )
-                        logger.debug(
-                            f"Created image element and consumed directive text: {src}"
-                        )
+                        logger.debug(f"Created image element and consumed directive text: {src}")
                         return [image_element], start_index + 1  # Consumed two tokens
 
         if src:
-            image_element = self.element_factory.create_image_element(
-                url=src, alt_text=alt_text, directives=merged_directives
-            )
+            image_element = self.element_factory.create_image_element(url=src, alt_text=alt_text, directives=merged_directives)
             logger.debug(f"Created image element from direct image token: {src}")
             return [image_element], start_index
 

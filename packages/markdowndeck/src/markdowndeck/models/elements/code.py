@@ -62,9 +62,7 @@ class CodeElement(Element):
         # Return mapped name or capitalize the language
         return language_map.get(self.language.lower(), self.language.capitalize())
 
-    def split(
-        self, available_height: float
-    ) -> tuple["CodeElement | None", "CodeElement | None"]:
+    def split(self, available_height: float) -> tuple["CodeElement | None", "CodeElement | None"]:
         """
         Split code element following the Minimum Requirements Splitting Contract.
 
@@ -121,9 +119,7 @@ class CodeElement(Element):
         fitted_line_count = max_lines_that_fit
 
         if fitted_line_count < minimum_lines_required:
-            logger.info(
-                f"Code split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}"
-            )
+            logger.info(f"Code split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}")
             return None, deepcopy(self)
 
         # Minimum met - proceed with split
@@ -150,7 +146,5 @@ class CodeElement(Element):
             calculate_code_element_height(overflowing_part, element_width),
         )
 
-        logger.info(
-            f"Code split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing"
-        )
+        logger.info(f"Code split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing")
         return fitted_part, overflowing_part

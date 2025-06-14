@@ -18,9 +18,7 @@ class TestFencedBlockParser:
         nested_section = root_section.children[0]
         assert nested_section.type == "section"
         assert nested_section.directives.get("padding") == 20.0
-        assert (
-            nested_section.children[0].text == "Content"
-        ), "Content was not correctly placed in section"
+        assert nested_section.children[0].text == "Content", "Content was not correctly placed in section"
 
     def test_fenced_block_row_and_column_creation(self, parser: Parser):
         """Validates that :::row and :::column create the correct nested hierarchy."""
@@ -76,9 +74,7 @@ class TestFencedBlockParser:
         markdown = ":::section\nOuter Content\n:::section\nInner Content\n:::\n:::"
         deck = parser.parse(markdown)
         outer_section = deck.slides[0].root_section.children[0]
-        assert (
-            len(outer_section.children) == 2
-        ), "Outer section should have two children: a TextElement and a Section"
+        assert len(outer_section.children) == 2, "Outer section should have two children: a TextElement and a Section"
         assert outer_section.children[0].text == "Outer Content"
         assert outer_section.children[1].type == "section"
         inner_section = outer_section.children[1]

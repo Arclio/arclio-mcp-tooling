@@ -10,9 +10,7 @@ def layout_manager() -> LayoutManager:
     return LayoutManager(margins={"top": 0, "right": 0, "bottom": 0, "left": 0})
 
 
-def _create_unpositioned_slide(
-    elements=None, root_section=None, object_id="test_slide"
-):
+def _create_unpositioned_slide(elements=None, root_section=None, object_id="test_slide"):
     """
     REFACTORED: Creates a spec-compliant Unpositioned slide for testing.
     This helper now correctly handles cases where only a root_section is passed
@@ -26,10 +24,7 @@ def _create_unpositioned_slide(
         # If no root section is provided, create one from the provided elements.
         if elements:
             body_elements = [
-                e
-                for e in elements
-                if e.element_type
-                not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+                e for e in elements if e.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
             ]
             root_section = Section(id="root", children=body_elements)
         else:
@@ -68,29 +63,17 @@ class TestLayoutManager:
             ]
         )
         positioned_slide = layout_manager.calculate_positions(slide)
-        assert (
-            positioned_slide.elements == []
-        ), "Initial elements inventory must be cleared."
-        assert (
-            len(positioned_slide.renderable_elements) == 1
-        ), "Meta-elements should be in renderable."
+        assert positioned_slide.elements == [], "Initial elements inventory must be cleared."
+        assert len(positioned_slide.renderable_elements) == 1, "Meta-elements should be in renderable."
         assert positioned_slide.renderable_elements[0].position is not None
         assert positioned_slide.root_section is not None
-        assert (
-            positioned_slide.root_section.position is not None
-        ), "Root section must be positioned."
-        assert (
-            positioned_slide.root_section.children[0].position is not None
-        ), "Body element must be positioned."
+        assert positioned_slide.root_section.position is not None, "Root section must be positioned."
+        assert positioned_slide.root_section.children[0].position is not None, "Body element must be positioned."
 
     @patch("markdowndeck.layout.metrics.image.is_valid_image_url", return_value=True)
-    def test_layout_c_02_proactive_image_scaling(
-        self, mock_is_valid, layout_manager: LayoutManager
-    ):
+    def test_layout_c_02_proactive_image_scaling(self, mock_is_valid, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-02"""
-        image = ImageElement(
-            element_type=ElementType.IMAGE, url="test.png", aspect_ratio=16 / 9
-        )
+        image = ImageElement(element_type=ElementType.IMAGE, url="test.png", aspect_ratio=16 / 9)
         slide = _create_unpositioned_slide(elements=[image])
 
         positioned_slide = layout_manager.calculate_positions(slide)
@@ -105,9 +88,7 @@ class TestLayoutManager:
         assert abs(positioned_image.size[0] - expected_width) < 1.0
         assert abs(positioned_image.size[1] - expected_height) < 1.0
 
-    def test_layout_c_03_spatial_directives_width_align(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_03_spatial_directives_width_align(self, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-03. Spec: Verify interpretation of spatial directives."""
         # Arrange
         text_element = TextElement(element_type=ElementType.TEXT, text="Aligned")
@@ -129,46 +110,30 @@ class TestLayoutManager:
         assert abs(positioned_section.size[0] - expected_section_width) < 1.0
 
         # Assert Element Alignment
-        expected_element_x = (
-            positioned_section.position[0]
-            + positioned_section.size[0]
-            - positioned_element.size[0]
-        )
+        expected_element_x = positioned_section.position[0] + positioned_section.size[0] - positioned_element.size[0]
         assert positioned_element.position is not None
         assert abs(positioned_element.position[0] - expected_element_x) < 1.0
 
-    def test_layout_c_04_fixed_height_directive_is_respected(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_04_fixed_height_directive_is_respected(self, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-04"""
         # REFACTORED: The test was incorrect. The LayoutManager MUST respect an explicit height directive
         # per the "Container-First" principle. The OverflowManager handles the consequences.
         tall_element = TextElement(element_type=ElementType.TEXT, text="Line 1\n" * 10)
-        section = Section(
-            id="fixed_height_sec", directives={"height": 100}, children=[tall_element]
-        )
-        slide = _create_unpositioned_slide(
-            elements=[tall_element], root_section=section
-        )
+        section = Section(id="fixed_height_sec", directives={"height": 100}, children=[tall_element])
+        slide = _create_unpositioned_slide(elements=[tall_element], root_section=section)
 
         positioned_slide = layout_manager.calculate_positions(slide)
 
         assert positioned_slide.root_section.size is not None
-        assert (
-            abs(positioned_slide.root_section.size[1] - 100.0) < 1.0
-        ), "Layout manager must respect fixed height directives on sections."
+        assert abs(positioned_slide.root_section.size[1] - 100.0) < 1.0, (
+            "Layout manager must respect fixed height directives on sections."
+        )
 
-    def test_layout_c_05_equal_space_division_for_columns(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_05_equal_space_division_for_columns(self, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-05. Spec: Verify equal space division for horizontal sections."""
         # Arrange
-        col1 = Section(
-            id="c1", children=[TextElement(element_type=ElementType.TEXT, text="Col 1")]
-        )
-        col2 = Section(
-            id="c2", children=[TextElement(element_type=ElementType.TEXT, text="Col 2")]
-        )
+        col1 = Section(id="c1", children=[TextElement(element_type=ElementType.TEXT, text="Col 1")])
+        col2 = Section(id="c2", children=[TextElement(element_type=ElementType.TEXT, text="Col 2")])
         row = Section(id="row", type="row", children=[col1, col2])
         slide = _create_unpositioned_slide(root_section=row)
 
@@ -199,20 +164,14 @@ class TestLayoutManager:
         vertical_gap = p_el2.position[1] - (p_el1.position[1] + p_el1.size[1])
         assert abs(vertical_gap - 30.0) < 1.0
 
-    def test_layout_c_07_percentage_resolution_algorithm(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_07_percentage_resolution_algorithm(self, layout_manager: LayoutManager):
         """NEW TEST: Test Case LAYOUT-C-07. Validates Percentage Dimension Resolution Algorithm."""
         # Arrange: Nested sections. Parent has explicit width, grandparent does not.
         inner_section = Section(id="inner", directives={"width": "50%"})
         # Parent has EXPLICIT width, so inner should be 50% of parent's width.
-        parent_section_explicit = Section(
-            id="parent_explicit", directives={"width": "80%"}, children=[inner_section]
-        )
+        parent_section_explicit = Section(id="parent_explicit", directives={"width": "80%"}, children=[inner_section])
         # Grandparent has INFERRED width, so parent should be 80% of slide width.
-        grandparent_section = Section(
-            id="grandparent", children=[parent_section_explicit]
-        )
+        grandparent_section = Section(id="grandparent", children=[parent_section_explicit])
         slide = _create_unpositioned_slide(root_section=grandparent_section)
 
         # Act
@@ -224,20 +183,14 @@ class TestLayoutManager:
         # Assert
         # Parent's width is 80% of slide content width.
         expected_parent_width = layout_manager.max_content_width * 0.8
-        assert (
-            abs(p_parent.size[0] - expected_parent_width) < 1.0
-        ), "Parent width calculation failed"
+        assert abs(p_parent.size[0] - expected_parent_width) < 1.0, "Parent width calculation failed"
 
         # Inner's width is 50% of parent's resolved width.
         expected_inner_width = expected_parent_width * 0.5
-        assert (
-            abs(p_inner.size[0] - expected_inner_width) < 1.0
-        ), "Inner width calculation failed"
+        assert abs(p_inner.size[0] - expected_inner_width) < 1.0, "Inner width calculation failed"
 
     @patch("markdowndeck.layout.metrics.image.is_valid_image_url", return_value=False)
-    def test_layout_c_08_invalid_image_url(
-        self, mock_is_valid, layout_manager: LayoutManager
-    ):
+    def test_layout_c_08_invalid_image_url(self, mock_is_valid, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-08"""
         image = ImageElement(element_type=ElementType.IMAGE, url="invalid.png")
         slide = _create_unpositioned_slide(elements=[image])
@@ -266,18 +219,14 @@ class TestLayoutManager:
         vertical_gap = p_el2.position[1] - (p_el1.position[1] + p_el1.size[1])
         assert abs(vertical_gap) < 1.0, "Default vertical gap should be zero."
 
-    def test_layout_c_09_padding_directive_offsets_children(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_09_padding_directive_offsets_children(self, layout_manager: LayoutManager):
         """
         Test Case: LAYOUT-C-09
         Spec: Verify that `padding` directive on a Section correctly offsets children.
         """
         # Arrange
         child_element = TextElement(element_type=ElementType.TEXT, text="Padded")
-        section = Section(
-            id="padded_sec", directives={"padding": 20}, children=[child_element]
-        )
+        section = Section(id="padded_sec", directives={"padding": 20}, children=[child_element])
         slide = _create_unpositioned_slide(root_section=section)
 
         # Act
@@ -291,9 +240,7 @@ class TestLayoutManager:
             20,
         ), "Child position should be offset by parent padding."
 
-    def test_principles_c_06_b_zero_default_horizontal_spacing(
-        self, layout_manager: LayoutManager
-    ):
+    def test_principles_c_06_b_zero_default_horizontal_spacing(self, layout_manager: LayoutManager):
         """
         Test Case: PRINCIPLES-C-06-B
         Spec: Verify that default horizontal spacing (`gap`) between columns is zero.
@@ -319,9 +266,7 @@ class TestLayoutManager:
 
         # Assert
         horizontal_gap = p_col2.position[0] - (p_col1.position[0] + p_col1.size[0])
-        assert (
-            abs(horizontal_gap) < 1.0
-        ), "Default horizontal gap between columns should be zero."
+        assert abs(horizontal_gap) < 1.0, "Default horizontal gap between columns should be zero."
 
     def test_layout_c_12_mixed_column_widths(self, layout_manager: LayoutManager):
         """NEW TEST: Validates complex column width distribution (golden case failure)."""
@@ -359,14 +304,10 @@ class TestLayoutManager:
         # Proportional takes 25% of 720 = 180.
         # Implicit takes the rest: 570 - 180 = 390.
         assert abs(p_abs.size[0] - 150.0) < 1.0, "Absolute column width is incorrect"
-        assert (
-            abs(p_prop.size[0] - 180.0) < 1.0
-        ), "Proportional column width is incorrect"
+        assert abs(p_prop.size[0] - 180.0) < 1.0, "Proportional column width is incorrect"
         assert abs(p_imp.size[0] - 390.0) < 1.0, "Implicit column width is incorrect"
 
-    def test_layout_c_13_oversubscribed_column_widths_clamped(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_13_oversubscribed_column_widths_clamped(self, layout_manager: LayoutManager):
         """NEW TEST: Validates clamping for over-subscribed columns (container clamping failure)."""
         # Arrange
         col1 = Section(
@@ -389,16 +330,10 @@ class TestLayoutManager:
         # Assert
         # Total requested width is 120%. Each should be scaled down to 50% of total width (720).
         expected_width = 360.0
-        assert (
-            abs(p_col1.size[0] - expected_width) < 1.0
-        ), "Clamped width for column 1 is incorrect"
-        assert (
-            abs(p_col2.size[0] - expected_width) < 1.0
-        ), "Clamped width for column 2 is incorrect"
+        assert abs(p_col1.size[0] - expected_width) < 1.0, "Clamped width for column 1 is incorrect"
+        assert abs(p_col2.size[0] - expected_width) < 1.0, "Clamped width for column 2 is incorrect"
 
-    def test_layout_c_14_meta_element_directive_precedence(
-        self, layout_manager: LayoutManager
-    ):
+    def test_layout_c_14_meta_element_directive_precedence(self, layout_manager: LayoutManager):
         """NEW TEST: Validates correct directive precedence for meta elements."""
         # Arrange
         title = TextElement(

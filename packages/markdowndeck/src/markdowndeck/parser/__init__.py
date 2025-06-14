@@ -28,9 +28,7 @@ class Parser:
         slides = []
         for slide_index, slide_data in enumerate(slides_data):
             try:
-                root_section_model = self.section_parser.parse_sections(
-                    slide_data["content"]
-                )
+                root_section_model = self.section_parser.parse_sections(slide_data["content"])
 
                 elements = self.content_parser.parse_content(
                     slide_title_text=slide_data.get("title"),
@@ -58,35 +56,23 @@ class Parser:
                 slides.append(slide)
 
             except ValueError as e:
-                logger.error(
-                    f"Failed to parse slide {slide_index + 1}: {e}", exc_info=False
-                )
-                error_slide = self._create_error_slide(
-                    slide_index, str(e), slide_data.get("title")
-                )
+                logger.error(f"Failed to parse slide {slide_index + 1}: {e}", exc_info=False)
+                error_slide = self._create_error_slide(slide_index, str(e), slide_data.get("title"))
                 slides.append(error_slide)
             except Exception as e:
                 logger.error(
                     f"An unexpected error occurred while processing slide {slide_index + 1}: {e}",
                     exc_info=True,
                 )
-                error_slide = self._create_error_slide(
-                    slide_index, f"Unexpected error: {e}", slide_data.get("title")
-                )
+                error_slide = self._create_error_slide(slide_index, f"Unexpected error: {e}", slide_data.get("title"))
                 slides.append(error_slide)
 
-        inferred_title = title or (
-            slides_data[0].get("title") if slides_data else "Untitled"
-        )
+        inferred_title = title or (slides_data[0].get("title") if slides_data else "Untitled")
         deck = Deck(slides=slides, title=inferred_title)
-        logger.info(
-            f"Created deck with {len(slides)} slides and title: {inferred_title}"
-        )
+        logger.info(f"Created deck with {len(slides)} slides and title: {inferred_title}")
         return deck
 
-    def _create_error_slide(
-        self, slide_index: int, error_message: str, original_title: str | None = None
-    ) -> Slide:
+    def _create_error_slide(self, slide_index: int, error_message: str, original_title: str | None = None) -> Slide:
         """Creates a slide to display parsing errors."""
         # REFACTORED: Creates a fully valid Slide object with well-formed elements to fix test failures.
         # MAINTAINS: The core behavior of displaying an error on a slide.

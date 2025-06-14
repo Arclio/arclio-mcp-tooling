@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
-    def generate_table_element_requests(
-        self, element: TableElement, slide_id: str
-    ) -> list[dict]:
+    def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
         """
         Generate requests for a table element.
 
@@ -31,9 +29,7 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"table_{slide_id}")
-            logger.debug(
-                f"Generated missing object_id for table element: {element.object_id}"
-            )
+            logger.debug(f"Generated missing object_id for table element: {element.object_id}")
 
         # Count rows including headers if present
         row_count = len(element.rows) + (1 if element.headers else 0)
@@ -136,14 +132,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                 bg_color_val = directives.get("background")
                 if bg_color_val:
                     # Parse color into API format
-                    color_format = TextFormat(
-                        0, 0, TextFormatType.BACKGROUND_COLOR, bg_color_val
-                    )
+                    color_format = TextFormat(0, 0, TextFormatType.BACKGROUND_COLOR, bg_color_val)
                     style = self._format_to_style(color_format)
-                    if (
-                        "backgroundColor" in style
-                        and "opaqueColor" in style["backgroundColor"]
-                    ):
+                    if "backgroundColor" in style and "opaqueColor" in style["backgroundColor"]:
                         requests.append(
                             {
                                 "updateTableCellProperties": {
@@ -158,11 +149,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                                     },
                                     "tableCellProperties": {
                                         "tableCellBackgroundFill": {
-                                            "solidFill": {
-                                                "color": style["backgroundColor"][
-                                                    "opaqueColor"
-                                                ]
-                                            }
+                                            "solidFill": {"color": style["backgroundColor"]["opaqueColor"]}
                                         }
                                     },
                                     "fields": "tableCellBackgroundFill.solidFill.color",
@@ -180,9 +167,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                                 "updateTextStyle": {
                                     "objectId": element.object_id,
                                     "cellLocation": {"rowIndex": row_idx},
-                                    "style": {
-                                        "foregroundColor": style["foregroundColor"]
-                                    },
+                                    "style": {"foregroundColor": style["foregroundColor"]},
                                     "textRange": {"type": "ALL"},
                                     "fields": "foregroundColor",
                                 }
@@ -283,9 +268,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "tableBorderProperties": {
                         "weight": weight,
                         "dashStyle": dash_style,
-                        "tableBorderFill": {
-                            "solidFill": {"color": {"rgbColor": rgb_color}}
-                        },
+                        "tableBorderFill": {"solidFill": {"color": {"rgbColor": rgb_color}}},
                     },
                     "fields": "weight,dashStyle,tableBorderFill.solidFill.color",
                 }
@@ -303,15 +286,10 @@ class TableRequestBuilder(BaseRequestBuilder):
         """
         Apply alignment to table cells.
         """
-        if (
-            "cell-align" not in element.directives
-            and "valign" not in element.directives
-        ):
+        if "cell-align" not in element.directives and "valign" not in element.directives:
             return
 
-        align_value = element.directives.get("cell-align") or element.directives.get(
-            "valign"
-        )
+        align_value = element.directives.get("cell-align") or element.directives.get("valign")
 
         if not isinstance(align_value, str):
             return
@@ -345,9 +323,7 @@ class TableRequestBuilder(BaseRequestBuilder):
             }
         }
         requests.append(cell_align_request)
-        logger.debug(
-            f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}"
-        )
+        logger.debug(f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}")
 
     def _apply_cell_background_colors(
         self,
@@ -411,9 +387,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
-                "tableCellProperties": {
-                    "tableCellBackgroundFill": {"solidFill": {"color": color}}
-                },
+                "tableCellProperties": {"tableCellBackgroundFill": {"solidFill": {"color": color}}},
                 "fields": fields,
             }
         }

@@ -20,11 +20,7 @@ def _get_shape_properties_by_text(requests: list, text: str) -> dict | None:
         return None
     object_id = text_req["insertText"]["objectId"]
     shape_req = next(
-        (
-            r
-            for r in requests
-            if "createShape" in r and r["createShape"]["objectId"] == object_id
-        ),
+        (r for r in requests if "createShape" in r and r["createShape"]["objectId"] == object_id),
         None,
     )
     return shape_req["createShape"]["elementProperties"] if shape_req else None
@@ -56,9 +52,9 @@ class TestLayoutBugReproduction:
         expected_width = 720 / 3.0
         actual_width = shape_a_props["size"]["width"]["magnitude"]
 
-        assert (
-            abs(actual_width - expected_width) < 5.0
-        ), f"Column width is incorrect. Expected ~{expected_width}, but got {actual_width}."
+        assert abs(actual_width - expected_width) < 5.0, (
+            f"Column width is incorrect. Expected ~{expected_width}, but got {actual_width}."
+        )
 
     def test_bug_code_block_label_overlaps_heading(self, layout_manager: LayoutManager):
         """
@@ -68,9 +64,7 @@ class TestLayoutBugReproduction:
         Expected to Fail: Yes. The assertion on vertical positioning will fail.
         """
         # Arrange
-        heading = TextElement(
-            element_type=ElementType.TEXT, text="Python Code Example", object_id="h1"
-        )
+        heading = TextElement(element_type=ElementType.TEXT, text="Python Code Example", object_id="h1")
         # FIXED: Use the correct CodeElement type
         code = CodeElement(
             element_type=ElementType.CODE,
@@ -84,9 +78,7 @@ class TestLayoutBugReproduction:
         code.related_to_prev = True
 
         root_section = Section(id="root", children=[heading, code])
-        slide = Slide(
-            object_id="s1", root_section=root_section, elements=[heading, code]
-        )
+        slide = Slide(object_id="s1", root_section=root_section, elements=[heading, code])
 
         # Act
         # NOTE: This bug is in the API Generator, but we can see the position collision in the LayoutManager
@@ -103,6 +95,4 @@ class TestLayoutBugReproduction:
         # This test won't fail yet as it only checks the code block position, not its internal label.
         # A more detailed test would inspect the generated API requests.
         # We will add a test for the API generator to cover the label position.
-        assert (
-            code_top > heading_bottom
-        ), "Code block should be positioned below the heading."
+        assert code_top > heading_bottom, "Code block should be positioned below the heading."

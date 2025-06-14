@@ -62,18 +62,13 @@ def overflow_manager_factory():
                     # Handle meta-elements if present
                     if hasattr(slide, "elements"):
                         for element in slide.elements:
-                            if (
-                                element.element_type == ElementType.TITLE
-                                and not element.position
-                            ):
+                            if element.element_type == ElementType.TITLE and not element.position:
                                 element.position = (50, 10)
                                 element.size = element.size or (620, 30)
 
                     return slide
 
-                mock_lm_instance.calculate_positions.side_effect = (
-                    simple_recursive_relayout
-                )
+                mock_lm_instance.calculate_positions.side_effect = simple_recursive_relayout
 
             mock_lm_class.return_value = mock_lm_instance
             return OverflowManager(
@@ -112,9 +107,7 @@ class TestOverflowScenarios:
         )
         text_element.split = MagicMock(return_value=(fitted_part, overflow_part))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 450), children=[text_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 450), children=[text_element])
 
         slide = Slide(
             object_id="s1",
@@ -132,14 +125,9 @@ class TestOverflowScenarios:
         assert final_slides[0].renderable_elements[0].text == "Long text that needs"
 
         # Check continuation slide was created
-        continuation_slide_arg = manager.layout_manager.calculate_positions.call_args[
-            0
-        ][0]
+        continuation_slide_arg = manager.layout_manager.calculate_positions.call_args[0][0]
         assert continuation_slide_arg.is_continuation is True
-        assert (
-            continuation_slide_arg.root_section.children[0].text
-            == "to be split across multiple slides."
-        )
+        assert continuation_slide_arg.root_section.children[0].text == "to be split across multiple slides."
 
     def test_list_splitting(self, overflow_manager_factory):
         """Validates that a ListElement is correctly split across slides."""
@@ -169,9 +157,7 @@ class TestOverflowScenarios:
         )
         list_element.split = MagicMock(return_value=(fitted_part, overflow_part))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 450), children=[list_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 450), children=[list_element])
 
         slide = Slide(
             object_id="s1",
@@ -187,9 +173,7 @@ class TestOverflowScenarios:
         assert len(final_slides[0].renderable_elements[0].items) == 5
 
         # Check continuation slide
-        continuation_slide_unpositioned = (
-            manager.layout_manager.calculate_positions.call_args[0][0]
-        )
+        continuation_slide_unpositioned = manager.layout_manager.calculate_positions.call_args[0][0]
         assert len(continuation_slide_unpositioned.root_section.children[0].items) == 5
 
     def test_table_splitting(self, overflow_manager_factory):
@@ -226,9 +210,7 @@ class TestOverflowScenarios:
         )
         table_element.split = MagicMock(return_value=(fitted_part, overflow_part))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 450), children=[table_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 450), children=[table_element])
 
         slide = Slide(
             object_id="s1",
@@ -240,9 +222,7 @@ class TestOverflowScenarios:
         final_slides = manager.process_slide(slide)
 
         assert len(final_slides) == 2
-        assert (
-            final_slides[0].renderable_elements[0].get_row_count() == 5
-        )  # 1 header + 4 rows
+        assert final_slides[0].renderable_elements[0].get_row_count() == 5  # 1 header + 4 rows
 
         # Check that headers were duplicated in continuation
         continuation_slide = manager.layout_manager.calculate_positions.call_args[0][0]
@@ -282,9 +262,7 @@ class TestOverflowScenarios:
         )
         code_element.split = MagicMock(return_value=(fitted_part, overflow_part))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 450), children=[code_element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 450), children=[code_element])
 
         slide = Slide(
             object_id="s1",
@@ -397,9 +375,7 @@ class TestOverflowScenarios:
         )
         element.split = MagicMock(return_value=(fitted_part, None))
 
-        root_section = Section(
-            id="r1", position=(50, 50), size=(620, 450), children=[element]
-        )
+        root_section = Section(id="r1", position=(50, 50), size=(620, 450), children=[element])
 
         slide = Slide(
             object_id="s1",
@@ -412,10 +388,7 @@ class TestOverflowScenarios:
 
         assert len(final_slides) == 1
         assert len(final_slides[0].renderable_elements) == 1
-        assert (
-            final_slides[0].renderable_elements[0].text
-            == "Content that fits after split"
-        )
+        assert final_slides[0].renderable_elements[0].text == "Content that fits after split"
 
         # Layout manager should not be called for continuation
         manager.layout_manager.calculate_positions.assert_not_called()
@@ -479,9 +452,7 @@ class TestOverflowScenarios:
             ],
         )
 
-        root_section = Section(
-            id="root", position=(50, 50), size=(620, 450), children=[outer_section]
-        )
+        root_section = Section(id="root", position=(50, 50), size=(620, 450), children=[outer_section])
 
         slide = Slide(
             object_id="nested_test",

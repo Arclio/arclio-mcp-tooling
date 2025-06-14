@@ -30,9 +30,7 @@ class TableFormatter(BaseFormatter):
         **kwargs,
     ) -> tuple[list[Element], int]:
         """Create a table element from tokens, handling row directives."""
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
         end_index = self.find_closing_token(tokens, start_index, "table_close")
 
@@ -77,9 +75,7 @@ class TableFormatter(BaseFormatter):
         )
         return [element], end_index
 
-    def _process_row(
-        self, tokens: list[Token], start_index: int, table_end_index: int
-    ) -> tuple[list[str], dict[str, Any]]:
+    def _process_row(self, tokens: list[Token], start_index: int, table_end_index: int) -> tuple[list[str], dict[str, Any]]:
         """Process a single table row (tr) to extract cells and directives."""
         cells: list[str] = []
         row_directives: dict[str, Any] = {}
@@ -91,13 +87,8 @@ class TableFormatter(BaseFormatter):
             if token.type in ["th_open", "td_open"]:
                 cell_content_idx = i + 1
                 cell_text = ""
-                if (
-                    cell_content_idx < row_end_index
-                    and tokens[cell_content_idx].type == "inline"
-                ):
-                    cell_text = self._get_plain_text_from_inline_token(
-                        tokens[cell_content_idx]
-                    ).strip()
+                if cell_content_idx < row_end_index and tokens[cell_content_idx].type == "inline":
+                    cell_text = self._get_plain_text_from_inline_token(tokens[cell_content_idx]).strip()
                 cells.append(cell_text)
             i += 1
 
@@ -105,9 +96,7 @@ class TableFormatter(BaseFormatter):
         if cells:
             last_cell_content = cells.pop()
             if last_cell_content:
-                _, directives = self.directive_parser.parse_and_strip_from_text(
-                    last_cell_content
-                )
+                _, directives = self.directive_parser.parse_and_strip_from_text(last_cell_content)
                 row_directives.update(directives)
 
         return cells, row_directives

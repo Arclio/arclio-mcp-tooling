@@ -81,8 +81,8 @@ class SlideBuilder:
             self.original_slide.renderable_elements,
             self.original_slide.elements,
         ]
-        for L in search_lists:
-            for element in L:
+        for element_list in search_lists:
+            for element in element_list:
                 if element.element_type == ElementType.TITLE:
                     return cast("TextElement", element)
         return None
@@ -95,8 +95,8 @@ class SlideBuilder:
             self.original_slide.renderable_elements,
             self.original_slide.elements,
         ]
-        for L in search_lists:
-            for element in L:
+        for element_list in search_lists:
+            for element in element_list:
                 if element.element_type == ElementType.FOOTER:
                     return cast("TextElement", element)
         return None

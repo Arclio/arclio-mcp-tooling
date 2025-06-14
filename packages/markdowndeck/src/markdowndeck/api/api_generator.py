@@ -93,9 +93,7 @@ class ApiRequestGenerator:
         # BLOCKS: Cannot generate a valid createShape request without position and size.
         # WORKAROUND: Using reasonable hardcoded default values for position and size. This should
         # be moved to the LayoutManager in a future iteration.
-        context_title_id = self.slide_builder._generate_id(
-            f"context_title_{slide.object_id}"
-        )
+        context_title_id = self.slide_builder._generate_id(f"context_title_{slide.object_id}")
         requests = []
 
         # Create shape request with hardcoded layout
@@ -141,11 +139,7 @@ class ApiRequestGenerator:
                     "style": {
                         "italic": True,
                         "fontSize": {"magnitude": 10, "unit": "PT"},
-                        "foregroundColor": {
-                            "opaqueColor": {
-                                "rgbColor": {"red": 0.4, "green": 0.4, "blue": 0.4}
-                            }
-                        },
+                        "foregroundColor": {"opaqueColor": {"rgbColor": {"red": 0.4, "green": 0.4, "blue": 0.4}}},
                     },
                     "textRange": {"type": "ALL"},
                     "fields": "italic,fontSize,foregroundColor",
@@ -153,9 +147,7 @@ class ApiRequestGenerator:
             }
         )
 
-        logger.debug(
-            f"Generated continuation context title for slide {slide.object_id}"
-        )
+        logger.debug(f"Generated continuation context title for slide {slide.object_id}")
         return requests
 
     def _generate_element_requests(self, element: Element, slide: Slide) -> list[dict]:
@@ -173,22 +165,14 @@ class ApiRequestGenerator:
         # over the spec which assigns this task to the generator.
 
         # ADDED: Handle continuation titles per API_GEN_SPEC.md Rule #3.
-        if (
-            slide.is_continuation
-            and element.element_type == ElementType.TITLE
-            and hasattr(element, "text")
-        ):
+        if slide.is_continuation and element.element_type == ElementType.TITLE and hasattr(element, "text"):
             element.text = f"{element.text} (continued)"
-            logger.debug(
-                f"Appended continuation suffix to title for slide {slide.object_id}"
-            )
+            logger.debug(f"Appended continuation suffix to title for slide {slide.object_id}")
 
         if (
             hasattr(element, "size")
             and element.size == (0, 0)
-            and (
-                element.directives.get("background") or element.directives.get("border")
-            )
+            and (element.directives.get("background") or element.directives.get("border"))
         ):
             logger.warning(
                 f"Skipping createShape for element {element.object_id} on slide {slide.object_id} "
@@ -198,9 +182,7 @@ class ApiRequestGenerator:
 
         if not getattr(element, "object_id", None):
             element_type_name = getattr(element.element_type, "value", "unknown")
-            element.object_id = self.slide_builder._generate_id(
-                f"{element_type_name}_{slide.object_id}"
-            )
+            element.object_id = self.slide_builder._generate_id(f"{element_type_name}_{slide.object_id}")
 
         element_type = getattr(element, "element_type", None)
         requests = []
@@ -214,31 +196,19 @@ class ApiRequestGenerator:
                 ElementType.QUOTE,
                 ElementType.FOOTER,
             ]:
-                builder_requests = self.text_builder.generate_text_element_requests(
-                    element, slide_id
-                )
+                builder_requests = self.text_builder.generate_text_element_requests(element, slide_id)
             elif element_type == ElementType.BULLET_LIST:
-                builder_requests = (
-                    self.list_builder.generate_bullet_list_element_requests(
-                        element, slide_id
-                    )
-                )
+                builder_requests = self.list_builder.generate_bullet_list_element_requests(element, slide_id)
             elif element_type == ElementType.ORDERED_LIST:
                 builder_requests = self.list_builder.generate_list_element_requests(
                     element, slide_id, "NUMBERED_DIGIT_ALPHA_ROMAN"
                 )
             elif element_type == ElementType.IMAGE:
-                builder_requests = self.media_builder.generate_image_element_requests(
-                    element, slide_id
-                )
+                builder_requests = self.media_builder.generate_image_element_requests(element, slide_id)
             elif element_type == ElementType.TABLE:
-                builder_requests = self.table_builder.generate_table_element_requests(
-                    element, slide_id
-                )
+                builder_requests = self.table_builder.generate_table_element_requests(element, slide_id)
             elif element_type == ElementType.CODE:
-                builder_requests = self.code_builder.generate_code_element_requests(
-                    element, slide_id
-                )
+                builder_requests = self.code_builder.generate_code_element_requests(element, slide_id)
             else:
                 logger.warning(
                     f"Unknown or unhandled element type: {element_type} for element id {getattr(element, 'object_id', 'N/A')}"

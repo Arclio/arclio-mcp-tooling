@@ -16,9 +16,7 @@ from markdowndeck.parser import Parser
 __version__ = "0.1.0"
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 
 def _process_markdown_to_deck(markdown: str, title: str) -> Deck:
@@ -43,9 +41,7 @@ def _process_markdown_to_deck(markdown: str, title: str) -> Deck:
         final_slides_for_deck.extend(final_slides)
 
     deck.slides = final_slides_for_deck
-    logger.info(
-        f"Layout and overflow processing completed for {len(deck.slides)} final slides"
-    )
+    logger.info(f"Layout and overflow processing completed for {len(deck.slides)} final slides")
     return deck
 
 

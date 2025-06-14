@@ -55,9 +55,7 @@ class ListElement(Element):
             return 0
         return max(item.max_depth() for item in self.items)
 
-    def split(
-        self, available_height: float
-    ) -> tuple["ListElement | None", "ListElement | None"]:
+    def split(self, available_height: float) -> tuple["ListElement | None", "ListElement | None"]:
         """
         # REFACTORED: Split this ListElement with robust progress guarantees.
         # The previous implementation was inefficient and failed on large lists.
@@ -110,13 +108,8 @@ class ListElement(Element):
 
         # MINIMUM REQUIREMENTS CHECK: Must fit at least 2 items.
         minimum_items_required = 1  # Relaxed to 1 to allow progress on tight fits
-        if (
-            fitted_items_count < minimum_items_required
-            and len(self.items) > minimum_items_required
-        ):
-            logger.info(
-                f"List split rejected: Only {fitted_items_count} items fit, need minimum {minimum_items_required}."
-            )
+        if fitted_items_count < minimum_items_required and len(self.items) > minimum_items_required:
+            logger.info(f"List split rejected: Only {fitted_items_count} items fit, need minimum {minimum_items_required}.")
             return None, deepcopy(self)
 
         # Proceed with split
@@ -135,9 +128,7 @@ class ListElement(Element):
         # CRITICAL FIX: Clear size so the overflowing part gets recalculated with fewer items
         overflowing_part.size = None
 
-        logger.info(
-            f"List split successful: {len(fitted_items)} items fitted, {len(overflowing_items)} items overflowing."
-        )
+        logger.info(f"List split successful: {len(fitted_items)} items fitted, {len(overflowing_items)} items overflowing.")
         return fitted_part, overflowing_part
 
     def set_preceding_title(self, title_text: str):

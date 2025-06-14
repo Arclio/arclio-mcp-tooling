@@ -3,7 +3,8 @@
 import logging
 import random
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import Resource, build
@@ -159,7 +160,7 @@ class ApiClient:
 
         if notes_batches:
             logger.info(f"Adding speaker notes to {slides_with_notes} slides")
-            for i, batch in enumerate(notes_batches):
+            for _i, batch in enumerate(notes_batches):
                 self.execute_batch_update(batch)
 
         final_presentation = self.get_presentation(
@@ -210,9 +211,8 @@ class ApiClient:
         body = {"title": title}
         logger.debug("Creating presentation without theme")
 
-        request_func = (
-            lambda: self.slides_service.presentations().create(body=body).execute()
-        )
+        def request_func():
+            return self.slides_service.presentations().create(body=body).execute()
 
         presentation = self._execute_request_with_retry(request_func)
 
@@ -226,11 +226,12 @@ class ApiClient:
             if fields:
                 kwargs["fields"] = fields
 
-            request_func = (
-                lambda: self.slides_service.presentations()
-                .get(presentationId=presentation_id, **kwargs)
-                .execute()
-            )
+            def request_func():
+                return (
+                    self.slides_service.presentations()
+                    .get(presentationId=presentation_id, **kwargs)
+                    .execute()
+                )
 
             return self._execute_request_with_retry(request_func)
 
@@ -244,14 +245,15 @@ class ApiClient:
         """
         batch = validate_batch_requests(batch)
 
-        request_func = lambda: (
-            self.slides_service.presentations()
-            .batchUpdate(
-                presentationId=batch["presentationId"],
-                body={"requests": batch["requests"]},
+        def request_func():
+            return (
+                self.slides_service.presentations()
+                .batchUpdate(
+                    presentationId=batch["presentationId"],
+                    body={"requests": batch["requests"]},
+                )
+                .execute()
             )
-            .execute()
-        )
 
         return self._execute_request_with_retry(request_func)
 

@@ -16,9 +16,7 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 
 from markdowndeck import create_presentation
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/presentations"]
@@ -30,9 +28,7 @@ def get_credentials() -> Credentials | None:
     service_account_file = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
     if service_account_file and os.path.exists(service_account_file):
         try:
-            return service_account.Credentials.from_service_account_file(
-                service_account_file, scopes=SCOPES
-            )
+            return service_account.Credentials.from_service_account_file(service_account_file, scopes=SCOPES)
         except Exception as e:
             logger.warning(f"Failed to use service account: {e}")
 
@@ -53,9 +49,7 @@ def get_credentials() -> Credentials | None:
     # User credentials from token file
     token_path = Path.home() / ".markdowndeck" / "token.json"
     if token_path.exists():
-        creds = Credentials.from_authorized_user_info(
-            json.loads(token_path.read_text()), SCOPES
-        )
+        creds = Credentials.from_authorized_user_info(json.loads(token_path.read_text()), SCOPES)
         if creds and creds.valid:
             return creds
         if creds and creds.expired and creds.refresh_token:
@@ -66,9 +60,7 @@ def get_credentials() -> Credentials | None:
     # Run OAuth flow
     client_secrets_path = Path.home() / ".markdowndeck" / "credentials.json"
     if not client_secrets_path.exists():
-        logger.error(
-            "No credentials available. Set environment variables or provide a credentials file."
-        )
+        logger.error("No credentials available. Set environment variables or provide a credentials file.")
         return None
     flow = InstalledAppFlow.from_client_secrets_file(client_secrets_path, SCOPES)
     creds = flow.run_local_server(port=0)
@@ -99,12 +91,8 @@ def create_presentation_command(args: argparse.Namespace) -> None:
 
     try:
         # REFACTORED: Removed theme_id argument.
-        result = create_presentation(
-            markdown=markdown, title=args.title, credentials=credentials
-        )
-        print(
-            f"Created presentation:\n  - ID: {result['presentationId']}\n  - URL: {result['presentationUrl']}"
-        )
+        result = create_presentation(markdown=markdown, title=args.title, credentials=credentials)
+        print(f"Created presentation:\n  - ID: {result['presentationId']}\n  - URL: {result['presentationUrl']}")
         if args.output:
             with open(args.output, "w") as f:
                 json.dump(result, f, indent=2)
@@ -115,29 +103,19 @@ def create_presentation_command(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
-        description="Convert Markdown to Google Slides presentation"
-    )
-    subparsers = parser.add_subparsers(
-        dest="command", help="Command to execute", required=True
-    )
+    parser = argparse.ArgumentParser(description="Convert Markdown to Google Slides presentation")
+    subparsers = parser.add_subparsers(dest="command", help="Command to execute", required=True)
 
     create_parser = subparsers.add_parser("create", help="Create a presentation")
     create_parser.add_argument("input", help="Markdown file path or - for stdin")
-    create_parser.add_argument(
-        "-t", "--title", default="Markdown Presentation", help="Presentation title"
-    )
-    create_parser.add_argument(
-        "-o", "--output", help="Save presentation ID to specified file"
-    )
+    create_parser.add_argument("-t", "--title", default="Markdown Presentation", help="Presentation title")
+    create_parser.add_argument("-o", "--output", help="Save presentation ID to specified file")
     create_parser.set_defaults(func=create_presentation_command)
 
     # REFACTORED: Removed 'themes' command.
     # JUSTIFICATION: Obsolete under the "Blank Canvas First" principle.
 
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable verbose logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
     args = parser.parse_args()
 
     if args.verbose:

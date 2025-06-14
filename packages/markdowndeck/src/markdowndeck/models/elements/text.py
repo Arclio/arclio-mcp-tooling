@@ -39,39 +39,29 @@ class TextElement(Element):
         """Check if this element has any formatting applied."""
         return bool(self.formatting)
 
-    def add_formatting(
-        self, format_type: TextFormatType, start: int, end: int, value: Any = None
-    ) -> None:
+    def add_formatting(self, format_type: TextFormatType, start: int, end: int, value: Any = None) -> None:
         """Add formatting to a portion of the text."""
         if start >= end or start < 0 or end > len(self.text):
             return
         if value is None:
             value = True
-        self.formatting.append(
-            TextFormat(start=start, end=end, format_type=format_type, value=value)
-        )
+        self.formatting.append(TextFormat(start=start, end=end, format_type=format_type, value=value))
 
     def count_newlines(self) -> int:
         """Count the number of explicit newlines in the text."""
         return self.text.count("\n")
 
-    def split(
-        self, available_height: float
-    ) -> tuple["TextElement | None", "TextElement | None"]:
+    def split(self, available_height: float) -> tuple["TextElement | None", "TextElement | None"]:
         """
         Split this TextElement using pre-calculated line metrics.
         REFACTORED: This method is now self-consistent.
         """
-        logger.debug(
-            f"--- TextElement Split initiated for element {self.object_id} ---"
-        )
+        logger.debug(f"--- TextElement Split initiated for element {self.object_id} ---")
         logger.debug(f"Input available_height: {available_height:.2f}")
         logger.debug(f"Element's current size: {self.size}")
 
         if not self.text or not self._line_metrics or not self.size:
-            logger.warning(
-                "Split called but element state is incomplete (no text, metrics, or size). Cannot split."
-            )
+            logger.warning("Split called but element state is incomplete (no text, metrics, or size). Cannot split.")
             return None, deepcopy(self)
 
         logger.debug(f"Line metrics: {self._line_metrics}")
@@ -81,14 +71,10 @@ class TextElement(Element):
             return deepcopy(self), None
 
         full_content_height = sum(line["height"] for line in self._line_metrics)
-        logger.debug(
-            f"Calculated full_content_height from metrics: {full_content_height:.2f}"
-        )
+        logger.debug(f"Calculated full_content_height from metrics: {full_content_height:.2f}")
 
         vertical_padding = max(0, self.size[1] - full_content_height)
-        logger.debug(
-            f"Calculated vertical_padding (size.h - content.h): {vertical_padding:.2f}"
-        )
+        logger.debug(f"Calculated vertical_padding (size.h - content.h): {vertical_padding:.2f}")
 
         content_height_available = available_height - vertical_padding
         logger.debug(
@@ -109,9 +95,7 @@ class TextElement(Element):
             )
 
         if content_height_available <= 0:
-            logger.warning(
-                "No space available for content. Cannot split. Moving entire element to overflow."
-            )
+            logger.warning("No space available for content. Cannot split. Moving entire element to overflow.")
             return None, deepcopy(self)
 
         height_so_far = 0.0
@@ -123,29 +107,21 @@ class TextElement(Element):
             else:
                 break
 
-        logger.debug(
-            f"Determined split_line_index: {split_line_index}. This many lines will fit."
-        )
+        logger.debug(f"Determined split_line_index: {split_line_index}. This many lines will fit.")
 
         if split_line_index == -1:
-            logger.debug(
-                "No single line could fit in the available content height. Moving entire element."
-            )
+            logger.debug("No single line could fit in the available content height. Moving entire element.")
             return None, deepcopy(self)
 
         split_char_index = self._line_metrics[split_line_index]["end"]
-        while (
-            split_char_index < len(self.text) and self.text[split_char_index].isspace()
-        ):
+        while split_char_index < len(self.text) and self.text[split_char_index].isspace():
             split_char_index += 1
 
         fitted_text = self.text[:split_char_index]
         overflowing_text = self.text[split_char_index:]
 
         if not overflowing_text.strip():
-            logger.debug(
-                "Split resulted in no overflowing text. Treating as a single fitting element."
-            )
+            logger.debug("Split resulted in no overflowing text. Treating as a single fitting element.")
             return deepcopy(self), None
 
         fitted_part = deepcopy(self)
@@ -158,9 +134,7 @@ class TextElement(Element):
         overflowing_part.object_id = None  # REFACTORED: Ensure new ID is generated
         overflowing_part._line_metrics = None
 
-        fitted_part.formatting = [
-            fmt for fmt in self.formatting if fmt.start < len(fitted_text)
-        ]
+        fitted_part.formatting = [fmt for fmt in self.formatting if fmt.start < len(fitted_text)]
         for fmt in fitted_part.formatting:
             fmt.end = min(fmt.end, len(fitted_text))
 

@@ -12,7 +12,6 @@ from markdowndeck.layout.constants import (
     DEFAULT_SLIDE_WIDTH,
 )
 from markdowndeck.models import Slide
-from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
 

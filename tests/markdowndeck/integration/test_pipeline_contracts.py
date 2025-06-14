@@ -195,7 +195,8 @@ class TestPipelineContracts:
 
         shape1 = _find_shape_by_text(batch1_reqs, "Body Only")
         shape2 = _find_shape_by_text(batch2_reqs, "Body With Title")
-        assert shape1 and shape2, "Could not find body shapes in both slides."
+        assert shape1 is not None, "Could not find body shape in first slide."
+        assert shape2 is not None, "Could not find body shape in second slide."
 
         shape1_y = shape1["elementProperties"]["transform"]["translateY"]
         shape2_y = shape2["elementProperties"]["transform"]["translateY"]
@@ -212,7 +213,8 @@ class TestPipelineContracts:
 
         shape1 = _find_shape_by_text(requests, "First Line")
         shape2 = _find_shape_by_text(requests, "Second Line")
-        assert shape1 and shape2, "Could not find text shapes."
+        assert shape1 is not None, "Could not find first text shape."
+        assert shape2 is not None, "Could not find second text shape."
 
         shape1_props = shape1["elementProperties"]
         shape2_props = shape2["elementProperties"]
@@ -241,7 +243,8 @@ class TestPipelineContracts:
         # Assert
         left_shape = _find_shape_by_text(requests, "Left")
         right_shape = _find_shape_by_text(requests, "Right")
-        assert left_shape and right_shape, "Could not find shapes for both columns."
+        assert left_shape is not None, "Could not find left column shape."
+        assert right_shape is not None, "Could not find right column shape."
 
         # Each should be clamped to 50% of the available width (720pts).
         expected_width = 360.0
@@ -300,11 +303,11 @@ class TestPipelineContracts:
         color = style_req["updateTextStyle"]["style"]["foregroundColor"]["opaqueColor"][
             "rgbColor"
         ]
+        assert abs(color["red"]) < 1e-9, "Title color red component should be 0."
+        assert abs(color["green"]) < 1e-9, "Title color green component should be 0."
         assert (
-            abs(color["red"]) < 1e-9
-            and abs(color["green"]) < 1e-9
-            and abs(color["blue"] - 1.0) < 1e-9
-        ), "Title color should be blue, not red."
+            abs(color["blue"] - 1.0) < 1e-9
+        ), "Title color blue component should be 1.0."
 
     def test_p_13_image_in_bounded_column_no_overflow(
         self,

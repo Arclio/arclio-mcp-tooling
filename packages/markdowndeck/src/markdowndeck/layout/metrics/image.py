@@ -32,9 +32,7 @@ def calculate_image_element_height(
     Calculate the height needed for an image element with proactive scaling.
     This is a wrapper around calculate_image_display_size for compatibility.
     """
-    _width, height = calculate_image_display_size(
-        element, available_width, available_height
-    )
+    _width, height = calculate_image_display_size(element, available_width, available_height)
     return height
 
 
@@ -55,18 +53,11 @@ def calculate_image_display_size(
 
     This implements Law #2 by ensuring images fit within BOTH width and height constraints.
     """
-    image_element = (
-        cast(ImageElement, element)
-        if isinstance(element, ImageElement)
-        else ImageElement(**element)
-    )
+    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
 
     # Rule #8: Handle invalid URLs gracefully
     if not is_valid_image_url(image_element.url):
-        logger.warning(
-            f"Image URL is invalid or inaccessible: {image_element.url}. "
-            f"Setting size to (0, 0) per Rule #8."
-        )
+        logger.warning(f"Image URL is invalid or inaccessible: {image_element.url}. Setting size to (0, 0) per Rule #8.")
         image_element.size = (0, 0)
         return 0.0, 0.0
 
@@ -76,14 +67,10 @@ def calculate_image_display_size(
         aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
 
     # Apply element-specific width/height directives if present
-    target_width, target_height = _apply_element_size_directives(
-        image_element, available_width, available_height
-    )
+    target_width, target_height = _apply_element_size_directives(image_element, available_width, available_height)
 
     # Calculate optimal size using dual-constraint scaling
-    final_width, final_height = _calculate_dual_constraint_size(
-        target_width, target_height, aspect_ratio
-    )
+    final_width, final_height = _calculate_dual_constraint_size(target_width, target_height, aspect_ratio)
 
     # Ensure minimum viable dimensions
     if final_height < MIN_IMAGE_HEIGHT and final_width > 0:
@@ -121,10 +108,7 @@ def _get_image_aspect_ratio(element: ImageElement) -> float:
 
     # For now, use default ratio. In a full implementation, this could
     # fetch actual image dimensions from the URL
-    logger.debug(
-        f"Using default aspect ratio {DEFAULT_IMAGE_ASPECT_RATIO:.2f} "
-        f"for image: {url[:50]}..."
-    )
+    logger.debug(f"Using default aspect ratio {DEFAULT_IMAGE_ASPECT_RATIO:.2f} for image: {url[:50]}...")
     _image_dimensions_cache[url] = DEFAULT_IMAGE_ASPECT_RATIO
     return DEFAULT_IMAGE_ASPECT_RATIO
 
@@ -165,9 +149,7 @@ def _apply_element_size_directives(
                     target_height = available_height * percentage
                 elif isinstance(height_directive, float) and 0 < height_directive <= 1:
                     target_height = available_height * height_directive
-                elif (
-                    isinstance(height_directive, int | float) and height_directive > 1
-                ):
+                elif isinstance(height_directive, int | float) and height_directive > 1:
                     # Clamp to available space (Container-First principle)
                     target_height = min(float(height_directive), available_height)
             except (ValueError, TypeError):
@@ -176,9 +158,7 @@ def _apply_element_size_directives(
     return target_width, target_height
 
 
-def _calculate_dual_constraint_size(
-    target_width: float, target_height: float, aspect_ratio: float
-) -> tuple[float, float]:
+def _calculate_dual_constraint_size(target_width: float, target_height: float, aspect_ratio: float) -> tuple[float, float]:
     """
     Calculate final image size respecting both width and height constraints.
 
@@ -215,19 +195,13 @@ def _calculate_dual_constraint_size(
     return final_width, final_height
 
 
-def get_image_scaling_info(
-    element: ImageElement, available_width: float, available_height: float = 0
-) -> dict:
+def get_image_scaling_info(element: ImageElement, available_width: float, available_height: float = 0) -> dict:
     """
     Get detailed scaling information for debugging and analysis.
     """
     aspect_ratio = _get_image_aspect_ratio(element)
-    target_width, target_height = _apply_element_size_directives(
-        element, available_width, available_height
-    )
-    final_width, final_height = _calculate_dual_constraint_size(
-        target_width, target_height, aspect_ratio
-    )
+    target_width, target_height = _apply_element_size_directives(element, available_width, available_height)
+    final_width, final_height = _calculate_dual_constraint_size(target_width, target_height, aspect_ratio)
 
     return {
         "url": getattr(element, "url", ""),

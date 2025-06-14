@@ -41,9 +41,7 @@ class TestParserStress:
         end_time = time.time()
 
         processing_time = end_time - start_time
-        print(
-            f"Parsing a slide with {num_lines} lines took {processing_time:.4f} seconds."
-        )
+        print(f"Parsing a slide with {num_lines} lines took {processing_time:.4f} seconds.")
 
         assert processing_time < 5.0, "Parsing a massive slide should be performant."
         assert len(deck.slides) == 1

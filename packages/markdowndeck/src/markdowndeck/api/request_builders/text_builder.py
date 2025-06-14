@@ -96,9 +96,7 @@ class TextRequestBuilder(BaseRequestBuilder):
         if hasattr(element, "formatting") and element.formatting:
             for text_format in element.formatting:
                 text_length = len(element.text)
-                start_index = min(
-                    text_format.start, text_length - 1 if text_length > 0 else 0
-                )
+                start_index = min(text_format.start, text_length - 1 if text_length > 0 else 0)
                 end_index = min(text_format.end, text_length)
                 if start_index < end_index:
                     requests.append(
@@ -115,9 +113,7 @@ class TextRequestBuilder(BaseRequestBuilder):
 
         return requests
 
-    def _add_shape_properties(
-        self, element: TextElement, props: dict, fields: list[str]
-    ):
+    def _add_shape_properties(self, element: TextElement, props: dict, fields: list[str]):
         """Helper to aggregate all shape-level property updates."""
         directives = element.directives or {}
         valign_directive = directives.get("valign")
@@ -139,17 +135,11 @@ class TextRequestBuilder(BaseRequestBuilder):
             color_info = bg_dir.get("value")
             if color_info:
                 # The value might be a simple string (hex) or another dict
-                bg_val = (
-                    color_info.get("value")
-                    if isinstance(color_info, dict)
-                    else color_info
-                )
+                bg_val = color_info.get("value") if isinstance(color_info, dict) else color_info
                 if isinstance(bg_val, str) and bg_val.startswith("#"):
                     try:
                         rgb = self._hex_to_rgb(bg_val)
-                        props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                            "color": {"rgbColor": rgb}
-                        }
+                        props.setdefault("shapeBackgroundFill", {})["solidFill"] = {"color": {"rgbColor": rgb}}
                         fields.append("shapeBackgroundFill.solidFill.color")
                     except (ValueError, AttributeError):
                         logger.warning(f"Invalid background color value: {bg_val}")
@@ -185,16 +175,10 @@ class TextRequestBuilder(BaseRequestBuilder):
         if isinstance(color_directive, dict) and color_directive.get("type") == "color":
             color_value = color_directive.get("value", {})
             # The value can be a string (named color) or a dict (hex)
-            color_str = (
-                color_value.get("value")
-                if isinstance(color_value, dict)
-                else color_value
-            )
+            color_str = color_value.get("value") if isinstance(color_value, dict) else color_value
             if color_str:
                 try:
-                    style = self._format_to_style(
-                        TextFormat(0, 0, TextFormatType.COLOR, color_str)
-                    )
+                    style = self._format_to_style(TextFormat(0, 0, TextFormatType.COLOR, color_str))
                     if "foregroundColor" in style:
                         text_style_updates["foregroundColor"] = style["foregroundColor"]
                         text_fields.append("foregroundColor")

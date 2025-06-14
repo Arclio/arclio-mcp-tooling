@@ -22,9 +22,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         """Check if this formatter can handle the given token."""
         return token.type in ["bullet_list_open", "ordered_list_open"]
 
-    def process(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
-    ) -> tuple[Element | None, int]:
+    def process(self, tokens: list[Token], start_index: int, directives: dict[str, Any]) -> tuple[Element | None, int]:
         """Create a list element from tokens."""
         open_token = tokens[start_index]
         ordered = open_token.type == "ordered_list_open"
@@ -35,14 +33,10 @@ class ListRequestBuilder(BaseRequestBuilder):
         items = self._extract_list_items(tokens, start_index + 1, end_index, 0)
 
         if not items:
-            logger.debug(
-                f"No list items found for list at index {start_index}, skipping element."
-            )
+            logger.debug(f"No list items found for list at index {start_index}, skipping element.")
             return None, end_index
 
-        element = self.element_factory.create_list_element(
-            items=items, ordered=ordered, directives=directives.copy()
-        )
+        element = self.element_factory.create_list_element(items=items, ordered=ordered, directives=directives.copy())
         logger.debug(
             f"Created {'ordered' if ordered else 'bullet'} list with {len(items)} top-level items from token index {start_index} to {end_index}"
         )
@@ -68,27 +62,17 @@ class ListRequestBuilder(BaseRequestBuilder):
                 j = item_content_start_idx
                 item_content_processed_up_to = j
 
-                while j < list_end_idx and not (
-                    tokens[j].type == "list_item_close"
-                    and tokens[j].level == token.level
-                ):
+                while j < list_end_idx and not (tokens[j].type == "list_item_close" and tokens[j].level == token.level):
                     item_token = tokens[j]
                     if item_token.type == "paragraph_open":
                         inline_idx = j + 1
-                        if (
-                            inline_idx < list_end_idx
-                            and tokens[inline_idx].type == "inline"
-                        ):
+                        if inline_idx < list_end_idx and tokens[inline_idx].type == "inline":
                             if item_text:
                                 item_text += "\n"
                             current_text_offset = len(item_text)
-                            plain_text = self._get_plain_text_from_inline_token(
-                                tokens[inline_idx]
-                            )
+                            plain_text = self._get_plain_text_from_inline_token(tokens[inline_idx])
                             item_text += plain_text
-                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(
-                                tokens[inline_idx]
-                            )
+                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(tokens[inline_idx])
                             for fmt in extracted_fmts:
                                 item_formatting.append(
                                     TextFormat(
@@ -101,18 +85,10 @@ class ListRequestBuilder(BaseRequestBuilder):
                         j = self.find_closing_token(tokens, j, "paragraph_close")
                     elif item_token.type in ["bullet_list_open", "ordered_list_open"]:
                         nested_list_close_tag = (
-                            "bullet_list_close"
-                            if item_token.type == "bullet_list_open"
-                            else "ordered_list_close"
+                            "bullet_list_close" if item_token.type == "bullet_list_open" else "ordered_list_close"
                         )
-                        nested_list_end_idx = self.find_closing_token(
-                            tokens, j, nested_list_close_tag
-                        )
-                        children.extend(
-                            self._extract_list_items(
-                                tokens, j + 1, nested_list_end_idx, level + 1
-                            )
-                        )
+                        nested_list_end_idx = self.find_closing_token(tokens, j, nested_list_close_tag)
+                        children.extend(self._extract_list_items(tokens, j + 1, nested_list_end_idx, level + 1))
                         j = nested_list_end_idx
 
                     item_content_processed_up_to = j
@@ -222,9 +198,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                 continue
             end_index = min(end_index, text_length)
             if start_index >= end_index:
-                logger.warning(
-                    f"List item range is invalid after clamping. Skipping. Start: {start_index}, End: {end_index}"
-                )
+                logger.warning(f"List item range is invalid after clamping. Skipping. Start: {start_index}, End: {end_index}")
                 continue
 
             requests.append(
@@ -277,8 +251,12 @@ class ListRequestBuilder(BaseRequestBuilder):
                                     "magnitude": indent_amount,
                                     "unit": "PT",
                                 },
+                                "indentFirstLine": {
+                                    "magnitude": -20.0,
+                                    "unit": "PT",
+                                },
                             },
-                            "fields": "indentStart",
+                            "fields": "indentStart,indentFirstLine",
                         }
                     }
                 )
@@ -311,9 +289,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
         return requests
 
-    def _format_list_with_nesting(
-        self, items: list[ListItem]
-    ) -> tuple[str, list[dict[str, Any]]]:
+    def _format_list_with_nesting(self, items: list[ListItem]) -> tuple[str, list[dict[str, Any]]]:
         """
         Formats list items into a single text string and calculates precise ranges.
         REFACTORED: This is the core fix. It no longer uses tabs and calculates
@@ -346,18 +322,14 @@ class ListRequestBuilder(BaseRequestBuilder):
         process_items(items)
         return text_content, text_ranges
 
-    def _apply_color_directive(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_color_directive(self, element: ListElement, requests: list[dict]) -> None:
         """Apply color directive to a list element."""
         color_val = (element.directives or {}).get("color")
         if not isinstance(color_val, str):
             return
 
         try:
-            color_format = TextFormat(
-                start=0, end=0, format_type=TextFormatType.COLOR, value=color_val
-            )
+            color_format = TextFormat(start=0, end=0, format_type=TextFormatType.COLOR, value=color_val)
             style = self._format_to_style(color_format)
             if "foregroundColor" in style:
                 requests.append(
@@ -371,9 +343,7 @@ class ListRequestBuilder(BaseRequestBuilder):
         except (ValueError, AttributeError):
             logger.warning(f"Invalid color value for list: {color_val}")
 
-    def _apply_list_styling_directives(
-        self, element: ListElement, requests: list[dict]
-    ) -> None:
+    def _apply_list_styling_directives(self, element: ListElement, requests: list[dict]) -> None:
         """Apply additional styling directives to the list element."""
         if not hasattr(element, "directives") or not element.directives:
             return
@@ -383,9 +353,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                 requests.append(
                     self._apply_text_formatting(
                         element_id=element.object_id,
-                        style={
-                            "fontSize": {"magnitude": float(font_size), "unit": "PT"}
-                        },
+                        style={"fontSize": {"magnitude": float(font_size), "unit": "PT"}},
                         fields="fontSize",
                         range_type="ALL",
                     )

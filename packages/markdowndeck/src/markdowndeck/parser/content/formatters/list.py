@@ -38,9 +38,7 @@ class ListFormatter(BaseFormatter):
         **kwargs,
     ) -> tuple[list[Element], int]:
         """Create a list element from tokens."""
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
         open_token = tokens[start_index]
         ordered = open_token.type == "ordered_list_open"
@@ -48,14 +46,10 @@ class ListFormatter(BaseFormatter):
 
         end_index = self.find_closing_token(tokens, start_index, close_tag_type)
 
-        items = self._extract_list_items(
-            tokens, start_index + 1, end_index, 0, merged_directives
-        )
+        items = self._extract_list_items(tokens, start_index + 1, end_index, 0, merged_directives)
 
         if not items:
-            logger.debug(
-                f"No list items found for list at index {start_index}, skipping element."
-            )
+            logger.debug(f"No list items found for list at index {start_index}, skipping element.")
             return [], end_index
 
         # CRITICAL FIX: Promote layout directives from last item to element level
@@ -78,9 +72,7 @@ class ListFormatter(BaseFormatter):
             for key, value in last_item.directives.items():
                 if key in element_level_directives:
                     directives_to_promote[key] = value
-                    logger.debug(
-                        f"Promoting directive '{key}={value}' from last item to list element"
-                    )
+                    logger.debug(f"Promoting directive '{key}={value}' from last item to list element")
                 else:
                     remaining_item_directives[key] = value
 
@@ -90,9 +82,7 @@ class ListFormatter(BaseFormatter):
                 # Update element directives with promoted directives (they override inherited ones)
                 merged_directives.update(directives_to_promote)
 
-        element = self.element_factory.create_list_element(
-            items=items, ordered=ordered, directives=merged_directives.copy()
-        )
+        element = self.element_factory.create_list_element(items=items, ordered=ordered, directives=merged_directives.copy())
         logger.debug(
             f"Created {'ordered' if ordered else 'bullet'} list with {len(items)} top-level items from token index {start_index} to {end_index}"
         )
@@ -134,8 +124,7 @@ class ListFormatter(BaseFormatter):
                 # Find the end of the current list item
                 item_end_idx = i
                 while item_end_idx < list_end_idx and not (
-                    tokens[item_end_idx].type == "list_item_close"
-                    and tokens[item_end_idx].level == token.level
+                    tokens[item_end_idx].type == "list_item_close" and tokens[item_end_idx].level == token.level
                 ):
                     item_end_idx += 1
 
@@ -145,17 +134,10 @@ class ListFormatter(BaseFormatter):
                     item_token = tokens[j]
                     if item_token.type == "paragraph_open":
                         inline_idx = j + 1
-                        if (
-                            inline_idx < item_end_idx
-                            and tokens[inline_idx].type == "inline"
-                        ):
+                        if inline_idx < item_end_idx and tokens[inline_idx].type == "inline":
                             inline_token = tokens[inline_idx]
                             # FIXED: Parse directives from the item's raw text content
-                            cleaned_content, directives = (
-                                self.directive_parser.parse_and_strip_from_text(
-                                    inline_token.content
-                                )
-                            )
+                            cleaned_content, directives = self.directive_parser.parse_and_strip_from_text(inline_token.content)
                             item_directives.update(directives)
 
                             # CRITICAL FIX: Use cleaned content directly instead of re-parsing
@@ -165,9 +147,7 @@ class ListFormatter(BaseFormatter):
                                     item_text += "\n"
                                 item_text += cleaned_content.strip()
                             else:
-                                logger.debug(
-                                    "DEBUG: No content after directive cleaning"
-                                )
+                                logger.debug("DEBUG: No content after directive cleaning")
 
                             # TODO: For now, we're not extracting formatting from cleaned content
                             # This means directives like [bold] won't work in list items, but the basic
@@ -175,13 +155,9 @@ class ListFormatter(BaseFormatter):
                         j = self.find_closing_token(tokens, j, "paragraph_close")
                     elif item_token.type in ["bullet_list_open", "ordered_list_open"]:
                         nested_list_close_tag = (
-                            "bullet_list_close"
-                            if item_token.type == "bullet_list_open"
-                            else "ordered_list_close"
+                            "bullet_list_close" if item_token.type == "bullet_list_open" else "ordered_list_close"
                         )
-                        nested_list_end_idx = self.find_closing_token(
-                            tokens, j, nested_list_close_tag
-                        )
+                        nested_list_end_idx = self.find_closing_token(tokens, j, nested_list_close_tag)
                         children.extend(
                             self._extract_list_items(
                                 tokens,
@@ -196,9 +172,7 @@ class ListFormatter(BaseFormatter):
 
                 # CRITICAL FIX: Merge section directives with item directives per PRINCIPLES.md Section 8.1
                 # Item-specific directives (Level 1) take precedence over section directives (Level 2)
-                merged_item_directives = self.merge_directives(
-                    section_directives, item_directives
-                )
+                merged_item_directives = self.merge_directives(section_directives, item_directives)
 
                 list_item_obj = ListItem(
                     text=item_text.strip(),
@@ -213,16 +187,10 @@ class ListFormatter(BaseFormatter):
                 i += 1
         return items
 
-    def _extract_preceding_list_item_directives(
-        self, tokens: list[Token], list_item_idx: int
-    ) -> dict[str, Any]:
+    def _extract_preceding_list_item_directives(self, tokens: list[Token], list_item_idx: int) -> dict[str, Any]:
         return {}
 
-    def _extract_list_item_directives_with_trailing(
-        self, content: str
-    ) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    def _extract_list_item_directives_with_trailing(self, content: str) -> tuple[dict[str, Any], str, dict[str, Any]]:
         """Extract directives from list item content, including trailing directives."""
-        cleaned_content, directives = self.directive_parser.parse_and_strip_from_text(
-            content
-        )
+        cleaned_content, directives = self.directive_parser.parse_and_strip_from_text(content)
         return directives, cleaned_content, {}

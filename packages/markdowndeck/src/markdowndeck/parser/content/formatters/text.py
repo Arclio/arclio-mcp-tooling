@@ -42,21 +42,15 @@ class TextFormatter(BaseFormatter):
             return [], start_index
 
         token = tokens[start_index]
-        merged_directives = self.merge_directives(
-            section_directives, element_specific_directives
-        )
+        merged_directives = self.merge_directives(section_directives, element_specific_directives)
 
         if token.type == "heading_open":
-            element, end_idx = self._process_heading(
-                tokens, start_index, merged_directives
-            )
+            element, end_idx = self._process_heading(tokens, start_index, merged_directives)
             return [element] if element else [], end_idx
         if token.type == "paragraph_open":
             return self._process_paragraph(tokens, start_index, merged_directives)
         if token.type == "blockquote_open":
-            element, end_idx = self._process_quote(
-                tokens, start_index, merged_directives
-            )
+            element, end_idx = self._process_quote(tokens, start_index, merged_directives)
             return [element] if element else [], end_idx
 
         logger.warning(f"TextFormatter cannot process token type: {token.type}")
@@ -70,9 +64,7 @@ class TextFormatter(BaseFormatter):
         end_idx = self.find_closing_token(tokens, start_index, "heading_close")
         inline_token = tokens[start_index + 1]
         raw_content = inline_token.content or ""
-        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
-            raw_content
-        )
+        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(raw_content)
         final_directives = {**directives, **line_directives}
         text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
         if not text_content:
@@ -124,18 +116,12 @@ class TextFormatter(BaseFormatter):
                 i += 1  # Consume image token
 
                 img_alt, img_src = image_token.content, image_token.attrs.get("src", "")
-                alt_text, img_directives = (
-                    self.directive_parser.parse_and_strip_from_text(img_alt)
-                )
+                alt_text, img_directives = self.directive_parser.parse_and_strip_from_text(img_alt)
 
                 # Look at the *next* token. If it's text, it might contain our directives.
                 if i < len(child_tokens) and child_tokens[i].type == "text":
                     next_child = child_tokens[i]
-                    cleaned_text, next_directives = (
-                        self.directive_parser.parse_and_strip_from_text(
-                            next_child.content
-                        )
-                    )
+                    cleaned_text, next_directives = self.directive_parser.parse_and_strip_from_text(next_child.content)
                     if next_directives:
                         img_directives.update(next_directives)
                     # Update the text token with the remaining text (the caption).
@@ -151,73 +137,50 @@ class TextFormatter(BaseFormatter):
 
         return elements, close_index
 
-    def _create_text_element_from_tokens(
-        self, text_tokens: list[Token], directives: dict[str, Any]
-    ) -> Element | None:
+    def _create_text_element_from_tokens(self, text_tokens: list[Token], directives: dict[str, Any]) -> Element | None:
         """Create a text element from a list of inline tokens, preserving formatting."""
         temp_inline_token = Token("inline", "", 0)
         temp_inline_token.children = text_tokens
-        temp_inline_token.content = "".join(
-            t.content for t in text_tokens if hasattr(t, "content")
-        )
+        temp_inline_token.content = "".join(t.content for t in text_tokens if hasattr(t, "content"))
         plain_text = self._get_plain_text_from_inline_token(temp_inline_token)
         if not plain_text.strip():
             return None
 
-        formatting_data = self.element_factory._extract_formatting_from_inline_token(
-            temp_inline_token
-        )
-        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
-            plain_text
-        )
+        formatting_data = self.element_factory._extract_formatting_from_inline_token(temp_inline_token)
+        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(plain_text)
         final_directives = {**directives, **line_directives}
         alignment = AlignmentType(final_directives.get("align", "left"))
-        return self.element_factory.create_text_element(
-            cleaned_text.strip(), formatting_data, alignment, final_directives
-        )
+        return self.element_factory.create_text_element(cleaned_text.strip(), formatting_data, alignment, final_directives)
 
-    def _process_quote(
-        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
-    ) -> tuple[Element | None, int]:
+    def _process_quote(self, tokens: list[Token], start_index: int, directives: dict[str, Any]) -> tuple[Element | None, int]:
         end_idx = self.find_closing_token(tokens, start_index, "blockquote_close")
         text_parts = []
         i = start_index + 1
         while i < end_idx:
             if tokens[i].type == "paragraph_open":
                 para_inline_idx = i + 1
-                if (
-                    para_inline_idx < end_idx
-                    and tokens[para_inline_idx].type == "inline"
-                ):
+                if para_inline_idx < end_idx and tokens[para_inline_idx].type == "inline":
                     text_parts.append(tokens[para_inline_idx].content)
                 i = self.find_closing_token(tokens, i, "paragraph_close")
             i += 1
         full_text = "\n".join(text_parts)
-        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
-            full_text
-        )
+        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(full_text)
         final_directives = {**directives, **line_directives}
         text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
         if not text_content:
             return None, end_idx
 
         alignment = AlignmentType(final_directives.get("align", "left"))
-        element = self.element_factory.create_quote_element(
-            text_content, formatting, alignment, final_directives
-        )
+        element = self.element_factory.create_quote_element(text_content, formatting, alignment, final_directives)
         return element, end_idx
 
-    def _extract_clean_text_and_formatting(
-        self, cleaned_text: str
-    ) -> tuple[str, list[TextFormat]]:
+    def _extract_clean_text_and_formatting(self, cleaned_text: str) -> tuple[str, list[TextFormat]]:
         if not cleaned_text.strip():
             return "", []
         tokens = self.md.parse(cleaned_text.strip())
         for token in tokens:
             if token.type == "inline":
                 plain_text = self._get_plain_text_from_inline_token(token)
-                formatting = self.element_factory._extract_formatting_from_inline_token(
-                    token
-                )
+                formatting = self.element_factory._extract_formatting_from_inline_token(token)
                 return plain_text, formatting
         return cleaned_text.strip(), []

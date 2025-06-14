@@ -15,9 +15,7 @@ def api_generator() -> ApiRequestGenerator:
 
 
 class TestApiGeneratorAutofit:
-    def test_api_c_10_autofit_is_disabled_for_all_text_shapes(
-        self, api_generator: ApiRequestGenerator
-    ):
+    def test_api_c_10_autofit_is_disabled_for_all_text_shapes(self, api_generator: ApiRequestGenerator):
         """
         Test Case: API-C-10
         Validates that any 'createShape' request for a TEXT_BOX is immediately
@@ -40,9 +38,7 @@ class TestApiGeneratorAutofit:
             position=(100, 300),
             size=(300, 150),
         )
-        slide = Slide(
-            object_id="test_slide", renderable_elements=[text_element_1, text_element_2]
-        )
+        slide = Slide(object_id="test_slide", renderable_elements=[text_element_1, text_element_2])
         deck = Deck(slides=[slide])
 
         # Act
@@ -56,18 +52,14 @@ class TestApiGeneratorAutofit:
                     create_shape_index = i
                     break
 
-            assert (
-                create_shape_index != -1
-            ), f"createShape request not found for {obj_id}."
+            assert create_shape_index != -1, f"createShape request not found for {obj_id}."
 
-            assert create_shape_index + 1 < len(
-                requests
-            ), f"No request found after createShape for {obj_id}."
+            assert create_shape_index + 1 < len(requests), f"No request found after createShape for {obj_id}."
             autofit_request = requests[create_shape_index + 1]
 
-            assert (
-                "updateShapeProperties" in autofit_request
-            ), f"Expected updateShapeProperties request after createShape for {obj_id}."
+            assert "updateShapeProperties" in autofit_request, (
+                f"Expected updateShapeProperties request after createShape for {obj_id}."
+            )
 
             props = autofit_request["updateShapeProperties"]
             assert props["objectId"] == obj_id

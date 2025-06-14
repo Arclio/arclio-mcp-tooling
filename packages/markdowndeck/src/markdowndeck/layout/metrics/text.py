@@ -25,9 +25,7 @@ from markdowndeck.models import ElementType, TextElement
 logger = logging.getLogger(__name__)
 
 
-def calculate_text_element_height(
-    element: TextElement | dict, available_width: float
-) -> float:
+def calculate_text_element_height(element: TextElement | dict, available_width: float) -> float:
     """
     Calculate intrinsic height for a text element and pre-compute line metrics.
     REFACTORED: Now populates `element._line_metrics` as a side effect.
@@ -47,9 +45,7 @@ def calculate_text_element_height(
             text_element._line_metrics = []
             return _get_minimum_height_for_type(element_type)
 
-    font_size, line_height_multiplier, padding, min_height = _get_typography_params(
-        element_type, directives
-    )
+    font_size, line_height_multiplier, padding, min_height = _get_typography_params(element_type, directives)
     effective_width = max(10.0, available_width - (padding * 2))
 
     try:
@@ -73,9 +69,7 @@ def calculate_text_element_height(
     return max(total_height, min_height)
 
 
-def _get_typography_params(
-    element_type: ElementType, directives: dict
-) -> tuple[float, float, float, float]:
+def _get_typography_params(element_type: ElementType, directives: dict) -> tuple[float, float, float, float]:
     """Get typography parameters for a specific element type, considering directives."""
     params = {
         ElementType.TITLE: (
@@ -109,9 +103,7 @@ def _get_typography_params(
             MIN_TEXT_HEIGHT,
         ),
     }
-    font_size, line_height, padding, min_height = params.get(
-        element_type, params[ElementType.TEXT]
-    )
+    font_size, line_height, padding, min_height = params.get(element_type, params[ElementType.TEXT])
 
     if "fontsize" in directives:
         try:

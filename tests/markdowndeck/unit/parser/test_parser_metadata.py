@@ -28,16 +28,12 @@ class TestMetadataParser:
         assert slide.base_directives.get("align") == "center"
 
         # The text element inherits from the section (red) and the base (center)
-        text_element = next(
-            e for e in slide.elements if e.element_type == ElementType.TEXT
-        )
+        text_element = next(e for e in slide.elements if e.element_type == ElementType.TEXT)
         assert text_element.directives.get("color") is not None  # from section
         assert text_element.directives.get("align") == "center"  # from base
 
         # The list element overrides the inherited alignment
-        list_element = next(
-            e for e in slide.elements if e.element_type == ElementType.BULLET_LIST
-        )
+        list_element = next(e for e in slide.elements if e.element_type == ElementType.BULLET_LIST)
         assert list_element.directives.get("align") == "left"  # from element
         assert list_element.directives.get("color") is not None  # from section
 

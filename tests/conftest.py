@@ -8,18 +8,14 @@ import sys
 from pathlib import Path
 
 # Add the package to Python path for testing
-package_path = (
-    Path(__file__).parent.parent / "packages" / "google-workspace-mcp" / "src"
-)
+package_path = Path(__file__).parent.parent / "packages" / "google-workspace-mcp" / "src"
 sys.path.insert(0, str(package_path))
 
 # Test that the import works
 try:
     import google_workspace_mcp
 
-    print(
-        f"Successfully imported google_workspace_mcp from {google_workspace_mcp.__file__}"
-    )
+    print(f"Successfully imported google_workspace_mcp from {google_workspace_mcp.__file__}")
 
     # Additional imports to test module structure
     import google_workspace_mcp.services

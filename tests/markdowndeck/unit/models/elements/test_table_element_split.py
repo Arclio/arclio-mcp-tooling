@@ -12,9 +12,7 @@ class TestTableElementSplit:
         Test Case: DATA-E-SPLIT-TABLE-03 (Custom ID)
         The overflowing part of a table with headers must also contain the headers.
         """
-        mock_calc_height.side_effect = lambda data, width, is_header: (
-            30 if is_header else 25
-        )
+        mock_calc_height.side_effect = lambda data, width, is_header: (30 if is_header else 25)
         table = TableElement(
             element_type=ElementType.TABLE,
             headers=["H1", "H2"],

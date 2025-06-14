@@ -17,9 +17,7 @@ class TestDriveUploadFile:
     @pytest.fixture
     def mock_drive_service(self):
         """Patch DriveService for tool tests."""
-        with patch(
-            "google_workspace_mcp.tools.drive.DriveService"
-        ) as mock_service_class:
+        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
             mock_service = MagicMock()
             mock_service_class.return_value = mock_service
             yield mock_service
@@ -86,7 +84,5 @@ class TestDriveUploadFile:
         """Test drive_upload_file with missing content."""
         # Define arguments
         args = {"filename": "test.txt", "content_base64": ""}
-        with pytest.raises(
-            ValueError, match="File content \\(content_base64\\) cannot be empty"
-        ):
+        with pytest.raises(ValueError, match="File content \\(content_base64\\) cannot be empty"):
             await drive_upload_file(**args)

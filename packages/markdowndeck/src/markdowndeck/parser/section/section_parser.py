@@ -14,9 +14,7 @@ class SectionParser:
     def __init__(self):
         """Initialize the section parser."""
         self.directive_parser = DirectiveParser()
-        self.fence_pattern = re.compile(
-            r"^\s*:::\s*(?P<type>section|row|column)?(?P<directives>.*?)?$"
-        )
+        self.fence_pattern = re.compile(r"^\s*:::\s*(?P<type>section|row|column)?(?P<directives>.*?)?$")
 
     def parse_sections(self, content: str) -> Section:
         """
@@ -46,18 +44,14 @@ class SectionParser:
                     if len(section_stack) > 1:
                         section_stack.pop()
                     else:
-                        logger.warning(
-                            "Found a closing fence ':::' with no open section to close."
-                        )
+                        logger.warning("Found a closing fence ':::' with no open section to close.")
             else:
                 content_buffer.append(line)
 
         self._flush_content_buffer(content_buffer, section_stack)
 
         if len(section_stack) > 1:
-            logger.warning(
-                f"Found {len(section_stack) - 1} unclosed section(s). Auto-closing."
-            )
+            logger.warning(f"Found {len(section_stack) - 1} unclosed section(s). Auto-closing.")
 
         return root_section
 
@@ -67,9 +61,7 @@ class SectionParser:
             content_str = "\n".join(buffer).strip()
             if content_str:
                 current_section = stack[-1]
-                current_section.content = (
-                    (current_section.content or "") + "\n" + content_str
-                ).strip()
+                current_section.content = ((current_section.content or "") + "\n" + content_str).strip()
 
     def _create_new_section(self, fence_type: str, directives_str: str) -> Section:
         """Helper to create a new Section object from fence data."""

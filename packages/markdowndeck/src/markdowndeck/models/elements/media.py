@@ -30,9 +30,7 @@ class ImageElement(Element):
         """
         return self.url.startswith(("http://", "https://"))
 
-    def split(
-        self, available_height: float
-    ) -> tuple["ImageElement | None", "ImageElement | None"]:
+    def split(self, available_height: float) -> tuple["ImageElement | None", "ImageElement | None"]:
         """
         Image elements are proactively scaled and should never be split.
 

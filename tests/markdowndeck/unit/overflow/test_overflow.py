@@ -53,22 +53,13 @@ def overflow_manager() -> OverflowManager:
             # Also position any meta-elements
             if hasattr(slide, "elements"):
                 for element in slide.elements:
-                    if (
-                        element.element_type == ElementType.TITLE
-                        and not element.position
-                    ):
+                    if element.element_type == ElementType.TITLE and not element.position:
                         element.position = (50, 10)
                         element.size = element.size or (620, 30)
-                    elif (
-                        element.element_type == ElementType.SUBTITLE
-                        and not element.position
-                    ):
+                    elif element.element_type == ElementType.SUBTITLE and not element.position:
                         element.position = (50, 45)
                         element.size = element.size or (620, 25)
-                    elif (
-                        element.element_type == ElementType.FOOTER
-                        and not element.position
-                    ):
+                    elif element.element_type == ElementType.FOOTER and not element.position:
                         element.position = (50, 375)
                         element.size = element.size or (620, 20)
 
@@ -160,9 +151,7 @@ def positioned_slide_no_overflow() -> Slide:
 
 
 class TestOverflowManager:
-    def test_overflow_c_01_no_op_path(
-        self, overflow_manager: OverflowManager, positioned_slide_no_overflow: Slide
-    ):
+    def test_overflow_c_01_no_op_path(self, overflow_manager: OverflowManager, positioned_slide_no_overflow: Slide):
         """Test Case: OVERFLOW-C-01: A slide that fits is finalized without creating continuations."""
         final_slides = overflow_manager.process_slide(positioned_slide_no_overflow)
 
@@ -177,9 +166,7 @@ class TestOverflowManager:
         # Layout manager should not be called for slides that fit
         overflow_manager.layout_manager.calculate_positions.assert_not_called()
 
-    def test_overflow_c_02_internal_overflow_is_ignored(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_overflow_c_02_internal_overflow_is_ignored(self, overflow_manager: OverflowManager):
         """Test Case: OVERFLOW-C-02: Internal overflow in a fixed-height section is ignored."""
         # This section's box fits on the slide (y=50, h=200 -> bottom=250),
         # but its content is taller. The detector should ignore this as the
@@ -210,14 +197,10 @@ class TestOverflowManager:
         final_slides = overflow_manager.process_slide(slide)
 
         # Should not split because the fixed-height section itself fits
-        assert (
-            len(final_slides) == 1
-        ), "Internal overflow should be ignored and not cause a split."
+        assert len(final_slides) == 1, "Internal overflow should be ignored and not cause a split."
         assert final_slides[0].renderable_elements[0].object_id == "el_tall"
 
-    def test_overflow_c_03_circuit_breaker_first_strike(
-        self, overflow_manager: OverflowManager
-    ):
+    def test_overflow_c_03_circuit_breaker_first_strike(self, overflow_manager: OverflowManager):
         """Test Case: OVERFLOW-C-03: Verifies circuit breaker's first strike."""
         image = ImageElement(
             element_type=ElementType.IMAGE,
@@ -247,9 +230,7 @@ class TestOverflowManager:
         assert len(final_slides) == 2, "Should create a continuation slide"
 
         # Verify the image was moved to continuation slide with flag set
-        continuation_slide_arg = (
-            overflow_manager.layout_manager.calculate_positions.call_args[0][0]
-        )
+        continuation_slide_arg = overflow_manager.layout_manager.calculate_positions.call_args[0][0]
         assert continuation_slide_arg.is_continuation is True
 
         # The image should be in the continuation slide's root_section
@@ -257,9 +238,7 @@ class TestOverflowManager:
         assert moved_image.object_id == "img1"
         assert moved_image._overflow_moved is True
 
-    def test_overflow_c_04_circuit_breaker_second_strike(
-        self, overflow_manager: OverflowManager, caplog
-    ):
+    def test_overflow_c_04_circuit_breaker_second_strike(self, overflow_manager: OverflowManager, caplog):
         """Test Case: OVERFLOW-C-04: Verifies circuit breaker's second strike."""
         # Image that has already been moved once
         image = ImageElement(
@@ -354,16 +333,10 @@ class TestOverflowManager:
         assert len(final_slides) == 2, "Should create continuation slide"
 
         # Get the continuation slide that was passed to layout manager
-        continuation_slide_arg = (
-            overflow_manager.layout_manager.calculate_positions.call_args[0][0]
-        )
+        continuation_slide_arg = overflow_manager.layout_manager.calculate_positions.call_args[0][0]
 
         # The overflowing table should have headers duplicated
         overflowing_table_on_new_slide = continuation_slide_arg.root_section.children[0]
         assert overflowing_table_on_new_slide.headers == ["Column 1", "Column 2"]
-        assert (
-            len(overflowing_table_on_new_slide.row_directives) == 2
-        )  # Header directive + 1 row
-        assert overflowing_table_on_new_slide.row_directives[0] == {
-            "background": "gray"
-        }
+        assert len(overflowing_table_on_new_slide.row_directives) == 2  # Header directive + 1 row
+        assert overflowing_table_on_new_slide.row_directives[0] == {"background": "gray"}

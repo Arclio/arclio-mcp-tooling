@@ -29,23 +29,15 @@ class TestParserBugReproduction:
         # The structure is: root_section -> ListElement (direct child)
         # Find the ListElement in the root_section's children
         list_element = next(
-            (
-                child
-                for child in slide.root_section.children
-                if isinstance(child, ListElement)
-            ),
+            (child for child in slide.root_section.children if isinstance(child, ListElement)),
             None,
         )
         assert list_element is not None, "ListElement not found in parsed section."
         item = list_element.items[0]
 
         # Assert
-        assert (
-            item.text == "List Item"
-        ), "Directive text should be stripped from the list item content."
-        assert (
-            item.directives.get("color") is not None
-        ), "Directive should be parsed and stored in the item's directives."
+        assert item.text == "List Item", "Directive text should be stripped from the list item content."
+        assert item.directives.get("color") is not None, "Directive should be parsed and stored in the item's directives."
         assert item.directives["color"]["value"]["value"] == "red"
 
     def test_feature_indented_fenced_blocks(self, parser: Parser):
@@ -71,9 +63,7 @@ class TestParserBugReproduction:
 
         # Assert
         assert slide.root_section is not None, "Root section should be created."
-        assert (
-            len(slide.root_section.children) == 1
-        ), "Root section should contain the parsed content."
+        assert len(slide.root_section.children) == 1, "Root section should contain the parsed content."
 
         outer_section = slide.root_section.children[0]
         assert outer_section.type == "section"

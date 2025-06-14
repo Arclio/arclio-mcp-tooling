@@ -19,9 +19,7 @@ class TestDriveSearchFiles:
                 {"id": "file2", "name": "test file 2", "mimeType": "text/plain"},
             ]
         }
-        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
-            mock_api_response
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = mock_api_response
 
         result = mock_drive_service.search_files(query="test", page_size=10)
 
@@ -43,13 +41,9 @@ class TestDriveSearchFiles:
                 {"id": "file1", "name": "shared file 1", "mimeType": "text/plain"},
             ]
         }
-        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
-            mock_api_response
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = mock_api_response
 
-        result = mock_drive_service.search_files(
-            query="shared", page_size=5, shared_drive_id="drive123"
-        )
+        result = mock_drive_service.search_files(query="shared", page_size=5, shared_drive_id="drive123")
 
         assert result == mock_api_response["files"]
         # Verify API call parameters for shared drive
@@ -64,9 +58,7 @@ class TestDriveSearchFiles:
     def test_search_files_empty_results(self, mock_drive_service: DriveService):
         """Test search with no results."""
         mock_api_response = {"files": []}
-        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
-            mock_api_response
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = mock_api_response
 
         result = mock_drive_service.search_files(query="nonexistent")
 
@@ -75,9 +67,7 @@ class TestDriveSearchFiles:
     def test_search_files_page_size_limits(self, mock_drive_service: DriveService):
         """Test that page_size is properly constrained."""
         mock_api_response = {"files": []}
-        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
-            mock_api_response
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = mock_api_response
 
         # Test page_size too small
         mock_drive_service.search_files(query="test", page_size=0)
@@ -92,9 +82,7 @@ class TestDriveSearchFiles:
     def test_search_files_query_passthrough(self, mock_drive_service: DriveService):
         """Test that queries are passed through directly without modification."""
         mock_api_response = {"files": []}
-        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
-            mock_api_response
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = mock_api_response
 
         mock_drive_service.search_files(query="John's file")
 
@@ -107,9 +95,7 @@ class TestDriveSearchFiles:
         mock_resp.status = 404
         mock_resp.reason = "Not Found"
         http_error = HttpError(mock_resp, b'{"error": {"message": "File not found"}}')
-        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = (
-            http_error
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = http_error
 
         expected_error_details = {
             "error": True,
@@ -118,23 +104,17 @@ class TestDriveSearchFiles:
             "message": "File not found",
             "operation": "search_files",
         }
-        mock_drive_service.handle_api_error = MagicMock(
-            return_value=expected_error_details
-        )
+        mock_drive_service.handle_api_error = MagicMock(return_value=expected_error_details)
 
         result = mock_drive_service.search_files(query="test")
 
         assert result == expected_error_details
-        mock_drive_service.handle_api_error.assert_called_once_with(
-            "search_files", http_error
-        )
+        mock_drive_service.handle_api_error.assert_called_once_with("search_files", http_error)
 
     def test_search_files_unexpected_error(self, mock_drive_service: DriveService):
         """Test search with unexpected error."""
         exception = Exception("Unexpected error")
-        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = (
-            exception
-        )
+        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = exception
 
         expected_error_details = {
             "error": True,
@@ -142,13 +122,9 @@ class TestDriveSearchFiles:
             "message": "Unexpected error",
             "operation": "search_files",
         }
-        mock_drive_service.handle_api_error = MagicMock(
-            return_value=expected_error_details
-        )
+        mock_drive_service.handle_api_error = MagicMock(return_value=expected_error_details)
 
         result = mock_drive_service.search_files(query="test")
 
         assert result == expected_error_details
-        mock_drive_service.handle_api_error.assert_called_once_with(
-            "search_files", exception
-        )
+        mock_drive_service.handle_api_error.assert_called_once_with("search_files", exception)

@@ -125,9 +125,7 @@ class DirectiveParser:
         directives = {}
         bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
         for content in bracket_content_pattern.findall(directive_text):
-            pairs = re.findall(
-                r'([\w-]+(?:-[\w-]+)*)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content
-            )
+            pairs = re.findall(r'([\w-]+(?:-[\w-]+)*)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content)
             for key, value in pairs:
                 key = key.strip().lower()
                 value = (value or "").strip().strip("'\"")
@@ -140,17 +138,11 @@ class DirectiveParser:
                         try:
                             converted_value = converter(value)
                             if directive_type == "style":
-                                directives.update(
-                                    self._process_style_directive_value(
-                                        key, converted_value
-                                    )
-                                )
+                                directives.update(self._process_style_directive_value(key, converted_value))
                             else:
                                 directives[key] = converted_value
                         except ValueError as e:
-                            logger.warning(
-                                f"Could not convert directive '{key}={value}': {e}"
-                            )
+                            logger.warning(f"Could not convert directive '{key}={value}': {e}")
                             directives[key] = value
                     else:
                         directives[key] = value or True
@@ -167,9 +159,7 @@ class DirectiveParser:
         except ValueError:
             return 0.0
 
-    def _process_style_directive_value(
-        self, key: str, style_tuple: tuple[str, Any]
-    ) -> dict[str, Any]:
+    def _process_style_directive_value(self, key: str, style_tuple: tuple[str, Any]) -> dict[str, Any]:
         """Process style directive tuples into a clean, unified format."""
         # REFACTORED: Consistently wrap color/background values for a standard format.
         # MAINTAINS: Support for URL-based backgrounds and other style types.

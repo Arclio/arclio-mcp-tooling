@@ -45,9 +45,7 @@ class TableElement(Element):
 
         return all(len(row) <= column_count for row in self.rows)
 
-    def split(
-        self, available_height: float
-    ) -> tuple["TableElement | None", "TableElement | None"]:
+    def split(self, available_height: float) -> tuple["TableElement | None", "TableElement | None"]:
         """
         Split this TableElement using minimum requirements.
 
@@ -67,9 +65,7 @@ class TableElement(Element):
 
         header_height = 0.0
         if self.headers:
-            header_height = calculate_row_height(
-                self.headers, col_width, is_header=True
-            )
+            header_height = calculate_row_height(self.headers, col_width, is_header=True)
 
         available_for_rows = available_height - header_height
         if available_for_rows <= 0 and self.headers:
@@ -103,9 +99,7 @@ class TableElement(Element):
         fitted_part.size = (element_width, header_height + current_rows_height)
 
         header_offset = 1 if self.headers else 0
-        fitted_part.row_directives = self.row_directives[
-            : header_offset + fitted_rows_count
-        ]
+        fitted_part.row_directives = self.row_directives[: header_offset + fitted_rows_count]
 
         overflowing_rows = self.rows[fitted_rows_count:]
         if not overflowing_rows:
@@ -118,9 +112,7 @@ class TableElement(Element):
         # REFACTORED: `split` contract requires deep-copy of `column_widths`.
         overflowing_part.column_widths = deepcopy(self.column_widths)
         # REFACTORED: Correctly partition row_directives per `split` contract.
-        overflowing_part.row_directives = self.row_directives[
-            header_offset + fitted_rows_count :
-        ]
+        overflowing_part.row_directives = self.row_directives[header_offset + fitted_rows_count :]
         if self.headers:
             overflowing_part.headers = deepcopy(self.headers)
             # Prepend the header directive to the overflowing part's directives
@@ -128,20 +120,13 @@ class TableElement(Element):
                 overflowing_part.row_directives.insert(0, self.row_directives[0])
 
         overflow_header_height = (
-            calculate_row_height(overflowing_part.headers, col_width, is_header=True)
-            if overflowing_part.headers
-            else 0
+            calculate_row_height(overflowing_part.headers, col_width, is_header=True) if overflowing_part.headers else 0
         )
-        overflow_rows_height = sum(
-            calculate_row_height(row, col_width, is_header=False)
-            for row in overflowing_rows
-        )
+        overflow_rows_height = sum(calculate_row_height(row, col_width, is_header=False) for row in overflowing_rows)
         overflowing_part.size = (
             element_width,
             overflow_header_height + overflow_rows_height,
         )
 
-        logger.info(
-            f"Table split successful: {fitted_rows_count} rows fitted, {len(overflowing_rows)} rows overflowing"
-        )
+        logger.info(f"Table split successful: {fitted_rows_count} rows fitted, {len(overflowing_rows)} rows overflowing")
         return fitted_part, overflowing_part

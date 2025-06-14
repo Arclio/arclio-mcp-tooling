@@ -23,9 +23,7 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 "slideLayoutReference": {"predefinedLayout": SlideLayout.BLANK.value},
             }
         }
-        logger.debug(
-            f"Created slide request with ID: {slide.object_id}, layout: {slide.layout.value}"
-        )
+        logger.debug(f"Created slide request with ID: {slide.object_id}, layout: {slide.layout.value}")
         return request
 
     def create_background_request(self, slide: Slide) -> dict | None:
@@ -44,12 +42,8 @@ class SlideRequestBuilder(BaseRequestBuilder):
             if not is_valid_image_url(background_value):
                 logger.warning(f"Background image URL is invalid: {background_value}")
                 return None
-            page_background_fill["stretchedPictureFill"] = {
-                "contentUrl": background_value
-            }
-            fields_mask_parts.append(
-                "pageBackgroundFill.stretchedPictureFill.contentUrl"
-            )
+            page_background_fill["stretchedPictureFill"] = {"contentUrl": background_value}
+            fields_mask_parts.append("pageBackgroundFill.stretchedPictureFill.contentUrl")
 
         elif background_type == "color":
             # The value might be a simple string or a nested dict
@@ -98,17 +92,11 @@ class SlideRequestBuilder(BaseRequestBuilder):
                 if color_value_str.lower() in named_colors:
                     rgb = self._hex_to_rgb(named_colors[color_value_str.lower()])
                     page_background_fill["solidFill"] = {"color": {"rgbColor": rgb}}
-                    fields_mask_parts.append(
-                        "pageBackgroundFill.solidFill.color.rgbColor"
-                    )
+                    fields_mask_parts.append("pageBackgroundFill.solidFill.color.rgbColor")
                 # Check for theme color
                 elif color_value_str.upper() in theme_colors:
-                    page_background_fill["solidFill"] = {
-                        "color": {"themeColor": color_value_str.upper()}
-                    }
-                    fields_mask_parts.append(
-                        "pageBackgroundFill.solidFill.color.themeColor"
-                    )
+                    page_background_fill["solidFill"] = {"color": {"themeColor": color_value_str.upper()}}
+                    fields_mask_parts.append("pageBackgroundFill.solidFill.color.themeColor")
                 else:
                     logger.warning(
                         f"Invalid color value for background: '{color_value_str}'. It is not a valid hex, named, or theme color."

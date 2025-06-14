@@ -167,9 +167,7 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(named_colors[color_value_lower])
                     style["foregroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 elif color_value_str.upper() in theme_colors:
-                    style["foregroundColor"] = {
-                        "opaqueColor": {"themeColor": color_value_str.upper()}
-                    }
+                    style["foregroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
                 else:
                     logger.warning(
                         f"Unsupported color value: '{color_value_str}'. It is not a valid hex, named, or theme color."
@@ -181,9 +179,7 @@ class BaseRequestBuilder:
                     rgb = self._hex_to_rgb(color_value_str)
                     style["backgroundColor"] = {"opaqueColor": {"rgbColor": rgb}}
                 else:  # Assume theme color name
-                    style["backgroundColor"] = {
-                        "opaqueColor": {"themeColor": color_value_str.upper()}
-                    }
+                    style["backgroundColor"] = {"opaqueColor": {"themeColor": color_value_str.upper()}}
         elif text_format.format_type == TextFormatType.FONT_SIZE:
             if isinstance(text_format.value, int | float):
                 style["fontSize"] = {
@@ -307,9 +303,9 @@ class BaseRequestBuilder:
 
         # Add cell location for table text styling if provided
         if cell_location:
-            request["updateTextStyle"][
-                "cellLocation"
-            ] = cell_location  # Corrected: cellLocation is part of updateTextStyle directly
+            request["updateTextStyle"]["cellLocation"] = (
+                cell_location  # Corrected: cellLocation is part of updateTextStyle directly
+            )
             # The tableRange is not needed here if cellLocation is used.
             # The API docs for UpdateTextStyleRequest show cellLocation at the same level as textRange.
             # If textRange is also set, it applies within the specified cell.

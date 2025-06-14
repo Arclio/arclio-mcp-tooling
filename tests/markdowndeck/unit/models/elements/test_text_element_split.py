@@ -51,11 +51,7 @@ class TestTextElementSplit:
             element_type=ElementType.TEXT,
             text=long_text,
             size=(400, 100),
-            formatting=[
-                TextFormat(
-                    start=29, end=63, format_type=TextFormatType.BOLD, value=True
-                )
-            ],
+            formatting=[TextFormat(start=29, end=63, format_type=TextFormatType.BOLD, value=True)],
             _line_metrics=[
                 {"start": 0, "end": 28, "height": 20},
                 {"start": 29, "end": 63, "height": 20},
@@ -66,16 +62,10 @@ class TestTextElementSplit:
         fitted_part, overflowing_part = text_element_to_split.split(available_height=25)
 
         assert overflowing_part is not None, "Overflowing part should exist."
-        assert isinstance(
-            overflowing_part.formatting, list
-        ), "Formatting must be a list."
-        assert (
-            len(overflowing_part.formatting) > 0
-        ), "Formatting should be propagated to overflow"
+        assert isinstance(overflowing_part.formatting, list), "Formatting must be a list."
+        assert len(overflowing_part.formatting) > 0, "Formatting should be propagated to overflow"
         if overflowing_part.formatting:
-            assert all(
-                isinstance(item, TextFormat) for item in overflowing_part.formatting
-            )
+            assert all(isinstance(item, TextFormat) for item in overflowing_part.formatting)
 
     def test_data_flow_3_4_split_preserves_directives(self):
         """
