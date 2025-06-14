@@ -1,5 +1,3 @@
-"""Slide model for presentations - Updated for specification compliance."""
-
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -11,13 +9,14 @@ from markdowndeck.models.elements.base import Element
 class Section:
     """Represents a section in a slide (vertical or horizontal)."""
 
-    # REMOVED: content field - not in DATA_MODELS.md specification
     directives: dict[str, Any] = field(default_factory=dict)
     children: list["Element | Section"] = field(default_factory=list)
-    type: str = "section"  # "section" or "row"
+    type: str = "section"  # "section", "row", or "column"
     position: tuple[float, float] | None = None
     size: tuple[float, float] | None = None
     id: str | None = None
+    # REFACTORED: `content` is a temporary attribute used only during parsing
+    content: str | None = field(default=None, repr=False, compare=False)
 
     def is_row(self) -> bool:
         """Check if this is a row section."""
@@ -46,6 +45,7 @@ class Slide:
     renderable_elements: list[Element] = field(default_factory=list)
     root_section: Section | None = None
     is_continuation: bool = False
+    continuation_context_title: str | None = None
 
     # Standard slide properties
     layout: SlideLayout = SlideLayout.BLANK
@@ -54,16 +54,17 @@ class Slide:
     background: dict[str, Any] | None = None
     speaker_notes_object_id: str | None = None
 
-    # REMOVED: footer and title fields - not in DATA_MODELS.md specification
-    # These should be derived from elements when needed
+    # ADDED: Directive storage attributes per DATA_MODELS.md
+    title_directives: dict[str, Any] = field(default_factory=dict)
+    subtitle_directives: dict[str, Any] = field(default_factory=dict)
+    footer_directives: dict[str, Any] = field(default_factory=dict)
+    base_directives: dict[str, Any] = field(default_factory=dict)
 
     def get_title_element(self) -> Element | None:
         """Get the title element if present, searching authoritative lists first."""
-        # Search renderable_elements first, as it's authoritative for positioned/finalized slides.
         for element in self.renderable_elements:
             if element.element_type == ElementType.TITLE:
                 return element
-        # Fallback to the initial elements inventory for unpositioned slides.
         for element in self.elements:
             if element.element_type == ElementType.TITLE:
                 return element

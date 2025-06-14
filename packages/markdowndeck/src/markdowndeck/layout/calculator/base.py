@@ -77,8 +77,9 @@ class PositionCalculator:
         # Add positioned meta-elements with proper directive merging
         if slide.get_title_element() and slide.get_title_element().position:
             title_element = slide.get_title_element()
+            # REFACTORED: Use `slide.base_directives` for meta-elements per PRINCIPLES.md Sec 8.2
             merged_directives = self._merge_directives_with_precedence(
-                slide.root_section.directives if slide.root_section else {},
+                slide.base_directives,
                 title_element.directives,
                 getattr(slide, "title_directives", {}),
             )
@@ -87,8 +88,9 @@ class PositionCalculator:
 
         if slide.get_subtitle_element() and slide.get_subtitle_element().position:
             subtitle_element = slide.get_subtitle_element()
+            # REFACTORED: Use `slide.base_directives` for meta-elements per PRINCIPLES.md Sec 8.2
             merged_directives = self._merge_directives_with_precedence(
-                slide.root_section.directives if slide.root_section else {},
+                slide.base_directives,
                 subtitle_element.directives,
                 getattr(slide, "subtitle_directives", {}),
             )
@@ -97,8 +99,9 @@ class PositionCalculator:
 
         if slide.get_footer_element() and slide.get_footer_element().position:
             footer_element = slide.get_footer_element()
+            # REFACTORED: Use `slide.base_directives` for meta-elements per PRINCIPLES.md Sec 8.2
             merged_directives = self._merge_directives_with_precedence(
-                slide.root_section.directives if slide.root_section else {},
+                slide.base_directives,
                 footer_element.directives,
                 getattr(slide, "footer_directives", {}),
             )
@@ -192,9 +195,9 @@ class PositionCalculator:
                 if isinstance(width_directive, str) and "%" in width_directive:
                     percentage = float(width_directive.strip("%")) / 100.0
                     return container_width * percentage
-                elif isinstance(width_directive, float) and 0 < width_directive <= 1:
+                if isinstance(width_directive, float) and 0 < width_directive <= 1:
                     return container_width * width_directive
-                elif isinstance(width_directive, (int, float)) and width_directive > 1:
+                if isinstance(width_directive, int | float) and width_directive > 1:
                     return min(float(width_directive), container_width)
             except (ValueError, TypeError):
                 logger.warning(f"Invalid width directive: {width_directive}")
@@ -203,15 +206,13 @@ class PositionCalculator:
 
     def _merge_directives_with_precedence(
         self,
-        root_section_directives: dict,
+        base_directives: dict,
         element_directives: dict,
-        slide_level_directives: dict,
+        override_directives: dict,
     ) -> dict:
         """
-        Merge directives according to precedence hierarchy (Law #1):
-        1. Lowest Priority: inheritable directives from root_section
-        2. Medium Priority: directives from element itself
-        3. Highest Priority: slide-level directives (same-line user overrides)
+        Merge directives according to precedence hierarchy:
+        Lowest -> Medium -> Highest
         """
         # Define inheritable directives
         inheritable_directives = {
@@ -227,8 +228,8 @@ class PositionCalculator:
 
         merged = {}
 
-        # 1. Apply inheritable directives from root_section (lowest priority)
-        for key, value in root_section_directives.items():
+        # 1. Apply inheritable directives from base (lowest priority)
+        for key, value in base_directives.items():
             if key in inheritable_directives:
                 merged[key] = value
 
@@ -236,13 +237,13 @@ class PositionCalculator:
         for key, value in element_directives.items():
             merged[key] = value
 
-        # 3. Apply slide-level directives (highest priority)
-        for key, value in slide_level_directives.items():
+        # 3. Apply override directives (highest priority)
+        for key, value in override_directives.items():
             merged[key] = value
 
         logger.debug(
-            f"Merged directives: root={root_section_directives} + "
-            f"element={element_directives} + slide={slide_level_directives} = {merged}"
+            f"Merged directives: base={base_directives} + "
+            f"element={element_directives} + override={override_directives} = {merged}"
         )
 
         return merged

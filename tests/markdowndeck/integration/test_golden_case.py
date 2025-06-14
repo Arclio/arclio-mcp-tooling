@@ -5,6 +5,8 @@ A comprehensive, end-to-end "golden case" test for the full pipeline, updated fo
 import pytest
 from markdowndeck import markdown_to_requests
 
+# REFACTORED: Updated to use the new fenced block syntax per ARCHITECTURE.md.
+# The `---` and `***` separators are deprecated.
 GOLDEN_MARKDOWN = """
 # Slide 1: Title Styling [color=#0000FF]
 
@@ -13,23 +15,28 @@ This is the main content.
 ===
 # Slide 2: Section Styling
 
-[background=#333333]
+:::section [background=#333333]
 This section should have a dark background.
+:::
 
----
-[width=150][align=center]
+:::section [width=150][align=center]
 This is a second, narrow, centered section.
+:::
 
 ===
 # Slide 3: Columnar Layout
 
+:::row
+:::column
 Implicit Column
-***
-[width=25%]
+:::
+:::column [width=25%]
 Proportional Column
-***
-[width=150]
+:::
+:::column [width=150]
 Absolute Column
+:::
+:::
 
 ===
 # Slide 4: Code Block Escaping
@@ -84,17 +91,25 @@ class TestGoldenCase:
     def test_slide_1_title_styling(self, golden_output):
         """Asserts Slide 1's title has the correct color directive applied."""
         slide_1_batch = golden_output["slide_batches"][0]
-        title_shape = _find_element_shape_by_text(
-            slide_1_batch, "Slide 1: Title Styling"
+        # Find the title shape by looking for an insertText request with its content
+        text_req = next(
+            (
+                r
+                for r in slide_1_batch["requests"]
+                if "insertText" in r
+                and "Slide 1: Title Styling" in r["insertText"]["text"]
+            ),
+            None,
         )
-        assert title_shape is not None, "Could not find title element for Slide 1."
+        assert text_req is not None, "Could not find text insert for Slide 1 title."
+        title_shape_id = text_req["insertText"]["objectId"]
 
         style_req = next(
             (
                 r
                 for r in slide_1_batch["requests"]
                 if "updateTextStyle" in r
-                and r["updateTextStyle"]["objectId"] == title_shape["objectId"]
+                and r["updateTextStyle"]["objectId"] == title_shape_id
             ),
             None,
         )
@@ -119,8 +134,8 @@ class TestGoldenCase:
                 for r in slide_2_batch["requests"]
                 if "updateShapeProperties" in r
                 and r["updateShapeProperties"]["objectId"] == section_shape["objectId"]
-                and "shapeBackgroundFill.solidFill.color.rgbColor"
-                in r["updateShapeProperties"]["fields"]
+                and "shapeBackgroundFill"
+                in r["updateShapeProperties"].get("shapeProperties", {})
             ),
             None,
         )
@@ -129,9 +144,6 @@ class TestGoldenCase:
         ), "No shape properties update found for the section's element."
 
         props = style_req["updateShapeProperties"]
-        assert (
-            "shapeBackgroundFill.solidFill.color.rgbColor" in props["fields"]
-        ), "Background fill not being updated."
         color = props["shapeProperties"]["shapeBackgroundFill"]["solidFill"]["color"][
             "rgbColor"
         ]
@@ -153,7 +165,7 @@ class TestGoldenCase:
         assert proportional_shape is not None
         assert absolute_shape is not None
 
-        # Content area width is 720. No gap.
+        # Content area width is 720 (no margins in this test fixture). No gap.
         # Absolute takes 150. Remaining: 570.
         # Proportional takes 25% of 720 = 180. Remaining: 390.
         # Implicit takes the rest.

@@ -35,6 +35,13 @@ class SlideBuilder:
         """
         from markdowndeck.models import Slide, SlideLayout
 
+        # SPECIFICATION_GAP: List Continuation Context - OVERFLOW_SPEC.md Rule #8
+        # BLOCKS: The current architecture, which splits the entire root_section, makes it difficult
+        # to reliably determine the parent context of a single overflowing nested list element.
+        # This would require passing the full parent chain of the overflowing element, which is not
+        # currently supported. This feature is deferred.
+        # WORKAROUND: No context title is added.
+
         continuation_id = self._generate_safe_object_id(
             self.original_slide.object_id, f"cont_{slide_number}"
         )
@@ -53,14 +60,11 @@ class SlideBuilder:
         )
 
         if continuation_slide.root_section:
-            self._reset_section_positions_recursively([continuation_slide.root_section])
+            self._reset_positions_recursively(continuation_slide.root_section)
 
         continuation_title = self._create_continuation_title(slide_number)
         if continuation_title:
             continuation_slide.elements.append(continuation_title)
-            # FIXED: Removed assignment to read-only property. The title is derived
-            # from the element in the `elements` list.
-            # continuation_slide.title = continuation_title.text
 
         continuation_footer = self._create_continuation_footer()
         if continuation_footer:
@@ -97,28 +101,17 @@ class SlideBuilder:
                     return cast("TextElement", element)
         return None
 
-    def _reset_section_positions_recursively(
-        self, sections: list["Section"], visited: set[str] = None
-    ) -> None:
+    def _reset_positions_recursively(self, section: "Section") -> None:
         """
-        Recursively reset positions and sizes for all sections and their subsections.
+        Recursively reset positions and sizes for all sections and their children.
         """
-        if visited is None:
-            visited = set()
-        for section in sections:
-            if section.id in visited:
-                continue
-            visited.add(section.id)
-            section.position = None
-            section.size = None
-            for element in [c for c in section.children if not hasattr(c, "children")]:
-                element.position = None
-                element.size = None
-            child_sections = [c for c in section.children if hasattr(c, "children")]
-            if child_sections:
-                self._reset_section_positions_recursively(
-                    child_sections, visited.copy()
-                )
+        section.position = None
+        section.size = None
+        for child in section.children:
+            child.position = None
+            child.size = None
+            if hasattr(child, "children"):
+                self._reset_positions_recursively(child)
 
     def _create_continuation_title(self, slide_number: int) -> "TextElement | None":
         """Create a title element for the continuation slide with correct numbering."""

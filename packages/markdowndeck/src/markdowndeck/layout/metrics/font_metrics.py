@@ -1,5 +1,3 @@
-"""Font metrics utilities using Pillow for accurate text measurement."""
-
 import logging
 from pathlib import Path
 
@@ -98,69 +96,42 @@ def calculate_text_bbox(
     font_family: str | None = None,
     max_width: float | None = None,
     line_height_multiplier: float = 1.0,
-) -> tuple[float, float]:
+) -> tuple[float, float, list[dict]]:
     """
-    Calculate the bounding box (width, height) for the given text.
-
-    Args:
-        text: Text to measure
-        font_size: Font size in points
-        font_family: Font family (optional)
-        max_width: Maximum width for line wrapping (optional)
-        line_height_multiplier: Typography-specific line height multiplier
-
-    Returns:
-        Tuple of (width, height) in points
+    Calculate the bounding box (width, height) for the given text and return line metrics.
+    REFACTORED: Now returns a list of dictionaries with line metrics.
     """
     if not text.strip():
-        # Return minimal dimensions for empty text
-        return (0.0, font_size * 1.2)
+        return (0.0, font_size * 1.2, [])
 
     font = _get_font(font_size, font_family)
 
-    # Check if text contains newlines - if so, we need multi-line handling
-    # even without a width constraint
     if "\n" in text or max_width is not None:
-        # Multi-line measurement with or without wrapping
         return _calculate_wrapped_text_bbox(
             text, font, max_width, line_height_multiplier
         )
-
-    # Single line measurement only for text without newlines
+    # REFACTORED: This path now correctly returns a 3-tuple to prevent ValueErrors.
     try:
         bbox = font.getbbox(text)
-        width = bbox[2] - bbox[0]  # right - left
-        height = bbox[3] - bbox[1]  # bottom - top
-
-        # Ensure minimum height is font size
+        width = bbox[2] - bbox[0]
+        height = bbox[3] - bbox[1]
         height = max(height, font_size)
-
-        return (float(width), float(height))
+        line_metrics = [{"start": 0, "end": len(text), "height": height}]
+        return (float(width), float(height), line_metrics)
     except Exception as e:
         logger.warning(f"Font bbox calculation failed, using estimation: {e}")
-        # Fallback calculation
-        return _estimate_text_size(text, font_size)
+        width, height = _estimate_text_size(text, font_size)
+        line_metrics = [{"start": 0, "end": len(text), "height": height}]
+        return (width, height, line_metrics)
 
 
 def _estimate_text_size(text: str, font_size: float) -> tuple[float, float]:
-    """
-    Fallback text size estimation when font metrics fail.
-
-    Args:
-        text: Text to measure
-        font_size: Font size in points
-
-    Returns:
-        Tuple of (width, height) in points
-    """
-    # Rough estimation: average character width is ~0.6 * font_size
+    """Fallback text size estimation when font metrics fail."""
     char_width = font_size * 0.6
     line_height = font_size * 1.2
-
     lines = text.split("\n")
     max_line_width = max((len(line) * char_width for line in lines), default=0)
     total_height = len(lines) * line_height
-
     return (float(max_line_width), float(total_height))
 
 
@@ -169,85 +140,86 @@ def _calculate_wrapped_text_bbox(
     font: ImageFont.FreeTypeFont,
     max_width: float | None,
     line_height_multiplier: float = 1.0,
-) -> tuple[float, float]:
+) -> tuple[float, float, list[dict]]:
     """
-    Calculate bbox for text that may wrap across multiple lines.
-
-    Args:
-        text: Text to measure
-        font: PIL font object
-        max_width: Maximum width before wrapping (None for no wrapping)
-
-    Returns:
-        Tuple of (width, height) in points
+    Calculate bbox for wrapped text and generate detailed line metrics.
+    REFACTORED: To generate and return `line_metrics`.
     """
-    # Handle explicit newlines first
     paragraphs = text.split("\n")
     all_lines = []
+    line_metrics = []
+    current_char_index = 0
 
-    for paragraph in paragraphs:
-        if not paragraph.strip():
-            # Empty line
-            all_lines.append("")
-        else:
-            if max_width is not None:
-                # Wrap this paragraph
-                wrapped_lines = _wrap_text_to_lines(paragraph, font, max_width)
-                all_lines.extend(wrapped_lines)
-            else:
-                # No wrapping, just add the paragraph as-is
-                all_lines.append(paragraph)
-
-    if not all_lines:
-        return (0.0, font.size * 1.2)
-
-    # Calculate total width (max of all line widths) and height
-    max_line_width = 0.0
-
-    # Get proper font metrics for accurate line height calculation
     try:
         ascent, descent = font.getmetrics()
-        # This gives us the proper line height that accounts for ascenders and descenders
         base_line_height = float(ascent + abs(descent))
-    except (AttributeError, Exception):
-        # Fallback: use font size with reasonable spacing
+    except Exception:
         base_line_height = font.size * 1.2
-
-    # Apply typography-specific line height multiplier
     proper_line_height = base_line_height * line_height_multiplier
 
+    for p_idx, paragraph in enumerate(paragraphs):
+        if not paragraph:  # Handles empty lines from text like "a\n\nb"
+            all_lines.append("")
+            line_metrics.append(
+                {
+                    "start": current_char_index,
+                    "end": current_char_index,
+                    "height": proper_line_height,
+                }
+            )
+        else:
+            if max_width is not None:
+                wrapped_lines = _wrap_text_to_lines(paragraph, font, max_width)
+                all_lines.extend(wrapped_lines)
+                line_start_index_in_paragraph = 0
+                for line in wrapped_lines:
+                    line_len = len(line)
+                    line_metrics.append(
+                        {
+                            "start": current_char_index + line_start_index_in_paragraph,
+                            "end": current_char_index
+                            + line_start_index_in_paragraph
+                            + line_len,
+                            "height": proper_line_height,
+                        }
+                    )
+                    line_start_index_in_paragraph += line_len
+            else:
+                all_lines.append(paragraph)
+                line_len = len(paragraph)
+                line_metrics.append(
+                    {
+                        "start": current_char_index,
+                        "end": current_char_index + line_len,
+                        "height": proper_line_height,
+                    }
+                )
+
+        current_char_index += len(paragraph)
+        if p_idx < len(paragraphs) - 1:
+            current_char_index += 1  # Account for the newline that split the paragraphs
+
+    if not all_lines:
+        return (0.0, font.size * 1.2, [])
+
+    max_line_width = 0.0
     for line in all_lines:
-        if line.strip():  # Non-empty line
+        if line:
             try:
                 bbox = font.getbbox(line)
                 line_width = bbox[2] - bbox[0]
             except Exception:
-                # Fallback for problematic lines
                 line_width = len(line) * font.size * 0.6
-
             max_line_width = max(max_line_width, line_width)
 
-    # Total height is number of lines times the proper line height
-    # This now correctly accounts for spacing between lines
-    total_height = len(all_lines) * proper_line_height
-
-    return (float(max_line_width), float(total_height))
+    total_height = sum(m["height"] for m in line_metrics)
+    return (float(max_line_width), float(total_height), line_metrics)
 
 
 def _wrap_text_to_lines(
     text: str, font: ImageFont.FreeTypeFont, max_width: float
 ) -> list[str]:
-    """
-    Wrap text into lines that fit within max_width.
-
-    Args:
-        text: Text to wrap
-        font: PIL font object
-        max_width: Maximum width per line
-
-    Returns:
-        List of lines
-    """
+    """Wrap text into lines that fit within max_width."""
     words = text.split()
     if not words:
         return [""]
@@ -256,56 +228,36 @@ def _wrap_text_to_lines(
     current_line = ""
 
     for word in words:
-        # Test if adding this word would exceed max width
         test_line = f"{current_line} {word}".strip()
-
         try:
             bbox = font.getbbox(test_line)
             test_width = bbox[2] - bbox[0]
         except Exception:
-            # Fallback calculation
             test_width = len(test_line) * font.size * 0.6
 
         if test_width <= max_width or not current_line:
-            # Word fits, or it's the first word (must fit even if too long)
             current_line = test_line
         else:
-            # Word doesn't fit, start new line
             if current_line:
                 lines.append(current_line)
             current_line = word
 
-    # Add the last line
     if current_line:
         lines.append(current_line)
-
     return lines if lines else [""]
 
 
 def get_font_metrics(
     font_size: float, font_family: str | None = None
 ) -> dict[str, float]:
-    """
-    Get detailed font metrics for layout calculations.
-
-    Args:
-        font_size: Font size in points
-        font_family: Font family (optional)
-
-    Returns:
-        Dictionary with font metrics including ascent, descent, line_height
-    """
+    """Get detailed font metrics for layout calculations."""
     font = _get_font(font_size, font_family)
-
     try:
         ascent, descent = font.getmetrics()
-        # Ensure descent is positive (PIL returns it as negative)
         descent = abs(descent)
     except (AttributeError, Exception):
-        # Fallback for older PIL versions or bitmap fonts
         ascent = font_size * 0.8
         descent = font_size * 0.2
-
     return {
         "ascent": float(ascent),
         "descent": float(descent),

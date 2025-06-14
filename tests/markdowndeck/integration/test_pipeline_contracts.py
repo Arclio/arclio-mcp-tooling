@@ -53,7 +53,7 @@ class TestPipelineContracts:
         Validates the Parser produces a valid "Unpositioned" slide.
         """
         # Arrange
-        markdown = "# Title\nContent"
+        markdown = "# Title\n:::section\nContent\n:::"
 
         # Act
         deck = parser.parse(markdown)
@@ -88,7 +88,7 @@ class TestPipelineContracts:
         Validates "Positioned" to "Finalized" state transition for a slide that fits.
         """
         # Arrange
-        markdown = "# Title\nContent"
+        markdown = "# Title\n:::section\nContent\n:::"
         unpositioned_slide = parser.parse(markdown).slides[0]
 
         # Act 1: Get "Positioned" state
@@ -97,8 +97,10 @@ class TestPipelineContracts:
         # Assert 1: Validate "Positioned" state
         assert positioned_slide.root_section.position is not None
         assert positioned_slide.root_section.size is not None
-        assert positioned_slide.root_section.children[0].position is not None
-        assert positioned_slide.root_section.children[0].size is not None
+        assert (
+            positioned_slide.root_section.children[0].children[0].position is not None
+        )
+        assert positioned_slide.root_section.children[0].children[0].size is not None
 
         # Act 2: Get "Finalized" state
         finalized_slides = overflow_manager.process_slide(positioned_slide)
@@ -128,7 +130,7 @@ class TestPipelineContracts:
         """
         # Arrange
         long_content = "\n".join([f"* List Item {i}" for i in range(100)])
-        markdown = f"# Overflow Test\n{long_content}"
+        markdown = f"# Overflow Test\n:::section\n{long_content}\n:::"
         unpositioned_slide = parser.parse(markdown).slides[0]
 
         # Act
@@ -153,7 +155,7 @@ class TestPipelineContracts:
 
     def test_p_04_full_pipeline_via_markdown_to_requests(self):
         """Test Case: INTEGRATION-P-04 - Full pipeline via markdown_to_requests."""
-        markdown = "# E2E Test\nContent."
+        markdown = "# E2E Test\n:::section\nContent.\n:::"
         result = markdown_to_requests(markdown, title="E2E Pipeline Test")
         requests = result["slide_batches"][0]["requests"]
 
@@ -169,7 +171,7 @@ class TestPipelineContracts:
 
     def test_p_05_style_directive_flow(self):
         """Test Case: INTEGRATION-P-05 - End-to-end flow of styling directives."""
-        markdown = "[color=#FF0000]\nRed Text"
+        markdown = ":::section [color=#FF0000]\nRed Text\n:::"
         result = markdown_to_requests(markdown)
         requests = result["slide_batches"][0]["requests"]
 
@@ -183,7 +185,9 @@ class TestPipelineContracts:
 
     def test_p_06_flexible_body_area(self):
         """Test Case: INTEGRATION-P-06 - End-to-end validation of flexible body area."""
-        markdown = "Body Only\n===\n# Title\nBody With Title"
+        markdown = (
+            ":::section\nBody Only\n:::\n===\n# Title\n:::section\nBody With Title\n:::"
+        )
         result = markdown_to_requests(markdown)
 
         batch1_reqs = result["slide_batches"][0]["requests"]
@@ -202,7 +206,7 @@ class TestPipelineContracts:
 
     def test_p_07_gap_directive_flow(self):
         """Test Case: INTEGRATION-P-07 - End-to-end validation of the gap directive."""
-        markdown = "[gap=30]\nFirst Line\n\nSecond Line"
+        markdown = ":::section [gap=30]\nFirst Line\n\nSecond Line\n:::"
         result = markdown_to_requests(markdown)
         requests = result["slide_batches"][0]["requests"]
 
@@ -227,7 +231,8 @@ class TestPipelineContracts:
     def test_p_10_container_clamping(self):
         """Test Case: INTEGRATION-P-10 - Verify "Container-First" clamping behavior."""
         # Arrange: Two columns each want 60% of width, which is impossible.
-        markdown = "[width=60%]\nLeft\n***\n[width=60%]\nRight"
+        # REFACTORED: Use :::row and :::column for layout.
+        markdown = ":::row\n:::column [width=60%]\nLeft\n:::\n:::column [width=60%]\nRight\n:::\n:::"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -253,7 +258,9 @@ class TestPipelineContracts:
     def test_p_11_invalid_image_url_e2e(self):
         """Test Case: INTEGRATION-P-11 - End-to-end handling of an invalid image URL."""
         # Arrange
-        markdown = "![alt](http://localhost/invalid.png)"
+        # REFACTORED: Added required width/height directives to test parser failure path correctly.
+        # Even with directives, the URL itself is invalid, so no createImage call should be made.
+        markdown = "![alt](http://localhost/invalid.png) [width=100][height=100]"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -265,12 +272,10 @@ class TestPipelineContracts:
             image_req is None
         ), "createImage request should not be generated for an invalid URL."
 
-        # The alt text might still be rendered as a caption, which is acceptable.
-        # The critical part is that the image itself is not created.
-
     def test_p_12_directive_precedence(self):
         """Test Case: INTEGRATION-P-12 - Verify directive precedence for meta-elements."""
         # Arrange: Section-level directive is red, title's same-line directive is blue.
+        # REFACTORED: Base directives are now used for slide-wide styling.
         markdown = "[color=red]\n# Title [color=blue]"
 
         # Act
@@ -314,15 +319,18 @@ class TestPipelineContracts:
         OverflowManager, preventing an infinite loop.
         """
         # Arrange
+        # REFACTORED: Use :::row/column and add mandatory image dimension directives.
         markdown = """
-
 # Image in a Column
 
-[width=50%]
-![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200)
-***
-[width=50%]
+:::row
+:::column [width=50%]
+![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200) [width=100%][height=600]
+:::
+:::column [width=50%]
 Some text content in the other column.
+:::
+:::
 """
         # This image is tall and would cause overflow if not scaled correctly
         # within its 50% width container.
@@ -363,18 +371,19 @@ Some text content in the other column.
         scaled and laid out by the LayoutManager, preventing a false overflow trigger.
         """
         # Arrange
+        # REFACTORED: Use :::row/column and add mandatory image dimension directives.
         markdown = """
-
 # Image in a Column
 
-[width=50%]
-![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200)
+:::row
+:::column [width=50%]
+![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200) [width=100%][height=600]
 A short line of text below the image.
-
----
-
-[width=50%]
+:::
+:::column [width=50%]
 Some text content in the other column.
+:::
+:::
 """
         # The image is very tall and would cause an overflow if its height
         # were not constrained by the slide's body height during intrinsic calculation.

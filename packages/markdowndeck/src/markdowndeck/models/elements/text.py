@@ -20,7 +20,7 @@ class TextFormat:
     start: int
     end: int
     format_type: TextFormatType
-    value: Any = True  # Boolean for bold/italic or values for colors/links
+    value: Any = True
 
 
 @dataclass
@@ -32,6 +32,8 @@ class TextElement(Element):
     horizontal_alignment: AlignmentType = AlignmentType.LEFT
     vertical_alignment: VerticalAlignmentType = VerticalAlignmentType.TOP
     related_to_next: bool = False
+    heading_level: int | None = None
+    _line_metrics: list[dict] | None = None
 
     def has_formatting(self) -> bool:
         """Check if this element has any formatting applied."""
@@ -43,10 +45,8 @@ class TextElement(Element):
         """Add formatting to a portion of the text."""
         if start >= end or start < 0 or end > len(self.text):
             return
-
         if value is None:
             value = True
-
         self.formatting.append(
             TextFormat(start=start, end=end, format_type=format_type, value=value)
         )
@@ -59,157 +59,126 @@ class TextElement(Element):
         self, available_height: float
     ) -> tuple["TextElement | None", "TextElement | None"]:
         """
-        Split this TextElement with word wrapping support.
-
-        This method now handles both explicit line breaks (\n) and word wrapping
-        for long single lines, preventing infinite overflow loops.
-
-        Rule: Must fit at least 2 lines to split.
-        If minimum not met, promote entire text to next slide.
-        If minimum met, split off what fits.
-
-        Args:
-            available_height: The vertical space available for this element
-
-        Returns:
-            Tuple of (fitted_part, overflowing_part). Either can be None.
+        Split this TextElement using pre-calculated line metrics.
+        REFACTORED: This method is now self-consistent.
         """
-        from markdowndeck.layout.metrics.text import calculate_text_element_height
-
-        # Handle empty text case
-        if not self.text.strip():
-            return None, None
-
-        if available_height <= 1:
-            return None, deepcopy(self)
-
-        element_width = self.size[0] if self.size and self.size[0] > 0 else 400.0
-        full_height = calculate_text_element_height(self, element_width)
-
-        if full_height <= available_height:
-            return deepcopy(self), None
-
-        # FIXED: Get all display lines, including wrapped lines for long single lines
-        all_lines = self._get_all_display_lines(element_width)
-        total_lines = len(all_lines)
-
         logger.debug(
-            f"Text wrapping analysis: element_width={element_width}, total_lines={total_lines}"
+            f"--- TextElement Split initiated for element {self.object_id} ---"
         )
+        logger.debug(f"Input available_height: {available_height:.2f}")
+        logger.debug(f"Element's current size: {self.size}")
 
-        if total_lines <= 1:
-            logger.debug("Single line text doesn't fit - treating as atomic")
-            return None, deepcopy(self)
-
-        # Calculate height per line estimate
-        height_per_line = full_height / total_lines
-        max_lines_that_fit = int(available_height / height_per_line)
-
-        if max_lines_that_fit <= 0:
-            logger.debug("No text lines fit in available space")
-            return None, deepcopy(self)
-
-        if max_lines_that_fit >= total_lines:
-            return deepcopy(self), None
-
-        # MINIMUM REQUIREMENTS CHECK: Must fit at least 2 lines
-        minimum_lines_required = 2
-        fitted_line_count = max_lines_that_fit
-
-        if fitted_line_count < minimum_lines_required:
-            logger.info(
-                f"Text split rejected: Only {fitted_line_count} lines fit, need minimum {minimum_lines_required}"
+        if not self.text or not self._line_metrics or not self.size:
+            logger.warning(
+                "Split called but element state is incomplete (no text, metrics, or size). Cannot split."
             )
             return None, deepcopy(self)
 
-        # Minimum met - proceed with split
-        fitted_lines = all_lines[:max_lines_that_fit]
-        overflowing_lines = all_lines[max_lines_that_fit:]
+        logger.debug(f"Line metrics: {self._line_metrics}")
 
-        # Create fitted part
+        if self.size[1] <= available_height:
+            logger.debug("Element fits entirely, no split needed.")
+            return deepcopy(self), None
+
+        full_content_height = sum(line["height"] for line in self._line_metrics)
+        logger.debug(
+            f"Calculated full_content_height from metrics: {full_content_height:.2f}"
+        )
+
+        vertical_padding = max(0, self.size[1] - full_content_height)
+        logger.debug(
+            f"Calculated vertical_padding (size.h - content.h): {vertical_padding:.2f}"
+        )
+
+        content_height_available = available_height - vertical_padding
+        logger.debug(
+            f"Calculated initial content_height_available (available_height - padding): {content_height_available:.2f}"
+        )
+
+        # HYPOTHESIS: If padding prevents any content from fitting, but we have *some* available height,
+        # we must sacrifice padding to ensure progress.
+        if content_height_available <= 0 and available_height > 0:
+            logger.warning(
+                f"Padding ({vertical_padding:.2f}) exceeds or meets available height ({available_height:.2f}). "
+                f"Ignoring padding for the fitted part to attempt fitting minimal content."
+            )
+            content_height_available = available_height
+            vertical_padding = 0  # The fitted part will have no padding.
+            logger.debug(
+                f"Revised content_height_available to {content_height_available:.2f} and vertical_padding to 0 for fitted part."
+            )
+
+        if content_height_available <= 0:
+            logger.warning(
+                "No space available for content. Cannot split. Moving entire element to overflow."
+            )
+            return None, deepcopy(self)
+
+        height_so_far = 0.0
+        split_line_index = -1
+        for i, line_metric in enumerate(self._line_metrics):
+            if height_so_far + line_metric["height"] <= content_height_available:
+                height_so_far += line_metric["height"]
+                split_line_index = i
+            else:
+                break
+
+        logger.debug(
+            f"Determined split_line_index: {split_line_index}. This many lines will fit."
+        )
+
+        if split_line_index == -1:
+            logger.debug(
+                "No single line could fit in the available content height. Moving entire element."
+            )
+            return None, deepcopy(self)
+
+        split_char_index = self._line_metrics[split_line_index]["end"]
+        while (
+            split_char_index < len(self.text) and self.text[split_char_index].isspace()
+        ):
+            split_char_index += 1
+
+        fitted_text = self.text[:split_char_index]
+        overflowing_text = self.text[split_char_index:]
+
+        if not overflowing_text.strip():
+            logger.debug(
+                "Split resulted in no overflowing text. Treating as a single fitting element."
+            )
+            return deepcopy(self), None
+
         fitted_part = deepcopy(self)
-        fitted_part.text = "\n".join(fitted_lines)
+        fitted_part.text = fitted_text
+        fitted_part._line_metrics = self._line_metrics[: split_line_index + 1]
 
-        # Create overflowing part
         overflowing_part = deepcopy(self)
-        overflowing_part.text = "\n".join(overflowing_lines)
-        overflowing_part.position = None  # Reset position for continuation slide
+        overflowing_part.text = overflowing_text
+        overflowing_part.position = None
+        overflowing_part._line_metrics = None
 
-        # Calculate split point for formatting (approximate)
-        split_index = len(fitted_part.text)
-        if fitted_part.text:
-            split_index += 1  # Account for the newline we'll be skipping
-
-        # Partition formatting (simplified for wrapped text)
         fitted_part.formatting = [
-            fmt for fmt in self.formatting if fmt.start < split_index
+            fmt for fmt in self.formatting if fmt.start < len(fitted_text)
         ]
         for fmt in fitted_part.formatting:
-            fmt.end = min(fmt.end, len(fitted_part.text))
+            fmt.end = min(fmt.end, len(fitted_text))
 
         overflowing_formatting = []
         for fmt in self.formatting:
-            if fmt.end > split_index:
+            if fmt.end > len(fitted_text):
                 new_fmt = deepcopy(fmt)
-                new_fmt.start = max(0, fmt.start - split_index)
-                new_fmt.end = fmt.end - split_index
-                # Adjust for potential text length changes due to wrapping
-                new_fmt.end = min(new_fmt.end, len(overflowing_part.text))
-                overflowing_formatting.append(new_fmt)
+                new_fmt.start = max(0, fmt.start - len(fitted_text))
+                new_fmt.end = fmt.end - len(fitted_text)
+                if new_fmt.start < new_fmt.end:
+                    overflowing_formatting.append(new_fmt)
         overflowing_part.formatting = overflowing_formatting
 
-        # Recalculate sizes
-        fitted_part.size = (
-            element_width,
-            calculate_text_element_height(fitted_part, element_width),
-        )
-        overflowing_part.size = (
-            element_width,
-            calculate_text_element_height(overflowing_part, element_width),
-        )
+        element_width = self.size[0]
+        # The fitted part's height is the content it could fit plus whatever padding was accounted for.
+        fitted_part.size = (element_width, height_so_far + vertical_padding)
+        overflowing_part.size = None
 
-        logger.info(
-            f"Text split successful: {fitted_line_count} lines fitted, {len(overflowing_lines)} lines overflowing"
+        logger.debug(
+            f"Split successful. Fitted part size: {fitted_part.size}. Overflowing text length: {len(overflowing_part.text)}"
         )
         return fitted_part, overflowing_part
-
-    def _get_all_display_lines(self, element_width: float) -> list[str]:
-        """
-        Get all display lines including wrapped lines for long text.
-
-        This method handles both explicit line breaks (\n) and word wrapping
-        for long single lines that exceed the available width.
-
-        Args:
-            element_width: The available width for text display
-
-        Returns:
-            List of all display lines that would be rendered
-        """
-        from markdowndeck.layout.constants import P_FONT_SIZE
-        from markdowndeck.layout.metrics.font_metrics import (
-            _get_font,
-            _wrap_text_to_lines,
-        )
-
-        # Get font for wrapping calculations
-        font_size = P_FONT_SIZE  # Default font size, could be customized later
-        font = _get_font(font_size)
-
-        # Effective width for text (account for padding)
-        effective_width = max(50.0, element_width - 40.0)  # Conservative padding
-
-        # Split by explicit newlines first
-        paragraphs = self.text.split("\n")
-        all_lines = []
-
-        for paragraph in paragraphs:
-            if not paragraph.strip():
-                # Empty line
-                all_lines.append("")
-            else:
-                # Wrap this paragraph based on available width
-                wrapped_lines = _wrap_text_to_lines(paragraph, font, effective_width)
-                all_lines.extend(wrapped_lines)
-
-        return all_lines if all_lines else [""]

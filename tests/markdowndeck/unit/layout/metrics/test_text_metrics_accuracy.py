@@ -28,7 +28,8 @@ class TestTextMetricsAccuracy:
         font_size, line_height_multiplier, padding, min_height = _get_typography_params(
             ElementType.TEXT, {}
         )
-        _, accurate_text_height = calculate_text_bbox(
+        # REFACTORED: Unpack all 3 return values to fix the ValueError.
+        _, accurate_text_height, _ = calculate_text_bbox(
             long_text,
             font_size,
             max_width=(available_width - (padding * 2)),

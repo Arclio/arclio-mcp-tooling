@@ -3,6 +3,7 @@ import logging
 import matplotlib.pyplot as plt
 
 from markdowndeck.layout import LayoutManager
+from markdowndeck.models import Section
 from markdowndeck.visualization.renderer import (
     render_elements,
     render_metadata_overlay,
@@ -66,7 +67,7 @@ class SlideVisualizer:
         rows = num_slides
         aspect_ratio = self.slide_width / self.slide_height
         fig_width = 8
-        fig_height = (fig_width / aspect_ratio) * rows
+        fig_height = (fig_width / aspect_ratio) * rows + (1 * rows)
 
         fig, axes = plt.subplots(
             rows, cols, figsize=(fig_width, fig_height), squeeze=False
@@ -80,12 +81,15 @@ class SlideVisualizer:
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_aspect("equal", adjustable="box")
+        ax.set_facecolor("#e0e0e0")
 
         render_slide_background(ax, slide, self.slide_width, self.slide_height)
         render_metadata_overlay(ax, slide, slide_idx, self.slide_width)
 
-        # Decide what to render based on slide state
+        # REFACTORED: Intelligently determine what to render based on slide state
         elements_to_render = []
+        root_section_to_render = None
+
         if getattr(slide, "renderable_elements", None):
             # Finalized state: `renderable_elements` is the source of truth
             elements_to_render = slide.renderable_elements
@@ -97,28 +101,37 @@ class SlideVisualizer:
             def extract_elements(section):
                 _elements = []
                 for child in section.children:
-                    if not hasattr(child, "children"):
-                        _elements.append(child)
-                    else:
+                    if isinstance(child, Section):
                         _elements.extend(extract_elements(child))
+                    else:
+                        _elements.append(child)
                 return _elements
 
             elements_to_render = extract_elements(slide.root_section)
-            # Render meta-elements from the `elements` inventory
+            # Also render meta-elements from the `elements` inventory
             elements_to_render.extend(
                 [
                     e
                     for e in slide.elements
-                    if e.element_type in ["title", "subtitle", "footer"]
+                    if e.element_type.value in ["title", "subtitle", "footer"]
                 ]
             )
+            root_section_to_render = slide.root_section
             logger.debug(
                 f"Slide {slide_idx+1} is Positioned. Rendering from `root_section` and meta-elements."
             )
+        else:
+            # Unpositioned or simple state: use the `elements` inventory
+            elements_to_render = slide.elements
+            logger.debug(
+                f"Slide {slide_idx+1} is Unpositioned. Rendering from `elements`."
+            )
 
-        if show_sections and getattr(slide, "root_section", None):
-            render_sections(ax, slide.root_section)
+        # Render section boundaries if requested and available
+        if show_sections and root_section_to_render:
+            render_sections(ax, root_section_to_render)
 
+        # Render the elements themselves
         render_elements(ax, elements_to_render)
 
     def _finalize_figure(self, fig, axes, num_slides, save_to, display):

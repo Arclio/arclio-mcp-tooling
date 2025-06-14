@@ -1,113 +1,100 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from markdowndeck.models import Slide
-    from markdowndeck.models.slide import Section
+    from markdowndeck.models import Element, Section, Slide
+
+from markdowndeck.models import Section as SectionModel
 
 logger = logging.getLogger(__name__)
 
 
 class OverflowDetector:
     """
-    Overflow detector that enforces strict jurisdictional boundaries.
+    Detects overflow in slides while enforcing strict jurisdictional boundaries.
     """
 
-    def __init__(self, slide_height: float, top_margin: float):
+    def __init__(self, slide_height: float, top_margin: float, bottom_margin: float):
         self.slide_height = slide_height
         self.top_margin = top_margin
-        logger.debug(
-            f"OverflowDetector initialized. Slide height: {self.slide_height}, Top margin: {self.top_margin}"
-        )
+        self.bottom_margin = bottom_margin
 
-    def find_first_overflowing_section(self, slide: "Slide") -> "Section | None":
+    def find_first_overflowing_element(self, slide: "Slide") -> Optional["Element"]:
         """
-        Finds if the root section's EXTERNAL BOUNDING BOX overflows the slide's body height.
+        Find the first leaf element that overflows the slide's body boundaries.
         """
         if not slide.root_section:
-            logger.debug("No root_section in slide - no overflow possible")
             return None
 
         _body_start_y, body_end_y = self._calculate_body_boundaries(slide)
-        logger.debug(
-            f"Checking root_section for EXTERNAL overflow against body_end_y={body_end_y}"
-        )
 
-        section = slide.root_section
-        if not section.position or not section.size:
-            logger.warning(
-                f"Root section {section.id} missing position or size - skipping overflow check"
-            )
+        return self._find_overflowing_element_recursive(slide.root_section, body_end_y)
+
+    def _find_overflowing_element_recursive(
+        self, section: "Section", body_end_y: float
+    ) -> Optional["Element"]:
+        """
+        Recursively search for the first element that overflows the boundary.
+        """
+        if not hasattr(section, "children") or not section.children:
             return None
 
-        section_top = section.position[1]
-        section_height = section.size[1]
-        section_bottom = section_top + section_height
+        has_fixed_height = "height" in section.directives
+        if has_fixed_height and section.position and section.size:
+            section_bottom = section.position[1] + section.size[1]
+            if section_bottom > body_end_y:
+                return self._find_first_leaf_element(section)
+            return None
 
-        logger.debug(
-            f"Root section: external_top={section_top}, height={section_height}, "
-            f"external_bottom={section_bottom}, body_end_y={body_end_y}"
-        )
-
-        if section_bottom > body_end_y:
-            if self._is_overflow_acceptable(section):
-                logger.info(
-                    f"Root section {section.id} external overflow is ACCEPTABLE - skipping"
+        for child in section.children:
+            if isinstance(child, SectionModel):
+                overflowing = self._find_overflowing_element_recursive(
+                    child, body_end_y
                 )
-                return None
+                if overflowing:
+                    return overflowing
+            elif child.position and child.size:
+                child_bottom = child.position[1] + child.size[1]
+                if child_bottom > body_end_y:
+                    return child
+        return None
 
-            logger.info(
-                f"Found EXTERNAL overflowing root_section {section.id}: bottom={section_bottom} > body_end_y={body_end_y}"
-            )
-            return section
-
-        logger.debug("No externally overflowing section found")
+    def _find_first_leaf_element(self, section: "Section") -> Optional["Element"]:
+        """
+        Find the first leaf element within a section hierarchy.
+        """
+        if not hasattr(section, "children") or not section.children:
+            return None
+        for child in section.children:
+            if not isinstance(child, SectionModel):
+                return child
+            leaf = self._find_first_leaf_element(child)
+            if leaf:
+                return leaf
         return None
 
     def _calculate_body_boundaries(self, slide: "Slide") -> tuple[float, float]:
-        """Calculates the dynamic body area for a specific slide."""
-        from markdowndeck.layout.constants import (
-            DEFAULT_MARGIN_BOTTOM,
-            HEADER_TO_BODY_SPACING,
-        )
+        """
+        Calculate the available body area for a slide, accounting for meta-elements.
+        """
+        from markdowndeck.layout.constants import HEADER_TO_BODY_SPACING
 
-        top_offset = self.top_margin
-        bottom_offset = DEFAULT_MARGIN_BOTTOM
+        body_start_y = self.top_margin
+        body_end_y = self.slide_height - self.bottom_margin
 
+        header_bottom = self.top_margin
         title = slide.get_title_element()
-        if title and title.size and title.position:
-            title_bottom = title.position[1] + title.size[1]
-            top_offset = title_bottom + HEADER_TO_BODY_SPACING
+        if title and title.position and title.size:
+            header_bottom = max(header_bottom, title.position[1] + title.size[1])
+        subtitle = slide.get_subtitle_element()
+        if subtitle and subtitle.position and subtitle.size:
+            header_bottom = max(header_bottom, subtitle.position[1] + subtitle.size[1])
+
+        if header_bottom > self.top_margin:
+            body_start_y = header_bottom + HEADER_TO_BODY_SPACING
 
         footer = slide.get_footer_element()
-        if footer and footer.size and footer.position:
-            bottom_offset = self.slide_height - footer.position[1]
-
-        body_start_y = top_offset
-        body_end_y = self.slide_height - bottom_offset
+        if footer and footer.position and footer.size:
+            body_end_y = footer.position[1]
 
         return body_start_y, body_end_y
-
-    def _is_overflow_acceptable(self, section: "Section") -> bool:
-        """
-        Check if an externally overflowing section is in an acceptable state.
-        Overflow is only acceptable if a fixed height is set AND the content
-        actually fits within that fixed height.
-        """
-        if section.directives and section.directives.get("height"):
-            # FIXED: Even with a fixed height, if the intrinsic content height is larger,
-            # it's an unacceptable overflow that needs handling.
-            # This is a simplification; a full intrinsic height check is complex here.
-            # A better approach is to let the overflow happen and let the handler
-            # decide based on splitting. The key is NOT to propagate the [height] directive.
-            # For now, we assume if height is set, user wants clipping.
-            # The overflow handler will correctly not propagate the directive.
-            # Let's adjust this to be more intelligent.
-            # For this to work, we'd need to re-calculate intrinsic height here.
-            # Let's assume for now that if height is set, it's a signal to clip.
-            # The bug is likely that the handler ISN'T being triggered. So we return False.
-            logger.debug(
-                f"Section {section.id} has fixed [height] directive, but will be processed for overflow."
-            )
-            return False
-        return False

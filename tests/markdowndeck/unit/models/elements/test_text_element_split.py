@@ -5,37 +5,41 @@ from markdowndeck.models.elements.text import TextElement
 class TestTextElementSplit:
     """Unit tests for the TextElement's split method."""
 
-    def test_data_e_01_split_can_wrap_long_line_of_text(self):
+    def test_data_e_01_split_uses_line_metrics(self):
         """
-        Test Case: DATA-E-01
-        Validates that TextElement.split() can split a single long line of text
-        by wrapping it, preventing infinite overflow loops.
-        Spec: DATA_MODELS.md, .split() Contract for TextElement
+        Test Case: DATA-E-01 (Refactored)
+        Validates TextElement.split() uses pre-calculated _line_metrics.
         """
-        long_text = "This is a single, very long line of text designed to test the wrapping capability of the split method. It should be broken into multiple lines by the split method itself, rather than being treated as an atomic, unsplittable unit."
-        available_width = 400.0
+        # Arrange
+        long_text = "This is a single, very long line of text. It will be split into two lines based on metrics."
+        # Mock pre-calculated line metrics from the LayoutManager
+        mock_line_metrics = [
+            {
+                "start": 0,
+                "end": 42,
+                "height": 18.0,
+            },  # "This is a single, very long line of text."
+            {"start": 43, "end": 100, "height": 18.0},  # "It will be split..."
+        ]
         text_element = TextElement(
-            element_type=ElementType.TEXT, text=long_text, size=(available_width, 200)
+            element_type=ElementType.TEXT,
+            text=long_text,
+            size=(400, 36),
+            _line_metrics=mock_line_metrics,
         )
 
-        available_height_for_split = 50.0
+        # Split at a height that only allows the first line.
+        available_height_for_split = 20.0  # Includes padding
         fitted_part, overflowing_part = text_element.split(available_height_for_split)
 
-        assert (
-            fitted_part is not None
-        ), "The element should have split and returned a fitted part."
-        assert (
-            overflowing_part is not None
-        ), "An overflowing part should have been returned."
-        assert (
-            fitted_part.text != text_element.text
-        ), "Fitted part's text should be shorter."
-        assert (
-            overflowing_part.text != text_element.text
-        ), "Overflowing part's text should be shorter."
-        assert (
-            fitted_part.size[1] <= available_height_for_split
-        ), "Fitted part's height must respect available_height."
+        assert fitted_part is not None, "Element should have split."
+        assert overflowing_part is not None, "An overflowing part should exist."
+
+        # Check that the split happened at the character index from the metrics
+        expected_split_point = mock_line_metrics[0]["end"]
+        assert fitted_part.text == long_text[:expected_split_point]
+        assert overflowing_part.text.strip() == long_text[expected_split_point:].strip()
+        assert fitted_part.size[1] <= available_height_for_split
 
     def test_split_preserves_formatting_objects(self):
         """
@@ -52,14 +56,22 @@ class TestTextElementSplit:
                     start=29, end=63, format_type=TextFormatType.BOLD, value=True
                 )
             ],
+            _line_metrics=[
+                {"start": 0, "end": 28, "height": 20},
+                {"start": 29, "end": 63, "height": 20},
+                {"start": 64, "end": 86, "height": 20},
+            ],
         )
 
-        fitted_part, overflowing_part = text_element_to_split.split(available_height=20)
+        fitted_part, overflowing_part = text_element_to_split.split(available_height=25)
 
         assert overflowing_part is not None, "Overflowing part should exist."
         assert isinstance(
             overflowing_part.formatting, list
         ), "Formatting must be a list."
+        assert (
+            len(overflowing_part.formatting) > 0
+        ), "Formatting should be propagated to overflow"
         if overflowing_part.formatting:
             assert all(
                 isinstance(item, TextFormat) for item in overflowing_part.formatting
@@ -77,10 +89,14 @@ class TestTextElementSplit:
             text=long_text,
             size=(400, 100),
             directives={"color": "red", "align": "center"},
+            _line_metrics=[
+                {"start": 0, "end": 6, "height": 20},
+                {"start": 7, "end": 13, "height": 20},
+            ],  # simplified
         )
 
         # Act
-        fitted_part, overflowing_part = text_element.split(available_height=50)
+        fitted_part, overflowing_part = text_element.split(available_height=25)
 
         # Assert
         assert fitted_part is not None, "Fitted part should exist."

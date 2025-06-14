@@ -111,7 +111,6 @@ class TextRequestBuilder(BaseRequestBuilder):
                         )
                     )
 
-        # REFACTORED: Consolidate all paragraph and text styling into one method call.
         self._apply_styling_directives(element, requests)
 
         return requests
@@ -136,72 +135,60 @@ class TextRequestBuilder(BaseRequestBuilder):
             fields.append("contentAlignment")
 
         bg_dir = directives.get("background")
-        if isinstance(bg_dir, dict) and bg_dir.get("type") == "hex":
-            bg_val = bg_dir.get("value")
-            if bg_val:
-                try:
-                    rgb = self._hex_to_rgb(bg_val)
-                    props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                        "color": {"rgbColor": rgb}
-                    }
-                    fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
-                except (ValueError, AttributeError):
-                    logger.warning(f"Invalid background color value: {bg_val}")
-        elif isinstance(bg_dir, str):
-            try:
-                rgb = self._hex_to_rgb(bg_dir)
-                props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
-                    "color": {"rgbColor": rgb}
-                }
-                fields.append("shapeBackgroundFill.solidFill.color.rgbColor")
-            except (ValueError, AttributeError):
-                logger.warning(f"Invalid background color value: {bg_dir}")
-
-        if isinstance(directives.get("border"), str):
-            props["outline"] = {"dashStyle": "SOLID"}
-            fields.append("outline.dashStyle")
+        if isinstance(bg_dir, dict) and bg_dir.get("type") == "color":
+            color_info = bg_dir.get("value")
+            if color_info:
+                # The value might be a simple string (hex) or another dict
+                bg_val = (
+                    color_info.get("value")
+                    if isinstance(color_info, dict)
+                    else color_info
+                )
+                if isinstance(bg_val, str) and bg_val.startswith("#"):
+                    try:
+                        rgb = self._hex_to_rgb(bg_val)
+                        props.setdefault("shapeBackgroundFill", {})["solidFill"] = {
+                            "color": {"rgbColor": rgb}
+                        }
+                        fields.append("shapeBackgroundFill.solidFill.color")
+                    except (ValueError, AttributeError):
+                        logger.warning(f"Invalid background color value: {bg_val}")
 
     def _apply_styling_directives(self, element: TextElement, requests: list[dict]):
-        """Consolidates all text and paragraph styling from directives."""
-        para_style_updates, para_fields = {}, []
-        text_style_updates, text_fields = {}, []
+        """Consolidates all text and paragraph styling from directives into unified requests."""
+        # REFACTORED: This logic is now consolidated to prevent multiple, conflicting update requests.
+        para_style_updates, text_style_updates = {}, {}
+        para_fields, text_fields = [], []
         directives = element.directives or {}
 
-        # Paragraph styles
+        # --- Paragraph Styles ---
         alignment_map = {
             AlignmentType.LEFT: "START",
             AlignmentType.CENTER: "CENTER",
             AlignmentType.RIGHT: "END",
             AlignmentType.JUSTIFY: "JUSTIFIED",
         }
-        api_alignment = alignment_map.get(element.horizontal_alignment, "START")
-        if "align" in directives:
-            api_alignment = alignment_map.get(directives["align"], api_alignment)
+        # Final alignment is determined by the directive, falling back to the element's attribute
+        align_directive = directives.get("align", element.horizontal_alignment.value)
+        api_alignment = alignment_map.get(align_directive, "START")
+
         para_style_updates["alignment"] = api_alignment
         para_fields.append("alignment")
 
-        line_spacing = directives.get("line-spacing", 1.15)
+        line_spacing = directives.get("line-spacing")
         if isinstance(line_spacing, int | float) and line_spacing > 0:
             para_style_updates["lineSpacing"] = float(line_spacing) * 100.0
             para_fields.append("lineSpacing")
 
-        if para_style_updates:
-            requests.append(
-                {
-                    "updateParagraphStyle": {
-                        "objectId": element.object_id,
-                        "textRange": {"type": "ALL"},
-                        "style": para_style_updates,
-                        "fields": ",".join(sorted(set(para_fields))),
-                    }
-                }
-            )
-
-        # Text styles
-        if "color" in directives:
-            color_val = directives["color"]
+        # --- Text Styles ---
+        color_directive = directives.get("color")
+        if isinstance(color_directive, dict) and color_directive.get("type") == "color":
+            color_value = color_directive.get("value", {})
+            # The value can be a string (named color) or a dict (hex)
             color_str = (
-                color_val.get("value") if isinstance(color_val, dict) else color_val
+                color_value.get("value")
+                if isinstance(color_value, dict)
+                else color_value
             )
             if color_str:
                 try:
@@ -214,9 +201,10 @@ class TextRequestBuilder(BaseRequestBuilder):
                 except (ValueError, AttributeError):
                     logger.warning(f"Invalid text color value: {color_str}")
 
-        if "fontsize" in directives:
+        fontsize_directive = directives.get("fontsize")
+        if fontsize_directive:
             try:
-                font_size = float(directives["fontsize"])
+                font_size = float(fontsize_directive)
                 if font_size > 0:
                     text_style_updates["fontSize"] = {
                         "magnitude": font_size,
@@ -224,7 +212,20 @@ class TextRequestBuilder(BaseRequestBuilder):
                     }
                     text_fields.append("fontSize")
             except (ValueError, TypeError):
-                logger.warning(f"Invalid font size value: {directives['fontsize']}")
+                logger.warning(f"Invalid font size value: {fontsize_directive}")
+
+        # --- Generate Consolidated Requests ---
+        if para_style_updates:
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "objectId": element.object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": para_style_updates,
+                        "fields": ",".join(sorted(set(para_fields))),
+                    }
+                }
+            )
 
         if text_style_updates:
             requests.append(

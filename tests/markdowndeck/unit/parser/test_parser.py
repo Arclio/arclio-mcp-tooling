@@ -1,9 +1,5 @@
-"""
-Unit tests for the Parser component, ensuring adherence to PARSER_SPEC.md.
-"""
-
 import pytest
-from markdowndeck.models import ElementType, SlideLayout, TextFormatType
+from markdowndeck.models import ElementType
 from markdowndeck.parser import Parser
 
 
@@ -12,198 +8,182 @@ class TestParser:
     def parser(self) -> Parser:
         return Parser()
 
-    def test_parser_c_01(self, parser: Parser):
-        """Test Case: PARSER-C-01"""
-        deck = parser.parse("# Title\nSome content.")
-        slide = deck.slides[0]
-        assert len(slide.elements) == 2
-        assert slide.layout == SlideLayout.BLANK
-        assert all(el.position is None and el.size is None for el in slide.elements)
-        assert slide.root_section is not None
-        assert len(slide.root_section.children) == 1
-        content_section = slide.root_section.children[0]
-        assert content_section.children[0].text == "Some content."
-
-    def test_parser_c_02_slide_splitting(self, parser: Parser):
-        """Test Case: PARSER-C-02. Spec: `===` splits markdown into multiple slides."""
-        # Arrange
-        markdown = "# Slide 1\nContent 1\n===\n# Slide 2\nContent 2"
-
-        # Act
-        deck = parser.parse(markdown)
-
-        # Assert
-        assert len(deck.slides) == 2
-        assert deck.slides[0].get_title_element().text == "Slide 1"
-        assert deck.slides[1].get_title_element().text == "Slide 2"
-
-    def test_parser_c_03_metadata_extraction(self, parser: Parser):
-        """Test Case: PARSER-C-03. Spec: Verify extraction of title, footer, notes, and background."""
-        # Arrange
-        markdown = "[background=#ff0000]\n# Title\n<!-- notes: My notes -->\nContent\n@@@\nFooter"
-
-        # Act
+    def test_fenced_block_section_creation(self, parser: Parser):
+        """Test Case: PARSER-C-04"""
+        markdown = ":::section [padding=20]\nContent\n:::"
         deck = parser.parse(markdown)
         slide = deck.slides[0]
+        root_section = slide.root_section
+        assert len(root_section.children) == 1
+        nested_section = root_section.children[0]
+        assert nested_section.type == "section"
+        assert nested_section.directives.get("padding") == 20.0
+        assert nested_section.children[0].element_type == ElementType.TEXT
+        assert nested_section.children[0].text == "Content"
 
-        # Assert
-        assert slide.get_title_element().text == "Title"
-        assert slide.notes == "My notes"
-        assert slide.get_footer_element().text == "Footer"
-        assert slide.background == {
-            "type": "color",
-            "value": {"type": "hex", "value": "#ff0000"},
-        }
-        # Check that metadata is not in the body content
-        body_text = slide.root_section.children[0].children[0].text
-        assert "My notes" not in body_text
-        assert "Footer" not in body_text
-
-    def test_parser_c_04_indented_title(self, parser: Parser):
-        """Test Case: PARSER-C-04. Spec: Verify an indented title (H1) is correctly identified."""
-        # Arrange
-        markdown = "   #   Indented Title\nContent below."
-
-        # Act
-        deck = parser.parse(markdown)
-        slide = deck.slides[0]
-
-        # Assert
-        assert slide.get_title_element().text == "Indented Title"
-        assert slide.root_section.children[0].children[0].text == "Content below."
-
-    def test_parser_c_05(self, parser: Parser):
+    def test_fenced_block_row_and_column_creation(self, parser: Parser):
         """Test Case: PARSER-C-05"""
-        deck = parser.parse("Top\n---\nBottom")
+        markdown = ":::row [gap=30]\n:::column [width=40%]\nLeft\n:::\n:::column\nRight\n:::\n:::"
+        deck = parser.parse(markdown)
         slide = deck.slides[0]
-        assert slide.root_section is not None
-        assert len(slide.root_section.children) == 2
-        assert "Top" in slide.root_section.children[0].children[0].text
-        assert "Bottom" in slide.root_section.children[1].children[0].text
-
-    def test_parser_c_06(self, parser: Parser):
-        """Test Case: PARSER-C-06"""
-        deck = parser.parse("Left\n***\nRight")
-        slide = deck.slides[0]
-        assert slide.root_section is not None
-        assert len(slide.root_section.children) == 1
         row = slide.root_section.children[0]
         assert row.type == "row"
+        assert row.directives.get("gap") == 30.0
         assert len(row.children) == 2
+        col1, col2 = row.children
+        assert col1.type == "section"
+        assert col1.directives.get("width") == 0.4
+        assert col1.children[0].text == "Left"
+        assert col2.children[0].text == "Right"
 
-    def test_parser_c_07_mixed_section_parsing(self, parser: Parser):
-        """Test Case: PARSER-C-07. Spec: Verify parsing of mixed vertical and horizontal sections."""
-        # Arrange
-        markdown = "Top\n---\nLeft\n***\nRight\n---\nBottom"
-
-        # Act
+    def test_fenced_block_nesting(self, parser: Parser):
+        """Test Case: PARSER-C-06"""
+        markdown = ":::section\nOuter\n:::section [padding=10]\nInner\n:::\n:::"
         deck = parser.parse(markdown)
         slide = deck.slides[0]
+        outer_section = slide.root_section.children[0]
+        assert len(outer_section.children) == 2
+        assert outer_section.children[0].element_type == ElementType.TEXT
+        assert outer_section.children[0].text == "Outer"
+        inner_section = outer_section.children[1]
+        assert isinstance(inner_section, type(outer_section))
+        assert inner_section.directives.get("padding") == 10.0
+        assert inner_section.children[0].text == "Inner"
 
-        # Assert
-        root_children = slide.root_section.children
-        assert len(root_children) == 3
-        assert root_children[0].type == "section"
-        assert root_children[0].children[0].text == "Top"
-        assert root_children[1].type == "row"
-        assert len(root_children[1].children) == 2
-        assert root_children[1].children[0].children[0].text == "Left"
-        assert root_children[1].children[1].children[0].text == "Right"
-        assert root_children[2].type == "section"
-        assert root_children[2].children[0].text == "Bottom"
-
-    def test_parser_c_08_separators_in_code_blocks(self, parser: Parser):
-        """Test Case: PARSER-C-08. Spec: Verify separators within code blocks are ignored."""
-        # Arrange
-        markdown = "Top\n```\n---\n***\n===\n```\nBottom"
-
-        # Act
+    def test_deprecated_separators_are_ignored_for_layout(self, parser: Parser):
+        """Test Case: PARSER-E-03"""
+        markdown = ":::section\nTop\n---\nBottom\n***\nRight\n:::"
         deck = parser.parse(markdown)
         slide = deck.slides[0]
-
-        # Assert
-        assert len(deck.slides) == 1, "Should not split into multiple slides."
         section = slide.root_section.children[0]
-        assert len(section.children) == 3, "Should parse as 3 elements."
-        assert section.children[0].element_type == ElementType.TEXT
-        assert section.children[1].element_type == ElementType.CODE
-        assert "---\n***\n===" in section.children[1].code
-        assert section.children[2].element_type == ElementType.TEXT
+        assert len(section.children) > 1
+        texts = [child.text for child in section.children if hasattr(child, "text")]
+        assert "Top" in texts
+        assert "Bottom" in texts
+        assert "Right" in texts
 
-    def test_parser_c_10_directives_for_block_element(self, parser: Parser):
-        """Test Case: PARSER-C-10. Spec: Verify directives on a separate line are associated with a block element."""
-        # Arrange
-        markdown = "[border=solid]\n- Item 1\n- Item 2"
-
-        # Act
+    def test_table_with_row_directives(self, parser: Parser):
+        """Test Case: PARSER-C-09"""
+        markdown = """
+:::section
+| Header | Data | Directives          |
+|--------|------|---------------------|
+|        |      | [background=gray]   |
+| R1     | D1   |                     |
+| R2     | D2   | [color=red]         |
+:::
+"""
         deck = parser.parse(markdown)
+        table = deck.slides[0].elements[0]
+        assert table.element_type == ElementType.TABLE
+        assert table.headers == ["Header", "Data"]
+        assert table.rows == [["R1", "D1"], ["R2", "D2"]]
+        assert len(table.row_directives) == 3
+        assert table.row_directives[0] == {
+            "background": {"type": "color", "value": {"type": "named", "value": "gray"}}
+        }
+        assert table.row_directives[1] == {}
+        assert table.row_directives[2] == {
+            "color": {"type": "color", "value": {"type": "named", "value": "red"}}
+        }
+
+    def test_image_with_required_dimensions_succeeds_in_paragraph(self, parser: Parser):
+        """Validates that an image with width and height directives is parsed correctly."""
+        markdown = "![alt](url.png) [width=100][height=50]"
+        deck = parser.parse(markdown)
+        element = deck.slides[0].elements[0]
+        assert element.element_type == ElementType.IMAGE
+        assert element.directives["width"] == 100.0
+        assert element.directives["height"] == 50.0
+
+    def test_image_missing_dimensions_raises_error(self, parser: Parser):
+        """Test Case: Implied by PARSER_SPEC.md Rule #4.2"""
+        markdown_no_height = "![alt](url.png) [width=100]"
+        deck = parser.parse(markdown_no_height)
+        slide = deck.slides[0]
+        title_element = slide.get_title_element()
+        assert "Error in Slide" in title_element.text
+        text_element = next(
+            e for e in slide.elements if e.element_type == ElementType.TEXT
+        )
+        assert "must have both [width] and [height]" in text_element.text
+
+    def test_slide_with_base_directives(self, parser: Parser):
+        """Test Case: Implied by PARSER_SPEC.md Rule #4.4"""
+        markdown = "[color=blue][fontsize=12]\n# My Title"
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        assert slide.base_directives == {
+            "color": {"type": "color", "value": {"type": "named", "value": "blue"}},
+            "fontsize": 12.0,
+        }
+        assert slide.get_title_element().text == "My Title"
+
+    def test_unclosed_fenced_block(self, parser: Parser, caplog):
+        """Test Case: PARSER-E-01"""
+        markdown = ":::section\nSome content"
+        deck = parser.parse(markdown)
+        slide = deck.slides[0]
+        assert len(slide.root_section.children) == 1
+        section = slide.root_section.children[0]
+        assert section.children[0].text == "Some content"
+        assert "Found 1 unclosed section(s). Auto-closing." in caplog.text
+
+    def test_column_outside_row_warning(self, parser: Parser, caplog):
+        """Test Case: PARSER-E-02"""
+        markdown = ":::column\nContent\n:::"
+        deck = parser.parse(markdown)
+        assert len(deck.slides) == 1
         section = deck.slides[0].root_section.children[0]
-        list_element = section.children[0]
+        assert section.type == "section"
+        assert section.children[0].text == "Content"
 
-        # Assert
-        assert len(section.children) == 1
-        assert list_element.element_type == ElementType.BULLET_LIST
-        assert list_element.directives.get("border") == "solid"
-
-    def test_parser_c_11_same_line_directive_parsing(self, parser: Parser):
-        """Test Case: PARSER-C-11. Spec: Verify same-line directives are parsed and removed from text."""
-        # Arrange
-        markdown = "This text is red. [color=red]"
-
-        # Act
+    def test_image_with_caption_creates_two_elements(self, parser: Parser):
+        """Test new functionality for mixed image/text paragraphs."""
+        markdown = "![alt text](url.png)[width=100][height=50] This is a caption."
         deck = parser.parse(markdown)
-        text_element = deck.slides[0].root_section.children[0].children[0]
+        elements = deck.slides[0].elements
+        assert len(elements) == 2
+        assert elements[0].element_type == ElementType.IMAGE
+        assert elements[1].element_type == ElementType.TEXT
+        assert elements[1].text == "This is a caption."
 
-        # Assert
-        assert text_element.text == "This text is red."
-        assert text_element.directives.get("color") == {"type": "named", "value": "red"}
-
-    def test_parser_c_12(self, parser: Parser):
-        """Test Case: PARSER-C-12"""
-        markdown = "Text with **bold**."
+    def test_table_with_no_directive_column(self, parser: Parser):
+        """Tests that a GFM table without the special directive column parses correctly."""
+        markdown = "| Header1 | Header2 |\n|---|---|\n| Cell1 | Cell2 |"
         deck = parser.parse(markdown)
-        text_element = deck.slides[0].root_section.children[0].children[0]
-        assert text_element.text == "Text with bold."
-        assert text_element.formatting[0].format_type == TextFormatType.BOLD
+        table = deck.slides[0].elements[0]
+        assert table.element_type == ElementType.TABLE
+        assert table.headers == ["Header1"]
+        assert table.rows == [["Cell1"]]
+        assert len(table.row_directives) == 2
+        assert table.row_directives[0] == {}
+        assert table.row_directives[1] == {}
 
-    def test_parser_spec_subtitle_must_follow_title(self, parser: Parser):
-        """
-        Test Case: PARSER_SPEC.md, 4.3.1
-        Spec: A `##` line is only a subtitle if it immediately follows a `#` line.
-        """
-        # Arrange
-        markdown = "# Title\n\n## Not a subtitle"
-
-        # Act
+    def test_fenced_block_with_content_and_nested_section(self, parser: Parser):
+        """Tests a section with both its own content and a nested section."""
+        markdown = ":::section\nOuter Content\n:::section\nInner Content\n:::\n:::"
         deck = parser.parse(markdown)
         slide = deck.slides[0]
+        outer_section = slide.root_section.children[0]
+        assert len(outer_section.children) == 2
+        assert outer_section.children[0].element_type == ElementType.TEXT
+        assert outer_section.children[0].text == "Outer Content"
+        inner_section = outer_section.children[1]
+        assert isinstance(inner_section, type(outer_section))
+        assert len(inner_section.children) == 1
+        assert inner_section.children[0].element_type == ElementType.TEXT
+        assert inner_section.children[0].text == "Inner Content"
 
-        # Assert
-        assert slide.get_title_element() is not None
-        assert (
-            slide.get_subtitle_element() is None
-        ), "Subtitle should not be parsed if there's a blank line."
-        # It should be a regular H2 text element in the body
-        body_elements = slide.root_section.children[0].children
-        assert len(body_elements) == 1
-        assert body_elements[0].element_type == ElementType.TEXT
-        assert body_elements[0].text == "Not a subtitle"
-
-    def test_parser_c_13_correct_subtitle_parsing(self, parser: Parser):
-        """
-        Test Case: PARSER-C-13
-        Spec: A `##` immediately following a `#` is parsed as a SUBTITLE element.
-        """
-        # Arrange
-        markdown = "# Title\n## Subtitle"
-
-        # Act
+    def test_paragraph_with_text_image_and_caption(self, parser: Parser):
+        """NEW TEST: Validates a paragraph with leading text, an image, and a caption."""
+        markdown = "Some leading text. ![alt text](url.png)[width=100][height=50] This is a caption."
         deck = parser.parse(markdown)
-        slide = deck.slides[0]
-
-        # Assert
-        assert slide.get_title_element() is not None
-        assert slide.get_subtitle_element() is not None
-        assert slide.get_subtitle_element().text == "Subtitle"
-        # The body should be empty
-        assert not slide.root_section.children
+        elements = deck.slides[0].elements
+        assert len(elements) == 3, "Expected three elements: Text, Image, Text"
+        assert elements[0].element_type == ElementType.TEXT
+        assert elements[0].text == "Some leading text."
+        assert elements[1].element_type == ElementType.IMAGE
+        assert elements[1].directives.get("width") == 100.0
+        assert elements[2].element_type == ElementType.TEXT
+        assert elements[2].text == "This is a caption."

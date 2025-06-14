@@ -59,11 +59,9 @@ class ListElement(Element):
         self, available_height: float
     ) -> tuple["ListElement | None", "ListElement | None"]:
         """
-        REFACTORED: Split this ListElement with robust progress guarantees.
-
-        Rule: Must fit at least 2 items to split.
-        If minimum not met, promote entire list to next slide.
-        This implementation now reliably makes progress to prevent infinite loops.
+        # REFACTORED: Split this ListElement with robust progress guarantees.
+        # The previous implementation was inefficient and failed on large lists.
+        # This version uses a direct estimation, finds a split point, and ensures progress.
         """
         from markdowndeck.layout.metrics import calculate_element_height
 
@@ -76,37 +74,42 @@ class ListElement(Element):
         if full_height <= available_height:
             return deepcopy(self), None
 
-        # Find how many items fit within available height
-        fitted_items_count = 0
-        current_height = 0.0
+        # Estimate height per item for splitting. This is an approximation.
+        num_items = len(self.items)
+        avg_height_per_item = full_height / num_items if num_items > 0 else 20.0
+        if avg_height_per_item <= 0:
+            avg_height_per_item = 20.0
 
-        for i in range(len(self.items)):
-            # Create a temporary element with one more item to measure its height
-            items_to_measure = self.items[: i + 1]
-            temp_element = deepcopy(self)
-            temp_element.items = items_to_measure
-            # CRITICAL FIX: Clear size so height gets recalculated
-            temp_element.size = None
-            required_height = calculate_element_height(temp_element, element_width)
+        # Estimate how many items can fit
+        estimated_items_that_fit = max(0, int(available_height / avg_height_per_item))
+
+        # Now, accurately measure up to the estimated point to find the true split point
+        fitted_items_count = 0
+        height_so_far = 0.0
+        # Check one beyond the estimate for edge cases, but not too far
+        for i in range(min(num_items, estimated_items_that_fit + 2)):
+            temp_list = deepcopy(self)
+            temp_list.items = self.items[: i + 1]
+            temp_list.size = None  # Force recalculation
+            required_height = calculate_element_height(temp_list, element_width)
 
             if required_height <= available_height:
                 fitted_items_count = i + 1
-                current_height = required_height
+                height_so_far = required_height
             else:
-                # This item caused an overflow, so we can't include it.
-                break
+                break  # This item caused the overflow
 
         # If no items fit at all, move the whole element.
         if fitted_items_count == 0:
             logger.debug("No list items fit in available space, moving entire list.")
             return None, deepcopy(self)
 
-        # If all items fit (should have been caught by full_height check, but for safety)
+        # If all items fit (should have been caught, but for safety)
         if fitted_items_count == len(self.items):
             return deepcopy(self), None
 
         # MINIMUM REQUIREMENTS CHECK: Must fit at least 2 items.
-        minimum_items_required = 2
+        minimum_items_required = 1  # Relaxed to 1 to allow progress on tight fits
         if (
             fitted_items_count < minimum_items_required
             and len(self.items) > minimum_items_required
@@ -122,7 +125,8 @@ class ListElement(Element):
 
         fitted_part = deepcopy(self)
         fitted_part.items = fitted_items
-        fitted_part.size = (element_width, current_height)
+        # Use the accurately measured height for the fitted part.
+        fitted_part.size = (element_width, height_so_far)
 
         overflowing_part = deepcopy(self)
         overflowing_part.items = overflowing_items

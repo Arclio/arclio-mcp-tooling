@@ -1,10 +1,5 @@
-# File: packages/markdowndeck/src/markdowndeck/parser/content/element_factory.py
-# Purpose: Creates slide element models.
-# Key Changes:
-# - REMOVED: Removed `_remove_directive_patterns` and `_strip_directives_from_code_content`. This logic is now centralized in `DirectiveParser` and used by formatters *before* calling the factory, simplifying the factory's responsibility. The factory now trusts it receives clean text.
-# - REFACTORED: `extract_formatting_from_text` now expects pre-cleaned text.
-
 import logging
+import uuid
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -32,26 +27,31 @@ class ElementFactory:
     Factory for creating slide elements.
 
     This factory assumes it receives pre-cleaned text content where directives
-    have already been processed and removed by the calling formatter.
+    have already been processed by the calling formatter.
     """
+
+    def _generate_id(self, prefix: str) -> str:
+        """Generate a unique ID for an element."""
+        return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
     def create_title_element(
         self,
-        title: str,
-        formatting: list[TextFormat] = None,
+        text: str,
         directives: dict[str, Any] = None,
     ) -> TextElement:
         """Create a title element with directive support."""
+        md = MarkdownIt()
+        formatting = self._extract_formatting_from_inline_token(md.parse(text)[0])
         alignment = AlignmentType.CENTER
-
         if directives and "align" in directives:
             alignment_value = directives["align"].lower()
             if alignment_value in ["left", "center", "right", "justify"]:
                 alignment = AlignmentType(alignment_value)
 
         return TextElement(
+            object_id=self._generate_id("title"),
             element_type=ElementType.TITLE,
-            text=title,
+            text=text,
             formatting=formatting or [],
             horizontal_alignment=alignment,
             vertical_alignment=VerticalAlignmentType.TOP,
@@ -61,12 +61,18 @@ class ElementFactory:
     def create_subtitle_element(
         self,
         text: str,
-        formatting: list[TextFormat] = None,
-        alignment: AlignmentType = AlignmentType.CENTER,
         directives: dict[str, Any] = None,
     ) -> TextElement:
         """Create a subtitle element."""
+        md = MarkdownIt()
+        formatting = self._extract_formatting_from_inline_token(md.parse(text)[0])
+        alignment = AlignmentType.CENTER
+        if directives and "align" in directives:
+            alignment_value = directives["align"].lower()
+            if alignment_value in ["left", "center", "right", "justify"]:
+                alignment = AlignmentType(alignment_value)
         return TextElement(
+            object_id=self._generate_id("subtitle"),
             element_type=ElementType.SUBTITLE,
             text=text,
             formatting=formatting or [],
@@ -81,15 +87,18 @@ class ElementFactory:
         formatting: list[TextFormat] = None,
         alignment: AlignmentType = AlignmentType.LEFT,
         directives: dict[str, Any] = None,
+        heading_level: int | None = None,
     ) -> TextElement:
         """Create a text element."""
         return TextElement(
+            object_id=self._generate_id("text"),
             element_type=ElementType.TEXT,
             text=text,
             formatting=formatting or [],
             horizontal_alignment=alignment,
             vertical_alignment=VerticalAlignmentType.TOP,
             directives=directives or {},
+            heading_level=heading_level,
         )
 
     def create_quote_element(
@@ -101,6 +110,7 @@ class ElementFactory:
     ) -> TextElement:
         """Create a quote element."""
         return TextElement(
+            object_id=self._generate_id("quote"),
             element_type=ElementType.QUOTE,
             text=text,
             formatting=formatting or [],
@@ -112,16 +122,24 @@ class ElementFactory:
     def create_footer_element(
         self,
         text: str,
-        formatting: list[TextFormat] = None,
-        alignment: AlignmentType = AlignmentType.LEFT,
+        directives: dict[str, Any] = None,
     ) -> TextElement:
         """Create a footer element."""
+        md = MarkdownIt()
+        formatting = self._extract_formatting_from_inline_token(md.parse(text)[0])
+        alignment = AlignmentType.LEFT
+        if directives and "align" in directives:
+            alignment_value = directives["align"].lower()
+            if alignment_value in ["left", "center", "right", "justify"]:
+                alignment = AlignmentType(alignment_value)
         return TextElement(
+            object_id=self._generate_id("footer"),
             element_type=ElementType.FOOTER,
             text=text,
             formatting=formatting or [],
             horizontal_alignment=alignment,
             vertical_alignment=VerticalAlignmentType.BOTTOM,
+            directives=directives or {},
         )
 
     def create_list_element(
@@ -133,6 +151,7 @@ class ElementFactory:
         """Create a list element."""
         element_type = ElementType.ORDERED_LIST if ordered else ElementType.BULLET_LIST
         return ListElement(
+            object_id=self._generate_id("list"),
             element_type=element_type,
             items=items,
             directives=directives or {},
@@ -142,24 +161,37 @@ class ElementFactory:
         self, url: str, alt_text: str = "", directives: dict[str, Any] = None
     ) -> ImageElement:
         """Create an image element."""
+        if not directives:
+            directives = {}
+
+        # Enforce image dimension rules from PARSER_SPEC.md
+        if "width" not in directives or "height" not in directives:
+            raise ValueError(
+                f"Image '{url}' must have both [width] and [height] directives specified."
+            )
+
         return ImageElement(
+            object_id=self._generate_id("image"),
             element_type=ElementType.IMAGE,
             url=url,
             alt_text=alt_text,
-            directives=directives or {},
+            directives=directives,
         )
 
     def create_table_element(
         self,
         headers: list[str],
         rows: list[list[str]],
+        row_directives: list[dict[str, Any]] | None = None,
         directives: dict[str, Any] = None,
     ) -> TableElement:
         """Create a table element."""
         return TableElement(
+            object_id=self._generate_id("table"),
             element_type=ElementType.TABLE,
             headers=headers,
             rows=rows,
+            row_directives=row_directives or [],
             directives=directives or {},
         )
 
@@ -168,31 +200,12 @@ class ElementFactory:
     ) -> CodeElement:
         """Create a code element."""
         return CodeElement(
+            object_id=self._generate_id("code"),
             element_type=ElementType.CODE,
             code=code,
             language=language,
             directives=directives or {},
         )
-
-    def extract_formatting_from_text(
-        self, text: str, md_parser: MarkdownIt
-    ) -> list[TextFormat]:
-        """
-        Extracts formatting from a given text string.
-        Assumes the input text has already been cleaned of directives.
-        """
-        if not text:
-            return []
-
-        try:
-            tokens = md_parser.parse(text.strip())
-            for token in tokens:
-                if token.type == "inline":
-                    return self._extract_formatting_from_inline_token(token)
-        except Exception as e:
-            logger.error(f"Failed to extract formatting from text '{text[:50]}': {e}")
-
-        return []
 
     def _extract_formatting_from_inline_token(self, token: Token) -> list[TextFormat]:
         """

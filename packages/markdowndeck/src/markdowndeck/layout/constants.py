@@ -143,7 +143,7 @@ DEFAULT_SLIDE_HEIGHT = 405.0  # 5.625 inches at 72 DPI (16:9 aspect ratio)
 # Default Margins - FIXED: All margins set to 0.0 per "Zero Default Spacing" principle
 DEFAULT_MARGIN_TOP = 0.0  # Top margin
 DEFAULT_MARGIN_RIGHT = 0.0  # Right margin
-DEFAULT_MARGIN_BOTTOM = 0.0  # Bottom margin - FIXED: was 20.0
+DEFAULT_MARGIN_BOTTOM = 0.0  # Bottom margin - FIXED: was 20.0, now 0.0
 DEFAULT_MARGIN_LEFT = 0.0  # Left margin
 
 # =============================================================================

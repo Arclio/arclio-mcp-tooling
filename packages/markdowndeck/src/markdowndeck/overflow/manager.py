@@ -1,17 +1,17 @@
 import logging
 from copy import deepcopy
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from markdowndeck.models import Slide
+    from markdowndeck.models import Section, Slide
 
+from markdowndeck.models import Section as SectionModel
 from markdowndeck.overflow.detector import OverflowDetector
 from markdowndeck.overflow.handlers import StandardOverflowHandler
 
 logger = logging.getLogger(__name__)
 
 MAX_OVERFLOW_ITERATIONS = 50
-MAX_CONTINUATION_SLIDES = 25
 
 
 class OverflowManager:
@@ -29,10 +29,14 @@ class OverflowManager:
         self.slide_height = slide_height
         self.margins = margins or {"top": 50, "right": 50, "bottom": 50, "left": 50}
         self.detector = OverflowDetector(
-            slide_height=self.slide_height, top_margin=self.margins["top"]
+            slide_height=self.slide_height,
+            top_margin=self.margins["top"],
+            bottom_margin=self.margins["bottom"],
         )
         self.handler = StandardOverflowHandler(
-            slide_height=self.slide_height, top_margin=self.margins["top"]
+            slide_height=self.slide_height,
+            top_margin=self.margins["top"],
+            bottom_margin=self.margins["bottom"],
         )
         from markdowndeck.layout import LayoutManager
 
@@ -45,106 +49,99 @@ class OverflowManager:
         """
         Process a positioned slide and handle any external overflow using the main algorithm.
         """
-        logger.debug(f"Processing slide {slide.object_id} for EXTERNAL overflow only")
-
         final_slides = []
-        slides_to_process = [slide]
+        current_slide = deepcopy(slide)
         iteration_count = 0
-        continuation_count = 0
-        original_slide_id = slide.object_id
 
-        while slides_to_process:
+        while iteration_count < MAX_OVERFLOW_ITERATIONS:
             iteration_count += 1
-            if iteration_count > MAX_OVERFLOW_ITERATIONS:
-                logger.error(
-                    f"Max overflow iterations ({MAX_OVERFLOW_ITERATIONS}) exceeded for {original_slide_id}"
-                )
-                for remaining_slide in slides_to_process:
-                    self._finalize_slide(remaining_slide)
-                final_slides.extend(slides_to_process)
-                break
 
-            current_slide = slides_to_process.pop(0)
-            overflowing_section = self.detector.find_first_overflowing_section(
+            overflowing_element = self.detector.find_first_overflowing_element(
                 current_slide
             )
 
-            if overflowing_section is None:
+            if not overflowing_element:
                 self._finalize_slide(current_slide)
                 final_slides.append(current_slide)
-                continue
+                break
 
-            continuation_count += 1
+            if getattr(overflowing_element, "_overflow_moved", False):
+                logger.error(
+                    f"OVERFLOW CIRCUIT BREAKER: Element {overflowing_element.object_id} "
+                    f"of type {overflowing_element.element_type.value} is still overflowing on a new slide. "
+                    "It will be placed as-is, potentially extending past slide boundaries."
+                )
+                self._finalize_slide(current_slide)
+                final_slides.append(current_slide)
+                break
+
             fitted_slide, continuation_slide = self.handler.handle_overflow(
-                current_slide, overflowing_section, continuation_count
+                current_slide, overflowing_element, iteration_count
             )
 
             self._finalize_slide(fitted_slide)
             final_slides.append(fitted_slide)
 
-            if continuation_slide:
-                # VERIFIED: This re-layout call is the circuit breaker per OVERFLOW_SPEC.md Rule #6.
-                # It ensures overflowing elements (like images) are re-scaled in their new context.
-                # FIXED: Create a deep copy to prevent object identity issues during finalization
-                continuation_copy = deepcopy(continuation_slide)
-                repositioned_continuation = self.layout_manager.calculate_positions(
-                    continuation_copy
-                )
-                # FIXED: Ensure we get a proper deep copy back from layout manager
-                # to prevent any shared references that could cause premature finalization
-                final_repositioned = deepcopy(repositioned_continuation)
-                slides_to_process.append(final_repositioned)
+            if not continuation_slide:
+                break
+
+            repositioned_continuation = self.layout_manager.calculate_positions(
+                continuation_slide
+            )
+            current_slide = deepcopy(repositioned_continuation)
+
+        if iteration_count >= MAX_OVERFLOW_ITERATIONS:
+            logger.error(
+                f"Max overflow iterations ({MAX_OVERFLOW_ITERATIONS}) reached. Finalizing remaining slide."
+            )
+            if current_slide:
+                self._finalize_slide(current_slide)
+                final_slides.append(current_slide)
 
         logger.info(
-            f"Overflow processing complete: {len(final_slides)} slides created from 1 input slide"
+            f"Overflow processing complete: {len(final_slides)} slides created."
         )
         return final_slides
 
     def _finalize_slide(self, slide: "Slide") -> None:
         """
-        Finalize a slide by creating renderable_elements list from the root_section hierarchy.
-        REFACTORED: To traverse the `root_section` per the new architecture.
+        Finalize a slide by populating renderable_elements from the root_section hierarchy.
+        This must be called on EVERY slide before it is returned.
         """
         logger.debug(f"Finalizing slide {slide.object_id}...")
 
-        final_renderable_elements = list(getattr(slide, "renderable_elements", []))
+        final_renderable_elements = [
+            e
+            for e in slide.renderable_elements
+            if e.element_type.value in ["title", "subtitle", "footer"]
+        ]
+
         existing_object_ids = {
             el.object_id for el in final_renderable_elements if el.object_id
         }
 
-        def extract_elements_from_section(section):
+        def extract_elements_from_section(section: Optional["Section"]):
             if not section:
                 return
             for child in section.children:
-                if not hasattr(child, "children"):  # It's an Element
+                if isinstance(child, SectionModel):
+                    extract_elements_from_section(child)
+                else:
                     if (
-                        child.position
+                        child.object_id not in existing_object_ids
+                        and child.position
                         and child.size
-                        and child.object_id not in existing_object_ids
                     ):
                         final_renderable_elements.append(child)
                         if child.object_id:
                             existing_object_ids.add(child.object_id)
-                else:  # It's a Section
-                    extract_elements_from_section(child)
 
-        # REFACTORED: Start traversal from the single root_section.
         if hasattr(slide, "root_section"):
             extract_elements_from_section(slide.root_section)
 
         slide.renderable_elements = final_renderable_elements
-        # Per spec, section hierarchy is cleared after finalization.
         slide.root_section = None
-
-        # FIXED: Preserve title and footer elements in the elements list
-        # These are needed for get_title_element() and get_footer_element() methods
-        from markdowndeck.models.constants import ElementType
-
-        preserved_elements = []
-        for element in getattr(slide, "elements", []):
-            if element.element_type in (ElementType.TITLE, ElementType.FOOTER):
-                preserved_elements.append(element)
-        slide.elements = preserved_elements
+        slide.elements = []
 
         logger.info(
             f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."

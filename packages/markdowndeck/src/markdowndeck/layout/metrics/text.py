@@ -1,7 +1,6 @@
-"""Pure text element metrics for layout calculations - Content-aware height calculation."""
-
 import logging
 import re
+from typing import cast
 
 from markdowndeck.layout.constants import (
     FOOTER_FONT_SIZE,
@@ -30,83 +29,54 @@ def calculate_text_element_height(
     element: TextElement | dict, available_width: float
 ) -> float:
     """
-    Calculate the pure intrinsic height needed for a text element based on its content.
-
-    This function now reliably uses actual font metrics via Pillow to accurately
-    determine text height, fixing bugs related to text clipping.
+    Calculate intrinsic height for a text element and pre-compute line metrics.
+    REFACTORED: Now populates `element._line_metrics` as a side effect.
     """
-    element_type = getattr(
-        element,
-        "element_type",
-        element.get("element_type") if isinstance(element, dict) else ElementType.TEXT,
-    )
-    text_content = getattr(
-        element, "text", element.get("text") if isinstance(element, dict) else ""
-    )
-    directives = getattr(
-        element,
-        "directives",
-        element.get("directives") if isinstance(element, dict) else {},
-    )
+    text_element = cast(TextElement, element)
+    element_type = text_element.element_type
+    text_content = text_element.text
+    directives = text_element.directives
 
     if not text_content.strip():
+        text_element._line_metrics = []
         return _get_minimum_height_for_type(element_type)
 
     if element_type == ElementType.FOOTER:
         text_content = re.sub(r"<!--.*?-->", "", text_content, flags=re.DOTALL).strip()
         if not text_content:
+            text_element._line_metrics = []
             return _get_minimum_height_for_type(element_type)
 
     font_size, line_height_multiplier, padding, min_height = _get_typography_params(
         element_type, directives
     )
-
-    # Calculate effective width available for the text itself (after padding)
     effective_width = max(10.0, available_width - (padding * 2))
 
-    # Use Pillow-based font metrics for accurate height calculation. This is the fix for the clipping bug.
     try:
-        _, text_box_height = calculate_text_bbox(
+        _, text_box_height, line_metrics = calculate_text_bbox(
             text_content,
             font_size,
             max_width=effective_width,
             line_height_multiplier=line_height_multiplier,
         )
-
-        # The total height is the calculated text box height plus top and bottom padding.
+        text_element._line_metrics = line_metrics
         total_height = text_box_height + (padding * 2)
-
-        logger.debug(
-            f"Font-based height: type={element_type.value}, "
-            f"font_size={font_size:.1f}, text_height={text_box_height:.1f}, "
-            f"padding={padding}, total_height={total_height:.1f}"
-        )
 
     except Exception as e:
         logger.error(
-            f"Font metrics calculation failed for element, cannot calculate height: {e}",
+            f"Font metrics calculation failed, cannot calculate height: {e}",
             exc_info=True,
         )
-        total_height = min_height  # Fallback to minimum height on error
+        text_element._line_metrics = []
+        total_height = min_height
 
-    # Apply minimum height constraint
-    final_height = max(total_height, min_height)
-
-    logger.debug(
-        f"Text height calculation: type={element_type.value}, "
-        f"content_len={len(text_content)}, final_height={final_height:.1f}"
-    )
-
-    return final_height
+    return max(total_height, min_height)
 
 
 def _get_typography_params(
     element_type: ElementType, directives: dict
 ) -> tuple[float, float, float, float]:
-    """
-    Get typography parameters for a specific element type, considering directives.
-    Returns: (font_size, line_height_multiplier, padding, min_height)
-    """
+    """Get typography parameters for a specific element type, considering directives."""
     params = {
         ElementType.TITLE: (
             H1_FONT_SIZE,
@@ -143,7 +113,6 @@ def _get_typography_params(
         element_type, params[ElementType.TEXT]
     )
 
-    # Override with directives
     if "fontsize" in directives:
         try:
             custom_font_size = float(directives["fontsize"])
@@ -151,7 +120,6 @@ def _get_typography_params(
                 font_size = custom_font_size
         except (ValueError, TypeError):
             logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
-
     return font_size, line_height, padding, min_height
 
 

@@ -91,7 +91,7 @@ class TestEndToEndFunctions:
             "presentationId": "pres_e2e_simple",
             "presentationUrl": "http://slides.example.com/e2e_simple",
         }
-        markdown = "# Simple Title\nThis is a test."
+        markdown = "# Simple Title\n:::section\nThis is a test.\n:::"
         credentials = MagicMock()
         credentials.universe_domain = "googleapis.com"
 
@@ -115,7 +115,7 @@ class TestEndToEndFunctions:
         # Arrange
         mock_api_instance = mock_api_client_cls.return_value
         long_content = "\n".join([f"* Item {i}" for i in range(100)])
-        markdown = f"# Overflow Test\n{long_content}"
+        markdown = f"# Overflow Test\n:::section\n{long_content}\n:::"
         credentials = MagicMock()
         credentials.universe_domain = "googleapis.com"
 
@@ -142,7 +142,7 @@ class TestEndToEndFunctions:
     def test_e2e_f_03_markdown_to_requests_blank_canvas(self):
         """Test Case: E2E-F-03 - Validates `markdown_to_requests` reflects the 'Blank Canvas First' architecture."""
         # Arrange
-        markdown = "# Title\nBody Text"
+        markdown = "# Title\n:::section\nBody Text\n:::"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -165,14 +165,18 @@ class TestEndToEndFunctions:
     def test_e2e_f_04_directive_to_api_validation(self):
         """Test Case: E2E-F-04 - Validates that visual and layout directives are correctly translated into API requests."""
         # Arrange
+        # REFACTORED: Use :::row and :::column for layout instead of `***`.
         markdown = """
 # Title [fontsize=40]
 
-[background=#112233][padding=20][gap=30]
+:::row [background=#112233][padding=20][gap=30]
+:::column
 ## Subtitle [color=#FF0000]
-***
-[width=1/3][valign=bottom]
+:::
+:::column [width=1/3][valign=bottom]
 ### Right Column [align=right]
+:::
+:::
 """
         # Act
         result = markdown_to_requests(markdown)
@@ -189,10 +193,13 @@ class TestEndToEndFunctions:
         subtitle_id = _get_shape_id_by_text(requests, "Subtitle")
         right_col_id = _get_shape_id_by_text(requests, "Right Column")
 
-        # Background should be on the shape containing the subtitle
+        # Background should be on the shape containing the subtitle, inherited from the row.
         subtitle_shape_props = _find_shape_properties_with_background(
             requests, subtitle_id
         )
+        assert (
+            subtitle_shape_props is not None
+        ), "Background directive from row was not applied to child element."
         bg_color = subtitle_shape_props["updateShapeProperties"]["shapeProperties"][
             "shapeBackgroundFill"
         ]["solidFill"]["color"]["rgbColor"]

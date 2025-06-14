@@ -1,5 +1,3 @@
-"""Base element model for slide elements."""
-
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -15,6 +13,8 @@ class Element:
     size: tuple[float, float] | None = None
     object_id: str | None = None
     directives: dict[str, Any] = field(default_factory=dict)
+    # ADDED: Internal flag for overflow circuit breaker per DATA_MODELS.md
+    _overflow_moved: bool = False
 
     def __post_init__(self):
         """Ensure directives is a dictionary."""
