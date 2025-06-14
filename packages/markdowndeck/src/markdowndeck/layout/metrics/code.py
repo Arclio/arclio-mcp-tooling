@@ -1,5 +1,3 @@
-"""Pure code element metrics for layout calculations - Content-aware height calculation."""
-
 import logging
 from typing import cast
 
@@ -13,12 +11,14 @@ from markdowndeck.layout.constants import (
     MIN_CODE_HEIGHT,
     MONOSPACE_CHAR_WIDTH,
 )
-from markdowndeck.models import CodeElement
+from markdowndeck.models import CodeElement, ElementType, TextElement
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_code_element_height(element: CodeElement | dict, available_width: float) -> float:
+def calculate_code_element_height(
+    element: CodeElement | TextElement | dict, available_width: float
+) -> float:
     """
     Calculate the pure intrinsic height needed for a code element based on its content.
 
@@ -32,7 +32,16 @@ def calculate_code_element_height(element: CodeElement | dict, available_width: 
     Returns:
         The intrinsic height in points required to render the complete code block
     """
-    code_element = cast(CodeElement, element) if isinstance(element, CodeElement) else CodeElement(**element)
+    # FIXED: Make this function robust to handle TextElement marked as code.
+    if isinstance(element, dict):
+        code_element = CodeElement(**element)
+    elif isinstance(element, TextElement) and element.element_type == ElementType.CODE:
+        # Adapt TextElement to look like a CodeElement for this function
+        code_element = CodeElement(
+            code=element.text, language=element.directives.get("language", "text")
+        )
+    else:
+        code_element = cast(CodeElement, element)
 
     code_content = code_element.code
     language = getattr(code_element, "language", "")
@@ -59,7 +68,9 @@ def calculate_code_element_height(element: CodeElement | dict, available_width: 
         language_height = CODE_LANGUAGE_LABEL_HEIGHT
 
     # Calculate total height
-    total_height = content_height + CODE_PADDING * 2 + language_height  # Top and bottom padding
+    total_height = (
+        content_height + CODE_PADDING * 2 + language_height
+    )  # Top and bottom padding
 
     # Apply minimum height
     final_height = max(total_height, MIN_CODE_HEIGHT)
@@ -101,7 +112,9 @@ def _calculate_code_line_count(code_content: str, available_width: float) -> int
         else:
             # Calculate how many visual lines this logical line needs
             line_length = len(line)
-            visual_lines_needed = max(1, (line_length + chars_per_line - 1) // chars_per_line)
+            visual_lines_needed = max(
+                1, (line_length + chars_per_line - 1) // chars_per_line
+            )
             total_visual_lines += visual_lines_needed
 
     return total_visual_lines

@@ -1,9 +1,7 @@
-"""Table request builder for Google Slides API requests."""
-
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
-from markdowndeck.models import TableElement
+from markdowndeck.models import TableElement, TextFormat, TextFormatType
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +71,7 @@ class TableRequestBuilder(BaseRequestBuilder):
         requests.append(create_table_request)
 
         # Insert header text if present
-        row_index = 0
+        header_row_index = 0
         if element.headers:
             for col_index, header in enumerate(element.headers):
                 if col_index < col_count:
@@ -81,7 +79,7 @@ class TableRequestBuilder(BaseRequestBuilder):
                         "insertText": {
                             "objectId": element.object_id,
                             "cellLocation": {
-                                "rowIndex": row_index,
+                                "rowIndex": header_row_index,
                                 "columnIndex": col_index,
                             },
                             "text": header,
@@ -98,53 +96,22 @@ class TableRequestBuilder(BaseRequestBuilder):
                     fields="bold",
                     range_type="ALL",
                     cell_location={
-                        "rowIndex": row_index,
+                        "rowIndex": header_row_index,
                         "columnIndex": col_index,
                     },
                 )
                 requests.append(style_request)
 
-                # Add cell fill for header
-                fill_request = {
-                    "updateTableCellProperties": {
-                        "objectId": element.object_id,
-                        "tableRange": {
-                            "location": {
-                                "rowIndex": row_index,
-                                "columnIndex": col_index,
-                            },
-                            "rowSpan": 1,
-                            "columnSpan": 1,
-                        },
-                        "tableCellProperties": {
-                            "tableCellBackgroundFill": {
-                                "solidFill": {
-                                    "color": {
-                                        "rgbColor": {
-                                            "red": 0.95,
-                                            "green": 0.95,
-                                            "blue": 0.95,
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "fields": "tableCellBackgroundFill.solidFill.color",
-                    }
-                }
-                requests.append(fill_request)
-
-            row_index += 1
-
         # Insert row text
-        for row_idx, row in enumerate(element.rows):
+        for r_idx, row in enumerate(element.rows):
+            current_row_index = r_idx + (1 if element.headers else 0)
             for col_idx, cell in enumerate(row):
                 if col_idx < col_count:
                     insert_text_request = {
                         "insertText": {
                             "objectId": element.object_id,
                             "cellLocation": {
-                                "rowIndex": row_idx + row_index,
+                                "rowIndex": current_row_index,
                                 "columnIndex": col_idx,
                             },
                             "text": cell,
@@ -158,6 +125,69 @@ class TableRequestBuilder(BaseRequestBuilder):
             self._apply_table_borders(element, requests, row_count, col_count)
             self._apply_cell_alignment(element, requests, row_count, col_count)
             self._apply_cell_background_colors(element, requests, row_count, col_count)
+
+        # FIXED: Apply row-specific directives
+        if hasattr(element, "row_directives"):
+            for row_idx, directives in enumerate(element.row_directives):
+                if not directives:
+                    continue
+
+                # Apply background color for the row
+                bg_color_val = directives.get("background")
+                if bg_color_val:
+                    # Parse color into API format
+                    color_format = TextFormat(
+                        0, 0, TextFormatType.BACKGROUND_COLOR, bg_color_val
+                    )
+                    style = self._format_to_style(color_format)
+                    if (
+                        "backgroundColor" in style
+                        and "opaqueColor" in style["backgroundColor"]
+                    ):
+                        requests.append(
+                            {
+                                "updateTableCellProperties": {
+                                    "objectId": element.object_id,
+                                    "tableRange": {
+                                        "location": {
+                                            "rowIndex": row_idx,
+                                            "columnIndex": 0,
+                                        },
+                                        "rowSpan": 1,
+                                        "columnSpan": col_count,
+                                    },
+                                    "tableCellProperties": {
+                                        "tableCellBackgroundFill": {
+                                            "solidFill": {
+                                                "color": style["backgroundColor"][
+                                                    "opaqueColor"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "fields": "tableCellBackgroundFill.solidFill.color",
+                                }
+                            }
+                        )
+                # Apply text color for the row
+                color_val = directives.get("color")
+                if color_val:
+                    color_format = TextFormat(0, 0, TextFormatType.COLOR, color_val)
+                    style = self._format_to_style(color_format)
+                    if "foregroundColor" in style:
+                        requests.append(
+                            {
+                                "updateTextStyle": {
+                                    "objectId": element.object_id,
+                                    "cellLocation": {"rowIndex": row_idx},
+                                    "style": {
+                                        "foregroundColor": style["foregroundColor"]
+                                    },
+                                    "textRange": {"type": "ALL"},
+                                    "fields": "foregroundColor",
+                                }
+                            }
+                        )
 
         return requests
 

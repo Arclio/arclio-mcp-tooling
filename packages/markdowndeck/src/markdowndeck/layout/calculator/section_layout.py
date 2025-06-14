@@ -59,16 +59,32 @@ def _calculate_intrinsic_size(
     This is a bottom-up calculation that resolves sizes before positioning.
     REFACTORED: Now resolves this section's explicit dimensions *before* recursing.
     """
-    # First, determine the explicit dimensions of THIS section.
-    # This is the key fix for the percentage resolution algorithm.
-    explicit_width = _calculate_dimension(
-        section.directives.get("width"),
-        available_width,
-        available_width,  # Default to available if not specified
-        calculator,
-        parent_section,
-        dimension_type="width",
-    )
+    # FIXED: If this section is a child of a row, the available_width passed here
+    # is already the correctly calculated column width from _calculate_predictable_dimensions.
+    # Don't recalculate it using _calculate_dimension as that would double-apply the fraction.
+    if (
+        parent_section
+        and parent_section.type == "row"
+        and section.directives.get("width")
+    ):
+        # Use the available_width directly - it's already the correctly calculated width
+        explicit_width = available_width
+        logger.debug(
+            f"Using calculated column width: {explicit_width} for section with width directive {section.directives.get('width')}"
+        )
+
+    else:
+        # First, determine the explicit dimensions of THIS section.
+        # This is the key fix for the percentage resolution algorithm.
+        explicit_width = _calculate_dimension(
+            section.directives.get("width"),
+            available_width,
+            available_width,  # Default to available if not specified
+            calculator,
+            parent_section,
+            dimension_type="width",
+        )
+
     explicit_height = _calculate_dimension(
         section.directives.get("height"),
         available_height,
@@ -233,7 +249,7 @@ def _calculate_element_width(
     if hasattr(element, "size") and element.size == (0, 0):
         return 0.0
 
-    # Check for width directive on the element
+    # Check for width directive on the element ITSELF (not inherited from section)
     if hasattr(element, "directives") and "width" in element.directives:
         return _calculate_dimension(
             element.directives["width"],
@@ -244,6 +260,8 @@ def _calculate_element_width(
             dimension_type="width",
         )
 
+    # FIXED: Elements should use their container's full width by default
+    # They should NOT inherit the section's width directive
     return container_width
 
 
@@ -433,21 +451,42 @@ def _calculate_predictable_dimensions(
         if d_val is None:
             implicit_indices.append(i)
         elif isinstance(d_val, str) and "%" in d_val:
+            # Percentage values like "50%"
             proportional_indices.append(i)
             proportional_percent += float(d_val.strip("%")) / 100.0
         elif isinstance(d_val, float) and 0 < d_val <= 1:
+            # FIXED: Fractions like 1/3 (0.333...) are already converted by directive parser
+            # They represent a proportion of the usable dimension, not a percentage
             proportional_indices.append(i)
-            proportional_percent += d_val
+            proportional_percent += (
+                d_val  # d_val is already the decimal fraction (0.333 for 1/3)
+            )
         elif isinstance(d_val, int | float) and d_val > 1:
             absolute_indices.append(i)
             absolute_dim += float(d_val)
         else:  # Fallback for invalid values
             implicit_indices.append(i)
 
+    # FIXED: Add debugging to understand the calculation
+    logger.debug(f"Width calculation for {num_sections} sections:")
+    logger.debug(
+        f"  available_dimension={available_dimension}, spacing={spacing}, usable_dimension={usable_dimension}"
+    )
+    logger.debug(
+        f"  absolute_dim={absolute_dim}, proportional_percent={proportional_percent}"
+    )
+    logger.debug(
+        f"  absolute_indices={absolute_indices}, proportional_indices={proportional_indices}, implicit_indices={implicit_indices}"
+    )
+
     # Pass 2: Distribute space
-    # The reference dimension for percentages is always the total usable dimension.
+    # FIXED: Calculate proportional space requests properly
     proportional_dim_request = proportional_percent * usable_dimension
     total_specified_dim = absolute_dim + proportional_dim_request
+
+    logger.debug(
+        f"  proportional_dim_request={proportional_dim_request}, total_specified_dim={total_specified_dim}"
+    )
 
     if total_specified_dim <= usable_dimension:
         # Undersubscribed or fits perfectly
@@ -467,6 +506,8 @@ def _calculate_predictable_dimensions(
             per_implicit = max(0, remaining_for_implicit / len(implicit_indices))
             for i in implicit_indices:
                 dimensions[i] = per_implicit
+
+        logger.debug(f"  Undersubscribed: dimensions={dimensions}")
     else:
         # Oversubscribed: scale down specified columns, implicit get zero
         for i in implicit_indices:
@@ -476,10 +517,15 @@ def _calculate_predictable_dimensions(
             usable_dimension / total_specified_dim if total_specified_dim > 0 else 0
         )
 
+        logger.debug(f"  Oversubscribed: scale_factor={scale_factor}")
+
         for i in absolute_indices:
-            dimensions[i] = (
-                float(sections[i].directives.get(dimension_key)) * scale_factor
+            original_val = float(sections[i].directives.get(dimension_key))
+            dimensions[i] = original_val * scale_factor
+            logger.debug(
+                f"    Absolute column {i}: {original_val} * {scale_factor} = {dimensions[i]}"
             )
+
         for i in proportional_indices:
             d_val = sections[i].directives.get(dimension_key)
             percentage = (
@@ -487,7 +533,13 @@ def _calculate_predictable_dimensions(
                 if isinstance(d_val, str)
                 else float(d_val)
             )
-            # Scale the calculated proportional dimension
-            dimensions[i] = (usable_dimension * percentage) * scale_factor
+            # FIXED: Don't double-scale! proportional_dim_request already includes the percentage calculation
+            # We should scale based on the original request, not double-scale
+            original_request = usable_dimension * percentage
+            dimensions[i] = original_request * scale_factor
+            logger.debug(
+                f"    Proportional column {i}: {percentage} of {usable_dimension} = {original_request}, scaled = {dimensions[i]}"
+            )
 
+    logger.debug(f"  Final dimensions={dimensions}")
     return dimensions

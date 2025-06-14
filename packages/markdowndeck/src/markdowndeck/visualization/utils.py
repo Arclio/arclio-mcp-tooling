@@ -152,9 +152,7 @@ def _get_font_for_element(element: Element) -> tuple[float, str]:
 
     font_size = default_sizes.get(element.element_type, P_FONT_SIZE)
     if "fontsize" in directives:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             font_size = float(directives["fontsize"])
-        except (ValueError, TypeError):
-            pass
 
     return font_size, font_family

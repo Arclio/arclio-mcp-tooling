@@ -5,9 +5,9 @@ from concurrent.futures import ThreadPoolExecutor
 
 import psutil
 from markdowndeck.layout import LayoutManager
+from markdowndeck.models.slide import Slide
 from markdowndeck.overflow import OverflowManager
 from markdowndeck.parser import Parser
-from markdowndeck.models.slide import Slide
 
 
 class TestOverflowStress:

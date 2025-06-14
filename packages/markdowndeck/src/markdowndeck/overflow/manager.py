@@ -66,14 +66,41 @@ class OverflowManager:
                 break
 
             if getattr(overflowing_element, "_overflow_moved", False):
-                logger.error(
-                    f"OVERFLOW CIRCUIT BREAKER: Element {overflowing_element.object_id} "
-                    f"of type {overflowing_element.element_type.value} is still overflowing on a new slide. "
-                    "It will be placed as-is, potentially extending past slide boundaries."
+                # CRITICAL FIX: Per Task 5 specification, attempt to split before triggering circuit breaker
+                # The element has been moved before, but it may still be splittable
+                logger.debug(
+                    f"Element {overflowing_element.object_id} has _overflow_moved=True, attempting split before circuit breaker"
                 )
-                self._finalize_slide(current_slide)
-                final_slides.append(current_slide)
-                break
+
+                try:
+                    fitted_part, overflow_part = overflowing_element.split(
+                        self.slide_height - self.margins["top"] - self.margins["bottom"]
+                    )
+
+                    # If split returns (None, overflow_part), the element cannot be split further
+                    if fitted_part is None:
+                        logger.error(
+                            f"OVERFLOW CIRCUIT BREAKER: Element {overflowing_element.object_id} "
+                            f"of type {overflowing_element.element_type.value} is still overflowing on a new slide "
+                            f"and cannot be split further. It will be placed as-is, potentially extending past slide boundaries."
+                        )
+                        self._finalize_slide(current_slide)
+                        final_slides.append(current_slide)
+                        break
+                    # Split succeeded! Continue with normal overflow handling
+                    logger.debug(
+                        f"Element {overflowing_element.object_id} split successfully despite _overflow_moved=True, continuing overflow handling"
+                    )
+                    # Fall through to normal handle_overflow call
+                except Exception as e:
+                    # If split method fails, trigger circuit breaker
+                    logger.error(
+                        f"OVERFLOW CIRCUIT BREAKER: Element {overflowing_element.object_id} "
+                        f"split failed with error: {e}. Triggering circuit breaker."
+                    )
+                    self._finalize_slide(current_slide)
+                    final_slides.append(current_slide)
+                    break
 
             fitted_slide, continuation_slide = self.handler.handle_overflow(
                 current_slide, overflowing_element, iteration_count
@@ -85,6 +112,8 @@ class OverflowManager:
             if not continuation_slide:
                 break
 
+            # FIXED: This is the core logic fix. The new continuation slide must be re-layouted
+            # and then becomes the `current_slide` for the next iteration of the loop.
             repositioned_continuation = self.layout_manager.calculate_positions(
                 continuation_slide
             )

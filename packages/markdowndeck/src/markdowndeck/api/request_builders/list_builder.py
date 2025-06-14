@@ -5,6 +5,7 @@ from markdown_it.token import Token
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
 from markdowndeck.models import Element, ListItem, TextFormat
+from markdowndeck.models.constants import TextFormatType
 from markdowndeck.models.elements.list import ListElement
 
 logger = logging.getLogger(__name__)
@@ -260,6 +261,7 @@ class ListRequestBuilder(BaseRequestBuilder):
 
             level = range_info.get("level", 0)
             if level > 0:
+                # FIXED: This block now correctly generates indentation requests for nested items.
                 indent_amount = level * 20.0
                 requests.append(
                     {
@@ -275,12 +277,8 @@ class ListRequestBuilder(BaseRequestBuilder):
                                     "magnitude": indent_amount,
                                     "unit": "PT",
                                 },
-                                "indentFirstLine": {
-                                    "magnitude": indent_amount,
-                                    "unit": "PT",
-                                },
                             },
-                            "fields": "indentStart,indentFirstLine",
+                            "fields": "indentStart",
                         }
                     }
                 )

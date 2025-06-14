@@ -1,4 +1,5 @@
 import logging
+import uuid
 from copy import deepcopy
 from typing import TYPE_CHECKING, Optional, Union, cast
 
@@ -40,6 +41,17 @@ class StandardOverflowHandler:
             f"--- Overflow Handling Started for Element: {self._get_node_id(overflowing_element)} ---"
         )
 
+        # CRITICAL FIX: Store the original element ID before splitting
+        original_element_id = self._get_node_id(overflowing_element)
+        logger.debug(f"Original element ID: {original_element_id}")
+
+        # CRITICAL FIX: If element has no ID, assign a temporary one for tracking
+        if not original_element_id:
+            temp_id = f"temp_overflow_{uuid.uuid4().hex[:8]}"
+            overflowing_element.object_id = temp_id
+            original_element_id = temp_id
+            logger.debug(f"Assigned temporary ID to element: {temp_id}")
+
         # 1. Calculate the remaining vertical space available for the element.
         available_height = self._calculate_available_height(slide, overflowing_element)
         logger.debug(f"Available height for splitting: {available_height:.2f}pt")
@@ -63,10 +75,11 @@ class StandardOverflowHandler:
         fitted_root = deepcopy(slide.root_section)
 
         # 4. Find the ancestry path from the root to the overflowing element's parent.
-        path_to_parent = self._find_path_to_parent(fitted_root, overflowing_element)
+        # CRITICAL FIX: Use the stored original_element_id instead of the element object
+        path_to_parent = self._find_path_to_parent(fitted_root, original_element_id)
         if not path_to_parent:
             logger.error(
-                f"FATAL: Could not find path to parent of overflowing element '{self._get_node_id(overflowing_element)}'. Aborting split."
+                f"FATAL: Could not find path to parent of overflowing element '{original_element_id}'. Aborting split."
             )
             return deepcopy(slide), None
 
@@ -96,7 +109,8 @@ class StandardOverflowHandler:
             # The collection logic builds the list in reverse document order.
             continuation_content = siblings_to_move + continuation_content
 
-            if self._get_node_id(child_node) == self._get_node_id(overflowing_element):
+            # CRITICAL FIX: Use original_element_id for comparison instead of overflowing_element
+            if self._get_node_id(child_node) == original_element_id:
                 new_children = parent_section.children[:child_index]
                 if fitted_part:
                     new_children.append(fitted_part)
@@ -138,13 +152,13 @@ class StandardOverflowHandler:
         return getattr(node, "id", getattr(node, "object_id", None))
 
     def _find_path_to_parent(
-        self, root: Section, target: "Element"
+        self, root: Section, target_id: str
     ) -> list[Section] | None:
         """
         Performs a DFS to find the path of Sections leading to the target's parent.
         Returns the list of sections, e.g., [root, child_section, grandchild_section].
+        CRITICAL FIX: Now accepts target_id directly instead of deriving from element.
         """
-        target_id = self._get_node_id(target)
         if not target_id:
             return None
 

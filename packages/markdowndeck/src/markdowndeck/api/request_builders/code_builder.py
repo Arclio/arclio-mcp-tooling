@@ -1,5 +1,3 @@
-"""Code request builder for Google Slides API requests."""
-
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
@@ -24,6 +22,13 @@ class CodeRequestBuilder(BaseRequestBuilder):
         Returns:
             List of request dictionaries
         """
+        # Ensure we are working with a CodeElement
+        if not isinstance(element, CodeElement):
+            logger.error(
+                f"CodeRequestBuilder received an element of type {type(element).__name__}, expected CodeElement."
+            )
+            return []
+
         requests = []
 
         # Calculate position and size
@@ -140,6 +145,7 @@ class CodeRequestBuilder(BaseRequestBuilder):
         if element.language and element.language != "text":
             # Create label shape
             label_id = f"{element.object_id}_label"
+            label_height = 20
             create_label_request = {
                 "createShape": {
                     "objectId": label_id,
@@ -148,13 +154,14 @@ class CodeRequestBuilder(BaseRequestBuilder):
                         "pageObjectId": slide_id,
                         "size": {
                             "width": {"magnitude": 80, "unit": "PT"},
-                            "height": {"magnitude": 20, "unit": "PT"},
+                            "height": {"magnitude": label_height, "unit": "PT"},
                         },
                         "transform": {
                             "scaleX": 1,
                             "scaleY": 1,
                             "translateX": position[0],
-                            "translateY": position[1] - 20,  # Above code block
+                            "translateY": position[1]
+                            - label_height,  # Positioned above the code block
                             "unit": "PT",
                         },
                     },

@@ -131,6 +131,7 @@ class ListElement(Element):
         overflowing_part = deepcopy(self)
         overflowing_part.items = overflowing_items
         overflowing_part.position = None
+        overflowing_part.object_id = None  # REFACTORED: Ensure new ID is generated
         # CRITICAL FIX: Clear size so the overflowing part gets recalculated with fewer items
         overflowing_part.size = None
 

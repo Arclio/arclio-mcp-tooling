@@ -1,5 +1,3 @@
-"""Code block element models."""
-
 import logging
 from copy import deepcopy
 from dataclasses import dataclass
@@ -140,6 +138,7 @@ class CodeElement(Element):
         overflowing_part = deepcopy(self)
         overflowing_part.code = "\n".join(overflowing_lines)
         overflowing_part.position = None  # Reset position for continuation slide
+        overflowing_part.object_id = None  # REFACTORED: Ensure new ID is generated
 
         # Recalculate sizes
         fitted_part.size = (

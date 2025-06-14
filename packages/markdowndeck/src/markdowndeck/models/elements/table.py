@@ -114,6 +114,7 @@ class TableElement(Element):
         overflowing_part = deepcopy(self)
         overflowing_part.rows = overflowing_rows
         overflowing_part.position = None
+        overflowing_part.object_id = None  # REFACTORED: Ensure new ID is generated
         # REFACTORED: `split` contract requires deep-copy of `column_widths`.
         overflowing_part.column_widths = deepcopy(self.column_widths)
         # REFACTORED: Correctly partition row_directives per `split` contract.

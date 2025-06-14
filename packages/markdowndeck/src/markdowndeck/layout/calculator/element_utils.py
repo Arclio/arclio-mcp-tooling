@@ -1,5 +1,3 @@
-"""Element positioning and grouping utilities for layout calculations."""
-
 import logging
 
 from markdowndeck.layout.constants import (
@@ -39,12 +37,18 @@ def apply_horizontal_alignment(
     alignment_str = None
 
     # First check element's own directives
-    if hasattr(element, "directives") and element.directives and "align" in element.directives:
+    if (
+        hasattr(element, "directives")
+        and element.directives
+        and "align" in element.directives
+    ):
         alignment_str = element.directives["align"]
     # Then check element's horizontal_alignment attribute
     elif hasattr(element, "horizontal_alignment"):
         alignment = element.horizontal_alignment
-        alignment_str = alignment.value if hasattr(alignment, "value") else str(alignment).lower()
+        alignment_str = (
+            alignment.value if hasattr(alignment, "value") else str(alignment).lower()
+        )
     # Finally check section directives
     elif section_directives and "align" in section_directives:
         alignment_str = section_directives["align"]
@@ -78,9 +82,14 @@ def adjust_vertical_spacing(element: Element, spacing: float) -> float:
     Returns:
         Adjusted spacing value
     """
-    # If this element is related to the next one, reduce spacing
+    # FIXED: This block now returns a minimal non-zero gap for related elements
+    # when the default spacing is zero, preventing visual overlap.
     if hasattr(element, "related_to_next") and element.related_to_next:
-        return spacing * VERTICAL_SPACING_REDUCTION  # Reduce spacing by 40%
+        # If default spacing is zero, apply a minimal gap for related elements.
+        if spacing == 0.0:
+            return 4.0
+        # Otherwise, apply the standard reduction.
+        return spacing * VERTICAL_SPACING_REDUCTION
 
     # If no adjustment needed, return original spacing
     return spacing
@@ -164,8 +173,16 @@ def _mark_consecutive_paragraphs(elements: list[Element]) -> None:
         next_elem = elements[i + 1]
 
         # Check if either element has a heading_level directive (should not be marked as consecutive paragraphs)
-        current_is_heading = hasattr(current, "directives") and current.directives and "heading_level" in current.directives
-        next_is_heading = hasattr(next_elem, "directives") and next_elem.directives and "heading_level" in next_elem.directives
+        current_is_heading = (
+            hasattr(current, "directives")
+            and current.directives
+            and "heading_level" in current.directives
+        )
+        next_is_heading = (
+            hasattr(next_elem, "directives")
+            and next_elem.directives
+            and "heading_level" in next_elem.directives
+        )
 
         if (
             current.element_type == ElementType.TEXT
@@ -193,7 +210,10 @@ def _mark_image_caption_pairs(elements: list[Element]) -> None:
         current = elements[i]
         next_elem = elements[i + 1]
 
-        if current.element_type == ElementType.IMAGE and next_elem.element_type == ElementType.TEXT:
+        if (
+            current.element_type == ElementType.IMAGE
+            and next_elem.element_type == ElementType.TEXT
+        ):
             # Mark image and caption as related
             current.related_to_next = True
             next_elem.related_to_prev = True

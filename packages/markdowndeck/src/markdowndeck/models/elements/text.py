@@ -155,6 +155,7 @@ class TextElement(Element):
         overflowing_part = deepcopy(self)
         overflowing_part.text = overflowing_text
         overflowing_part.position = None
+        overflowing_part.object_id = None  # REFACTORED: Ensure new ID is generated
         overflowing_part._line_metrics = None
 
         fitted_part.formatting = [

@@ -151,7 +151,7 @@ def _apply_element_size_directives(
                     target_width = available_width * percentage
                 elif isinstance(width_directive, float) and 0 < width_directive <= 1:
                     target_width = available_width * width_directive
-                elif isinstance(width_directive, (int, float)) and width_directive > 1:
+                elif isinstance(width_directive, int | float) and width_directive > 1:
                     # Clamp to available space (Container-First principle)
                     target_width = min(float(width_directive), available_width)
             except (ValueError, TypeError):
@@ -166,7 +166,7 @@ def _apply_element_size_directives(
                 elif isinstance(height_directive, float) and 0 < height_directive <= 1:
                     target_height = available_height * height_directive
                 elif (
-                    isinstance(height_directive, (int, float)) and height_directive > 1
+                    isinstance(height_directive, int | float) and height_directive > 1
                 ):
                     # Clamp to available space (Container-First principle)
                     target_height = min(float(height_directive), available_height)

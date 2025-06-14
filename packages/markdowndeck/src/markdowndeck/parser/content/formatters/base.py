@@ -84,6 +84,7 @@ class BaseFormatter(ABC):
         Merge section-level and element-specific directives.
 
         Element-specific directives take precedence over section-level directives.
+        Only certain inheritable directives are merged from sections to elements.
 
         Args:
             section_directives: Directives from the section
@@ -92,12 +93,35 @@ class BaseFormatter(ABC):
         Returns:
             Merged directives dictionary
         """
-        merged = section_directives.copy()
+        # FIXED: Define which directives can be inherited from sections to elements
+        # Structural directives like width, height, padding, margin should NOT be inherited
+        inheritable_directives = {
+            "align",
+            "valign",
+            "color",
+            "fontsize",
+            "font-family",
+            "bold",
+            "italic",
+            "line-spacing",
+            "background",
+            "border",
+            "gap",  # Can affect spacing between elements
+        }
+
+        # Only merge inheritable directives from section
+        merged = {}
+        for key, value in section_directives.items():
+            if key in inheritable_directives:
+                merged[key] = value
+
+        # Element-specific directives override section directives
         if element_specific_directives:
             merged.update(element_specific_directives)
             logger.debug(
-                f"Merged directives: section={section_directives}, element={element_specific_directives}, result={merged}"
+                f"Merged directives: section_inheritable={[(k,v) for k,v in section_directives.items() if k in inheritable_directives]}, element={element_specific_directives}, result={merged}"
             )
+
         return merged
 
     def find_closing_token(
@@ -158,6 +182,10 @@ class BaseFormatter(ABC):
             Plain text content with formatting syntax removed
         """
         if not hasattr(inline_token, "children"):
+            return getattr(inline_token, "content", "")
+
+        # FIXED: Guard against None children which can occur with empty content after directive parsing
+        if inline_token.children is None:
             return getattr(inline_token, "content", "")
 
         plain_text = ""
