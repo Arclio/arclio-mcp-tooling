@@ -10,10 +10,9 @@ import logging
 import mimetypes
 from typing import Any
 
+from google_workspace_mcp.services.base import BaseGoogleService
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
-
-from google_workspace_mcp.services.base import BaseGoogleService
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +47,9 @@ class DriveService(BaseGoogleService):
 
             # Validate and constrain page_size
             page_size = max(1, min(page_size, 1000))
+
+            # Format query with proper escaping
+            formatted_query = query.replace("'", "\\'")
 
             # Build list parameters with shared drive support
             list_params = {
@@ -234,7 +236,7 @@ class DriveService(BaseGoogleService):
         # Export the file
         try:
             request = self.service.files().export_media(
-                fileId=file_id, mimeType=export_mime_type
+                fileId=file_id, mimeType=export_mime_type, supportsAllDrives=True
             )
 
             content_bytes = self._download_content(request)

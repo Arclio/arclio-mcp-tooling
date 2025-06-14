@@ -11,10 +11,10 @@ from google_workspace_mcp.services.docs_service import DocsService
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(
-    name="docs_create_document",
-    description="Creates a new Google Document with a specified title.",
-)
+# @mcp.tool(
+#     name="docs_create_document",
+#     description="Creates a new Google Document with a specified title.",
+# )
 async def docs_create_document(title: str) -> dict[str, Any]:
     """
     Creates a new, empty Google Document.
@@ -44,10 +44,10 @@ async def docs_create_document(title: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="docs_get_document_metadata",
-    description="Retrieves metadata (like title and ID) for a Google Document.",
-)
+# @mcp.tool(
+#     name="docs_get_document_metadata",
+#     description="Retrieves metadata (like title and ID) for a Google Document.",
+# )
 async def docs_get_document_metadata(document_id: str) -> dict[str, Any]:
     """
     Retrieves metadata for a specific Google Document.
@@ -77,10 +77,10 @@ async def docs_get_document_metadata(document_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="docs_get_content_as_markdown",
-    description="Retrieves the content of a Google Document, attempting to convert it to Markdown. Note: Direct Markdown export from Google Docs via Drive API is not officially guaranteed for all document complexities and may result in errors or suboptimal formatting. For critical conversions, consider exporting as HTML and using a dedicated Markdown conversion library.",
-)
+# @mcp.tool(
+#     name="docs_get_content_as_markdown",
+#     description="Retrieves the content of a Google Document, attempting to convert it to Markdown. Note: Direct Markdown export from Google Docs via Drive API is not officially guaranteed for all document complexities and may result in errors or suboptimal formatting. For critical conversions, consider exporting as HTML and using a dedicated Markdown conversion library.",
+# )
 async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
     """
     Retrieves the main textual content of a Google Document, converted to Markdown.
@@ -114,10 +114,10 @@ async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="docs_append_text",
-    description="Appends text to the end of a specified Google Document.",
-)
+# @mcp.tool(
+#     name="docs_append_text",
+#     description="Appends text to the end of a specified Google Document.",
+# )
 async def docs_append_text(
     document_id: str, text: str, ensure_newline: bool = True
 ) -> dict[str, Any]:
@@ -152,10 +152,10 @@ async def docs_append_text(
     return result
 
 
-@mcp.tool(
-    name="docs_prepend_text",
-    description="Prepends text to the beginning of a specified Google Document.",
-)
+# @mcp.tool(
+#     name="docs_prepend_text",
+#     description="Prepends text to the beginning of a specified Google Document.",
+# )
 async def docs_prepend_text(
     document_id: str, text: str, ensure_newline: bool = True
 ) -> dict[str, Any]:
@@ -190,10 +190,10 @@ async def docs_prepend_text(
     return result
 
 
-@mcp.tool(
-    name="docs_insert_text",
-    description="Inserts text at a specified location in a Google Document. For simple appends or prepends, use 'docs_append_text' or 'docs_prepend_text'.",
-)
+# @mcp.tool(
+#     name="docs_insert_text",
+#     description="Inserts text at a specified location in a Google Document. For simple appends or prepends, use 'docs_append_text' or 'docs_prepend_text'.",
+# )
 async def docs_insert_text(
     document_id: str, text: str, index: int | None = None, segment_id: str | None = None
 ) -> dict[str, Any]:
@@ -234,10 +234,10 @@ async def docs_insert_text(
     return result
 
 
-@mcp.tool(
-    name="docs_batch_update",
-    description="Applies a list of raw Google Docs API update requests to a document. For advanced users familiar with Docs API request structures.",
-)
+# @mcp.tool(
+#     name="docs_batch_update",
+#     description="Applies a list of raw Google Docs API update requests to a document. For advanced users familiar with Docs API request structures.",
+# )
 async def docs_batch_update(document_id: str, requests: list[dict]) -> dict[str, Any]:
     """
     Applies a list of Google Docs API update requests to the specified document.
@@ -277,10 +277,10 @@ async def docs_batch_update(document_id: str, requests: list[dict]) -> dict[str,
     return result  # Return the full response which includes documentId and replies
 
 
-@mcp.tool(
-    name="docs_insert_image",
-    description="Inserts an image into a Google Document from a URL at a specific index. The image URL must be publicly accessible and in PNG, JPEG, or GIF format.",
-)
+# @mcp.tool(
+#     name="docs_insert_image",
+#     description="Inserts an image into a Google Document from a URL at a specific index. The image URL must be publicly accessible and in PNG, JPEG, or GIF format.",
+# )
 async def docs_insert_image(
     document_id: str,
     image_url: str,
