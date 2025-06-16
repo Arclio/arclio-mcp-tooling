@@ -1838,9 +1838,15 @@ class SlidesService(BaseGoogleService):
                         format_request["updateTextStyle"]["fields"] += "bold,"
 
                     # Add foreground color support
-                    if "color" in range_style or "foregroundColor" in range_style:
-                        color_value = range_style.get("color") or range_style.get(
-                            "foregroundColor"
+                    if (
+                        "color" in range_style
+                        or "foregroundColor" in range_style
+                        or "textColor" in range_style
+                    ):
+                        color_value = (
+                            range_style.get("color")
+                            or range_style.get("foregroundColor")
+                            or range_style.get("textColor")
                         )
                         color_obj = self._parse_color(color_value)
                         if color_obj:
@@ -1899,8 +1905,12 @@ class SlidesService(BaseGoogleService):
                 format_request["updateTextStyle"]["fields"] += "bold,"
 
             # Add foreground color support
-            if "color" in style or "foregroundColor" in style:
-                color_value = style.get("color") or style.get("foregroundColor")
+            if "color" in style or "foregroundColor" in style or "textColor" in style:
+                color_value = (
+                    style.get("color")
+                    or style.get("foregroundColor")
+                    or style.get("textColor")
+                )
                 color_obj = self._parse_color(color_value)
                 if color_obj:
                     format_request["updateTextStyle"]["style"][
@@ -1994,6 +2004,20 @@ class SlidesService(BaseGoogleService):
                                 "rgbColor": {"red": r, "green": g, "blue": b}
                             }
                         }
+                    elif len(hex_color) == 8:
+                        # Handle 8-character hex with alpha (RRGGBBAA)
+                        r = int(hex_color[0:2], 16) / 255.0
+                        g = int(hex_color[2:4], 16) / 255.0
+                        b = int(hex_color[4:6], 16) / 255.0
+                        a = int(hex_color[6:8], 16) / 255.0
+
+                        return {
+                            "opaqueColor": {
+                                "rgbColor": {"red": r, "green": g, "blue": b}
+                            }
+                        }
+                        # Note: Google Slides API doesn't support alpha in text colors directly
+                        # The alpha would need to be handled differently (e.g., using SolidFill with alpha)
                 except ValueError:
                     logger.warning(f"Invalid hex color format: {color_value}")
                     return None
