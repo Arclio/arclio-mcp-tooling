@@ -1601,7 +1601,7 @@ async def create_slide_from_template_zones(
 async def extract_template_zones_only(
     template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
     slide_numbers: str = "4,5",
-    unit: str = "EMU",
+    unit: str = "PT",
 ) -> Dict[str, Any]:
     """
     Extract template zones from specific slides by finding placeholder text elements.
@@ -1610,7 +1610,7 @@ async def extract_template_zones_only(
     Args:
         template_presentation_url: URL of the template presentation
         slide_numbers: Comma-separated slide numbers to analyze (e.g., "4,5")
-        unit: Target unit for coordinates ("EMU", "PT", or "INCHES"). Default is "EMU".
+        unit: Target unit for coordinates ("EMU", "PT", or "INCHES"). Default is "PT".
 
     Returns:
         Dictionary with extracted template zones, coordinates, and dimensions for each slide
