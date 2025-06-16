@@ -650,6 +650,8 @@ class PreciseSlidesPositioning(BaseGoogleService):
                 "background image": "background_image",
                 "full-bleed background": "background_image",
                 "copy block": "copy_block",
+                "slide copy block": "slide_copy",
+                "press recap slide title": "press_recap_slide_title",
                 "slide title": "slide_title",
                 "logo": "logo_area",
                 "brand": "logo_area",
@@ -662,6 +664,12 @@ class PreciseSlidesPositioning(BaseGoogleService):
                 "phone image b": "phone_image_b",
                 "phone image c": "phone_image_c",
                 "image title": "image_title",
+                "data table a": "data_table_a",
+                "data summary copy block": "data_summary_copy_block",
+                "table title": "table_title",
+                "summary slide title": "summary_slide_title",
+                "summary slide copy block": "summary_slide_copy_block",
+                "thank you copy": "thank_you_copy",
             }
 
             # Scan all text elements for template keywords
