@@ -804,13 +804,14 @@ async def create_slide_from_template_data(
 
 @mcp.tool(
     name="create_slide_with_elements",
-    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently.",
+    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images.",
 )
 async def create_slide_with_elements(
     presentation_id: str,
     slide_id: str,
     elements: list[dict[str, Any]],
     background_color: str | None = None,
+    background_image_url: str | None = None,
 ) -> dict[str, Any]:
     """
     Create a complete slide with multiple elements in one batch operation.
@@ -849,6 +850,16 @@ async def create_slide_with_elements(
                 }
             ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
+        background_image_url: Optional slide background image URL (takes precedence over background_color)
+                             Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
+
+    Background Image Requirements:
+        - Must be publicly accessible without authentication
+        - Maximum file size: 50 MB
+        - Maximum resolution: 25 megapixels
+        - Supported formats: PNG, JPEG, GIF only
+        - HTTPS URLs recommended
+        - Will automatically stretch to fill slide (may distort aspect ratio)
 
     Advanced textRanges formatting:
         For mixed formatting within a single textbox, use "textRanges" instead of "style":
@@ -874,10 +885,100 @@ async def create_slide_with_elements(
         slide_id=slide_id,
         elements=elements,
         background_color=background_color,
+        background_image_url=background_image_url,
     )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error creating slide with elements"))
+
+    return result
+
+
+@mcp.tool(
+    name="set_slide_background",
+    description="Set slide background to either a solid color or an image. Background images take precedence over colors when both are provided.",
+)
+async def set_slide_background(
+    presentation_id: str,
+    slide_id: str,
+    background_color: str | None = None,
+    background_image_url: str | None = None,
+) -> dict[str, Any]:
+    """
+    Set the background of a slide to either a solid color or an image.
+
+    Args:
+        presentation_id: The ID of the presentation
+        slide_id: The ID of the slide
+        background_color: Optional background color (e.g., "#f8cdcd4f", "#ffffff")
+        background_image_url: Optional background image URL (takes precedence over color)
+                             Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
+
+    Background Image Requirements:
+        - Must be publicly accessible without authentication
+        - Maximum file size: 50 MB
+        - Maximum resolution: 25 megapixels
+        - Supported formats: PNG, JPEG, GIF only
+        - HTTPS URLs recommended
+        - Will automatically stretch to fill entire slide
+        - May distort aspect ratio to fit slide dimensions
+
+    Returns:
+        Response data confirming background update or raises error
+    """
+    logger.info(f"Setting background for slide '{slide_id}'")
+    if not presentation_id or not slide_id:
+        raise ValueError("Presentation ID and Slide ID are required")
+
+    if not background_color and not background_image_url:
+        raise ValueError(
+            "Either background_color or background_image_url must be provided"
+        )
+
+    slides_service = SlidesService()
+
+    # Create the appropriate background request
+    if background_image_url:
+        logger.info(f"Setting slide background image: {background_image_url}")
+        requests = [
+            {
+                "updatePageProperties": {
+                    "objectId": slide_id,
+                    "pageProperties": {
+                        "pageBackgroundFill": {
+                            "stretchedPictureFill": {"contentUrl": background_image_url}
+                        }
+                    },
+                    "fields": "pageBackgroundFill",
+                }
+            }
+        ]
+    else:
+        logger.info(f"Setting slide background color: {background_color}")
+        requests = [
+            {
+                "updatePageProperties": {
+                    "objectId": slide_id,
+                    "pageProperties": {
+                        "pageBackgroundFill": {
+                            "solidFill": {
+                                "color": {
+                                    "rgbColor": slides_service._hex_to_rgb(
+                                        background_color or "#ffffff"
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    "fields": "pageBackgroundFill.solidFill.color",
+                }
+            }
+        ]
+
+    result = slides_service.batch_update(presentation_id, requests)
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error setting slide background"))
 
     return result
 

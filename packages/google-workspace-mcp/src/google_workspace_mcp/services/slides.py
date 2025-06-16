@@ -1672,6 +1672,7 @@ class SlidesService(BaseGoogleService):
         slide_id: str,
         elements: list[dict[str, Any]],
         background_color: str | None = None,
+        background_image_url: str | None = None,
     ) -> dict[str, Any]:
         """
         Create a complete slide with multiple elements in a single batch operation.
@@ -1688,6 +1689,7 @@ class SlidesService(BaseGoogleService):
                     "style": {"fontSize": float, "fontFamily": str, "bold": bool, etc.} (for textbox only)
                 }
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
+            background_image_url: Optional slide background image URL (takes precedence over background_color)
 
         Returns:
             Response data or error information
@@ -1697,8 +1699,27 @@ class SlidesService(BaseGoogleService):
 
             requests = []
 
-            # Set background color if specified
-            if background_color:
+            # Set background image or color if specified
+            # Background image takes precedence over background color
+            if background_image_url:
+                logger.info(f"Setting slide background image: {background_image_url}")
+                requests.append(
+                    {
+                        "updatePageProperties": {
+                            "objectId": slide_id,
+                            "pageProperties": {
+                                "pageBackgroundFill": {
+                                    "stretchedPictureFill": {
+                                        "contentUrl": background_image_url
+                                    }
+                                }
+                            },
+                            "fields": "pageBackgroundFill",
+                        }
+                    }
+                )
+            elif background_color:
+                logger.info(f"Setting slide background color: {background_color}")
                 requests.append(
                     {
                         "updatePageProperties": {
@@ -1866,7 +1887,7 @@ class SlidesService(BaseGoogleService):
                 "LEFT": "START",
                 "CENTER": "CENTER",
                 "RIGHT": "END",
-                "MIDDLE": "CENTER",
+                "JUSTIFY": "JUSTIFIED",
             }
             api_alignment = alignment_map.get(style["textAlignment"].upper(), "START")
             requests.append(
@@ -1920,9 +1941,9 @@ class SlidesService(BaseGoogleService):
         }
 
         # Smart sizing: handle different dimension specifications
-        # IMPORTANT: Google Slides API limitation - createImage requires BOTH width and height 
+        # IMPORTANT: Google Slides API limitation - createImage requires BOTH width and height
         # if size is specified, or omit size entirely. Single dimension causes UNIT_UNSPECIFIED error.
-        
+
         if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
             # Both dimensions specified - exact sizing
             request["createImage"]["elementProperties"]["size"] = {
@@ -2275,3 +2296,4 @@ class SlidesService(BaseGoogleService):
             return convert_template_zones(template_zones, target_unit="PT")
         except Exception as e:
             return self.handle_api_error("convert_template_zones_to_pt", e)
+
