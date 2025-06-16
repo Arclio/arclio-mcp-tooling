@@ -1784,7 +1784,7 @@ class SlidesService(BaseGoogleService):
                 range_style = text_range.get("style", {})
                 start_index = text_range.get("startIndex", 0)
                 end_index = text_range.get("endIndex", len(element["content"]))
-                
+
                 if range_style:
                     format_request = {
                         "updateTextStyle": {
@@ -1807,9 +1807,9 @@ class SlidesService(BaseGoogleService):
                         format_request["updateTextStyle"]["fields"] += "fontSize,"
 
                     if "fontFamily" in range_style:
-                        format_request["updateTextStyle"]["style"]["fontFamily"] = range_style[
-                            "fontFamily"
-                        ]
+                        format_request["updateTextStyle"]["style"]["fontFamily"] = (
+                            range_style["fontFamily"]
+                        )
                         format_request["updateTextStyle"]["fields"] += "fontFamily,"
 
                     if range_style.get("bold"):
@@ -1868,9 +1868,7 @@ class SlidesService(BaseGoogleService):
                 "RIGHT": "END",
                 "MIDDLE": "CENTER",
             }
-            api_alignment = alignment_map.get(
-                style["textAlignment"].upper(), "START"
-            )
+            api_alignment = alignment_map.get(style["textAlignment"].upper(), "START")
             requests.append(
                 {
                     "updateParagraphStyle": {
@@ -1922,40 +1920,22 @@ class SlidesService(BaseGoogleService):
         }
 
         # Smart sizing: handle different dimension specifications
-        # This allows proportional scaling when only one dimension is given
+        # Google Slides will automatically maintain aspect ratio when only one dimension is provided
         if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
-            # Both dimensions specified - exact sizing
+            # Both dimensions specified - exact sizing (may stretch/distort image)
             request["createImage"]["elementProperties"]["size"] = {
                 "width": {"magnitude": pos["width"], "unit": "PT"},
                 "height": {"magnitude": pos["height"], "unit": "PT"},
             }
         elif "width" in pos and pos["width"]:
-            # Only width specified - proportional height
-            # Use autofit to maintain aspect ratio
+            # Only width specified - height will be proportional
             request["createImage"]["elementProperties"]["size"] = {
-                "width": {"magnitude": pos["width"], "unit": "PT"},
-                "height": {
-                    "magnitude": 100,
-                    "unit": "PT",
-                },  # Default height, will be adjusted by autofit
-            }
-            # Let Google Slides handle aspect ratio
-            request["createImage"]["elementProperties"]["autofit"] = {
-                "autofitType": "SHAPE"
+                "width": {"magnitude": pos["width"], "unit": "PT"}
             }
         elif "height" in pos and pos["height"]:
-            # Only height specified - proportional width (full-height coverage)
-            # Use autofit to maintain aspect ratio
+            # Only height specified - width will be proportional
             request["createImage"]["elementProperties"]["size"] = {
-                "width": {
-                    "magnitude": 100,
-                    "unit": "PT",
-                },  # Default width, will be adjusted by autofit
-                "height": {"magnitude": pos["height"], "unit": "PT"},
-            }
-            # Let Google Slides handle aspect ratio
-            request["createImage"]["elementProperties"]["autofit"] = {
-                "autofitType": "SHAPE"
+                "height": {"magnitude": pos["height"], "unit": "PT"}
             }
         else:
             # If neither width nor height specified, use default dimensions
