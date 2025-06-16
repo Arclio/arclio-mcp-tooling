@@ -1857,17 +1857,6 @@ class SlidesService(BaseGoogleService):
                                 "fields"
                             ] += "foregroundColor,"
 
-                    # Add background color support
-                    if "backgroundColor" in range_style:
-                        bg_color_obj = self._parse_color(range_style["backgroundColor"])
-                        if bg_color_obj:
-                            format_request["updateTextStyle"]["style"][
-                                "backgroundColor"
-                            ] = bg_color_obj
-                            format_request["updateTextStyle"][
-                                "fields"
-                            ] += "backgroundColor,"
-
                     # Clean up trailing comma and add format request
                     format_request["updateTextStyle"]["fields"] = format_request[
                         "updateTextStyle"
@@ -1918,15 +1907,6 @@ class SlidesService(BaseGoogleService):
                     ] = color_obj
                     format_request["updateTextStyle"]["fields"] += "foregroundColor,"
 
-            # Add background color support
-            if "backgroundColor" in style:
-                bg_color_obj = self._parse_color(style["backgroundColor"])
-                if bg_color_obj:
-                    format_request["updateTextStyle"]["style"][
-                        "backgroundColor"
-                    ] = bg_color_obj
-                    format_request["updateTextStyle"]["fields"] += "backgroundColor,"
-
             # Clean up trailing comma and add format request
             format_request["updateTextStyle"]["fields"] = format_request[
                 "updateTextStyle"
@@ -1968,6 +1948,24 @@ class SlidesService(BaseGoogleService):
                     }
                 }
             )
+
+        # Add text box background color (shape-level) - this is the key fix!
+        if style and style.get("backgroundColor"):
+            color_obj, alpha = self._parse_color_with_alpha(style["backgroundColor"])
+            if color_obj:
+                requests.append(
+                    {
+                        "updateShapeProperties": {
+                            "objectId": object_id,
+                            "shapeProperties": {
+                                "shapeBackgroundFill": {
+                                    "solidFill": {"color": color_obj, "alpha": alpha}
+                                }
+                            },
+                            "fields": "shapeBackgroundFill",
+                        }
+                    }
+                )
 
         return requests
 
@@ -2431,3 +2429,80 @@ class SlidesService(BaseGoogleService):
             return convert_template_zones(template_zones, target_unit="PT")
         except Exception as e:
             return self.handle_api_error("convert_template_zones_to_pt", e)
+
+    def _parse_color_with_alpha(
+        self, color_value: str | dict
+    ) -> tuple[dict | None, float]:
+        """Parse color value with alpha support for Google Slides API format.
+
+        Args:
+            color_value: Color as hex string (e.g., "#ffffff", "#ffffff80"), RGB dict, or theme color
+
+        Returns:
+            Tuple of (color_object, alpha_value) where alpha is 0.0-1.0
+        """
+        if not color_value:
+            return None, 1.0
+
+        alpha = 1.0  # Default to fully opaque
+
+        # Handle hex color strings
+        if isinstance(color_value, str):
+            if color_value.lower() == "white":
+                color_value = "#ffffff"
+            elif color_value.lower() == "black":
+                color_value = "#000000"
+
+            if color_value.startswith("#"):
+                # Convert hex to RGB
+                try:
+                    hex_color = color_value.lstrip("#")
+                    if len(hex_color) == 6:
+                        r = int(hex_color[0:2], 16) / 255.0
+                        g = int(hex_color[2:4], 16) / 255.0
+                        b = int(hex_color[4:6], 16) / 255.0
+
+                        color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
+                        return color_obj, alpha
+                    elif len(hex_color) == 8:
+                        # Handle 8-character hex with alpha (RRGGBBAA)
+                        r = int(hex_color[0:2], 16) / 255.0
+                        g = int(hex_color[2:4], 16) / 255.0
+                        b = int(hex_color[4:6], 16) / 255.0
+                        alpha = int(hex_color[6:8], 16) / 255.0  # Extract alpha
+
+                        color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
+                        return color_obj, alpha
+                except ValueError:
+                    logger.warning(f"Invalid hex color format: {color_value}")
+                    return None, 1.0
+
+        # Handle RGB dict format
+        elif isinstance(color_value, dict):
+            if "r" in color_value and "g" in color_value and "b" in color_value:
+                color_obj = {
+                    "rgbColor": {
+                        "red": color_value["r"] / 255.0,
+                        "green": color_value["g"] / 255.0,
+                        "blue": color_value["b"] / 255.0,
+                    }
+                }
+                alpha = color_value.get("a", 255) / 255.0  # Handle alpha if present
+                return color_obj, alpha
+            elif (
+                "red" in color_value
+                and "green" in color_value
+                and "blue" in color_value
+            ):
+                color_obj = {
+                    "rgbColor": {
+                        "red": color_value["red"],
+                        "green": color_value["green"],
+                        "blue": color_value["blue"],
+                    }
+                }
+                alpha = color_value.get("alpha", 1.0)  # Handle alpha if present
+                return color_obj, alpha
+
+        logger.warning(f"Unsupported color format: {color_value}")
+        return None, 1.0
