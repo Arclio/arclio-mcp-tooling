@@ -983,10 +983,10 @@ async def set_slide_background(
     return result
 
 
-@mcp.tool(
-    name="convert_template_zones_to_pt",
-    description="Convert template zones from EMU coordinates to PT coordinates for easier usage in slide creation. Simplifies coordinate handling for LLM.",
-)
+# @mcp.tool(
+#     name="convert_template_zones_to_pt",
+#     description="Convert template zones from EMU coordinates to PT coordinates for easier usage in slide creation. Simplifies coordinate handling for LLM.",
+# )
 async def convert_template_zones_to_pt(
     template_zones: dict[str, Any],
 ) -> dict[str, Any]:
