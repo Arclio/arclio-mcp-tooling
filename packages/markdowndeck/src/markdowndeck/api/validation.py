@@ -100,7 +100,9 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
     Returns:
         Validated (and potentially fixed) batch
     """
-    modified_requests = [req for req in batch.get("requests", []) if validate_api_request(req)]
+    modified_requests = [
+        req for req in batch.get("requests", []) if validate_api_request(req)
+    ]
     result_batch = batch.copy()
     result_batch["requests"] = modified_requests
     return result_batch
@@ -108,24 +110,28 @@ def validate_batch_requests(batch: dict[str, Any]) -> dict[str, Any]:
 
 def is_valid_image_url(url: str) -> bool:
     """
-    Validate if a URL is a valid, accessible, and appropriately sized image.
+    Validate if a URL is a valid, accessible, and appropriately sized image of a supported format.
     """
     if not url or not (url.startswith("http://") or url.startswith("https://")):
         return False
 
     try:
-        # REFACTORED: Use a streaming GET request, which is more reliable than HEAD.
-        # We only inspect headers, so this is still efficient.
-        with requests.get(url, stream=True, timeout=5, allow_redirects=True) as response:
+        with requests.get(
+            url, stream=True, timeout=5, allow_redirects=True
+        ) as response:
             response.raise_for_status()
 
-            # 1. Check Content-Type
+            # REFACTORED: Enforce supported image formats (PNG, JPEG, GIF) per Google Slides API spec.
+            # This is the primary fix for the HttpError 400.
             content_type = response.headers.get("content-type", "").lower()
-            if not content_type.startswith("image/"):
-                logger.warning(f"URL does not appear to be an image (Content-Type: {content_type}): {url}")
+            supported_types = ("image/png", "image/jpeg", "image/gif")
+            if not any(content_type.startswith(t) for t in supported_types):
+                logger.warning(
+                    f"Unsupported image format '{content_type}' at {url}. "
+                    "Google Slides API only supports PNG, JPEG, or GIF. Substituting placeholder."
+                )
                 return False
 
-            # 2. Check Content-Length for file size
             content_length_str = response.headers.get("content-length")
             if content_length_str:
                 try:
@@ -133,18 +139,24 @@ def is_valid_image_url(url: str) -> bool:
                     if content_length > MAX_IMAGE_SIZE_BYTES:
                         logger.warning(
                             f"Image at {url} is too large ({content_length / 1024 / 1024:.2f} MB). "
-                            f"Limit is {MAX_IMAGE_SIZE_BYTES / 1024 / 1024:.2f} MB. Skipping."
+                            f"Limit is {MAX_IMAGE_SIZE_BYTES / 1024 / 1024:.2f} MB."
                         )
                         return False
                 except ValueError:
-                    logger.warning(f"Could not parse Content-Length header: {content_length_str}")
+                    logger.warning(
+                        f"Could not parse Content-Length header: {content_length_str}"
+                    )
             else:
-                logger.debug(f"Content-Length header not found for {url}. Cannot pre-validate size.")
+                logger.debug(
+                    f"Content-Length header not found for {url}. Cannot pre-validate size."
+                )
 
             return True
 
     except requests.exceptions.RequestException as e:
-        logger.warning(f"Image URL verification failed (request exception): {url}. Error: {e}")
+        logger.warning(
+            f"Image URL verification failed (request exception): {url}. Error: {e}"
+        )
         return False
     except Exception as e:
         logger.error(

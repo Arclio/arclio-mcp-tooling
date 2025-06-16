@@ -1,13 +1,3 @@
-"""
-Enhanced image element metrics with robust dual-constraint proactive scaling.
-
-IMPROVEMENTS:
-- Implements Law #2 (Proactive Image Scaling) with both width AND height constraints
-- Ensures images never cause overflow by respecting container boundaries
-- Maintains aspect ratio while fitting within both dimensional constraints
-- Handles invalid URLs gracefully per Law #8 (Rule #8 from LAYOUT_SPEC.md)
-"""
-
 import logging
 from typing import cast
 
@@ -17,6 +7,7 @@ from markdowndeck.layout.constants import (
     MIN_IMAGE_HEIGHT,
 )
 from markdowndeck.models import ImageElement
+from markdowndeck.models.slide import Section
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +23,9 @@ def calculate_image_element_height(
     Calculate the height needed for an image element with proactive scaling.
     This is a wrapper around calculate_image_display_size for compatibility.
     """
-    _width, height = calculate_image_display_size(element, available_width, available_height)
+    _width, height = calculate_image_display_size(
+        element, available_width, available_height
+    )
     return height
 
 
@@ -40,44 +33,79 @@ def calculate_image_display_size(
     element: ImageElement | dict,
     available_width: float,
     available_height: float = 0,
+    parent_section: "Section" = None,
 ) -> tuple[float, float]:
     """
     Calculate the display size for an image element with comprehensive proactive scaling.
+    This is the single source of truth for URL validation and graceful failure.
 
-    ENHANCED ALGORITHM:
-    1. Check URL validity (Rule #8 compliance)
-    2. Determine aspect ratio from element or use default
-    3. Apply dual-constraint scaling (width AND height limits)
-    4. Ensure minimum viable size
-    5. Cache results for performance
-
-    This implements Law #2 by ensuring images fit within BOTH width and height constraints.
+    UPDATED: Supports [fill] directive when parent context is available.
     """
-    image_element = cast(ImageElement, element) if isinstance(element, ImageElement) else ImageElement(**element)
+    image_element = (
+        cast(ImageElement, element)
+        if isinstance(element, ImageElement)
+        else ImageElement(**element)
+    )
 
-    # Rule #8: Handle invalid URLs gracefully
+    # REFACTORED: Instead of skipping invalid images by returning (0,0), substitute a placeholder URL.
+    # This ensures that the layout remains consistent and the presentation doesn't
+    # fail due to an inaccessible image or an overly long data URL.
+    # JUSTIFICATION: Implements Action Plan 1.2 to fix image handling. This is the core fix.
     if not is_valid_image_url(image_element.url):
-        logger.warning(f"Image URL is invalid or inaccessible: {image_element.url}. Setting size to (0, 0) per Rule #8.")
-        image_element.size = (0, 0)
-        return 0.0, 0.0
+        from markdowndeck.api.placeholder import create_placeholder_image_url
 
-    # Get aspect ratio for scaling calculations
+        logger.warning(
+            f"Image URL failed validation: {image_element.url}. Substituting with a placeholder URL."
+        )
+        # PARSER_SPEC mandates width/height directives, so we can use them for placeholder text.
+        width_directive = image_element.directives.get("width", 300)
+        height_directive = image_element.directives.get("height", 200)
+
+        # The dimensions passed here are for the placeholder generation service, not the final layout.
+        image_element.url = create_placeholder_image_url(
+            400, 300, f"Invalid Image\n{width_directive} x {height_directive}"
+        )
+        # Now the function continues with a valid (placeholder) URL.
+
+    # NEW: Handle [fill] directive - but only if the image doesn't already have its final size set
+    # (The fill directive will be processed in a separate pass after all section sizes are known)
+    if hasattr(image_element, "directives") and image_element.directives:
+        directives = image_element.directives
+        has_fill = directives.get("fill", False)
+        has_width = "width" in directives
+        has_height = "height" in directives
+
+        # Per Task 2 clarification: If width and height are present, they take precedence over [fill]
+        if has_fill and not (has_width and has_height):
+            # If the image already has its final size set (from fill processing), use it
+            if hasattr(image_element, "size") and image_element.size:
+                return image_element.size
+
+            # Otherwise, this is likely the initial intrinsic sizing pass
+            # Use available dimensions as a placeholder - will be corrected in fill processing pass
+            temp_width = available_width
+            temp_height = (
+                available_height if available_height > 0 else available_width * 9 / 16
+            )
+            image_element.size = (temp_width, temp_height)
+            return temp_width, temp_height
+
+    # Continue with normal image scaling logic
     aspect_ratio = _get_image_aspect_ratio(image_element)
     if aspect_ratio <= 0:
         aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
 
-    # Apply element-specific width/height directives if present
-    target_width, target_height = _apply_element_size_directives(image_element, available_width, available_height)
+    target_width, target_height = _apply_element_size_directives(
+        image_element, available_width, available_height
+    )
+    final_width, final_height = _calculate_dual_constraint_size(
+        target_width, target_height, aspect_ratio
+    )
 
-    # Calculate optimal size using dual-constraint scaling
-    final_width, final_height = _calculate_dual_constraint_size(target_width, target_height, aspect_ratio)
-
-    # Ensure minimum viable dimensions
     if final_height < MIN_IMAGE_HEIGHT and final_width > 0:
         final_height = MIN_IMAGE_HEIGHT
         final_width = final_height * aspect_ratio
 
-    # Store the calculated size on the element
     image_element.size = (final_width, final_height)
 
     logger.debug(
@@ -93,7 +121,6 @@ def calculate_image_display_size(
 def _get_image_aspect_ratio(element: ImageElement) -> float:
     """
     Get the aspect ratio (width/height) of an image.
-    Uses cached values when available, falls back to default ratio.
     """
     if element.aspect_ratio and element.aspect_ratio > 0:
         return element.aspect_ratio
@@ -102,13 +129,12 @@ def _get_image_aspect_ratio(element: ImageElement) -> float:
     if not url:
         return DEFAULT_IMAGE_ASPECT_RATIO
 
-    # Check cache for previously calculated ratios
     if url in _image_dimensions_cache:
         return _image_dimensions_cache[url]
 
-    # For now, use default ratio. In a full implementation, this could
-    # fetch actual image dimensions from the URL
-    logger.debug(f"Using default aspect ratio {DEFAULT_IMAGE_ASPECT_RATIO:.2f} for image: {url[:50]}...")
+    logger.debug(
+        f"Using default aspect ratio {DEFAULT_IMAGE_ASPECT_RATIO:.2f} for image: {url[:50]}..."
+    )
     _image_dimensions_cache[url] = DEFAULT_IMAGE_ASPECT_RATIO
     return DEFAULT_IMAGE_ASPECT_RATIO
 
@@ -118,15 +144,14 @@ def _apply_element_size_directives(
 ) -> tuple[float, float]:
     """
     Apply element-specific width/height directives to determine target dimensions.
-    Element directives are treated as preferred sizes (Law #1 - Container-First).
     """
     target_width = available_width
     target_height = available_height if available_height > 0 else float("inf")
 
-    # Check for element width directive
     if hasattr(element, "directives") and element.directives:
         directives = element.directives
 
+        # Standard width/height directive processing
         if "width" in directives:
             width_directive = directives["width"]
             try:
@@ -136,7 +161,6 @@ def _apply_element_size_directives(
                 elif isinstance(width_directive, float) and 0 < width_directive <= 1:
                     target_width = available_width * width_directive
                 elif isinstance(width_directive, int | float) and width_directive > 1:
-                    # Clamp to available space (Container-First principle)
                     target_width = min(float(width_directive), available_width)
             except (ValueError, TypeError):
                 logger.warning(f"Invalid width directive on image: {width_directive}")
@@ -150,7 +174,6 @@ def _apply_element_size_directives(
                 elif isinstance(height_directive, float) and 0 < height_directive <= 1:
                     target_height = available_height * height_directive
                 elif isinstance(height_directive, int | float) and height_directive > 1:
-                    # Clamp to available space (Container-First principle)
                     target_height = min(float(height_directive), available_height)
             except (ValueError, TypeError):
                 logger.warning(f"Invalid height directive on image: {height_directive}")
@@ -158,32 +181,24 @@ def _apply_element_size_directives(
     return target_width, target_height
 
 
-def _calculate_dual_constraint_size(target_width: float, target_height: float, aspect_ratio: float) -> tuple[float, float]:
+def _calculate_dual_constraint_size(
+    target_width: float, target_height: float, aspect_ratio: float
+) -> tuple[float, float]:
     """
     Calculate final image size respecting both width and height constraints.
-
-    This is the core of Law #2 implementation - ensuring images fit within
-    BOTH dimensional constraints while maintaining aspect ratio.
     """
-    # If no height constraint, scale based on width only
     if target_height == float("inf") or target_height <= 0:
         final_width = target_width
         final_height = target_width / aspect_ratio
         return final_width, final_height
 
-    # Calculate what the dimensions would be if constrained by width
     width_constrained_height = target_width / aspect_ratio
-
-    # Calculate what the dimensions would be if constrained by height
     height_constrained_width = target_height * aspect_ratio
 
-    # Choose the more restrictive constraint (smaller result)
     if width_constrained_height <= target_height:
-        # Width is the limiting factor
         final_width = target_width
         final_height = width_constrained_height
     else:
-        # Height is the limiting factor
         final_width = height_constrained_width
         final_height = target_height
 
@@ -193,25 +208,3 @@ def _calculate_dual_constraint_size(target_width: float, target_height: float, a
     )
 
     return final_width, final_height
-
-
-def get_image_scaling_info(element: ImageElement, available_width: float, available_height: float = 0) -> dict:
-    """
-    Get detailed scaling information for debugging and analysis.
-    """
-    aspect_ratio = _get_image_aspect_ratio(element)
-    target_width, target_height = _apply_element_size_directives(element, available_width, available_height)
-    final_width, final_height = _calculate_dual_constraint_size(target_width, target_height, aspect_ratio)
-
-    return {
-        "url": getattr(element, "url", ""),
-        "aspect_ratio": aspect_ratio,
-        "available_constraints": {"width": available_width, "height": available_height},
-        "target_size": {"width": target_width, "height": target_height},
-        "final_size": {"width": final_width, "height": final_height},
-        "scaling_applied": {
-            "width_scaled": final_width < target_width,
-            "height_scaled": final_height < target_height,
-            "aspect_ratio_maintained": True,
-        },
-    }

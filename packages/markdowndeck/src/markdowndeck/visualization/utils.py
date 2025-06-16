@@ -92,7 +92,9 @@ def parse_color(color_value, default_color="#000000"):
             return color_value.strip()
         return NAMED_COLORS_HEX.get(color_str, default_color)
 
-    logger.warning(f"Unknown color value '{color_value}', defaulting to {default_color}.")
+    logger.warning(
+        f"Unknown color value '{color_value}', defaulting to {default_color}."
+    )
     return default_color
 
 
@@ -106,9 +108,13 @@ def parse_border_directive(border_info):
 
     if isinstance(border_info, dict):
         with contextlib.suppress(ValueError, TypeError):
-            border_props["width"] = float(str(border_info.get("width", "1")).rstrip("ptx"))
+            border_props["width"] = float(
+                str(border_info.get("width", "1")).rstrip("ptx")
+            )
         border_props["style"] = border_info.get("style", "solid")
-        border_props["color"] = parse_color(border_info.get("color"), border_props["color"])
+        border_props["color"] = parse_color(
+            border_info.get("color"), border_props["color"]
+        )
     elif isinstance(border_info, str):
         parts = border_info.lower().split()
         color_part = parts[-1]

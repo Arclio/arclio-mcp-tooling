@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 class TableRequestBuilder(BaseRequestBuilder):
     """Builder for table-related Google Slides API requests."""
 
-    def generate_table_element_requests(self, element: TableElement, slide_id: str) -> list[dict]:
+    def generate_table_element_requests(
+        self, element: TableElement, slide_id: str
+    ) -> list[dict]:
         """
         Generate requests for a table element.
 
@@ -29,7 +31,9 @@ class TableRequestBuilder(BaseRequestBuilder):
         # Ensure element has a valid object_id
         if not element.object_id:
             element.object_id = self._generate_id(f"table_{slide_id}")
-            logger.debug(f"Generated missing object_id for table element: {element.object_id}")
+            logger.debug(
+                f"Generated missing object_id for table element: {element.object_id}"
+            )
 
         # Count rows including headers if present
         row_count = len(element.rows) + (1 if element.headers else 0)
@@ -122,26 +126,36 @@ class TableRequestBuilder(BaseRequestBuilder):
             self._apply_cell_alignment(element, requests, row_count, col_count)
             self._apply_cell_background_colors(element, requests, row_count, col_count)
 
-        # FIXED: Apply row-specific directives
         if hasattr(element, "row_directives"):
             for row_idx, directives in enumerate(element.row_directives):
                 if not directives:
                     continue
-
-                # Apply background color for the row
+                api_row_index = row_idx
                 bg_color_val = directives.get("background")
                 if bg_color_val:
-                    # Parse color into API format
-                    color_format = TextFormat(0, 0, TextFormatType.BACKGROUND_COLOR, bg_color_val)
+                    # FIXED: Handle both raw strings and parsed dicts from directives.
+                    if isinstance(bg_color_val, dict):
+                        actual_bg_color = bg_color_val.get("value", {}).get(
+                            "value"
+                        ) or bg_color_val.get("value")
+                    else:
+                        actual_bg_color = bg_color_val
+
+                    color_format = TextFormat(
+                        0, 0, TextFormatType.BACKGROUND_COLOR, actual_bg_color
+                    )
                     style = self._format_to_style(color_format)
-                    if "backgroundColor" in style and "opaqueColor" in style["backgroundColor"]:
+                    if (
+                        "backgroundColor" in style
+                        and "opaqueColor" in style["backgroundColor"]
+                    ):
                         requests.append(
                             {
                                 "updateTableCellProperties": {
                                     "objectId": element.object_id,
                                     "tableRange": {
                                         "location": {
-                                            "rowIndex": row_idx,
+                                            "rowIndex": api_row_index,
                                             "columnIndex": 0,
                                         },
                                         "rowSpan": 1,
@@ -149,29 +163,63 @@ class TableRequestBuilder(BaseRequestBuilder):
                                     },
                                     "tableCellProperties": {
                                         "tableCellBackgroundFill": {
-                                            "solidFill": {"color": style["backgroundColor"]["opaqueColor"]}
+                                            "solidFill": {
+                                                "color": style["backgroundColor"][
+                                                    "opaqueColor"
+                                                ]
+                                            }
                                         }
                                     },
                                     "fields": "tableCellBackgroundFill.solidFill.color",
                                 }
                             }
                         )
-                # Apply text color for the row
+
                 color_val = directives.get("color")
                 if color_val:
-                    color_format = TextFormat(0, 0, TextFormatType.COLOR, color_val)
-                    style = self._format_to_style(color_format)
-                    if "foregroundColor" in style:
+                    # FIXED: Handle both raw strings and parsed dicts from directives.
+                    if isinstance(color_val, dict):
+                        actual_color = color_val.get("value", {}).get(
+                            "value"
+                        ) or color_val.get("value")
+                    else:
+                        actual_color = color_val
+
+                    if actual_color and isinstance(actual_color, str):
+                        color_format = TextFormat(
+                            0, 0, TextFormatType.COLOR, actual_color
+                        )
+                        style = self._format_to_style(color_format)
+                        if "foregroundColor" in style:
+                            for col_idx in range(col_count):
+                                requests.append(
+                                    self._apply_text_formatting(
+                                        element_id=element.object_id,
+                                        style={
+                                            "foregroundColor": style["foregroundColor"]
+                                        },
+                                        fields="foregroundColor",
+                                        range_type="ALL",
+                                        cell_location={
+                                            "rowIndex": api_row_index,
+                                            "columnIndex": col_idx,
+                                        },
+                                    )
+                                )
+
+                if directives.get("bold"):
+                    for col_idx in range(col_count):
                         requests.append(
-                            {
-                                "updateTextStyle": {
-                                    "objectId": element.object_id,
-                                    "cellLocation": {"rowIndex": row_idx},
-                                    "style": {"foregroundColor": style["foregroundColor"]},
-                                    "textRange": {"type": "ALL"},
-                                    "fields": "foregroundColor",
-                                }
-                            }
+                            self._apply_text_formatting(
+                                element_id=element.object_id,
+                                style={"bold": True},
+                                fields="bold",
+                                range_type="ALL",
+                                cell_location={
+                                    "rowIndex": api_row_index,
+                                    "columnIndex": col_idx,
+                                },
+                            )
                         )
 
         return requests
@@ -254,8 +302,6 @@ class TableRequestBuilder(BaseRequestBuilder):
                 border_positions = [border_pos]
 
         for position in border_positions:
-            # REFACTORED: Corrected the field mask to not include `.rgbColor`.
-            # JUSTIFICATION: The API expects the field mask to point to the `color` object itself, not its sub-property.
             border_style_request = {
                 "updateTableBorderProperties": {
                     "objectId": element.object_id,
@@ -268,7 +314,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "tableBorderProperties": {
                         "weight": weight,
                         "dashStyle": dash_style,
-                        "tableBorderFill": {"solidFill": {"color": {"rgbColor": rgb_color}}},
+                        "tableBorderFill": {
+                            "solidFill": {"color": {"rgbColor": rgb_color}}
+                        },
                     },
                     "fields": "weight,dashStyle,tableBorderFill.solidFill.color",
                 }
@@ -286,10 +334,15 @@ class TableRequestBuilder(BaseRequestBuilder):
         """
         Apply alignment to table cells.
         """
-        if "cell-align" not in element.directives and "valign" not in element.directives:
+        if (
+            "cell-align" not in element.directives
+            and "valign" not in element.directives
+        ):
             return
 
-        align_value = element.directives.get("cell-align") or element.directives.get("valign")
+        align_value = element.directives.get("cell-align") or element.directives.get(
+            "valign"
+        )
 
         if not isinstance(align_value, str):
             return
@@ -304,10 +357,8 @@ class TableRequestBuilder(BaseRequestBuilder):
             )
             return
 
-        # Cell range logic remains the same
         row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
         if "cell-range" in element.directives:
-            # ... existing cell-range parsing logic ...
             pass
 
         cell_align_request = {
@@ -323,7 +374,9 @@ class TableRequestBuilder(BaseRequestBuilder):
             }
         }
         requests.append(cell_align_request)
-        logger.debug(f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}")
+        logger.debug(
+            f"Applied vertical alignment '{api_alignment}' to cells in table {element.object_id}"
+        )
 
     def _apply_cell_background_colors(
         self,
@@ -352,7 +405,6 @@ class TableRequestBuilder(BaseRequestBuilder):
         named_colors_map = {
             "black": {"red": 0, "green": 0, "blue": 0},
             "white": {"red": 1, "green": 1, "blue": 1},
-            # ... other colors
         }
 
         if isinstance(bg_value, str):
@@ -370,13 +422,10 @@ class TableRequestBuilder(BaseRequestBuilder):
         else:
             return
 
-        # REFACTORED: The fields mask is now consistently `tableCellBackgroundFill.solidFill.color`.
-        # JUSTIFICATION: This is the correct, documented field mask for updating a cell's background color fill.
         fields = "tableCellBackgroundFill.solidFill.color"
 
         row_start, row_span, col_start, col_span = 0, row_count, 0, col_count
         if "cell-range" in element.directives:
-            # ... existing cell-range parsing logic ...
             pass
 
         bg_request = {
@@ -387,7 +436,9 @@ class TableRequestBuilder(BaseRequestBuilder):
                     "rowSpan": row_span,
                     "columnSpan": col_span,
                 },
-                "tableCellProperties": {"tableCellBackgroundFill": {"solidFill": {"color": color}}},
+                "tableCellProperties": {
+                    "tableCellBackgroundFill": {"solidFill": {"color": color}}
+                },
                 "fields": fields,
             }
         }

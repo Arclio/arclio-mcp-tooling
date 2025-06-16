@@ -11,12 +11,15 @@ from markdowndeck.layout.constants import (
     MIN_CODE_HEIGHT,
     MONOSPACE_CHAR_WIDTH,
 )
+from markdowndeck.layout.metrics.font_metrics import calculate_text_bbox
 from markdowndeck.models import CodeElement, ElementType, TextElement
 
 logger = logging.getLogger(__name__)
 
 
-def calculate_code_element_height(element: CodeElement | TextElement | dict, available_width: float) -> float:
+def calculate_code_element_height(
+    element: CodeElement | TextElement | dict, available_width: float
+) -> float:
     """
     Calculate the pure intrinsic height needed for a code element based on its content.
 
@@ -35,7 +38,9 @@ def calculate_code_element_height(element: CodeElement | TextElement | dict, ava
         code_element = CodeElement(**element)
     elif isinstance(element, TextElement) and element.element_type == ElementType.CODE:
         # Adapt TextElement to look like a CodeElement for this function
-        code_element = CodeElement(code=element.text, language=element.directives.get("language", "text"))
+        code_element = CodeElement(
+            code=element.text, language=element.directives.get("language", "text")
+        )
     else:
         code_element = cast(CodeElement, element)
 
@@ -49,14 +54,24 @@ def calculate_code_element_height(element: CodeElement | TextElement | dict, ava
     content_padding = CODE_PADDING * 2  # Left and right padding
     effective_width = max(10.0, available_width - content_padding)
 
-    # Calculate line height based on code font
-    line_height = CODE_FONT_SIZE * CODE_LINE_HEIGHT_MULTIPLIER
-
-    # Calculate how many lines the code will require
-    total_lines = _calculate_code_line_count(code_content, effective_width)
-
-    # Calculate content height
-    content_height = total_lines * line_height
+    # Use precise font metrics to calculate content height
+    try:
+        _, content_height, _ = calculate_text_bbox(
+            code_content,
+            font_size=CODE_FONT_SIZE,
+            font_family="monospace",  # Use monospace font for code
+            max_width=effective_width,
+            line_height_multiplier=CODE_LINE_HEIGHT_MULTIPLIER,
+        )
+        # Calculate lines for debugging purposes
+        total_lines = _calculate_code_line_count(code_content, effective_width)
+        line_height = CODE_FONT_SIZE * CODE_LINE_HEIGHT_MULTIPLIER
+    except Exception as e:
+        logger.warning(f"Font metrics calculation failed for code, using fallback: {e}")
+        # Fallback to line-based calculation
+        total_lines = _calculate_code_line_count(code_content, effective_width)
+        line_height = CODE_FONT_SIZE * CODE_LINE_HEIGHT_MULTIPLIER
+        content_height = total_lines * line_height
 
     # Add language label height if needed
     language_height = 0.0
@@ -64,7 +79,9 @@ def calculate_code_element_height(element: CodeElement | TextElement | dict, ava
         language_height = CODE_LANGUAGE_LABEL_HEIGHT
 
     # Calculate total height
-    total_height = content_height + CODE_PADDING * 2 + language_height  # Top and bottom padding
+    total_height = (
+        content_height + CODE_PADDING * 2 + language_height
+    )  # Top and bottom padding
 
     # Apply minimum height
     final_height = max(total_height, MIN_CODE_HEIGHT)
@@ -106,7 +123,9 @@ def _calculate_code_line_count(code_content: str, available_width: float) -> int
         else:
             # Calculate how many visual lines this logical line needs
             line_length = len(line)
-            visual_lines_needed = max(1, (line_length + chars_per_line - 1) // chars_per_line)
+            visual_lines_needed = max(
+                1, (line_length + chars_per_line - 1) // chars_per_line
+            )
             total_visual_lines += visual_lines_needed
 
     return total_visual_lines

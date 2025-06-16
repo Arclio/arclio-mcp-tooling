@@ -75,9 +75,35 @@ class DirectiveParser:
             directive_text = match.group(0)
             parsed = self._parse_directive_text(directive_text)
             directives.update(parsed)
+
+            # Check if the directive is immediately after a markdown formatting start
+            # and there's content after it that closes the formatting
+            start_pos = match.start()
+            end_pos = match.end()
+
+            # If directive is at the very beginning after a formatting marker
+            if start_pos > 0 and text_line[start_pos - 1] in ["*", "_"]:
+                # Check if there's a space after the directive that we can remove
+                if end_pos < len(text_line) and text_line[end_pos] == " ":
+                    return " "  # Replace with a single space to maintain formatting
+                return ""
             return ""
 
         cleaned_text = self.directive_block_pattern.sub(replacer, text_line)
+
+        # Post-process to fix broken markdown formatting
+        # Handle cases like "*  text*" -> "*text*" and "**  text**" -> "**text**"
+        cleaned_text = re.sub(
+            r"\*\s+", "*", cleaned_text
+        )  # Fix single asterisk with spaces
+        cleaned_text = re.sub(
+            r"\*\*\s+", "**", cleaned_text
+        )  # Fix double asterisk with spaces
+        cleaned_text = re.sub(r"_\s+", "_", cleaned_text)  # Fix underscore with spaces
+        cleaned_text = re.sub(
+            r"__\s+", "__", cleaned_text
+        )  # Fix double underscore with spaces
+
         return cleaned_text.strip(), directives
 
     def parse_directives(self, section: Section) -> None:
@@ -121,33 +147,61 @@ class DirectiveParser:
         return directives, ""
 
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
-        """Internal helper to parse a string known to contain directives."""
+        """
+        REFACTORED: This logic is rewritten to correctly handle compound string values
+        (like for `border`) and to safely ignore valueless directives that are not
+        boolean flags (like `[align]`). This replaces the faulty regex-based pair splitting.
+        """
         directives = {}
         bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
+
         for content in bracket_content_pattern.findall(directive_text):
-            pairs = re.findall(r'([\w-]+(?:-[\w-]+)*)(?:=([^"\'\s\]]+|"[^"]*"|\'[^\']*\'))?', content)
-            for key, value in pairs:
-                key = key.strip().lower()
-                value = (value or "").strip().strip("'\"")
-                if key in self.directive_types:
-                    directive_type = self.directive_types[key]
-                    if not value and directive_type != "string":
-                        directive_type = "bool"
-                    converter = self.converters.get(directive_type)
-                    if converter:
-                        try:
-                            converted_value = converter(value)
-                            if directive_type == "style":
-                                directives.update(self._process_style_directive_value(key, converted_value))
-                            else:
-                                directives[key] = converted_value
-                        except ValueError as e:
-                            logger.warning(f"Could not convert directive '{key}={value}': {e}")
-                            directives[key] = value
-                    else:
-                        directives[key] = value or True
+            content = content.strip()
+            key, value = "", ""
+
+            # Split only on the first equals sign to handle compound values
+            if "=" in content:
+                key, value = content.split("=", 1)
+            else:
+                key = content  # This is a valueless directive
+
+            key = key.strip().lower()
+            value = value.strip().strip("'\"")
+
+            # A valueless directive is only valid if it's a known boolean flag
+            if not value:
+                if key in ["bold", "italic", "fill"]:
+                    directives[key] = True
                 else:
-                    logger.warning(f"Unsupported directive key '{key}'. Ignoring.")
+                    logger.warning(
+                        f"Directive '[{key}]' used without a value and is not a boolean flag. Ignoring."
+                    )
+                continue  # Skip to the next directive in the block
+
+            # Process directives that have a value
+            if key in self.directive_types:
+                directive_type = self.directive_types[key]
+                converter = self.converters.get(directive_type)
+                if converter:
+                    try:
+                        converted_value = converter(value)
+                        if directive_type == "style":
+                            directives.update(
+                                self._process_style_directive_value(
+                                    key, converted_value
+                                )
+                            )
+                        else:
+                            directives[key] = converted_value
+                    except ValueError as e:
+                        logger.warning(
+                            f"Could not convert directive '{key}={value}': {e}"
+                        )
+                        directives[key] = value  # Store as raw string on failure
+                else:
+                    directives[key] = value
+            else:
+                logger.warning(f"Unsupported directive key '{key}'. Ignoring.")
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
@@ -159,22 +213,18 @@ class DirectiveParser:
         except ValueError:
             return 0.0
 
-    def _process_style_directive_value(self, key: str, style_tuple: tuple[str, Any]) -> dict[str, Any]:
+    def _process_style_directive_value(
+        self, key: str, style_tuple: tuple[str, Any]
+    ) -> dict[str, Any]:
         """Process style directive tuples into a clean, unified format."""
-        # REFACTORED: Consistently wrap color/background values for a standard format.
-        # MAINTAINS: Support for URL-based backgrounds and other style types.
-        # JUSTIFICATION: The previous implementation was inconsistent, causing assertion errors. This
-        # version applies a standard wrapper to all color-based directives ('background', 'color'),
-        # resolving the test failures.
         style_type, style_value = style_tuple
         result = {}
 
         if key in ["background", "color"]:
-            if style_type == "url":  # Specific to background
+            if style_type == "url":
                 result[key] = {"type": "image", "value": style_value["value"]}
-            else:  # It's a color for either background or color
+            else:
                 result[key] = {"type": "color", "value": style_value}
         else:
-            # For other style types like 'box-shadow', 'transform'
             result[key] = style_value
         return result

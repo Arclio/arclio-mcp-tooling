@@ -261,8 +261,6 @@ class TestPipelineContracts:
     def test_p_11_invalid_image_url_e2e(self):
         """Test Case: INTEGRATION-P-11 - End-to-end handling of an invalid image URL."""
         # Arrange
-        # REFACTORED: Added required width/height directives to test parser failure path correctly.
-        # Even with directives, the URL itself is invalid, so no createImage call should be made.
         markdown = "![alt](http://localhost/invalid.png) [width=100][height=100]"
 
         # Act
@@ -270,10 +268,14 @@ class TestPipelineContracts:
         requests = result["slide_batches"][0]["requests"]
 
         # Assert
+        # FIXED: The system now correctly substitutes a placeholder. The test must verify this behavior.
         image_req = next((r for r in requests if "createImage" in r), None)
         assert (
-            image_req is None
-        ), "createImage request should not be generated for an invalid URL."
+            image_req is not None
+        ), "A createImage request for the placeholder should have been generated."
+        assert (
+            "placehold.co" in image_req["createImage"]["url"]
+        ), "The image URL should be a placeholder from placehold.co."
 
     def test_p_12_directive_precedence(self):
         """Test Case: INTEGRATION-P-12 - Verify directive precedence for meta-elements."""

@@ -24,14 +24,19 @@ class SlideExtractor:
 
         slides = []
         for i, slide_content_part in enumerate(slide_parts):
+            # FIXED: Ignore empty parts that can result from re.split, preventing empty slides.
             if not slide_content_part.strip():
                 continue
-            processed_slide = self._process_slide_content(slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}")
+            processed_slide = self._process_slide_content(
+                slide_content_part, i, f"slide_{i}_{uuid.uuid4().hex[:6]}"
+            )
             slides.append(processed_slide)
         logger.info(f"Extracted {len(slides)} slides from markdown")
         return slides
 
-    def _process_slide_content(self, content: str, index: int, slide_object_id: str) -> dict:
+    def _process_slide_content(
+        self, content: str, index: int, slide_object_id: str
+    ) -> dict:
         """
         Process slide content with robust title, subtitle, and metadata handling.
         """
@@ -51,7 +56,9 @@ class SlideExtractor:
             subtitle_directives,
         ) = self._extract_title_and_subtitle(content_no_directives)
 
-        cleaned_footer, footer_directives = self.directive_parser.parse_and_strip_from_text(footer or "")
+        cleaned_footer, footer_directives = (
+            self.directive_parser.parse_and_strip_from_text(footer or "")
+        )
 
         return {
             "title": title,
@@ -62,7 +69,9 @@ class SlideExtractor:
             "background": background,
             "index": index,
             "object_id": slide_object_id,
-            "speaker_notes_object_id": (f"{slide_object_id}_notesShape" if notes else None),
+            "speaker_notes_object_id": (
+                f"{slide_object_id}_notesShape" if notes else None
+            ),
             "base_directives": base_directives,
             "title_directives": title_directives,
             "subtitle_directives": subtitle_directives,
@@ -103,7 +112,9 @@ class SlideExtractor:
                 break  # This line has content, stop consuming.
 
             # Parse directives from the line
-            _, line_directives = self.directive_parser.parse_and_strip_from_text(stripped_line)
+            _, line_directives = self.directive_parser.parse_and_strip_from_text(
+                stripped_line
+            )
             if line_directives:
                 all_directives.update(line_directives)
                 consumed_lines_count += 1
@@ -115,7 +126,9 @@ class SlideExtractor:
 
         return all_directives, background, remaining_content
 
-    def _extract_title_and_subtitle(self, content: str) -> tuple[str | None, str | None, str, dict, dict]:
+    def _extract_title_and_subtitle(
+        self, content: str
+    ) -> tuple[str | None, str | None, str, dict, dict]:
         lines = content.strip().split("\n")
         title, subtitle = None, None
         title_directives, subtitle_directives = {}, {}
@@ -124,17 +137,25 @@ class SlideExtractor:
         if lines and lines[0]:
             first_line = lines[0].strip()
             if first_line.startswith("# ") and not first_line.startswith("##"):
-                title, title_directives = self.directive_parser.parse_and_strip_from_text(first_line[2:].strip())
+                title, title_directives = (
+                    self.directive_parser.parse_and_strip_from_text(
+                        first_line[2:].strip()
+                    )
+                )
                 consumed_indices.add(0)
 
                 if len(lines) > 1:
                     second_line = lines[1].strip()
                     if second_line.startswith("## "):
-                        subtitle, subtitle_directives = self.directive_parser.parse_and_strip_from_text(
-                            second_line[3:].strip()
+                        subtitle, subtitle_directives = (
+                            self.directive_parser.parse_and_strip_from_text(
+                                second_line[3:].strip()
+                            )
                         )
                         consumed_indices.add(1)
 
-        remaining_lines = [line for i, line in enumerate(lines) if i not in consumed_indices]
+        remaining_lines = [
+            line for i, line in enumerate(lines) if i not in consumed_indices
+        ]
         final_content = "\n".join(remaining_lines)
         return title, subtitle, final_content, title_directives, subtitle_directives

@@ -23,7 +23,9 @@ DEFAULT_FONTS = [
 ]
 
 
-def _get_font(font_size: float, font_family: str | None = None) -> ImageFont.FreeTypeFont:
+def _get_font(
+    font_size: float, font_family: str | None = None
+) -> ImageFont.FreeTypeFont:
     """
     Load and cache a font for the given size and family.
 
@@ -65,7 +67,9 @@ def _get_font(font_size: float, font_family: str | None = None) -> ImageFont.Fre
                 if Path(font_path).exists():
                     try:
                         font = ImageFont.truetype(font_path, font_size)
-                        logger.debug(f"Using fallback font {font_path} at size {font_size}")
+                        logger.debug(
+                            f"Using fallback font {font_path} at size {font_size}"
+                        )
                         break
                     except OSError:
                         continue
@@ -95,7 +99,6 @@ def calculate_text_bbox(
 ) -> tuple[float, float, list[dict]]:
     """
     Calculate the bounding box (width, height) for the given text and return line metrics.
-    REFACTORED: Now returns a list of dictionaries with line metrics.
     """
     if not text.strip():
         return (0.0, font_size * 1.2, [])
@@ -103,8 +106,9 @@ def calculate_text_bbox(
     font = _get_font(font_size, font_family)
 
     if "\n" in text or max_width is not None:
-        return _calculate_wrapped_text_bbox(text, font, max_width, line_height_multiplier)
-    # REFACTORED: This path now correctly returns a 3-tuple to prevent ValueErrors.
+        return _calculate_wrapped_text_bbox(
+            text, font, max_width, line_height_multiplier
+        )
     try:
         bbox = font.getbbox(text)
         width = bbox[2] - bbox[0]
@@ -137,7 +141,6 @@ def _calculate_wrapped_text_bbox(
 ) -> tuple[float, float, list[dict]]:
     """
     Calculate bbox for wrapped text and generate detailed line metrics.
-    REFACTORED: To generate and return `line_metrics`.
     """
     paragraphs = text.split("\n")
     all_lines = []
@@ -152,7 +155,7 @@ def _calculate_wrapped_text_bbox(
     proper_line_height = base_line_height * line_height_multiplier
 
     for p_idx, paragraph in enumerate(paragraphs):
-        if not paragraph:  # Handles empty lines from text like "a\n\nb"
+        if not paragraph:
             all_lines.append("")
             line_metrics.append(
                 {
@@ -171,11 +174,13 @@ def _calculate_wrapped_text_bbox(
                     line_metrics.append(
                         {
                             "start": current_char_index + line_start_index_in_paragraph,
-                            "end": current_char_index + line_start_index_in_paragraph + line_len,
+                            "end": current_char_index
+                            + line_start_index_in_paragraph
+                            + line_len,
                             "height": proper_line_height,
                         }
                     )
-                    line_start_index_in_paragraph += line_len
+                    line_start_index_in_paragraph += len(line.rstrip())
             else:
                 all_lines.append(paragraph)
                 line_len = len(paragraph)
@@ -189,7 +194,7 @@ def _calculate_wrapped_text_bbox(
 
         current_char_index += len(paragraph)
         if p_idx < len(paragraphs) - 1:
-            current_char_index += 1  # Account for the newline that split the paragraphs
+            current_char_index += 1
 
     if not all_lines:
         return (0.0, font.size * 1.2, [])
@@ -204,11 +209,14 @@ def _calculate_wrapped_text_bbox(
                 line_width = len(line) * font.size * 0.6
             max_line_width = max(max_line_width, line_width)
 
-    total_height = sum(m["height"] for m in line_metrics)
+    total_height = len(all_lines) * proper_line_height
+
     return (float(max_line_width), float(total_height), line_metrics)
 
 
-def _wrap_text_to_lines(text: str, font: ImageFont.FreeTypeFont, max_width: float) -> list[str]:
+def _wrap_text_to_lines(
+    text: str, font: ImageFont.FreeTypeFont, max_width: float
+) -> list[str]:
     """Wrap text into lines that fit within max_width."""
     words = text.split()
     if not words:
@@ -225,19 +233,31 @@ def _wrap_text_to_lines(text: str, font: ImageFont.FreeTypeFont, max_width: floa
         except Exception:
             test_width = len(test_line) * font.size * 0.6
 
-        if test_width <= max_width or not current_line:
+        if test_width <= max_width:
             current_line = test_line
         else:
             if current_line:
                 lines.append(current_line)
             current_line = word
+            try:
+                word_bbox = font.getbbox(word)
+                word_width = word_bbox[2] - word_bbox[0]
+                if word_width > max_width:
+                    avg_char_width = word_width / len(word)
+                    split_idx = int(max_width / avg_char_width)
+                    lines.append(word[:split_idx])
+                    current_line = word[split_idx:]
+            except Exception:
+                pass
 
     if current_line:
         lines.append(current_line)
     return lines if lines else [""]
 
 
-def get_font_metrics(font_size: float, font_family: str | None = None) -> dict[str, float]:
+def get_font_metrics(
+    font_size: float, font_family: str | None = None
+) -> dict[str, float]:
     """Get detailed font metrics for layout calculations."""
     font = _get_font(font_size, font_family)
     try:

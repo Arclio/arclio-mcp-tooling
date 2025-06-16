@@ -35,8 +35,12 @@ class PositionCalculator:
         self.slide_width = slide_width or DEFAULT_SLIDE_WIDTH
         self.slide_height = slide_height or DEFAULT_SLIDE_HEIGHT
         self.margins = margins or {"top": 0.0, "right": 0.0, "bottom": 0.0, "left": 0.0}
-        self.max_content_width = self.slide_width - self.margins["left"] - self.margins["right"]
-        self.max_content_height = self.slide_height - self.margins["top"] - self.margins["bottom"]
+        self.max_content_width = (
+            self.slide_width - self.margins["left"] - self.margins["right"]
+        )
+        self.max_content_height = (
+            self.slide_height - self.margins["top"] - self.margins["bottom"]
+        )
         self.HORIZONTAL_SPACING = HORIZONTAL_SPACING
         self.VERTICAL_SPACING = VERTICAL_SPACING
         self.body_left = self.margins["left"]
@@ -54,7 +58,9 @@ class PositionCalculator:
 
         # Calculate body area after accounting for meta-elements
         self.body_top = self.margins["top"] + header_height
-        self.body_height = self.slide_height - self.margins["bottom"] - footer_height - self.body_top
+        self.body_height = (
+            self.slide_height - self.margins["bottom"] - footer_height - self.body_top
+        )
         body_area = (self.body_left, self.body_top, self.body_width, self.body_height)
 
         # Phase 2: Layout body content using the new two-pass algorithm
@@ -119,7 +125,9 @@ class PositionCalculator:
         if element.element_type == ElementType.IMAGE:
             from markdowndeck.layout.metrics.image import calculate_image_display_size
 
-            _, height = calculate_image_display_size(element, available_width, available_height)
+            _, height = calculate_image_display_size(
+                element, available_width, available_height
+            )
             logger.debug(
                 f"Image element proactively scaled to {height:.1f}px height "
                 f"with constraints: width={available_width:.1f}, height={available_height:.1f}"
@@ -204,7 +212,9 @@ class PositionCalculator:
     ) -> dict:
         """
         Merge directives according to precedence hierarchy:
-        Lowest -> Medium -> Highest
+        Base -> Inherited -> Element-Specific -> Override
+
+        The most specific directive always wins.
         """
         # Define inheritable directives
         inheritable_directives = {
@@ -225,13 +235,12 @@ class PositionCalculator:
             if key in inheritable_directives:
                 merged[key] = value
 
-        # 2. Apply element directives (medium priority)
-        for key, value in element_directives.items():
-            merged[key] = value
+        # 2. Apply element-specific directives (higher priority than base/inherited)
+        # Element directives should override inherited ones
+        merged.update(element_directives)
 
         # 3. Apply override directives (highest priority)
-        for key, value in override_directives.items():
-            merged[key] = value
+        merged.update(override_directives)
 
         logger.debug(
             f"Merged directives: base={base_directives} + "

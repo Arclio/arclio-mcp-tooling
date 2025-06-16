@@ -8,6 +8,10 @@ from markdowndeck.layout.constants import (
     H1_LINE_HEIGHT_MULTIPLIER,
     H2_FONT_SIZE,
     H2_LINE_HEIGHT_MULTIPLIER,
+    H3_FONT_SIZE,
+    H4_FONT_SIZE,
+    H5_FONT_SIZE,
+    H6_FONT_SIZE,
     MIN_QUOTE_HEIGHT,
     MIN_SUBTITLE_HEIGHT,
     MIN_TEXT_HEIGHT,
@@ -25,7 +29,9 @@ from markdowndeck.models import ElementType, TextElement
 logger = logging.getLogger(__name__)
 
 
-def calculate_text_element_height(element: TextElement | dict, available_width: float) -> float:
+def calculate_text_element_height(
+    element: TextElement | dict, available_width: float
+) -> float:
     """
     Calculate intrinsic height for a text element and pre-compute line metrics.
     REFACTORED: Now populates `element._line_metrics` as a side effect.
@@ -34,6 +40,8 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
     element_type = text_element.element_type
     text_content = text_element.text
     directives = text_element.directives
+    # FIXED: Pass heading_level to typography parameter getter.
+    heading_level = getattr(text_element, "heading_level", None)
 
     if not text_content.strip():
         text_element._line_metrics = []
@@ -45,7 +53,9 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
             text_element._line_metrics = []
             return _get_minimum_height_for_type(element_type)
 
-    font_size, line_height_multiplier, padding, min_height = _get_typography_params(element_type, directives)
+    font_size, line_height_multiplier, padding, min_height = _get_typography_params(
+        element_type, directives, heading_level
+    )
     effective_width = max(10.0, available_width - (padding * 2))
 
     try:
@@ -69,8 +79,10 @@ def calculate_text_element_height(element: TextElement | dict, available_width: 
     return max(total_height, min_height)
 
 
-def _get_typography_params(element_type: ElementType, directives: dict) -> tuple[float, float, float, float]:
-    """Get typography parameters for a specific element type, considering directives."""
+def _get_typography_params(
+    element_type: ElementType, directives: dict, heading_level: int | None = None
+) -> tuple[float, float, float, float]:
+    """Get typography parameters for a specific element type, considering directives and heading level."""
     params = {
         ElementType.TITLE: (
             H1_FONT_SIZE,
@@ -103,7 +115,21 @@ def _get_typography_params(element_type: ElementType, directives: dict) -> tuple
             MIN_TEXT_HEIGHT,
         ),
     }
-    font_size, line_height, padding, min_height = params.get(element_type, params[ElementType.TEXT])
+    font_size, line_height, padding, min_height = params.get(
+        element_type, params[ElementType.TEXT]
+    )
+
+    # FIXED: Apply heading_level font size before checking for fontsize directive override.
+    if element_type == ElementType.TEXT and heading_level is not None:
+        heading_font_sizes = {
+            1: H1_FONT_SIZE,
+            2: H2_FONT_SIZE,
+            3: H3_FONT_SIZE,
+            4: H4_FONT_SIZE,
+            5: H5_FONT_SIZE,
+            6: H6_FONT_SIZE,
+        }
+        font_size = heading_font_sizes.get(heading_level, P_FONT_SIZE)
 
     if "fontsize" in directives:
         try:
@@ -112,6 +138,7 @@ def _get_typography_params(element_type: ElementType, directives: dict) -> tuple
                 font_size = custom_font_size
         except (ValueError, TypeError):
             logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
+
     return font_size, line_height, padding, min_height
 
 

@@ -22,7 +22,9 @@ class ListRequestBuilder(BaseRequestBuilder):
         """Check if this formatter can handle the given token."""
         return token.type in ["bullet_list_open", "ordered_list_open"]
 
-    def process(self, tokens: list[Token], start_index: int, directives: dict[str, Any]) -> tuple[Element | None, int]:
+    def process(
+        self, tokens: list[Token], start_index: int, directives: dict[str, Any]
+    ) -> tuple[Element | None, int]:
         """Create a list element from tokens."""
         open_token = tokens[start_index]
         ordered = open_token.type == "ordered_list_open"
@@ -33,10 +35,14 @@ class ListRequestBuilder(BaseRequestBuilder):
         items = self._extract_list_items(tokens, start_index + 1, end_index, 0)
 
         if not items:
-            logger.debug(f"No list items found for list at index {start_index}, skipping element.")
+            logger.debug(
+                f"No list items found for list at index {start_index}, skipping element."
+            )
             return None, end_index
 
-        element = self.element_factory.create_list_element(items=items, ordered=ordered, directives=directives.copy())
+        element = self.element_factory.create_list_element(
+            items=items, ordered=ordered, directives=directives.copy()
+        )
         logger.debug(
             f"Created {'ordered' if ordered else 'bullet'} list with {len(items)} top-level items from token index {start_index} to {end_index}"
         )
@@ -58,21 +64,67 @@ class ListRequestBuilder(BaseRequestBuilder):
                 item_content_start_idx = i + 1
                 item_text = ""
                 item_formatting: list[TextFormat] = []
+                item_directives: dict = {}
                 children: list[ListItem] = []
                 j = item_content_start_idx
                 item_content_processed_up_to = j
 
-                while j < list_end_idx and not (tokens[j].type == "list_item_close" and tokens[j].level == token.level):
+                while j < list_end_idx and not (
+                    tokens[j].type == "list_item_close"
+                    and tokens[j].level == token.level
+                ):
                     item_token = tokens[j]
                     if item_token.type == "paragraph_open":
                         inline_idx = j + 1
-                        if inline_idx < list_end_idx and tokens[inline_idx].type == "inline":
+                        if (
+                            inline_idx < list_end_idx
+                            and tokens[inline_idx].type == "inline"
+                        ):
                             if item_text:
                                 item_text += "\n"
                             current_text_offset = len(item_text)
-                            plain_text = self._get_plain_text_from_inline_token(tokens[inline_idx])
+
+                            # Extract directives from the inline token content FIRST
+                            raw_content = tokens[inline_idx].content
+                            clean_content, inline_token_directives = (
+                                self.element_factory.directive_parser.parse_and_strip_from_text(
+                                    raw_content
+                                )
+                            )
+                            item_directives.update(inline_token_directives)
+
+                            # Extract plain text and formatting from the clean content
+                            # Create a temporary token with clean content for processing
+                            temp_token = Token(
+                                type="inline",
+                                tag="",
+                                content=clean_content,
+                                children=tokens[inline_idx].children,
+                                level=tokens[inline_idx].level,
+                                map=tokens[inline_idx].map,
+                                markup=tokens[inline_idx].markup,
+                                block=tokens[inline_idx].block,
+                                info=tokens[inline_idx].info,
+                                meta=tokens[inline_idx].meta,
+                                nesting=tokens[inline_idx].nesting,
+                            )
+
+                            plain_text = self._get_plain_text_from_inline_token(
+                                temp_token
+                            )
+
+                            # Debug logging to see what we're parsing
+                            logger.debug(f"List item raw content: {raw_content!r}")
+                            logger.debug(f"List item clean content: {clean_content!r}")
+                            logger.debug(
+                                f"Extracted directives: {inline_token_directives}"
+                            )
+                            logger.debug(f"Plain text: {plain_text!r}")
+
                             item_text += plain_text
-                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(tokens[inline_idx])
+                            extracted_fmts = self.element_factory._extract_formatting_from_inline_token(
+                                temp_token
+                            )
                             for fmt in extracted_fmts:
                                 item_formatting.append(
                                     TextFormat(
@@ -85,10 +137,18 @@ class ListRequestBuilder(BaseRequestBuilder):
                         j = self.find_closing_token(tokens, j, "paragraph_close")
                     elif item_token.type in ["bullet_list_open", "ordered_list_open"]:
                         nested_list_close_tag = (
-                            "bullet_list_close" if item_token.type == "bullet_list_open" else "ordered_list_close"
+                            "bullet_list_close"
+                            if item_token.type == "bullet_list_open"
+                            else "ordered_list_close"
                         )
-                        nested_list_end_idx = self.find_closing_token(tokens, j, nested_list_close_tag)
-                        children.extend(self._extract_list_items(tokens, j + 1, nested_list_end_idx, level + 1))
+                        nested_list_end_idx = self.find_closing_token(
+                            tokens, j, nested_list_close_tag
+                        )
+                        children.extend(
+                            self._extract_list_items(
+                                tokens, j + 1, nested_list_end_idx, level + 1
+                            )
+                        )
                         j = nested_list_end_idx
 
                     item_content_processed_up_to = j
@@ -99,6 +159,7 @@ class ListRequestBuilder(BaseRequestBuilder):
                     level=level,
                     formatting=item_formatting,
                     children=children,
+                    directives=item_directives,
                 )
                 items.append(list_item_obj)
                 i = item_content_processed_up_to + 1
@@ -198,7 +259,9 @@ class ListRequestBuilder(BaseRequestBuilder):
                 continue
             end_index = min(end_index, text_length)
             if start_index >= end_index:
-                logger.warning(f"List item range is invalid after clamping. Skipping. Start: {start_index}, End: {end_index}")
+                logger.warning(
+                    f"List item range is invalid after clamping. Skipping. Start: {start_index}, End: {end_index}"
+                )
                 continue
 
             requests.append(
@@ -235,7 +298,8 @@ class ListRequestBuilder(BaseRequestBuilder):
 
             level = range_info.get("level", 0)
             if level > 0:
-                # FIXED: This block now correctly generates indentation requests for nested items.
+                # FIXED: This block now correctly generates indentation requests for nested items,
+                # including a negative first-line indent for proper "hanging indent" alignment.
                 indent_amount = level * 20.0
                 requests.append(
                     {
@@ -261,7 +325,12 @@ class ListRequestBuilder(BaseRequestBuilder):
                     }
                 )
 
+            # FIXED: Combine text styling from formatting and directives
             item = range_info.get("item")
+            combined_style = {}
+            combined_fields = []
+
+            # Collect formatting styles (bold, italic, etc.)
             if item and hasattr(item, "formatting") and item.formatting:
                 for text_format in item.formatting:
                     # Adjust format start/end to be relative to the entire text block
@@ -275,21 +344,99 @@ class ListRequestBuilder(BaseRequestBuilder):
                     if fmt_start >= fmt_end:
                         continue
 
-                    style_request = self._apply_text_formatting(
-                        element_id=element.object_id,
-                        style=self._format_to_style(text_format),
-                        fields=self._format_to_fields(text_format),
-                        start_index=fmt_start,
-                        end_index=fmt_end,
-                    )
-                    requests.append(style_request)
+                    # Only combine if formatting applies to the entire item
+                    if fmt_start == start_index and fmt_end == end_index:
+                        style = self._format_to_style(text_format)
+                        fields = self._format_to_fields(text_format)
+                        combined_style.update(style)
+                        combined_fields.extend(fields.split(",") if fields else [])
+                    else:
+                        # Apply individual formatting that doesn't cover the entire item
+                        style_request = self._apply_text_formatting(
+                            element_id=element.object_id,
+                            style=self._format_to_style(text_format),
+                            fields=self._format_to_fields(text_format),
+                            start_index=fmt_start,
+                            end_index=fmt_end,
+                        )
+                        requests.append(style_request)
+
+            # Collect directive styles (color, bold, italic)
+            if item and hasattr(item, "directives") and item.directives:
+                for directive_name, directive_value in item.directives.items():
+                    if directive_name == "color":
+                        # Handle the nested color structure from directive parser
+                        color_value = None
+                        if isinstance(directive_value, dict):
+                            if (
+                                directive_value.get("type") == "color"
+                                and "value" in directive_value
+                            ):
+                                color_info = directive_value["value"]
+                                if (
+                                    isinstance(color_info, dict)
+                                    and "value" in color_info
+                                ):
+                                    color_value = color_info["value"]
+                                elif isinstance(color_info, str):
+                                    color_value = color_info
+                        elif isinstance(directive_value, str):
+                            color_value = directive_value
+
+                        if color_value:
+                            try:
+                                color_format = TextFormat(
+                                    start=0,
+                                    end=0,
+                                    format_type=TextFormatType.COLOR,
+                                    value=color_value,
+                                )
+                                style = self._format_to_style(color_format)
+                                if "foregroundColor" in style:
+                                    combined_style["foregroundColor"] = style[
+                                        "foregroundColor"
+                                    ]
+                                    combined_fields.append(
+                                        "foregroundColor.opaqueColor.rgbColor"
+                                    )
+                            except (ValueError, AttributeError, TypeError) as e:
+                                logger.warning(
+                                    f"Invalid color directive for list item: {directive_value}, error: {e}"
+                                )
+
+                    elif directive_name == "bold" and directive_value:
+                        combined_style["bold"] = True
+                        combined_fields.append("bold")
+
+                    elif directive_name == "italic" and directive_value:
+                        combined_style["italic"] = True
+                        combined_fields.append("italic")
+
+            # Apply combined styles in a single request
+            if combined_style:
+                requests.append(
+                    {
+                        "updateTextStyle": {
+                            "objectId": element.object_id,
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": start_index,
+                                "endIndex": end_index,
+                            },
+                            "style": combined_style,
+                            "fields": ",".join(set(combined_fields)),
+                        }
+                    }
+                )
 
         self._apply_color_directive(element, requests)
         self._apply_list_styling_directives(element, requests)
 
         return requests
 
-    def _format_list_with_nesting(self, items: list[ListItem]) -> tuple[str, list[dict[str, Any]]]:
+    def _format_list_with_nesting(
+        self, items: list[ListItem]
+    ) -> tuple[str, list[dict[str, Any]]]:
         """
         Formats list items into a single text string and calculates precise ranges.
         REFACTORED: This is the core fix. It no longer uses tabs and calculates
@@ -322,14 +469,29 @@ class ListRequestBuilder(BaseRequestBuilder):
         process_items(items)
         return text_content, text_ranges
 
-    def _apply_color_directive(self, element: ListElement, requests: list[dict]) -> None:
+    def _apply_color_directive(
+        self, element: ListElement, requests: list[dict]
+    ) -> None:
         """Apply color directive to a list element."""
         color_val = (element.directives or {}).get("color")
         if not isinstance(color_val, str):
             return
 
         try:
-            color_format = TextFormat(start=0, end=0, format_type=TextFormatType.COLOR, value=color_val)
+            # The value could be a raw string or a dict from the parser
+            if isinstance(color_val, dict):
+                color_val_str = color_val.get("value", {}).get(
+                    "value"
+                ) or color_val.get("value")
+            else:
+                color_val_str = color_val
+
+            if not color_val_str or not isinstance(color_val_str, str):
+                return
+
+            color_format = TextFormat(
+                start=0, end=0, format_type=TextFormatType.COLOR, value=color_val_str
+            )
             style = self._format_to_style(color_format)
             if "foregroundColor" in style:
                 requests.append(
@@ -340,10 +502,12 @@ class ListRequestBuilder(BaseRequestBuilder):
                         range_type="ALL",
                     )
                 )
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, TypeError):
             logger.warning(f"Invalid color value for list: {color_val}")
 
-    def _apply_list_styling_directives(self, element: ListElement, requests: list[dict]) -> None:
+    def _apply_list_styling_directives(
+        self, element: ListElement, requests: list[dict]
+    ) -> None:
         """Apply additional styling directives to the list element."""
         if not hasattr(element, "directives") or not element.directives:
             return
@@ -353,7 +517,9 @@ class ListRequestBuilder(BaseRequestBuilder):
                 requests.append(
                     self._apply_text_formatting(
                         element_id=element.object_id,
-                        style={"fontSize": {"magnitude": float(font_size), "unit": "PT"}},
+                        style={
+                            "fontSize": {"magnitude": float(font_size), "unit": "PT"}
+                        },
                         fields="fontSize",
                         range_type="ALL",
                     )

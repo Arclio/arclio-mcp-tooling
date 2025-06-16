@@ -79,9 +79,13 @@ class TestParser:
         assert table.headers == ["Header", "Data"]
         assert table.rows == [["R1", "D1"], ["R2", "D2"]]
         assert len(table.row_directives) == 3
-        assert table.row_directives[0] == {"background": {"type": "color", "value": {"type": "named", "value": "gray"}}}
+        assert table.row_directives[0] == {
+            "background": {"type": "color", "value": {"type": "named", "value": "gray"}}
+        }
         assert table.row_directives[1] == {}
-        assert table.row_directives[2] == {"color": {"type": "color", "value": {"type": "named", "value": "red"}}}
+        assert table.row_directives[2] == {
+            "color": {"type": "color", "value": {"type": "named", "value": "red"}}
+        }
 
     def test_image_with_required_dimensions_succeeds_in_paragraph(self, parser: Parser):
         """Validates that an image with width and height directives is parsed correctly."""
@@ -93,14 +97,41 @@ class TestParser:
         assert element.directives["height"] == 50.0
 
     def test_image_missing_dimensions_raises_error(self, parser: Parser):
-        """Test Case: Implied by PARSER_SPEC.md Rule #4.2"""
+        """Test Case: Updated per PARSER_SPEC.md Rule #4.2 and [fill] directive exception
+
+        Images must have both width and height directives, UNLESS they have [fill] directive.
+        With [fill], the image can be parsed without explicit dimensions.
+        """
+        # Test case 1: Image missing dimensions without [fill] should still fail
         markdown_no_height = "![alt](url.png) [width=100]"
         deck = parser.parse(markdown_no_height)
         slide = deck.slides[0]
         title_element = slide.get_title_element()
         assert "Error in Slide" in title_element.text
-        text_element = next(e for e in slide.elements if e.element_type == ElementType.TEXT)
+        text_element = next(
+            e for e in slide.elements if e.element_type == ElementType.TEXT
+        )
         assert "must have both [width] and [height]" in text_element.text
+
+        # Test case 2: Image with [fill] but no width/height should pass parsing
+        markdown_with_fill = "![alt](url.png) [fill]"
+        deck_with_fill = parser.parse(markdown_with_fill)
+        slide_with_fill = deck_with_fill.slides[0]
+
+        # Should NOT have error title/text - parsing should succeed
+        title_element_fill = slide_with_fill.get_title_element()
+        if title_element_fill:
+            assert "Error in Slide" not in title_element_fill.text
+
+        # Should have a valid image element with [fill] directive
+        image_elements = [
+            e for e in slide_with_fill.elements if e.element_type == ElementType.IMAGE
+        ]
+        assert len(image_elements) == 1
+        image_element = image_elements[0]
+        assert image_element.directives.get("fill") is True
+        assert "width" not in image_element.directives
+        assert "height" not in image_element.directives
 
     def test_slide_with_base_directives(self, parser: Parser):
         """Test Case: Implied by PARSER_SPEC.md Rule #4.4"""
