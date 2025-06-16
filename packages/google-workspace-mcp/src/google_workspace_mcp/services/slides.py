@@ -2436,7 +2436,7 @@ class SlidesService(BaseGoogleService):
         """Parse color value with alpha support for Google Slides API format.
 
         Args:
-            color_value: Color as hex string (e.g., "#ffffff", "#ffffff80"), RGB dict, or theme color
+            color_value: Color as hex string (e.g., "#ffffff", "#ffffff80"), RGB dict, rgba() string, or theme color
 
         Returns:
             Tuple of (color_object, alpha_value) where alpha is 0.0-1.0
@@ -2453,7 +2453,47 @@ class SlidesService(BaseGoogleService):
             elif color_value.lower() == "black":
                 color_value = "#000000"
 
-            if color_value.startswith("#"):
+            # Handle rgba() CSS format
+            if color_value.startswith("rgba("):
+                import re
+
+                # Parse rgba(r, g, b, a) format
+                match = re.match(
+                    r"rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([\d.]+)\s*\)",
+                    color_value,
+                )
+                if match:
+                    r = int(match.group(1)) / 255.0
+                    g = int(match.group(2)) / 255.0
+                    b = int(match.group(3)) / 255.0
+                    alpha = float(match.group(4))
+
+                    color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
+                    return color_obj, alpha
+                else:
+                    logger.warning(f"Invalid rgba format: {color_value}")
+                    return None, 1.0
+
+            # Handle rgb() CSS format (no alpha)
+            elif color_value.startswith("rgb("):
+                import re
+
+                # Parse rgb(r, g, b) format
+                match = re.match(
+                    r"rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)", color_value
+                )
+                if match:
+                    r = int(match.group(1)) / 255.0
+                    g = int(match.group(2)) / 255.0
+                    b = int(match.group(3)) / 255.0
+
+                    color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
+                    return color_obj, alpha
+                else:
+                    logger.warning(f"Invalid rgb format: {color_value}")
+                    return None, 1.0
+
+            elif color_value.startswith("#"):
                 # Convert hex to RGB
                 try:
                     hex_color = color_value.lstrip("#")

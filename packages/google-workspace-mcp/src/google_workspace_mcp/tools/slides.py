@@ -890,14 +890,20 @@ async def create_slide_with_elements(
         - All three are equivalent, use whichever you prefer
         - Supports 6-character hex codes: "#FFFFFF", "#000000", "#FF5733"
         - Supports 8-character hex codes with alpha: "#FFFFFF80" (alpha ignored for text)
+        - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)" (alpha ignored for text)
+        - Supports CSS rgb() format: "rgb(255, 255, 255)"
         - Supports color names: "white", "black"
         - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
 
     Background Color Support:
         - "backgroundColor": "#FFFFFF80" - Semi-transparent white background
+        - "backgroundColor": "rgba(255, 255, 255, 0.5)" - Semi-transparent white background (CSS format)
         - Supports same color formats as text colors
-        - 8-character hex codes supported: "#FFFFFF80" (alpha channel ignored by Google Slides API)
-        - Works in both main "style" object and individual "textRanges" styles
+        - 8-character hex codes supported: "#FFFFFF80" (alpha channel properly applied)
+        - CSS rgba() format supported: "rgba(255, 255, 255, 0.5)" (alpha channel properly applied)
+        - CSS rgb() format supported: "rgb(255, 255, 255)" (fully opaque)
+        - Works in main "style" object for entire text box background
+        - Creates semi-transparent background for the entire text box shape
 
     Background Image Requirements:
         - Must be publicly accessible without authentication
