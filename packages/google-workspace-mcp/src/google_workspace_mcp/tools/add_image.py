@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from google_workspace_mcp.app import mcp  # Import from central app module
 from google_workspace_mcp.services.base import BaseGoogleService
+from google_workspace_mcp.utils.unit_conversion import convert_template_zone_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -614,7 +615,7 @@ class PreciseSlidesPositioning(BaseGoogleService):
             return self.handle_api_error("implement_complete_template", error)
 
     def extract_template_zones_by_text(
-        self, presentation_id: str, slide_id: str
+        self, presentation_id: str, slide_id: str, unit: str = "EMU"
     ) -> Dict[str, Any]:
         """
         Extract positioning zones from a template slide by finding placeholder text elements.
@@ -623,11 +624,16 @@ class PreciseSlidesPositioning(BaseGoogleService):
         Args:
             presentation_id: The ID of the presentation
             slide_id: The ID of the template slide
+            unit: Target unit for coordinates ("EMU", "PT", or "INCHES"). Default is "EMU".
 
         Returns:
-            Dictionary with zone information including coordinates in both EMU and inches
+            Dictionary with zone information including coordinates in both EMU and specified unit
         """
         try:
+            # Validate unit parameter
+            if unit not in ["EMU", "PT", "INCHES"]:
+                raise ValueError("unit must be 'EMU', 'PT', or 'INCHES'")
+
             elements_result = self.get_existing_element_positions(
                 presentation_id, slide_id
             )
@@ -681,7 +687,8 @@ class PreciseSlidesPositioning(BaseGoogleService):
                                 width_inches = element_info.get("width_inches", 0)
                                 height_inches = element_info.get("height_inches", 0)
 
-                            template_zones[zone_name] = {
+                            # Base zone data with EMU and inches coordinates
+                            zone_data = {
                                 "zone_name": zone_name,
                                 "original_text": element_info["content"],
                                 "element_id": element_id,
@@ -707,12 +714,42 @@ class PreciseSlidesPositioning(BaseGoogleService):
                                 ),
                             }
 
+                            # Add coordinates in the requested unit if not EMU
+                            if unit != "EMU":
+                                zone_data = convert_template_zone_coordinates(
+                                    zone_data, unit
+                                )
+
+                            template_zones[zone_name] = zone_data
+
+                            unit_suffix = unit.lower() if unit != "EMU" else "emu"
+                            width_key = (
+                                f"width_{unit_suffix}" if unit != "EMU" else "width_emu"
+                            )
+                            height_key = (
+                                f"height_{unit_suffix}"
+                                if unit != "EMU"
+                                else "height_emu"
+                            )
+                            x_key = f"x_{unit_suffix}" if unit != "EMU" else "x_emu"
+                            y_key = f"y_{unit_suffix}" if unit != "EMU" else "y_emu"
+
+                            width_val = zone_data.get(width_key, width_inches)
+                            height_val = zone_data.get(height_key, height_inches)
+                            x_val = zone_data.get(x_key, x_inches)
+                            y_val = zone_data.get(y_key, y_inches)
+
                             logger.info(
-                                f"🎯 Found template zone '{zone_name}' from text '{content}': {width_inches:.2f}\"×{height_inches:.2f}\" at ({x_inches:.2f}\", {y_inches:.2f}\")"
+                                f"🎯 Found template zone '{zone_name}' from text '{content}': {width_val:.2f} {unit}×{height_val:.2f} {unit} at ({x_val:.2f} {unit}, {y_val:.2f} {unit})"
                             )
                             break  # Found a match, move to next element
 
-            return {"success": True, "zones": template_zones, "slide_id": slide_id}
+            return {
+                "success": True,
+                "zones": template_zones,
+                "slide_id": slide_id,
+                "unit": unit,
+            }
 
         except Exception as error:
             return self.handle_api_error("extract_template_zones_by_text", error)
@@ -1020,7 +1057,7 @@ class PreciseSlidesPositioning(BaseGoogleService):
             final_result = {
                 "success": template_result.get("success", False),
                 "presentation_id": presentation_id,
-                "title": title,
+                "title": pres_result["title"],
                 "url": pres_result["url"],
                 "slides": {
                     "slide_1": {
@@ -1559,11 +1596,12 @@ async def create_slide_from_template_zones(
 
 @mcp.tool(
     name="extract_template_zones_only",
-    description="Extract positioning zones and coordinates from template slides by analyzing placeholder text elements. Returns precise coordinates and dimensions for LLM prompting.",
+    description="Extract positioning zones and coordinates from template slides by analyzing placeholder text elements. Returns precise coordinates and dimensions for LLM prompting with configurable units.",
 )
 async def extract_template_zones_only(
     template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
     slide_numbers: str = "4,5",
+    unit: str = "EMU",
 ) -> Dict[str, Any]:
     """
     Extract template zones from specific slides by finding placeholder text elements.
@@ -1572,6 +1610,7 @@ async def extract_template_zones_only(
     Args:
         template_presentation_url: URL of the template presentation
         slide_numbers: Comma-separated slide numbers to analyze (e.g., "4,5")
+        unit: Target unit for coordinates ("EMU", "PT", or "INCHES"). Default is "EMU".
 
     Returns:
         Dictionary with extracted template zones, coordinates, and dimensions for each slide
@@ -1620,7 +1659,7 @@ async def extract_template_zones_only(
 
             # Extract template zones from this slide
             template_zones = positioner.extract_template_zones_by_text(
-                presentation_id, slide_id
+                presentation_id, slide_id, unit
             )
 
             slide_data = {

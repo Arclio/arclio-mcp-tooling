@@ -7,10 +7,12 @@ import logging
 import re
 from typing import Any
 
+from markdowndeck import create_presentation
+
 from google_workspace_mcp.auth import gauth
 from google_workspace_mcp.services.base import BaseGoogleService
 from google_workspace_mcp.utils.markdown_slides import MarkdownSlidesConverter
-from markdowndeck import create_presentation
+from google_workspace_mcp.utils.unit_conversion import convert_template_zones
 
 logger = logging.getLogger(__name__)
 
@@ -1871,7 +1873,7 @@ class SlidesService(BaseGoogleService):
                 },
             }
         }
-        
+
         # Smart sizing: only add size if both width and height are specified
         # This allows proportional scaling when only one dimension is given
         if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
@@ -2195,3 +2197,20 @@ class SlidesService(BaseGoogleService):
 
         except Exception as e:
             return self.handle_api_error("update_text_formatting", e)
+
+    def convert_template_zones_to_pt(
+        self, template_zones: dict[str, Any]
+    ) -> dict[str, Any]:
+        """
+        Convert template zones coordinates from EMU to PT for easier slide element creation.
+
+        Args:
+            template_zones: Template zones from extract_template_zones_only
+
+        Returns:
+            Template zones with additional PT coordinates (x_pt, y_pt, width_pt, height_pt)
+        """
+        try:
+            return convert_template_zones(template_zones, target_unit="PT")
+        except Exception as e:
+            return self.handle_api_error("convert_template_zones_to_pt", e)
