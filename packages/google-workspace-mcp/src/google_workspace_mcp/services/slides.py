@@ -1920,29 +1920,40 @@ class SlidesService(BaseGoogleService):
         }
 
         # Smart sizing: handle different dimension specifications
-        # Google Slides will automatically maintain aspect ratio when only one dimension is provided
+        # IMPORTANT: Google Slides API limitation - createImage requires BOTH width and height 
+        # if size is specified, or omit size entirely. Single dimension causes UNIT_UNSPECIFIED error.
+        
         if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
-            # Both dimensions specified - exact sizing (may stretch/distort image)
+            # Both dimensions specified - exact sizing
             request["createImage"]["elementProperties"]["size"] = {
                 "width": {"magnitude": pos["width"], "unit": "PT"},
                 "height": {"magnitude": pos["height"], "unit": "PT"},
             }
-        elif "width" in pos and pos["width"]:
-            # Only width specified - height will be proportional
-            request["createImage"]["elementProperties"]["size"] = {
-                "width": {"magnitude": pos["width"], "unit": "PT"}
-            }
         elif "height" in pos and pos["height"]:
-            # Only height specified - width will be proportional
+            # Only height specified - assume this is for portrait/vertical images
+            # Use a reasonable aspect ratio (3:4 portrait) to calculate width
+            height = pos["height"]
+            width = height * (3.0 / 4.0)  # 3:4 aspect ratio (portrait)
+            logger.info(
+                f"Image height specified ({height}pt), calculating proportional width ({width:.1f}pt) using 3:4 aspect ratio"
+            )
             request["createImage"]["elementProperties"]["size"] = {
-                "height": {"magnitude": pos["height"], "unit": "PT"}
+                "width": {"magnitude": width, "unit": "PT"},
+                "height": {"magnitude": height, "unit": "PT"},
             }
-        else:
-            # If neither width nor height specified, use default dimensions
+        elif "width" in pos and pos["width"]:
+            # Only width specified - assume this is for landscape images
+            # Use a reasonable aspect ratio (16:9 landscape) to calculate height
+            width = pos["width"]
+            height = width * (9.0 / 16.0)  # 16:9 aspect ratio (landscape)
+            logger.info(
+                f"Image width specified ({width}pt), calculating proportional height ({height:.1f}pt) using 16:9 aspect ratio"
+            )
             request["createImage"]["elementProperties"]["size"] = {
-                "width": {"magnitude": 200, "unit": "PT"},
-                "height": {"magnitude": 200, "unit": "PT"},
+                "width": {"magnitude": width, "unit": "PT"},
+                "height": {"magnitude": height, "unit": "PT"},
             }
+        # If neither width nor height specified, omit size - image uses natural dimensions
 
         return request
 
