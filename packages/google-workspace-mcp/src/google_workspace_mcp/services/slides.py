@@ -1747,9 +1747,10 @@ class SlidesService(BaseGoogleService):
     def _build_textbox_requests_generic(
         self, object_id: str, slide_id: str, element: dict[str, Any]
     ) -> list[dict[str, Any]]:
-        """Generic helper to build textbox creation requests"""
+        """Generic helper to build textbox creation requests with support for mixed text formatting"""
         pos = element["position"]
         style = element.get("style", {})
+        text_ranges = element.get("textRanges", None)
 
         requests = [
             # Create shape
@@ -1777,8 +1778,54 @@ class SlidesService(BaseGoogleService):
             {"insertText": {"objectId": object_id, "text": element["content"]}},
         ]
 
-        # Add formatting if specified
-        if style:
+        # Handle mixed text formatting with textRanges
+        if text_ranges:
+            for text_range in text_ranges:
+                range_style = text_range.get("style", {})
+                start_index = text_range.get("startIndex", 0)
+                end_index = text_range.get("endIndex", len(element["content"]))
+                
+                if range_style:
+                    format_request = {
+                        "updateTextStyle": {
+                            "objectId": object_id,
+                            "textRange": {
+                                "type": "FIXED_RANGE",
+                                "startIndex": start_index,
+                                "endIndex": end_index,
+                            },
+                            "style": {},
+                            "fields": "",
+                        }
+                    }
+
+                    if "fontSize" in range_style:
+                        format_request["updateTextStyle"]["style"]["fontSize"] = {
+                            "magnitude": range_style["fontSize"],
+                            "unit": "PT",
+                        }
+                        format_request["updateTextStyle"]["fields"] += "fontSize,"
+
+                    if "fontFamily" in range_style:
+                        format_request["updateTextStyle"]["style"]["fontFamily"] = range_style[
+                            "fontFamily"
+                        ]
+                        format_request["updateTextStyle"]["fields"] += "fontFamily,"
+
+                    if range_style.get("bold"):
+                        format_request["updateTextStyle"]["style"]["bold"] = True
+                        format_request["updateTextStyle"]["fields"] += "bold,"
+
+                    # Clean up trailing comma and add format request
+                    format_request["updateTextStyle"]["fields"] = format_request[
+                        "updateTextStyle"
+                    ]["fields"].rstrip(",")
+
+                    if format_request["updateTextStyle"]["fields"]:
+                        requests.append(format_request)
+
+        # Add formatting for the entire text if specified and no textRanges
+        elif style:
             format_request = {
                 "updateTextStyle": {
                     "objectId": object_id,
@@ -1805,42 +1852,6 @@ class SlidesService(BaseGoogleService):
                 format_request["updateTextStyle"]["style"]["bold"] = True
                 format_request["updateTextStyle"]["fields"] += "bold,"
 
-            # Add text alignment
-            if style.get("textAlignment"):
-                alignment_map = {
-                    "LEFT": "START",
-                    "CENTER": "CENTER",
-                    "RIGHT": "END",
-                    "MIDDLE": "CENTER",
-                }
-                api_alignment = alignment_map.get(
-                    style["textAlignment"].upper(), "START"
-                )
-                requests.append(
-                    {
-                        "updateParagraphStyle": {
-                            "objectId": object_id,
-                            "textRange": {"type": "ALL"},
-                            "style": {"alignment": api_alignment},
-                            "fields": "alignment",
-                        }
-                    }
-                )
-
-            # Add vertical alignment
-            if style.get("verticalAlignment"):
-                valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
-                api_valign = valign_map.get(style["verticalAlignment"].upper(), "TOP")
-                requests.append(
-                    {
-                        "updateShapeProperties": {
-                            "objectId": object_id,
-                            "shapeProperties": {"contentAlignment": api_valign},
-                            "fields": "contentAlignment",
-                        }
-                    }
-                )
-
             # Clean up trailing comma and add format request
             format_request["updateTextStyle"]["fields"] = format_request[
                 "updateTextStyle"
@@ -1848,6 +1859,42 @@ class SlidesService(BaseGoogleService):
 
             if format_request["updateTextStyle"]["fields"]:
                 requests.append(format_request)
+
+        # Add text alignment (paragraph-level)
+        if style and style.get("textAlignment"):
+            alignment_map = {
+                "LEFT": "START",
+                "CENTER": "CENTER",
+                "RIGHT": "END",
+                "MIDDLE": "CENTER",
+            }
+            api_alignment = alignment_map.get(
+                style["textAlignment"].upper(), "START"
+            )
+            requests.append(
+                {
+                    "updateParagraphStyle": {
+                        "objectId": object_id,
+                        "textRange": {"type": "ALL"},
+                        "style": {"alignment": api_alignment},
+                        "fields": "alignment",
+                    }
+                }
+            )
+
+        # Add vertical alignment (shape-level)
+        if style and style.get("verticalAlignment"):
+            valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
+            api_valign = valign_map.get(style["verticalAlignment"].upper(), "TOP")
+            requests.append(
+                {
+                    "updateShapeProperties": {
+                        "objectId": object_id,
+                        "shapeProperties": {"contentAlignment": api_valign},
+                        "fields": "contentAlignment",
+                    }
+                }
+            )
 
         return requests
 

@@ -834,9 +834,13 @@ async def create_slide_with_elements(
                 },
                 {
                     "type": "textbox",
-                    "content": "43.4M",
+                    "content": "43.4M\nTOTAL IMPRESSIONS",
                     "position": {"x": 333, "y": 4059, "width": 122, "height": 79},
-                    "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True}
+                    "textRanges": [
+                        {"startIndex": 0, "endIndex": 5, "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True}},
+                        {"startIndex": 6, "endIndex": 22, "style": {"fontSize": 7.5, "fontFamily": "Roboto"}}
+                    ],
+                    "style": {"textAlignment": "CENTER"}
                 },
                 {
                     "type": "image",
@@ -845,6 +849,12 @@ async def create_slide_with_elements(
                 }
             ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
+
+    Advanced textRanges formatting:
+        For mixed formatting within a single textbox, use "textRanges" instead of "style":
+        - textRanges: Array of formatting ranges with startIndex, endIndex, and style
+        - Allows different fonts, sizes, and formatting for different parts of text
+        - Perfect for stats with large numbers + small labels in same textbox
 
     Returns:
         Response data confirming slide creation or raises error
