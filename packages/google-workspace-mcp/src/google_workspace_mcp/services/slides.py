@@ -1837,6 +1837,31 @@ class SlidesService(BaseGoogleService):
                         format_request["updateTextStyle"]["style"]["bold"] = True
                         format_request["updateTextStyle"]["fields"] += "bold,"
 
+                    # Add foreground color support
+                    if "color" in range_style or "foregroundColor" in range_style:
+                        color_value = range_style.get("color") or range_style.get(
+                            "foregroundColor"
+                        )
+                        color_obj = self._parse_color(color_value)
+                        if color_obj:
+                            format_request["updateTextStyle"]["style"][
+                                "foregroundColor"
+                            ] = color_obj
+                            format_request["updateTextStyle"][
+                                "fields"
+                            ] += "foregroundColor,"
+
+                    # Add background color support
+                    if "backgroundColor" in range_style:
+                        bg_color_obj = self._parse_color(range_style["backgroundColor"])
+                        if bg_color_obj:
+                            format_request["updateTextStyle"]["style"][
+                                "backgroundColor"
+                            ] = bg_color_obj
+                            format_request["updateTextStyle"][
+                                "fields"
+                            ] += "backgroundColor,"
+
                     # Clean up trailing comma and add format request
                     format_request["updateTextStyle"]["fields"] = format_request[
                         "updateTextStyle"
@@ -1872,6 +1897,25 @@ class SlidesService(BaseGoogleService):
             if style.get("bold"):
                 format_request["updateTextStyle"]["style"]["bold"] = True
                 format_request["updateTextStyle"]["fields"] += "bold,"
+
+            # Add foreground color support
+            if "color" in style or "foregroundColor" in style:
+                color_value = style.get("color") or style.get("foregroundColor")
+                color_obj = self._parse_color(color_value)
+                if color_obj:
+                    format_request["updateTextStyle"]["style"][
+                        "foregroundColor"
+                    ] = color_obj
+                    format_request["updateTextStyle"]["fields"] += "foregroundColor,"
+
+            # Add background color support
+            if "backgroundColor" in style:
+                bg_color_obj = self._parse_color(style["backgroundColor"])
+                if bg_color_obj:
+                    format_request["updateTextStyle"]["style"][
+                        "backgroundColor"
+                    ] = bg_color_obj
+                    format_request["updateTextStyle"]["fields"] += "backgroundColor,"
 
             # Clean up trailing comma and add format request
             format_request["updateTextStyle"]["fields"] = format_request[
@@ -1916,6 +1960,73 @@ class SlidesService(BaseGoogleService):
             )
 
         return requests
+
+    def _parse_color(self, color_value: str | dict) -> dict | None:
+        """Parse color value into Google Slides API format.
+
+        Args:
+            color_value: Color as hex string (e.g., "#ffffff"), RGB dict, or theme color
+
+        Returns:
+            Color object in Google Slides API format or None if invalid
+        """
+        if not color_value:
+            return None
+
+        # Handle hex color strings
+        if isinstance(color_value, str):
+            if color_value.lower() == "white":
+                color_value = "#ffffff"
+            elif color_value.lower() == "black":
+                color_value = "#000000"
+
+            if color_value.startswith("#"):
+                # Convert hex to RGB
+                try:
+                    hex_color = color_value.lstrip("#")
+                    if len(hex_color) == 6:
+                        r = int(hex_color[0:2], 16) / 255.0
+                        g = int(hex_color[2:4], 16) / 255.0
+                        b = int(hex_color[4:6], 16) / 255.0
+
+                        return {
+                            "opaqueColor": {
+                                "rgbColor": {"red": r, "green": g, "blue": b}
+                            }
+                        }
+                except ValueError:
+                    logger.warning(f"Invalid hex color format: {color_value}")
+                    return None
+
+        # Handle RGB dict format
+        elif isinstance(color_value, dict):
+            if "r" in color_value and "g" in color_value and "b" in color_value:
+                return {
+                    "opaqueColor": {
+                        "rgbColor": {
+                            "red": color_value["r"] / 255.0,
+                            "green": color_value["g"] / 255.0,
+                            "blue": color_value["b"] / 255.0,
+                        }
+                    }
+                }
+            elif (
+                "red" in color_value
+                and "green" in color_value
+                and "blue" in color_value
+            ):
+                return {
+                    "opaqueColor": {
+                        "rgbColor": {
+                            "red": color_value["red"],
+                            "green": color_value["green"],
+                            "blue": color_value["blue"],
+                        }
+                    }
+                }
+
+        logger.warning(f"Unsupported color format: {color_value}")
+        return None
 
     def _build_image_request_generic(
         self, object_id: str, slide_id: str, element: dict[str, Any]
@@ -2104,7 +2215,7 @@ class SlidesService(BaseGoogleService):
                     "JUSTIFY": "JUSTIFIED",
                 }
 
-                api_alignment = alignment_map.get(text_alignment.upper())
+                api_alignment = alignment_map.get(text_alignment.upper(), "START")
                 if api_alignment:
                     text_range = {"type": "ALL"}
                     if start_index is not None and end_index is not None:
@@ -2130,7 +2241,7 @@ class SlidesService(BaseGoogleService):
                 # Map vertical alignment values to Google Slides API format
                 valign_map = {"TOP": "TOP", "MIDDLE": "MIDDLE", "BOTTOM": "BOTTOM"}
 
-                api_valign = valign_map.get(vertical_alignment.upper())
+                api_valign = valign_map.get(vertical_alignment.upper(), "TOP")
                 if api_valign:
                     style_requests.append(
                         {
@@ -2296,4 +2407,3 @@ class SlidesService(BaseGoogleService):
             return convert_template_zones(template_zones, target_unit="PT")
         except Exception as e:
             return self.handle_api_error("convert_template_zones_to_pt", e)
-
