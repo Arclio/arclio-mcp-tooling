@@ -804,7 +804,7 @@ async def create_slide_from_template_data(
 
 @mcp.tool(
     name="create_slide_with_elements",
-    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images.",
+    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images. Now supports text colors and background colors with multiple color formats.",
 )
 async def create_slide_with_elements(
     presentation_id: str,
@@ -825,21 +825,51 @@ async def create_slide_with_elements(
                     "type": "textbox",
                     "content": "Slide Title",
                     "position": {"x": 282, "y": 558, "width": 600, "height": 45},
-                    "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True, "textAlignment": "CENTER", "verticalAlignment": "MIDDLE"}
+                    "style": {
+                        "fontSize": 25,
+                        "fontFamily": "Playfair Display",
+                        "bold": True,
+                        "textAlignment": "CENTER",
+                        "verticalAlignment": "MIDDLE",
+                        "textColor": "#FFFFFF",  # White text
+                        "backgroundColor": "#FFFFFF80"  # Semi-transparent white background
+                    }
                 },
                 {
                     "type": "textbox",
                     "content": "Description text...",
                     "position": {"x": 282, "y": 1327, "width": 600, "height": 234},
-                    "style": {"fontSize": 12, "fontFamily": "Roboto"}
+                    "style": {
+                        "fontSize": 12,
+                        "fontFamily": "Roboto",
+                        "color": "#000000",  # Black text (alternative to textColor)
+                        "foregroundColor": "#333333"  # Dark gray text (alternative to textColor/color)
+                    }
                 },
                 {
                     "type": "textbox",
                     "content": "43.4M\nTOTAL IMPRESSIONS",
                     "position": {"x": 333, "y": 4059, "width": 122, "height": 79},
                     "textRanges": [
-                        {"startIndex": 0, "endIndex": 5, "style": {"fontSize": 25, "fontFamily": "Playfair Display", "bold": True}},
-                        {"startIndex": 6, "endIndex": 22, "style": {"fontSize": 7.5, "fontFamily": "Roboto"}}
+                        {
+                            "startIndex": 0,
+                            "endIndex": 5,
+                            "style": {
+                                "fontSize": 25,
+                                "fontFamily": "Playfair Display",
+                                "bold": True,
+                                "textColor": "#FF0000"  # Red text for the number
+                            }
+                        },
+                        {
+                            "startIndex": 6,
+                            "endIndex": 22,
+                            "style": {
+                                "fontSize": 7.5,
+                                "fontFamily": "Roboto",
+                                "backgroundColor": "#FFFF0080"  # Semi-transparent yellow background for label
+                            }
+                        }
                     ],
                     "style": {"textAlignment": "CENTER"}
                 },
@@ -853,6 +883,22 @@ async def create_slide_with_elements(
         background_image_url: Optional slide background image URL (takes precedence over background_color)
                              Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
 
+    Text Color Support:
+        - "textColor": "#FFFFFF" - White text (recommended)
+        - "color": "#000000" - Black text (alternative)
+        - "foregroundColor": "#333333" - Dark gray text (alternative)
+        - All three are equivalent, use whichever you prefer
+        - Supports 6-character hex codes: "#FFFFFF", "#000000", "#FF5733"
+        - Supports 8-character hex codes with alpha: "#FFFFFF80" (alpha ignored for text)
+        - Supports color names: "white", "black"
+        - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
+
+    Background Color Support:
+        - "backgroundColor": "#FFFFFF80" - Semi-transparent white background
+        - Supports same color formats as text colors
+        - 8-character hex codes supported: "#FFFFFF80" (alpha channel ignored by Google Slides API)
+        - Works in both main "style" object and individual "textRanges" styles
+
     Background Image Requirements:
         - Must be publicly accessible without authentication
         - Maximum file size: 50 MB
@@ -864,8 +910,9 @@ async def create_slide_with_elements(
     Advanced textRanges formatting:
         For mixed formatting within a single textbox, use "textRanges" instead of "style":
         - textRanges: Array of formatting ranges with startIndex, endIndex, and style
-        - Allows different fonts, sizes, and formatting for different parts of text
+        - Allows different fonts, sizes, colors, and formatting for different parts of text
         - Perfect for stats with large numbers + small labels in same textbox
+        - Each textRange can have its own textColor and backgroundColor
 
     Returns:
         Response data confirming slide creation or raises error
