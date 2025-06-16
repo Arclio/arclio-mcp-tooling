@@ -1874,7 +1874,7 @@ class SlidesService(BaseGoogleService):
             }
         }
 
-        # Smart sizing: only add size if both width and height are specified
+        # Smart sizing: handle different dimension specifications
         # This allows proportional scaling when only one dimension is given
         if "width" in pos and "height" in pos and pos["width"] and pos["height"]:
             # Both dimensions specified - exact sizing
@@ -1884,15 +1884,38 @@ class SlidesService(BaseGoogleService):
             }
         elif "width" in pos and pos["width"]:
             # Only width specified - proportional height
+            # Use autofit to maintain aspect ratio
             request["createImage"]["elementProperties"]["size"] = {
-                "width": {"magnitude": pos["width"], "unit": "PT"}
+                "width": {"magnitude": pos["width"], "unit": "PT"},
+                "height": {
+                    "magnitude": 100,
+                    "unit": "PT",
+                },  # Default height, will be adjusted by autofit
+            }
+            # Let Google Slides handle aspect ratio
+            request["createImage"]["elementProperties"]["autofit"] = {
+                "autofitType": "SHAPE"
             }
         elif "height" in pos and pos["height"]:
             # Only height specified - proportional width (full-height coverage)
+            # Use autofit to maintain aspect ratio
             request["createImage"]["elementProperties"]["size"] = {
-                "height": {"magnitude": pos["height"], "unit": "PT"}
+                "width": {
+                    "magnitude": 100,
+                    "unit": "PT",
+                },  # Default width, will be adjusted by autofit
+                "height": {"magnitude": pos["height"], "unit": "PT"},
             }
-        # If neither width nor height specified, use original image size
+            # Let Google Slides handle aspect ratio
+            request["createImage"]["elementProperties"]["autofit"] = {
+                "autofitType": "SHAPE"
+            }
+        else:
+            # If neither width nor height specified, use default dimensions
+            request["createImage"]["elementProperties"]["size"] = {
+                "width": {"magnitude": 200, "unit": "PT"},
+                "height": {"magnitude": 200, "unit": "PT"},
+            }
 
         return request
 
