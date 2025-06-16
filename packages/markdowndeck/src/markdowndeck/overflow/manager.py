@@ -5,8 +5,18 @@ from typing import TYPE_CHECKING, Optional
 if TYPE_CHECKING:
     from markdowndeck.models import Section, Slide
 
+# ADDED: Import the single source of truth for layout constants.
+from markdowndeck.layout.constants import (
+    DEFAULT_MARGIN_BOTTOM,
+    DEFAULT_MARGIN_LEFT,
+    DEFAULT_MARGIN_RIGHT,
+    DEFAULT_MARGIN_TOP,
+    DEFAULT_SLIDE_HEIGHT,
+    DEFAULT_SLIDE_WIDTH,
+)
 from markdowndeck.models import Section as SectionModel
 from markdowndeck.overflow.detector import OverflowDetector
+from markdowndeck.overflow.fill_context_handler import FillContextOverflowHandler
 from markdowndeck.overflow.handlers import StandardOverflowHandler
 
 logger = logging.getLogger(__name__)
@@ -21,13 +31,21 @@ class OverflowManager:
 
     def __init__(
         self,
-        slide_width: float = 720,
-        slide_height: float = 405,
+        slide_width: float = None,
+        slide_height: float = None,
         margins: dict[str, float] = None,
     ):
-        self.slide_width = slide_width
-        self.slide_height = slide_height
-        self.margins = margins or {"top": 50, "right": 50, "bottom": 50, "left": 50}
+        self.slide_width = slide_width or DEFAULT_SLIDE_WIDTH
+        self.slide_height = slide_height or DEFAULT_SLIDE_HEIGHT
+
+        # FIXED: Use the single source of truth for default margins from layout.constants.
+        self.margins = margins or {
+            "top": DEFAULT_MARGIN_TOP,
+            "right": DEFAULT_MARGIN_RIGHT,
+            "bottom": DEFAULT_MARGIN_BOTTOM,
+            "left": DEFAULT_MARGIN_LEFT,
+        }
+
         self.detector = OverflowDetector(
             slide_height=self.slide_height,
             top_margin=self.margins["top"],
@@ -38,11 +56,14 @@ class OverflowManager:
             top_margin=self.margins["top"],
             bottom_margin=self.margins["bottom"],
         )
+        self.fill_context_handler = FillContextOverflowHandler(self)
         from markdowndeck.layout import LayoutManager
 
-        self.layout_manager = LayoutManager(slide_width, slide_height, margins)
+        self.layout_manager = LayoutManager(
+            self.slide_width, self.slide_height, self.margins
+        )
         logger.debug(
-            f"OverflowManager initialized with slide_dimensions={slide_width}x{slide_height}, margins={self.margins}"
+            f"OverflowManager initialized with slide_dimensions={self.slide_width}x{self.slide_height}, margins={self.margins}"
         )
 
     def process_slide(self, slide: "Slide") -> list["Slide"]:
@@ -64,6 +85,20 @@ class OverflowManager:
                 self._finalize_slide(current_slide)
                 final_slides.append(current_slide)
                 break
+
+            # REFACTORED: RULE #9 - Specialized handling for slides with [fill] context
+            # This logic now delegates to the FillContextOverflowHandler.
+            if not current_slide.is_continuation and self._slide_contains_fill_image(
+                current_slide
+            ):
+                logger.debug(
+                    "Slide contains [fill] image - delegating to specialized overflow handler"
+                )
+                specialized_slides = self.fill_context_handler.handle(
+                    current_slide, overflowing_element, iteration_count
+                )
+                final_slides.extend(specialized_slides)
+                break  # The specialized handler returns ALL resulting slides, so we terminate the loop.
 
             # FIXED: Correct implementation of the two-strike circuit breaker.
             if getattr(overflowing_element, "_overflow_moved", False):
@@ -141,8 +176,11 @@ class OverflowManager:
                     extract_elements_from_section(child)
                 else:
                     if (
-                        child.object_id not in existing_object_ids
+                        hasattr(child, "object_id")
+                        and child.object_id not in existing_object_ids
+                        and hasattr(child, "position")
                         and child.position
+                        and hasattr(child, "size")
                         and child.size
                     ):
                         final_renderable_elements.append(child)
@@ -159,3 +197,29 @@ class OverflowManager:
         logger.info(
             f"Finalized slide {slide.object_id}: {len(slide.renderable_elements)} renderable elements."
         )
+
+    def _slide_contains_fill_image(self, slide: "Slide") -> bool:
+        """
+        Helper method to detect if a slide contains any ImageElement with a [fill] directive.
+        """
+
+        def traverse_section(section: Optional["Section"]) -> bool:
+            if not section:
+                return False
+
+            for child in section.children:
+                if isinstance(child, SectionModel):
+                    if traverse_section(child):
+                        return True
+                else:
+                    # Check if this is an ImageElement with [fill] directive
+                    if (
+                        hasattr(child, "element_type")
+                        and child.element_type.value == "image"
+                        and hasattr(child, "directives")
+                        and child.directives.get("fill", False)
+                    ):
+                        return True
+            return False
+
+        return traverse_section(slide.root_section)

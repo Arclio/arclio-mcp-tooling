@@ -1,5 +1,3 @@
-"""Slide builder for creating continuation slides with proper formatting and position reset."""
-
 import logging
 import re
 import uuid
@@ -11,12 +9,12 @@ if TYPE_CHECKING:
     from markdowndeck.models.slide import Section
 
 from markdowndeck.models import ElementType
-from markdowndeck.overflow.constants import (
-    CONTINUED_FOOTER_SUFFIX,
-    CONTINUED_TITLE_SUFFIX,
-)
 
 logger = logging.getLogger(__name__)
+
+# REFACTORED: Suffixes are now local constants.
+CONTINUED_TITLE_SUFFIX = "(continued)"
+CONTINUED_FOOTER_SUFFIX = "(cont.)"
 
 
 class SlideBuilder:
@@ -176,6 +174,8 @@ class SlideBuilder:
 
     def _extract_elements_from_sections_with_reset(self, slide: "Slide") -> None:
         """Extract all elements from the root_section and add them to the slide's elements list."""
+        from markdowndeck.models.slide import Section as SectionModel
+
         if not slide.root_section:
             return
         visited = set()
@@ -185,7 +185,7 @@ class SlideBuilder:
                 return
             visited.add(section.id)
             for child in section.children:
-                if not hasattr(child, "children"):
+                if not isinstance(child, SectionModel):
                     element_copy = deepcopy(child)
                     element_copy.object_id = self._generate_safe_element_id(
                         element_copy.element_type.value

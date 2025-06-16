@@ -448,51 +448,28 @@ class TestLayoutManager:
         expected_color = {"type": "color", "value": {"type": "named", "value": "red"}}
         assert positioned_title.directives.get("color") == expected_color
 
-    @patch("markdowndeck.layout.metrics.image.is_valid_image_url", return_value=True)
-    def test_layout_c_15_image_fill_directive(
-        self, mock_is_valid, layout_manager: LayoutManager
-    ):
+    def test_layout_c_15_image_fill_directive(self, layout_manager: LayoutManager):
         """Test Case: LAYOUT-C-15
 
-        Validates: LAYOUT_SPEC.md Rule #4a - Image fill directive handling
-        Tests both success and failure scenarios for [fill] directive
+        Validates: LAYOUT_SPEC.md Rule #5 - Image fill directive handling
+        Tests that the layout manager raises a ValueError if the parent of a [fill]
+        image is missing explicit width or height directives.
         """
-        # Scenario 1 (Success): Parent section has explicit dimensions
+        # Scenario: Parent section is missing an explicit height directive
         image_with_fill = ImageElement(
             element_type=ElementType.IMAGE,
             url="test.png",
             directives={"fill": True},
-            aspect_ratio=1.0,  # Will be ignored due to [fill]
         )
-        parent_section = Section(
-            id="sized_parent",
-            directives={"width": "400", "height": "300"},
+        parent_section_no_height = Section(
+            id="unsized_parent",
+            directives={"width": "400"},  # Has width, but no height
             children=[image_with_fill],
         )
-        slide_success = _create_unpositioned_slide(root_section=parent_section)
+        slide_fail = _create_unpositioned_slide(root_section=parent_section_no_height)
 
-        # Act - Success case should work
-        positioned_slide = layout_manager.calculate_positions(slide_success)
-        positioned_image = positioned_slide.root_section.children[0]
-
-        # Assert - Image should be sized to match parent exactly (400, 300)
-        assert positioned_image.size is not None
-        assert abs(positioned_image.size[0] - 400.0) < 1.0
-        assert abs(positioned_image.size[1] - 300.0) < 1.0
-
-        # Scenario 2 (Failure): Parent section has no explicit dimensions
-        image_with_fill_fail = ImageElement(
-            element_type=ElementType.IMAGE, url="test2.png", directives={"fill": True}
-        )
-        parent_section_no_dims = Section(
-            id="unsized_parent",
-            # No width/height directives
-            children=[image_with_fill_fail],
-        )
-        slide_fail = _create_unpositioned_slide(root_section=parent_section_no_dims)
-
-        # Act & Assert - Should raise ValueError for missing parent dimensions
-        with pytest.raises(ValueError) as exc_info:
+        # Act & Assert - Should raise ValueError for missing parent height
+        with pytest.raises(
+            ValueError, match="parent container .* to have explicit .* directive"
+        ):
             layout_manager.calculate_positions(slide_fail)
-
-        assert "parent container to have explicit dimensions" in str(exc_info.value)

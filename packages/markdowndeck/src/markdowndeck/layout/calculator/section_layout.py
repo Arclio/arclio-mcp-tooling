@@ -624,43 +624,27 @@ def _process_fill_directive_for_image(image_element, parent_section: Section) ->
 
     directives = image_element.directives or {}
     has_fill = directives.get("fill", False)
-    has_width = "width" in directives
-    has_height = "height" in directives
 
-    # Per Task 2 clarification: If width and height are present, they take precedence over [fill]
-    if not has_fill or (has_width and has_height):
+    if not has_fill:
         return
 
-    # Validate that parent section has explicit width and height directives
+    # LAYOUT_SPEC.md Rule #5: Validate that parent section has explicit dimensions.
     parent_directives = parent_section.directives or {}
     parent_has_width = "width" in parent_directives
     parent_has_height = "height" in parent_directives
 
     if not parent_has_width or not parent_has_height:
+        missing_dims = []
+        if not parent_has_width:
+            missing_dims.append("'width'")
+        if not parent_has_height:
+            missing_dims.append("'height'")
         raise ValueError(
-            f"Image with [fill] directive requires parent container to have explicit dimensions. "
-            f"Parent section '{parent_section.id}' missing "
-            f"{'width' if not parent_has_width else ''}{'and height' if not parent_has_width and not parent_has_height else 'height' if not parent_has_height else ''} "
-            f"directive(s) for [fill] directive to work."
+            f"Image with [fill] directive requires parent container '{parent_section.id}' to have explicit "
+            f"{' and '.join(missing_dims)} directive(s)."
         )
 
-    # Size the image to match parent section's final calculated size
-    if parent_section.size:
-        parent_width, parent_height = parent_section.size
-        # Account for parent's padding
-        padding_val = float(
-            parent_section.directives.get("padding", 0)
-            if isinstance(parent_section.directives.get("padding"), int | float)
-            else 0.0
-        )
-        fill_width = max(10.0, parent_width - 2 * padding_val)
-        fill_height = max(10.0, parent_height - 2 * padding_val)
-
-        logger.info(
-            f"Image with [fill] directive sized to ({fill_width:.1f}, {fill_height:.1f}) to match parent container"
-        )
-        image_element.size = (fill_width, fill_height)
-    else:
-        logger.warning(
-            f"Parent section {parent_section.id} has no size calculated for fill directive processing"
-        )
+    # Sizing is now handled in a separate pass.
+    logger.debug(
+        f"Validated [fill] directive on image {image_element.object_id} in container {parent_section.id}."
+    )

@@ -97,10 +97,8 @@ class TestPipelineContracts:
         # Assert 1: Validate "Positioned" state
         assert positioned_slide.root_section.position is not None
         assert positioned_slide.root_section.size is not None
-        assert (
-            positioned_slide.root_section.children[0].children[0].position is not None
-        )
-        assert positioned_slide.root_section.children[0].children[0].size is not None
+        assert positioned_slide.root_section.children[0].position is not None
+        assert positioned_slide.root_section.children[0].size is not None
 
         # Act 2: Get "Finalized" state
         finalized_slides = overflow_manager.process_slide(positioned_slide)
@@ -432,3 +430,85 @@ Some text content in the other column.
         image_bottom = image_element.position[1] + image_element.size[1]
         text_top = text_element.position[1]
         assert text_top >= image_bottom, "Text must be positioned below the image."
+
+    def test_p_15_image_fill_with_sibling_overflow(self):
+        """
+        Test Case: INTEGRATION-P-15 - Specialized overflow handling for slides with [fill] context.
+
+        Tests the "excise and replace" algorithm per OVERFLOW_SPEC.md Rule #9.
+        A row layout with a [fill] image in the left column and overflowing text in the right column
+        should result in two slides, both containing the [fill] image context.
+        """
+        # Arrange: Row layout with [fill] image in left column, overflowing text in right column
+        long_text = " ".join(
+            [f"Word {i}" for i in range(200)]
+        )  # Long enough to cause overflow
+        markdown = f"""
+# Fill Context Test
+
+:::row
+:::column [width=40%][height=100%]
+![Fill Image](https://example.com/image.png) [fill]
+:::
+:::column [width=60%]
+{long_text}
+:::
+:::
+"""
+
+        # Act: Run the full pipeline
+        result = markdown_to_requests(markdown)
+        slide_batches = result["slide_batches"]
+
+        # Assert: Two slides should be created
+        assert (
+            len(slide_batches) == 2
+        ), "Specialized fill overflow should create exactly 2 slides"
+
+        # Validate first slide has both image and some text
+        slide1_requests = slide_batches[0]["requests"]
+        slide1_image = next((r for r in slide1_requests if "createImage" in r), None)
+        slide1_text = next(
+            (
+                r
+                for r in slide1_requests
+                if "insertText" in r and "Word" in r["insertText"]["text"]
+            ),
+            None,
+        )
+
+        assert slide1_image is not None, "First slide must contain the [fill] image"
+        assert (
+            slide1_text is not None
+        ), "First slide must contain some of the text content"
+
+        # Validate second slide has both duplicated image and continuation text
+        slide2_requests = slide_batches[1]["requests"]
+        slide2_image = next((r for r in slide2_requests if "createImage" in r), None)
+        slide2_text = next(
+            (
+                r
+                for r in slide2_requests
+                if "insertText" in r and "Word" in r["insertText"]["text"]
+            ),
+            None,
+        )
+
+        assert (
+            slide2_image is not None
+        ), "Second slide must contain the duplicated [fill] image context"
+        assert (
+            slide2_text is not None
+        ), "Second slide must contain the overflowing text content"
+
+        # Verify the images use the same URL (context duplication)
+        assert (
+            slide1_image["createImage"]["url"] == slide2_image["createImage"]["url"]
+        ), "Both slides should have the same image URL"
+
+        # Verify different text content (showing proper content partitioning)
+        slide1_text_content = slide1_text["insertText"]["text"]
+        slide2_text_content = slide2_text["insertText"]["text"]
+        assert (
+            slide1_text_content != slide2_text_content
+        ), "Slides should have different text content (proper partitioning)"

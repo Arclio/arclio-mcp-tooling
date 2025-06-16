@@ -20,9 +20,6 @@ class MediaRequestBuilder(BaseRequestBuilder):
         position = getattr(element, "position", (100, 100))
         size = getattr(element, "size", None) or (300, 200)
 
-        # REFACTORED: Added check for zero-sized elements.
-        # This is the consumer of the change made in the LayoutManager. If the layout
-        # determined the image is invalid and gave it a zero size, we skip it here.
         if size == (0, 0):
             logger.warning(
                 f"Skipping request generation for zero-sized image element on slide {slide_id}."
@@ -81,17 +78,18 @@ class MediaRequestBuilder(BaseRequestBuilder):
         if not border_value:
             return
 
-        # Parse the border directive value
         outline_props = self._parse_border_directive(border_value)
         if not outline_props:
             return
 
-        # Create updateShapeProperties request with outline
+        # REFACTORED: Use `updateImageProperties` for Image elements, not `updateShapeProperties`.
+        # This is the fix for the HttpError 400. The Google Slides API treats
+        # Images and Shapes as distinct object types.
         requests.append(
             {
-                "updateShapeProperties": {
+                "updateImageProperties": {
                     "objectId": element.object_id,
-                    "shapeProperties": {"outline": outline_props},
+                    "imageProperties": {"outline": outline_props},
                     "fields": "outline",
                 }
             }

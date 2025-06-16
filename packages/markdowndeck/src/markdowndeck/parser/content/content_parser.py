@@ -58,9 +58,10 @@ class ContentParser:
         meta_elements: list[Element] = []
 
         if slide_title_text:
-            # Meta elements also inherit base directives
             final_title_directives = {**base_directives, **(title_directives or {})}
-            title_element = self.element_factory.create_title_element(slide_title_text, directives=final_title_directives)
+            title_element = self.element_factory.create_title_element(
+                slide_title_text, directives=final_title_directives
+            )
             meta_elements.append(title_element)
 
         if subtitle_text:
@@ -90,14 +91,18 @@ class ContentParser:
 
         if slide_footer_text:
             final_footer_directives = {**base_directives, **(footer_directives or {})}
-            footer_element = self.element_factory.create_footer_element(slide_footer_text, directives=final_footer_directives)
+            footer_element = self.element_factory.create_footer_element(
+                slide_footer_text, directives=final_footer_directives
+            )
             meta_elements.append(footer_element)
 
         all_elements = meta_elements + body_elements
         logger.info(f"Created {len(all_elements)} total elements from content")
         return all_elements
 
-    def _process_section_recursively(self, section: Section, inherited_directives: dict):
+    def _process_section_recursively(
+        self, section: Section, inherited_directives: dict
+    ):
         """
         Process a section's raw content into elements and recurse through child sections.
         """
@@ -107,12 +112,14 @@ class ContentParser:
         content_str = getattr(section, "content", None)
         if content_str:
             tokens = self.md.parse(content_str)
-            parsed_elements = self._process_tokens_with_directive_detection(tokens, current_directives)
-            if hasattr(section, "content"):
-                delattr(section, "content")
+            parsed_elements = self._process_tokens_with_directive_detection(
+                tokens, current_directives
+            )
+            section.content = None
 
-        child_sections = [child for child in section.children if isinstance(child, Section)]
-
+        child_sections = [
+            child for child in section.children if isinstance(child, Section)
+        ]
         for child_section in child_sections:
             self._process_section_recursively(child_section, current_directives)
 
@@ -126,16 +133,27 @@ class ContentParser:
         current_index = 0
 
         while current_index < len(tokens):
-            created_elements, new_index = self._dispatch_to_formatter(tokens, current_index, section_directives)
+            # Skip empty tokens that can appear at the start
+            if not tokens[current_index].type:
+                current_index += 1
+                continue
+
+            created_elements, new_index = self._dispatch_to_formatter(
+                tokens, current_index, section_directives
+            )
 
             if created_elements:
                 elements.extend(created_elements)
 
-            current_index = max(new_index, current_index + 1)
+            # FIXED: Correctly advance the index to the token AFTER the block
+            # that was just processed.
+            current_index = new_index + 1
 
         return elements
 
-    def find_closing_token(self, tokens: list[Token], open_token_index: int, close_tag_type: str) -> int:
+    def find_closing_token(
+        self, tokens: list[Token], open_token_index: int, close_tag_type: str
+    ) -> int:
         open_token = tokens[open_token_index]
         depth = 1
         for i in range(open_token_index + 1, len(tokens)):
@@ -162,16 +180,17 @@ class ContentParser:
         for formatter in self.formatters:
             if formatter.can_handle(token, tokens[current_index:]):
                 try:
-                    elements, end_index = formatter.process(tokens, current_index, section_directives)
+                    elements, end_index = formatter.process(
+                        tokens, current_index, section_directives
+                    )
                     if elements is not None:
                         return elements, end_index
                 except Exception as e:
-                    # REFACTORED: Re-raise exceptions to be caught by the main Parser.
-                    # MAINTAINS: Error logging for debuggability.
-                    # JUSTIFICATION: Swallowing exceptions here prevents the main parser from knowing a slide
-                    # failed, which in turn prevents the creation of a proper error slide. This fix
-                    # ensures failures are propagated correctly.
-                    logger.error(f"Error in {formatter.__class__.__name__}: {e}", exc_info=True)
+                    logger.error(
+                        f"Error in {formatter.__class__.__name__}: {e}", exc_info=True
+                    )
                     raise
 
+        # If no formatter can handle the token, return the current index.
+        # The main loop will increment by one to skip it.
         return [], current_index
