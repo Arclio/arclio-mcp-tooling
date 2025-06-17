@@ -77,3 +77,49 @@ class TestTextMetricsBugReproduction:
             "BUG CONFIRMED: Heading element height should be greater than regular text element height "
             "due to larger font size, but they are the same."
         )
+
+    def test_bug_line_spacing_directive_is_ignored_in_height_calculation(self):
+        """
+        Test Case: LAYOUT-BUG-05 (Custom ID)
+        Description: Exposes the bug where the `line-spacing` directive is not factored
+        into height calculations by the LayoutManager, leading to clipping.
+        Expected to Fail: YES. The calculated height will not reflect the line spacing multiplier.
+        """
+        # Arrange
+        text_content = "First Line\nSecond Line"
+        element_with_spacing = TextElement(
+            element_type=ElementType.TEXT,
+            text=text_content,
+            directives={"line-spacing": 2.0},  # 200% line spacing
+        )
+        element_without_spacing = TextElement(
+            element_type=ElementType.TEXT, text=text_content, directives={}
+        )
+        available_width = 500.0
+
+        # Act
+        height_with_spacing = calculate_text_element_height(
+            element_with_spacing, available_width
+        )
+        height_without_spacing = calculate_text_element_height(
+            element_without_spacing, available_width
+        )
+
+        # Assert
+        assert (
+            height_with_spacing > height_without_spacing
+        ), "BUG CONFIRMED: Element with line-spacing should have a greater height than one without."
+
+        font_size, default_multiplier, padding, _ = _get_typography_params(
+            ElementType.TEXT, {}
+        )
+        # More precise check
+        # Expected height should be roughly double (minus padding differences)
+        expected_ratio = 2.0 / default_multiplier
+        actual_ratio = (height_with_spacing - (padding * 2)) / (
+            height_without_spacing - (padding * 2)
+        )
+
+        assert (
+            abs(actual_ratio - expected_ratio) < 0.1
+        ), f"The height ratio ({actual_ratio:.2f}) does not match the expected line-spacing ratio ({expected_ratio:.2f})."

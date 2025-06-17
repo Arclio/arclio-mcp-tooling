@@ -1,4 +1,5 @@
 import logging
+import textwrap
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -76,11 +77,23 @@ class TextFormatter(BaseFormatter):
             )
             return [element], start_index
         if token.type == "code_block":
-            # Handle indented content that markdown-it misinterprets as code blocks
-            # Convert it back to regular text content
-            code_content = token.content.rstrip("\n")  # Remove trailing newlines
+            # FIXED: This logic now correctly handles indented text blocks by dedenting
+            # and re-parsing them for inline formatting, fixing both indentation and
+            # formatting-loss bugs.
+            raw_content = token.content
+            dedented_content = textwrap.dedent(raw_content).strip()
+
+            # Pass the dedented content to the standard text extraction method
+            # which can handle inline formatting.
+            text_content, formatting = self._extract_clean_text_and_formatting(
+                dedented_content
+            )
+
+            if not text_content:
+                return [], start_index
+
             element = self.element_factory.create_text_element(
-                code_content, [], AlignmentType.LEFT, merged_directives
+                text_content, formatting, AlignmentType.LEFT, merged_directives
             )
             return [element], start_index
 

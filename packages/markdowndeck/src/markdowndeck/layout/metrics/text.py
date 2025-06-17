@@ -139,6 +139,18 @@ def _get_typography_params(
         except (ValueError, TypeError):
             logger.warning(f"Invalid fontsize directive: {directives['fontsize']}")
 
+    # FIXED: Check for line-spacing directive and override the line height multiplier.
+    # This ensures layout calculations match the final rendering intent.
+    if "line-spacing" in directives:
+        try:
+            custom_line_spacing = float(directives["line-spacing"])
+            if custom_line_spacing > 0:
+                line_height = custom_line_spacing
+        except (ValueError, TypeError):
+            logger.warning(
+                f"Invalid line-spacing directive: {directives['line-spacing']}"
+            )
+
     return font_size, line_height, padding, min_height
 
 
