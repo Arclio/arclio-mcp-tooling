@@ -14,8 +14,6 @@ from markdowndeck.overflow.slide_builder import SlideBuilder
 
 logger = logging.getLogger(__name__)
 
-# A small buffer to prevent splitting content that *almost* fits due to
-# minor discrepancies between layout calculation and final rendering.
 OVERFLOW_SAFETY_MARGIN = 5.0
 
 
@@ -38,8 +36,6 @@ class StandardOverflowHandler:
     ) -> tuple["Slide", "Slide | None"]:
         """
         Orchestrates the overflow handling process. This is the main entry point.
-        REFACTORED: This method has been entirely rewritten to use a robust,
-        path-based partitioning algorithm that correctly handles nested content.
         """
         logger.debug(
             f"--- Overflow Handling Started for Element: {self._get_node_id(overflowing_element)} ---"
@@ -53,7 +49,6 @@ class StandardOverflowHandler:
             logger.debug(f"Assigned temporary ID to element: {temp_id}")
 
         available_height = self._calculate_available_height(slide, overflowing_element)
-        # FIXED: Apply safety margin to prevent premature splitting on edge cases.
         available_height -= OVERFLOW_SAFETY_MARGIN
         logger.debug(
             f"Available height for splitting (with margin): {available_height:.2f}pt"
@@ -104,7 +99,7 @@ class StandardOverflowHandler:
                 ].index(self._get_node_id(child_node))
             except ValueError:
                 logger.error(
-                    f"Logic Error: Node {self._get_node_id(child_node)} not found in parent {parent_section.id}. Aborting."
+                    f"Logic Error: Node {self._get_node_id(child_node)} not found in parent {self._get_node_id(parent_section)}. Aborting."
                 )
                 return deepcopy(slide), None
 
@@ -148,6 +143,9 @@ class StandardOverflowHandler:
 
     def _get_node_id(self, node: Union[Section, "Element"]) -> str | None:
         """Safely gets the unique ID of a Section (.id) or an Element (.object_id)."""
+        # REFACTORED: This is the new helper method to fix path-finding.
+        if node is None:
+            return None
         return getattr(node, "id", getattr(node, "object_id", None))
 
     def _find_path_to_parent(
@@ -157,6 +155,7 @@ class StandardOverflowHandler:
         Performs a DFS to find the path of Sections leading to the target's parent.
         Returns the list of sections, e.g., [root, child_section, grandchild_section].
         """
+        # REFACTORED: This method now uses the _get_node_id helper.
         if not target_id:
             return None
 

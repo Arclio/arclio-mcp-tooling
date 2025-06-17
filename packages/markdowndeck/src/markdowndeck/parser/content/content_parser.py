@@ -1,4 +1,5 @@
 import logging
+import textwrap
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -74,11 +75,11 @@ class ContentParser:
             )
             meta_elements.append(subtitle_element)
 
-        if root_section:
-            # This call mutates root_section in-place AND returns a flat list of all created body elements.
-            body_elements = self._populate_section_tree(root_section, base_directives)
-        else:
-            body_elements = []
+        body_elements = (
+            self._populate_section_tree(root_section, base_directives)
+            if root_section
+            else []
+        )
 
         if slide_footer_text:
             final_footer_directives = {**base_directives, **(footer_directives or {})}
@@ -103,13 +104,26 @@ class ContentParser:
         final_children: list[Element | Section] = []
 
         current_directives = {**inherited_directives, **section.directives}
+        logger.debug(
+            f"Populating section '{section.id}' with type '{section.type}' and {len(section.children)} children."
+        )
 
         for child in section.children:
             if isinstance(child, str):
-                tokens = self.md.parse(child)
+                logger.debug(
+                    f"Parsing raw string content in section '{section.id}':\n---\n{child}\n---"
+                )
+
+                # CRITICAL FIX: Normalize indentation to prevent markdown-it from
+                # misinterpreting indented content as code blocks
+                normalized_child = textwrap.dedent(child)
+
+                tokens = self.md.parse(normalized_child)
+                logger.debug(f"Generated {len(tokens)} tokens from raw string.")
                 parsed_elements = self._process_tokens_with_directive_detection(
                     tokens, current_directives
                 )
+                logger.debug(f"Parsed {len(parsed_elements)} elements from tokens.")
                 all_created_elements.extend(parsed_elements)
                 final_children.extend(parsed_elements)
             elif isinstance(child, Section):
@@ -129,14 +143,20 @@ class ContentParser:
         elements: list[Element] = []
         i = 0
         while i < len(tokens):
-            if tokens[i].type.endswith("_close"):
+            token = tokens[i]
+            logger.debug(
+                f"Processing token {i}: type={token.type}, level={token.level}, tag={token.tag}"
+            )
+            if token.type.endswith("_close"):
                 i += 1
                 continue
 
             processed = False
             for formatter in self.formatters:
-                if formatter.can_handle(tokens[i], tokens[i:]):
+                if formatter.can_handle(token, tokens[i:]):
                     try:
+                        # REFACTORED: The formatter now returns a list of elements,
+                        # which is correctly handled by `elements.extend()`.
                         created_elements, end_index = formatter.process(
                             tokens, i, section_directives
                         )
@@ -144,6 +164,9 @@ class ContentParser:
                             elements.extend(created_elements)
                         i = end_index + 1
                         processed = True
+                        logger.debug(
+                            f"Formatter '{formatter.__class__.__name__}' processed tokens up to index {end_index}. Next index: {i}."
+                        )
                         break
                     except Exception as e:
                         logger.error(

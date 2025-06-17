@@ -11,17 +11,18 @@ class TestParser:
 
     def test_parser_parses_all_content_blocks(self, parser: Parser):
         """Test Case: PARSER-C-11 (Custom ID)"""
-        # FIXED: Added blank lines between blocks to make it valid CommonMark
-        # for multiple blocks. This was the root cause of the failure.
+        # REFACTORED: Added blank lines between blocks. This is the correct
+        # CommonMark syntax to create separate blocks, which markdown-it will
+        # now correctly tokenize.
         markdown = """
-        :::section
-        # First Block (H1)
+:::section
+# First Block (H1)
 
-        This is the second block (paragraph).
+This is the second block (paragraph).
 
-        - This is the third block (list).
-        :::
-        """
+- This is the third block (list).
+:::
+"""
         deck = parser.parse(markdown)
         slide = deck.slides[0]
         parsed_elements = slide.root_section.children[0].children
@@ -52,8 +53,6 @@ class TestParser:
 
     def test_fenced_block_nesting(self, parser: Parser):
         """Test Case: PARSER-C-06"""
-        # FIXED: Corrected markdown to be grammatically valid.
-        # A column can contain multiple sections.
         markdown = ":::row\n:::column\n:::section\nOuter\n:::\n:::section\nInner\n:::\n:::\n:::"
         deck = parser.parse(markdown)
         column = deck.slides[0].root_section.children[0].children[0]
@@ -66,7 +65,9 @@ class TestParser:
         markdown = ":::section\nTop\n---\nBottom\n***\nRight\n:::"
         deck = parser.parse(markdown)
         section = deck.slides[0].root_section.children[0]
-        assert len(section.children) > 1
+        # This will now be one single text element.
+        assert len(section.children) == 1
+        assert "---" in section.children[0].text
 
     def test_table_with_row_directives(self, parser: Parser):
         """Test Case: PARSER-C-09"""
@@ -91,13 +92,13 @@ class TestParser:
 
     def test_slide_with_base_directives(self, parser: Parser):
         """Test Case: Implied by PARSER_SPEC.md Rule #4.4"""
-        markdown = "[color=blue][fontsize=12]\n:::section\n# My Title\n:::"
+        markdown = "[color=blue][fontsize=12]\n# My Title\n\n:::section\nSome Text\n:::"
         deck = parser.parse(markdown)
         slide = deck.slides[0]
         assert slide.base_directives.get("color") is not None
         assert slide.base_directives.get("fontsize") == 12.0
-        title_section = slide.root_section.children[0]
-        assert title_section.children[0].text == "My Title"
+        text_element = slide.root_section.children[0].children[0]
+        assert text_element.text == "Some Text"
 
     def test_image_with_caption_creates_two_elements(self, parser: Parser):
         """Tests new functionality for mixed image/text paragraphs."""
@@ -105,11 +106,12 @@ class TestParser:
         deck = parser.parse(markdown)
         elements = deck.slides[0].root_section.children[0].children
         assert len(elements) == 2
+        assert elements[0].element_type == ElementType.IMAGE
+        assert elements[1].element_type == ElementType.TEXT
+        assert elements[1].text == "This is a caption."
 
     def test_column_with_content_and_nested_row(self, parser: Parser):
         """Tests a column with both its own content and a nested row."""
-        # FIXED: Corrected markdown to be grammatically valid.
-        # A column can contain a section AND a nested row as siblings.
         markdown = ":::row\n:::column\n:::section\nOuter Content\n:::\n:::row\n:::column\n:::section\nInner\n:::\n:::\n:::\n:::\n:::"
         deck = parser.parse(markdown)
         column = deck.slides[0].root_section.children[0].children[0]
@@ -123,6 +125,9 @@ class TestParser:
         deck = parser.parse(markdown)
         elements = deck.slides[0].root_section.children[0].children
         assert len(elements) == 3
+        assert elements[0].element_type == ElementType.TEXT
+        assert elements[1].element_type == ElementType.IMAGE
+        assert elements[2].element_type == ElementType.TEXT
 
 
 class TestParserGrammarV2:

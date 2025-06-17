@@ -52,35 +52,41 @@ class FillContextOverflowHandler:
         logger.debug(
             "[Fill Handler] Sibling/Outside Overflow: Using standard handler then re-applying context."
         )
-
+        # REFACTORED: This is a simplified but more robust way to handle sibling overflow.
+        # We perform a standard split, then re-insert the context into the continuation.
         fitted_slide, continuation_slide = self.handler.handle_overflow(
             slide, overflowing_element, continuation_number
         )
 
         final_slides = [fitted_slide]
         if continuation_slide:
-            new_continuation_root = deepcopy(context_row)
-
+            # Deepcopy the original context row to put into the new slide.
+            new_context_row = deepcopy(context_row)
+            # The continuation slide's root has the overflowing content.
+            # We need to wrap it back into a structure that includes the context.
             overflowing_content_root = continuation_slide.root_section
-            if overflowing_content_root and overflowing_content_root.children:
-                # The standard handler will place overflowing content in a new root.
-                # We need to find where this content originally came from.
-                original_overflow_parent = self._find_parent_of_first_content(
-                    slide.root_section, overflowing_content_root.children[0]
+
+            # Find the original parent of the context row.
+            original_parent_path = self.handler._find_path_to_parent(
+                slide.root_section, context_row.id
+            )
+            if original_parent_path:
+                original_parent = original_parent_path[-1]
+                # Re-create a simplified version of the original parent to hold the context and overflow content
+                new_parent = Section(
+                    id=f"cont_{original_parent.id}",
+                    type=original_parent.type,
+                    children=[new_context_row, overflowing_content_root],
+                )
+                continuation_slide.root_section = new_parent
+            else:
+                # Fallback if parent not found: just put context and overflow side-by-side
+                continuation_slide.root_section = Section(
+                    id="cont_root",
+                    type="section",
+                    children=[new_context_row, overflowing_content_root],
                 )
 
-                if original_overflow_parent:
-                    # Inject the new content into the corresponding column in our copied context.
-                    target_column = self._find_section_by_id(
-                        new_continuation_root, original_overflow_parent.id
-                    )
-                    if target_column:
-                        target_column.children = overflowing_content_root.children
-                        logger.debug(
-                            f"[Fill Handler] Injected overflow content into matching column '{target_column.id}'."
-                        )
-
-            continuation_slide.root_section = new_continuation_root
             repositioned_continuation = self.manager.layout_manager.calculate_positions(
                 continuation_slide
             )
@@ -129,7 +135,7 @@ class FillContextOverflowHandler:
         try:
             child_ids = [self.handler._get_node_id(c) for c in parent_section.children]
             split_index = child_ids.index(context_row.id)
-        except ValueError:
+        except (ValueError, AttributeError):
             logger.error(
                 "[Fill Handler] Could not find context row in parent's children. Aborting."
             )
@@ -146,6 +152,7 @@ class FillContextOverflowHandler:
             logger.error(
                 "[Fill Handler] Failed to find parent in deepcopied fitted tree."
             )
+            self.manager._finalize_slide(slide)
             return [slide]
 
         fitted_slide = deepcopy(slide)
@@ -197,15 +204,6 @@ class FillContextOverflowHandler:
             ):
                 return True
         return False
-
-    def _find_parent_of_first_content(
-        self, root: "Section", content_element: "Element"
-    ) -> Optional["Section"]:
-        """Finds the direct parent section of a specific content element instance."""
-        path = self.handler._find_path_to_parent(
-            root, self.handler._get_node_id(content_element)
-        )
-        return path[-1] if path else None
 
     def _find_section_by_id(
         self, root: "Section", section_id: str

@@ -27,7 +27,6 @@ class SectionParser:
         Parse slide content into a single root section containing a hierarchy
         of explicitly defined fenced blocks, validating structure along the way.
         """
-        # Use a special "root" type to detect content outside any user-defined section.
         root_section = Section(id=f"root-{self._generate_id()}", type="root")
         section_stack: list[Section] = [root_section]
         content_buffer: list[str] = []
@@ -43,16 +42,15 @@ class SectionParser:
                 fence_type = match.group("type")
                 directives_str = (match.group("directives") or "").strip()
 
-                if fence_type:  # Opening fence, e.g., `:::section`
+                if fence_type:
                     parent_section = section_stack[-1]
                     self._validate_new_section_context(
                         fence_type, parent_section, line_num
                     )
-
                     new_section = self._create_new_section(fence_type, directives_str)
                     parent_section.children.append(new_section)
                     section_stack.append(new_section)
-                else:  # Closing fence `:::`
+                else:
                     if len(section_stack) > 1:
                         section_stack.pop()
                     else:
@@ -69,7 +67,6 @@ class SectionParser:
                 f"Found {len(section_stack) - 1} unclosed section(s). Every ':::' block must be closed with a ':::."
             )
 
-        # Check if the root_section itself has raw content, which is illegal.
         if any(
             isinstance(child, str) and child.strip() for child in root_section.children
         ):
@@ -84,31 +81,30 @@ class SectionParser:
         self, buffer: list[str], stack: list[Section], line_num: int
     ):
         """
-        Flushes the content buffer, splitting it into CommonMark blocks and appending
-        each block as a raw string child to the current section.
+        Flushes the content buffer as a single raw string. Block-level splitting
+        is the responsibility of the ContentParser.
         """
         if not buffer:
             return
 
-        full_content = "\n".join(buffer)
-        if not full_content.strip():
+        # PRESERVED: This logic correctly joins all lines into a single string without
+        # splitting by blank lines, which is required for the ContentParser fix.
+        full_content = "\n".join(buffer).strip()
+        if not full_content:
             return
 
-        # Split content by one or more blank lines to get individual markdown blocks
-        blocks = re.split(r"\n\s*\n", full_content.strip())
-
         current_section = stack[-1]
+        if current_section.type in ["row", "column"]:
+            if full_content:
+                raise GrammarError(
+                    f"Line {line_num}: Found renderable content directly inside a ':::{current_section.type}' block. This content must be moved inside a ':::section' block."
+                )
+            return
 
-        for block in blocks:
-            content_str = block.strip()
-            if content_str:
-                if current_section.type in ["row", "column"]:
-                    raise GrammarError(
-                        f"Line {line_num}: Found renderable content directly inside a ':::{current_section.type}' block. This content must be moved inside a ':::section' block."
-                    )
-                # Add the raw markdown block to the children list.
-                # The ContentParser will process this later.
-                current_section.children.append(content_str)
+        current_section.children.append(full_content)
+        logger.debug(
+            f"Flushed content block to section '{current_section.id}':\n---\n{full_content}\n---"
+        )
 
     def _validate_new_section_context(
         self, fence_type: str, parent_section: Section, line_num: int
@@ -124,8 +120,6 @@ class SectionParser:
                 f"Line {line_num}: Invalid nesting. A ':::{fence_type}' block cannot be a child of a ':::section' block. Sections can only contain content."
             )
 
-        # REINSTATE: A section cannot directly contain another section.
-        # This enforces the use of row/column for layout.
         if fence_type == "section" and parent_section.type == "section":
             raise GrammarError(
                 f"Line {line_num}: Invalid nesting. A ':::section' block cannot be a child of a ':::section' block. Use :::row and :::column for layout."
