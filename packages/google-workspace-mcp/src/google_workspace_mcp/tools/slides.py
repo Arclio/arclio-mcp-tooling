@@ -804,7 +804,7 @@ async def create_slide_from_template_data(
 
 @mcp.tool(
     name="create_slide_with_elements",
-    description="Create a complete slide with multiple elements (text boxes, images) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images. Now supports text colors and background colors with multiple color formats.",
+    description="Create a complete slide with multiple elements (text boxes, images, tables) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images. Now supports text colors and background colors with multiple color formats.",
 )
 async def create_slide_with_elements(
     presentation_id: str,
@@ -877,6 +877,24 @@ async def create_slide_with_elements(
                     "type": "image",
                     "content": "https://drive.google.com/file/d/.../view",
                     "position": {"x": 675, "y": 0, "width": 238, "height": 514}
+                },
+                {
+                    "type": "table",
+                    "content": {
+                        "headers": ["Category", "Metric"],
+                        "rows": [
+                            ["Reach & Visibility", "Total Impressions: 43,431,803"],
+                            ["Engagement", "Total Engagements: 134,431"],
+                            ["Media Value", "Ad Equivalency: $9.1 million"]
+                        ]
+                    },
+                    "position": {"x": 100, "y": 300, "width": 400, "height": 200},
+                    "style": {
+                        "headerStyle": {
+                            "bold": true,
+                            "backgroundColor": "#ff6b6b"
+                        }
+                    }
                 }
             ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")

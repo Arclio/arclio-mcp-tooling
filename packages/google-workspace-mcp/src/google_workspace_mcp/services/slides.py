@@ -1676,18 +1676,33 @@ class SlidesService(BaseGoogleService):
     ) -> dict[str, Any]:
         """
         Create a complete slide with multiple elements in a single batch operation.
-        This is a generic approach that treats all content as elements (text boxes, images, etc.).
+        This is a generic approach that treats all content as elements (text boxes, images, tables, etc.).
 
         Args:
             presentation_id: The ID of the presentation
             slide_id: The ID of the slide
             elements: List of element dictionaries, each containing:
                 {
-                    "type": "textbox" | "image",
-                    "content": "text content" | "image_url",
+                    "type": "textbox" | "image" | "table",
+                    "content": "text content" | "image_url" | {"headers": [...], "rows": [[...]]},
                     "position": {"x": float, "y": float, "width": float, "height": float},
-                    "style": {"fontSize": float, "fontFamily": str, "bold": bool, etc.} (for textbox only)
+                    "style": styling options (varies by element type)
                 }
+
+                For textbox elements:
+                    "style": {"fontSize": float, "fontFamily": str, "bold": bool, etc.}
+
+                For table elements:
+                    "content": {
+                        "headers": ["Header 1", "Header 2", ...],  # Optional
+                        "rows": [["Cell 1", "Cell 2", ...], ...]
+                    }
+                    "style": {
+                        "headerStyle": {
+                            "bold": bool,
+                            "backgroundColor": "#color"
+                        }
+                    }
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
             background_image_url: Optional slide background image URL (takes precedence over background_color)
 
@@ -1753,6 +1768,10 @@ class SlidesService(BaseGoogleService):
                 elif element["type"] == "image":
                     requests.append(
                         self._build_image_request_generic(element_id, slide_id, element)
+                    )
+                elif element["type"] == "table":
+                    requests.extend(
+                        self._build_table_request_generic(element_id, slide_id, element)
                     )
 
             logger.info(
@@ -2110,6 +2129,149 @@ class SlidesService(BaseGoogleService):
         # If neither width nor height specified, omit size - image uses natural dimensions
 
         return request
+
+    def _build_table_request_generic(
+        self, object_id: str, slide_id: str, element: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Generic helper to build table creation requests with data population"""
+        pos = element["position"]
+        content = element["content"]
+
+        # Extract table data
+        headers = content.get("headers", [])
+        rows_data = content.get("rows", [])
+
+        # Calculate table dimensions
+        num_rows = len(rows_data) + (
+            1 if headers else 0
+        )  # Add 1 for headers if present
+        num_columns = max(
+            len(headers) if headers else 0,
+            max(len(row) for row in rows_data) if rows_data else 0,
+        )
+
+        if num_columns == 0 or num_rows == 0:
+            logger.warning("Table has no data, skipping creation")
+            return []
+
+        requests = []
+
+        # Create table request
+        create_table_request = {
+            "createTable": {
+                "objectId": object_id,
+                "elementProperties": {
+                    "pageObjectId": slide_id,
+                    "size": {
+                        "width": {"magnitude": pos["width"], "unit": "PT"},
+                        "height": {"magnitude": pos["height"], "unit": "PT"},
+                    },
+                    "transform": {
+                        "scaleX": 1,
+                        "scaleY": 1,
+                        "translateX": pos["x"],
+                        "translateY": pos["y"],
+                        "unit": "PT",
+                    },
+                },
+                "rows": num_rows,
+                "columns": num_columns,
+            }
+        }
+        requests.append(create_table_request)
+
+        # Populate table with data
+        current_row = 0
+
+        # Insert headers if present
+        if headers:
+            for col_index, header_text in enumerate(headers):
+                if col_index < num_columns and header_text:
+                    requests.append(
+                        {
+                            "insertText": {
+                                "objectId": object_id,
+                                "cellLocation": {
+                                    "rowIndex": current_row,
+                                    "columnIndex": col_index,
+                                },
+                                "text": str(header_text),
+                                "insertionIndex": 0,
+                            }
+                        }
+                    )
+            current_row += 1
+
+        # Insert row data
+        for row_index, row in enumerate(rows_data):
+            table_row_index = current_row + row_index
+            for col_index, cell_text in enumerate(row):
+                if col_index < num_columns and cell_text and table_row_index < num_rows:
+                    requests.append(
+                        {
+                            "insertText": {
+                                "objectId": object_id,
+                                "cellLocation": {
+                                    "rowIndex": table_row_index,
+                                    "columnIndex": col_index,
+                                },
+                                "text": str(cell_text),
+                                "insertionIndex": 0,
+                            }
+                        }
+                    )
+
+        # Optional: Add table styling if specified
+        style = element.get("style", {})
+        if style:
+            # Add header row styling if headers are present
+            if headers and style.get("headerStyle"):
+                header_style = style["headerStyle"]
+                for col_index in range(len(headers)):
+                    if header_style.get("bold"):
+                        requests.append(
+                            {
+                                "updateTextStyle": {
+                                    "objectId": object_id,
+                                    "cellLocation": {
+                                        "rowIndex": 0,
+                                        "columnIndex": col_index,
+                                    },
+                                    "style": {"bold": True},
+                                    "fields": "bold",
+                                }
+                            }
+                        )
+
+                    if header_style.get("backgroundColor"):
+                        color_obj, alpha = self._parse_color_with_alpha(
+                            header_style["backgroundColor"]
+                        )
+                        if color_obj:
+                            requests.append(
+                                {
+                                    "updateTableCellProperties": {
+                                        "objectId": object_id,
+                                        "tableRange": {
+                                            "location": {
+                                                "rowIndex": 0,
+                                                "columnIndex": col_index,
+                                            }
+                                        },
+                                        "tableCellProperties": {
+                                            "tableCellBackgroundFill": {
+                                                "solidFill": {
+                                                    "color": color_obj,
+                                                    "alpha": alpha,
+                                                }
+                                            }
+                                        },
+                                        "fields": "tableCellBackgroundFill",
+                                    }
+                                }
+                            )
+
+        return requests
 
     def _hex_to_rgb(self, hex_color: str) -> dict[str, float]:
         """Convert hex color to RGB values (0-1 range)"""
