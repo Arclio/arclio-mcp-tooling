@@ -893,7 +893,10 @@ async def create_slide_with_elements(
                         "headerStyle": {
                             "bold": true,
                             "backgroundColor": "#ff6b6b"
-                        }
+                        },
+                        "firstColumnBold": true,
+                        "fontSize": 12,
+                        "fontFamily": "Roboto"
                     }
                 }
             ]
@@ -937,6 +940,12 @@ async def create_slide_with_elements(
         - Allows different fonts, sizes, colors, and formatting for different parts of text
         - Perfect for stats with large numbers + small labels in same textbox
         - Each textRange can have its own textColor and backgroundColor
+
+    Table Formatting Best Practices:
+        - Use "firstColumnBold": true to emphasize categories/left column
+        - Headers: Bold with colored backgrounds (e.g., "#ff6b6b" for brand consistency)
+        - Structure: Clear headers with organized data rows
+        - Professional appearance with proper cell spacing
 
     Returns:
         Response data confirming slide creation or raises error
