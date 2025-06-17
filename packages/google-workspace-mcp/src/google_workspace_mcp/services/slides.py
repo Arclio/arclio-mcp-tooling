@@ -2221,8 +2221,65 @@ class SlidesService(BaseGoogleService):
                         }
                     )
 
-        # Optional: Add table styling if specified
+        # Add default table styling
         style = element.get("style", {})
+
+        # Add borders to all cells by default
+        for row_idx in range(num_rows):
+            for col_idx in range(num_columns):
+                requests.append(
+                    {
+                        "updateTableCellProperties": {
+                            "objectId": object_id,
+                            "tableRange": {
+                                "location": {
+                                    "rowIndex": row_idx,
+                                    "columnIndex": col_idx,
+                                },
+                                "rowSpan": 1,
+                                "columnSpan": 1,
+                            },
+                            "tableCellProperties": {
+                                "tableCellBorderProperties": {
+                                    "tableBorderFill": {
+                                        "solidFill": {
+                                            "color": {
+                                                "opaqueColor": {
+                                                    "rgbColor": {
+                                                        "red": 0.8,
+                                                        "green": 0.8,
+                                                        "blue": 0.8,
+                                                    }
+                                                }
+                                            },
+                                            "alpha": 1.0,
+                                        }
+                                    },
+                                    "weight": {"magnitude": 1, "unit": "PT"},
+                                }
+                            },
+                            "fields": "tableCellBorderProperties",
+                        }
+                    }
+                )
+
+        # Make first column bold by default
+        for row_idx in range(num_rows):
+            requests.append(
+                {
+                    "updateTextStyle": {
+                        "objectId": object_id,
+                        "cellLocation": {
+                            "rowIndex": row_idx,
+                            "columnIndex": 0,
+                        },
+                        "style": {"bold": True},
+                        "fields": "bold",
+                    }
+                }
+            )
+
+        # Add custom styling if specified
         if style:
             # Add header row styling if headers are present
             if headers and style.get("headerStyle"):
