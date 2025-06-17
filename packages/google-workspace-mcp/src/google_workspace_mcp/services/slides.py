@@ -1679,38 +1679,119 @@ class SlidesService(BaseGoogleService):
     ) -> dict[str, Any]:
         """
         Create a complete slide with multiple elements in a single batch operation.
-        Can optionally create the slide itself, eliminating the two-call pattern.
+        NOW SUPPORTS CREATING THE SLIDE ITSELF - eliminates the two-call pattern!
 
         Args:
             presentation_id: The ID of the presentation
-            slide_id: The ID of the slide
-            elements: List of element dictionaries, each containing:
-                {
-                    "type": "textbox" | "image" | "table",
-                    "content": "text content" | "image_url" | {"headers": [...], "rows": [[...]]},
-                    "position": {"x": float, "y": float, "width": float, "height": float},
-                    "style": styling options (varies by element type)
-                }
-
-                For textbox elements:
-                    "style": {"fontSize": float, "fontFamily": str, "bold": bool, etc.}
-
-                For table elements:
-                    "content": {
-                        "headers": ["Header 1", "Header 2", ...],  # Optional
-                        "rows": [["Cell 1", "Cell 2", ...], ...]
-                    }
-                    "style": {
-                        "headerStyle": {
-                            "bold": bool,
-                            "backgroundColor": "#color"
+            slide_id: The ID of the slide (optional if create_slide=True)
+            elements: List of element dictionaries (optional, can create empty slide), example:
+                [
+                    {
+                        "type": "textbox",
+                        "content": "Slide Title",
+                        "position": {"x": 282, "y": 558, "width": 600, "height": 45},
+                        "style": {
+                            "fontSize": 25,
+                            "fontFamily": "Playfair Display",
+                            "bold": True,
+                            "textAlignment": "CENTER",
+                            "verticalAlignment": "MIDDLE",
+                            "textColor": "#FFFFFF",  # White text
+                            "backgroundColor": "#FFFFFF80"  # Semi-transparent white background
+                        }
+                    },
+                    {
+                        "type": "textbox",
+                        "content": "43.4M\nTOTAL IMPRESSIONS",
+                        "position": {"x": 333, "y": 4059, "width": 122, "height": 79},
+                        "textRanges": [
+                            {
+                                "startIndex": 0,
+                                "endIndex": 5,
+                                "style": {
+                                    "fontSize": 25,
+                                    "fontFamily": "Playfair Display",
+                                    "bold": True,
+                                    "textColor": "#FF0000"  # Red text for the number
+                                }
+                            },
+                            {
+                                "startIndex": 6,
+                                "endIndex": 22,
+                                "style": {
+                                    "fontSize": 7.5,
+                                    "fontFamily": "Roboto",
+                                    "backgroundColor": "#FFFF0080"  # Semi-transparent yellow background for label
+                                }
+                            }
+                        ],
+                        "style": {"textAlignment": "CENTER"}
+                    },
+                    {
+                        "type": "image",
+                        "content": "https://drive.google.com/file/d/.../view",
+                        "position": {"x": 675, "y": 0, "width": 238, "height": 514}
+                    },
+                    {
+                        "type": "table",
+                        "content": {
+                            "headers": ["Category", "Metric"],
+                            "rows": [
+                                ["Reach & Visibility", "Total Impressions: 43,431,803"],
+                                ["Engagement", "Total Engagements: 134,431"]
+                            ]
+                        },
+                        "position": {"x": 100, "y": 300, "width": 400, "height": 200},
+                        "style": {
+                            "headerStyle": {
+                                "bold": true,
+                                "backgroundColor": "#ff6b6b"
+                            },
+                            "firstColumnBold": true,
+                            "fontSize": 12,
+                            "fontFamily": "Roboto"
                         }
                     }
+                ]
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
             background_image_url: Optional slide background image URL (takes precedence over background_color)
-            create_slide: If True, creates the slide first. If False, adds elements to existing slide.
-            layout: Layout for new slide (only used if create_slide=True)
+                                 Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
+            create_slide: If True, creates the slide first. If False, adds elements to existing slide. (default: False)
+            layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
             insert_at_index: Position for new slide (only used if create_slide=True)
+
+        Text Color Support:
+            - "textColor": "#FFFFFF" - White text (recommended)
+            - "color": "#000000" - Black text (alternative)
+            - "foregroundColor": "#333333" - Dark gray text (alternative)
+            - All three are equivalent, use whichever you prefer
+            - Supports 6-character hex codes: "#FFFFFF", "#000000", "#FF5733"
+            - Supports 8-character hex codes with alpha: "#FFFFFF80" (alpha ignored for text)
+            - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)" (alpha ignored for text)
+            - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
+
+        Background Color Support:
+            - "backgroundColor": "#FFFFFF80" - Semi-transparent white background
+            - "backgroundColor": "rgba(255, 255, 255, 0.5)" - Semi-transparent white background (CSS format)
+            - Supports same color formats as text colors
+            - 8-character hex codes supported: "#FFFFFF80" (alpha channel properly applied)
+            - CSS rgba() format supported: "rgba(255, 255, 255, 0.5)" (alpha channel properly applied)
+            - Works in main "style" object for entire text box background
+            - Creates semi-transparent background for the entire text box shape
+
+        Advanced textRanges formatting:
+            For mixed formatting within a single textbox, use "textRanges" instead of "style":
+            - textRanges: Array of formatting ranges with startIndex, endIndex, and style
+            - Allows different fonts, sizes, colors, and formatting for different parts of text
+            - Perfect for stats with large numbers + small labels in same textbox
+            - Each textRange can have its own textColor and backgroundColor
+
+        Benefits:
+            - Reduces API calls from 2+ to 1 (when create_slide=True)
+            - Atomic operation (all succeed or all fail)
+            - Better performance
+            - Backward compatible (create_slide=False is default)
+            - Comprehensive formatting support
 
         Returns:
             Response data or error information
