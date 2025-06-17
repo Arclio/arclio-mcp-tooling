@@ -804,22 +804,26 @@ async def create_slide_from_template_data(
 
 @mcp.tool(
     name="create_slide_with_elements",
-    description="Create a complete slide with multiple elements (text boxes, images, tables) in a single batch operation. Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images. Now supports text colors and background colors with multiple color formats.",
+    description="Create a complete slide with multiple elements (text boxes, images, tables) in a single batch operation. NOW SUPPORTS CREATING THE SLIDE ITSELF - set create_slide=True to eliminate the two-call pattern! Generic approach that treats all content as positioned elements. Perfect for creating template-based slides efficiently. Supports both background colors and background images with comprehensive text and background color formatting.",
 )
 async def create_slide_with_elements(
     presentation_id: str,
-    slide_id: str,
-    elements: list[dict[str, Any]],
+    slide_id: str | None = None,
+    elements: list[dict[str, Any]] | None = None,
     background_color: str | None = None,
     background_image_url: str | None = None,
+    create_slide: bool = False,
+    layout: str = "BLANK",
+    insert_at_index: int | None = None,
 ) -> dict[str, Any]:
     """
     Create a complete slide with multiple elements in one batch operation.
+    NOW SUPPORTS CREATING THE SLIDE ITSELF - eliminates the two-call pattern!
 
     Args:
         presentation_id: The ID of the presentation
-        slide_id: The ID of the slide
-        elements: List of element dictionaries, example:
+        slide_id: The ID of the slide (optional if create_slide=True)
+        elements: List of element dictionaries (optional, can create empty slide), example:
             [
                 {
                     "type": "textbox",
@@ -903,6 +907,9 @@ async def create_slide_with_elements(
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
         background_image_url: Optional slide background image URL (takes precedence over background_color)
                              Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
+        create_slide: If True, creates the slide first. If False, adds elements to existing slide. (default: False)
+        layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
+        insert_at_index: Position for new slide (only used if create_slide=True)
 
     Text Color Support:
         - "textColor": "#FFFFFF" - White text (recommended)
@@ -947,16 +954,68 @@ async def create_slide_with_elements(
         - Structure: Clear headers with organized data rows
         - Professional appearance with proper cell spacing
 
+    Usage Examples:
+        # NEW OPTIMIZED WAY - Single API call to create slide with elements:
+        result = await create_slide_with_elements(
+            presentation_id="abc123",
+            elements=[
+                {
+                    "type": "textbox",
+                    "content": "Slide Title",
+                    "position": {"x": 100, "y": 100, "width": 400, "height": 50},
+                    "style": {"fontSize": 18, "bold": True, "textColor": "#FFFFFF"}
+                },
+                {
+                    "type": "image",
+                    "content": "https://images.unsplash.com/...",
+                    "position": {"x": 375, "y": 35, "width": 285, "height": 215}
+                }
+            ],
+            create_slide=True,  # Creates slide AND adds elements
+            layout="BLANK",
+            background_color="#f8cdcd4f"
+        )
+        # Returns: {"slideId": "auto_generated_id", "slideCreated": True, "elementsAdded": 2}
+
+        # Add elements to existing slide (original behavior):
+        result = await create_slide_with_elements(
+            presentation_id="abc123",
+            slide_id="existing_slide_123",
+            elements=[...],
+            create_slide=False  # Only adds elements (default)
+        )
+
+        # Create slide without elements (just background):
+        result = await create_slide_with_elements(
+            presentation_id="abc123",
+            create_slide=True,
+            background_image_url="https://images.unsplash.com/..."
+        )
+
+    Benefits:
+        - Reduces API calls from 2+ to 1 (when create_slide=True)
+        - Atomic operation (all succeed or all fail)
+        - Better performance
+        - Backward compatible (create_slide=False is default)
+        - Comprehensive formatting support
+        - Mixed text formatting with textRanges
+        - Professional table styling
+        - Multiple color format support
+
     Returns:
         Response data confirming slide creation or raises error
     """
     logger.info(
-        f"Executing create_slide_with_elements on slide '{slide_id}' with {len(elements)} elements"
+        f"Executing create_slide_with_elements (create_slide={create_slide}, elements={len(elements or [])})"
     )
-    if not presentation_id or not slide_id or not elements:
-        raise ValueError("Presentation ID, Slide ID, and Elements are required")
 
-    if not isinstance(elements, list):
+    if not presentation_id:
+        raise ValueError("Presentation ID is required")
+
+    if not create_slide and not slide_id:
+        raise ValueError("slide_id is required when create_slide=False")
+
+    if elements and not isinstance(elements, list):
         raise ValueError("Elements must be a list")
 
     slides_service = SlidesService()
@@ -966,6 +1025,9 @@ async def create_slide_with_elements(
         elements=elements,
         background_color=background_color,
         background_image_url=background_image_url,
+        create_slide=create_slide,
+        layout=layout,
+        insert_at_index=insert_at_index,
     )
 
     if isinstance(result, dict) and result.get("error"):

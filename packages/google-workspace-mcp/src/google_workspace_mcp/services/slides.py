@@ -1669,14 +1669,17 @@ class SlidesService(BaseGoogleService):
     def create_slide_with_elements(
         self,
         presentation_id: str,
-        slide_id: str,
-        elements: list[dict[str, Any]],
+        slide_id: str | None = None,
+        elements: list[dict[str, Any]] | None = None,
         background_color: str | None = None,
         background_image_url: str | None = None,
+        create_slide: bool = False,
+        layout: str = "BLANK",
+        insert_at_index: int | None = None,
     ) -> dict[str, Any]:
         """
         Create a complete slide with multiple elements in a single batch operation.
-        This is a generic approach that treats all content as elements (text boxes, images, tables, etc.).
+        Can optionally create the slide itself, eliminating the two-call pattern.
 
         Args:
             presentation_id: The ID of the presentation
@@ -1705,6 +1708,9 @@ class SlidesService(BaseGoogleService):
                     }
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
             background_image_url: Optional slide background image URL (takes precedence over background_color)
+            create_slide: If True, creates the slide first. If False, adds elements to existing slide.
+            layout: Layout for new slide (only used if create_slide=True)
+            insert_at_index: Position for new slide (only used if create_slide=True)
 
         Returns:
             Response data or error information
@@ -1713,73 +1719,136 @@ class SlidesService(BaseGoogleService):
             import time
 
             requests = []
+            final_slide_id = slide_id
 
-            # Set background image or color if specified
-            # Background image takes precedence over background color
-            if background_image_url:
-                logger.info(f"Setting slide background image: {background_image_url}")
-                requests.append(
-                    {
-                        "updatePageProperties": {
-                            "objectId": slide_id,
-                            "pageProperties": {
-                                "pageBackgroundFill": {
-                                    "stretchedPictureFill": {
-                                        "contentUrl": background_image_url
-                                    }
-                                }
-                            },
-                            "fields": "pageBackgroundFill",
-                        }
+            # Step 1: Create slide if requested
+            if create_slide:
+                if not final_slide_id:
+                    final_slide_id = f"slide_{int(time.time() * 1000)}"
+
+                slide_request = {
+                    "createSlide": {
+                        "objectId": final_slide_id,
+                        "slideLayoutReference": {"predefinedLayout": layout},
                     }
-                )
-            elif background_color:
-                logger.info(f"Setting slide background color: {background_color}")
-                requests.append(
-                    {
-                        "updatePageProperties": {
-                            "objectId": slide_id,
-                            "pageProperties": {
-                                "pageBackgroundFill": {
-                                    "solidFill": {
-                                        "color": {
-                                            "rgbColor": self._hex_to_rgb(
-                                                background_color
-                                            )
+                }
+
+                if insert_at_index is not None:
+                    slide_request["createSlide"]["insertionIndex"] = insert_at_index
+
+                requests.append(slide_request)
+                logger.info(f"Added createSlide request for slide ID: {final_slide_id}")
+            elif not final_slide_id:
+                raise ValueError("slide_id is required when create_slide=False")
+
+            # Step 2: Set background image or color if specified
+            if final_slide_id and (background_image_url or background_color):
+                if background_image_url:
+                    logger.info(
+                        f"Setting slide background image: {background_image_url}"
+                    )
+                    requests.append(
+                        {
+                            "updatePageProperties": {
+                                "objectId": final_slide_id,
+                                "pageProperties": {
+                                    "pageBackgroundFill": {
+                                        "stretchedPictureFill": {
+                                            "contentUrl": background_image_url
                                         }
                                     }
-                                }
-                            },
-                            "fields": "pageBackgroundFill.solidFill.color",
+                                },
+                                "fields": "pageBackgroundFill",
+                            }
                         }
-                    }
-                )
-
-            # Process each element
-            for i, element in enumerate(elements):
-                element_id = f"element_{int(time.time() * 1000)}_{i}"
-
-                if element["type"] == "textbox":
-                    requests.extend(
-                        self._build_textbox_requests_generic(
-                            element_id, slide_id, element
-                        )
                     )
-                elif element["type"] == "image":
+                elif background_color:
+                    logger.info(f"Setting slide background color: {background_color}")
                     requests.append(
-                        self._build_image_request_generic(element_id, slide_id, element)
+                        {
+                            "updatePageProperties": {
+                                "objectId": final_slide_id,
+                                "pageProperties": {
+                                    "pageBackgroundFill": {
+                                        "solidFill": {
+                                            "color": {
+                                                "rgbColor": self._hex_to_rgb(
+                                                    background_color
+                                                )
+                                            }
+                                        }
+                                    }
+                                },
+                                "fields": "pageBackgroundFill.solidFill.color",
+                            }
+                        }
                     )
-                elif element["type"] == "table":
-                    requests.extend(
-                        self._build_table_request_generic(element_id, slide_id, element)
-                    )
+
+            # Step 3: Process each element
+            if elements and final_slide_id:
+                for i, element in enumerate(elements):
+                    element_id = f"element_{int(time.time() * 1000)}_{i}"
+
+                    if element["type"] == "textbox":
+                        requests.extend(
+                            self._build_textbox_requests_generic(
+                                element_id, final_slide_id, element
+                            )
+                        )
+                    elif element["type"] == "image":
+                        requests.append(
+                            self._build_image_request_generic(
+                                element_id, final_slide_id, element
+                            )
+                        )
+                    elif element["type"] == "table":
+                        requests.extend(
+                            self._build_table_request_generic(
+                                element_id, final_slide_id, element
+                            )
+                        )
 
             logger.info(
-                f"Built {len(requests)} requests for slide with {len(elements)} elements"
+                f"Built {len(requests)} requests for slide (create_slide={create_slide}, elements={len(elements or [])})"
             )
 
             # Execute batch update
-            return self.batch_update(presentation_id, requests)
+            if requests:
+                batch_result = self.batch_update(presentation_id, requests)
+
+                # Extract slide ID from response if we created a new slide
+                if create_slide and batch_result.get("replies"):
+                    # The first reply should be the createSlide response
+                    create_slide_reply = batch_result["replies"][0].get(
+                        "createSlide", {}
+                    )
+                    if create_slide_reply:
+                        final_slide_id = create_slide_reply.get(
+                            "objectId", final_slide_id
+                        )
+
+                return {
+                    "presentationId": presentation_id,
+                    "slideId": final_slide_id,
+                    "operation": (
+                        "create_slide_with_elements"
+                        if create_slide
+                        else "update_slide_with_elements"
+                    ),
+                    "result": "success",
+                    "slideCreated": create_slide,
+                    "elementsAdded": len(elements or []),
+                    "totalRequests": len(requests),
+                    "batchResult": batch_result,
+                }
+            else:
+                return {
+                    "presentationId": presentation_id,
+                    "slideId": final_slide_id,
+                    "operation": "no_operation",
+                    "result": "success",
+                    "message": "No requests generated",
+                }
 
         except Exception as e:
             return self.handle_api_error("create_slide_with_elements", e)
