@@ -96,7 +96,8 @@ class SlideExtractor:
                 continue
 
             stripped_line = line.strip()
-            if not stripped_line:  # Skip blank lines between elements
+            if not stripped_line:  # Preserve blank lines in body content
+                body_content_lines.append(line)
                 continue
 
             # Check if the line consists ONLY of directives
