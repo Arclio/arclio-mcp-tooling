@@ -2256,7 +2256,9 @@ class SlidesService(BaseGoogleService):
                                             "location": {
                                                 "rowIndex": 0,
                                                 "columnIndex": col_index,
-                                            }
+                                            },
+                                            "rowSpan": 1,
+                                            "columnSpan": 1,
                                         },
                                         "tableCellProperties": {
                                             "tableCellBackgroundFill": {
