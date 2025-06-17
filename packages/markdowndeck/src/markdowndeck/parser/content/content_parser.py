@@ -103,33 +103,55 @@ class ContentParser:
         self, section: Section, inherited_directives: dict
     ) -> list[Element]:
         """
-        Recursively traverses the section tree, parsing raw content strings into
-        Element objects and replacing them in the section's children list.
-        Returns a flat list of all created elements.
+        Recursively traverses the section tree, parsing raw content strings into Element objects.
         """
         all_created_elements: list[Element] = []
         final_children: list[Element | Section] = []
 
         current_directives = {**inherited_directives, **section.directives}
-        logger.debug(
-            f"Populating section '{section.id}' with type '{section.type}' and {len(section.children)} children."
-        )
 
         for child in section.children:
             if isinstance(child, str):
                 logger.debug(
-                    f"Parsing raw string content in section '{section.id}':\n---\n{child}\n---"
+                    f"--- PARSING RAW CONTENT in section '{section.id}' ---\n{child}\n---------------------------------"
                 )
-                # PRESERVED: Dedenting content to handle code-like indentation.
-                dedented_content = textwrap.dedent(child)
-                tokens = self.md.parse(dedented_content)
-                logger.debug(f"Generated {len(tokens)} tokens from raw string.")
+
+                # Dedent the block to handle indented section content correctly
+                cleaned_content = textwrap.dedent(child).strip()
+
+                logger.debug(
+                    f"--- Cleaned (dedented) content for parsing ---\n{cleaned_content}\n---------------------------------"
+                )
+
+                tokens = self.md.parse(cleaned_content)
+
+                token_log = "\n".join(
+                    [
+                        f"  - Token[{i}]: type={t.type}, tag={t.tag}, level={t.level}, nesting={t.nesting}, content='{getattr(t, 'content', '')[:50]}...'"
+                        for i, t in enumerate(tokens)
+                    ]
+                )
+                logger.debug(
+                    f"--- Generated {len(tokens)} tokens ---\n{token_log}\n---------------------------------"
+                )
+
                 parsed_elements = self._process_tokens_with_directive_detection(
                     tokens, current_directives
                 )
-                logger.debug(f"Parsed {len(parsed_elements)} elements from tokens.")
+
+                elements_log = "\n".join(
+                    [
+                        f"  - Element: type={e.element_type.value}, text='{getattr(e, 'text', getattr(e, 'code', ''))[:30]}...'"
+                        for e in parsed_elements
+                    ]
+                )
+                logger.debug(
+                    f"--- Parsed {len(parsed_elements)} elements from content ---\n{elements_log}\n---------------------------------"
+                )
+
                 all_created_elements.extend(parsed_elements)
                 final_children.extend(parsed_elements)
+
             elif isinstance(child, Section):
                 created_in_child = self._populate_section_tree(
                     child, current_directives
