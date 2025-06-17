@@ -38,8 +38,6 @@ def calculate_image_display_size(
     """
     Calculate the display size for an image element with comprehensive proactive scaling.
     This is the single source of truth for URL validation and graceful failure.
-
-    UPDATED: Supports [fill] directive when parent context is available.
     """
     image_element = (
         cast(ImageElement, element)
@@ -47,42 +45,29 @@ def calculate_image_display_size(
         else ImageElement(**element)
     )
 
-    # REFACTORED: Instead of skipping invalid images by returning (0,0), substitute a placeholder URL.
-    # This ensures that the layout remains consistent and the presentation doesn't
-    # fail due to an inaccessible image or an overly long data URL.
-    # JUSTIFICATION: Implements Action Plan 1.2 to fix image handling. This is the core fix.
     if not is_valid_image_url(image_element.url):
         from markdowndeck.api.placeholder import create_placeholder_image_url
 
         logger.warning(
             f"Image URL failed validation: {image_element.url}. Substituting with a placeholder URL."
         )
-        # PARSER_SPEC mandates width/height directives, so we can use them for placeholder text.
         width_directive = image_element.directives.get("width", 300)
         height_directive = image_element.directives.get("height", 200)
 
-        # The dimensions passed here are for the placeholder generation service, not the final layout.
         image_element.url = create_placeholder_image_url(
             400, 300, f"Invalid Image\n{width_directive} x {height_directive}"
         )
-        # Now the function continues with a valid (placeholder) URL.
 
-    # NEW: Handle [fill] directive - but only if the image doesn't already have its final size set
-    # (The fill directive will be processed in a separate pass after all section sizes are known)
     if hasattr(image_element, "directives") and image_element.directives:
         directives = image_element.directives
         has_fill = directives.get("fill", False)
         has_width = "width" in directives
         has_height = "height" in directives
 
-        # Per Task 2 clarification: If width and height are present, they take precedence over [fill]
         if has_fill and not (has_width and has_height):
-            # If the image already has its final size set (from fill processing), use it
             if hasattr(image_element, "size") and image_element.size:
                 return image_element.size
 
-            # Otherwise, this is likely the initial intrinsic sizing pass
-            # Use available dimensions as a placeholder - will be corrected in fill processing pass
             temp_width = available_width
             temp_height = (
                 available_height if available_height > 0 else available_width * 9 / 16
@@ -90,11 +75,11 @@ def calculate_image_display_size(
             image_element.size = (temp_width, temp_height)
             return temp_width, temp_height
 
-    # Continue with normal image scaling logic
     aspect_ratio = _get_image_aspect_ratio(image_element)
     if aspect_ratio <= 0:
         aspect_ratio = DEFAULT_IMAGE_ASPECT_RATIO
 
+    # FIXED: The element's preferred size (from directives) must be constrained by the actual available space.
     target_width, target_height = _apply_element_size_directives(
         image_element, available_width, available_height
     )
@@ -151,7 +136,6 @@ def _apply_element_size_directives(
     if hasattr(element, "directives") and element.directives:
         directives = element.directives
 
-        # Standard width/height directive processing
         if "width" in directives:
             width_directive = directives["width"]
             try:
@@ -165,16 +149,30 @@ def _apply_element_size_directives(
             except (ValueError, TypeError):
                 logger.warning(f"Invalid width directive on image: {width_directive}")
 
-        if "height" in directives and available_height > 0:
+        if "height" in directives:
             height_directive = directives["height"]
             try:
+                # Calculate the height specified by the directive
+                calculated_directive_height = float("inf")
                 if isinstance(height_directive, str) and "%" in height_directive:
-                    percentage = float(height_directive.strip("%")) / 100.0
-                    target_height = available_height * percentage
+                    if available_height > 0:
+                        percentage = float(height_directive.strip("%")) / 100.0
+                        calculated_directive_height = available_height * percentage
                 elif isinstance(height_directive, float) and 0 < height_directive <= 1:
-                    target_height = available_height * height_directive
+                    if available_height > 0:
+                        calculated_directive_height = (
+                            available_height * height_directive
+                        )
                 elif isinstance(height_directive, int | float) and height_directive > 1:
-                    target_height = min(float(height_directive), available_height)
+                    calculated_directive_height = float(height_directive)
+
+                # The final target height is the minimum of the directive's preference
+                # and the container's actual available height.
+                if target_height != float("inf"):
+                    target_height = min(target_height, calculated_directive_height)
+                else:
+                    target_height = calculated_directive_height
+
             except (ValueError, TypeError):
                 logger.warning(f"Invalid height directive on image: {height_directive}")
 

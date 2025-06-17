@@ -10,13 +10,13 @@ class Section:
     """Represents a section in a slide (vertical or horizontal)."""
 
     directives: dict[str, Any] = field(default_factory=dict)
-    children: list["Element | Section"] = field(default_factory=list)
+    # REFACTORED: This list temporarily holds `str` for raw content during parsing,
+    # which is then replaced by `Element` objects by the ContentParser.
+    children: list[Any] = field(default_factory=list)
     type: str = "section"  # "section", "row", or "column"
     position: tuple[float, float] | None = None
     size: tuple[float, float] | None = None
     id: str | None = None
-    # REFACTORED: `content` is a temporary attribute used only during parsing
-    content: str | None = field(default=None, repr=False, compare=False)
 
     def is_row(self) -> bool:
         """Check if this is a row section."""
@@ -95,12 +95,15 @@ class Slide:
         return [
             element
             for element in self.elements
-            if element.element_type not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
+            if element.element_type
+            not in (ElementType.TITLE, ElementType.SUBTITLE, ElementType.FOOTER)
         ]
 
     def find_elements_by_type(self, element_type: ElementType) -> list[Element]:
         """Find all elements of a specific type."""
-        return [element for element in self.elements if element.element_type == element_type]
+        return [
+            element for element in self.elements if element.element_type == element_type
+        ]
 
     @property
     def title(self) -> str:

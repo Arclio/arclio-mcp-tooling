@@ -41,7 +41,6 @@ class FillContextOverflowHandler:
 
         logger.debug(f"[Fill Handler] Found context row: {context_row.id}")
 
-        # Determine the overflow scenario
         scenario = self._determine_overflow_scenario(
             slide.root_section, context_row, overflowing_element
         )
@@ -50,9 +49,6 @@ class FillContextOverflowHandler:
         if scenario == "atomic_move":
             return self._handle_atomic_move(slide, context_row, continuation_number)
 
-        # REFACTORED: The 'excise and re-assemble' logic is complex and error-prone.
-        # A simpler, more robust approach is to let the standard handler split the content,
-        # then ensure the [fill] context is present on both the original and continuation slides.
         logger.debug(
             "[Fill Handler] Sibling/Outside Overflow: Using standard handler then re-applying context."
         )
@@ -61,49 +57,28 @@ class FillContextOverflowHandler:
             slide, overflowing_element, continuation_number
         )
 
-        # Ensure the fitted slide still has the context row. The standard handler should preserve it.
-        # This is more of a sanity check.
-        if not self._find_context_row(fitted_slide.root_section):
-            logger.warning(
-                "[Fill Handler] Context row was lost from fitted slide during standard handling."
-            )
-
         final_slides = [fitted_slide]
         if continuation_slide:
-            # Re-create the continuation slide with the full context.
-            # The standard handler's continuation only has the overflowing part.
-
-            # 1. Deepcopy the original context row to use as a template.
             new_continuation_root = deepcopy(context_row)
 
-            # 2. Find which column in the template to inject the overflowing content into.
-            original_overflow_column_id = self._find_overflowing_column_id(
-                slide.root_section, overflowing_element
-            )
+            overflowing_content_root = continuation_slide.root_section
+            if overflowing_content_root and overflowing_content_root.children:
+                # The standard handler will place overflowing content in a new root.
+                # We need to find where this content originally came from.
+                original_overflow_parent = self._find_parent_of_first_content(
+                    slide.root_section, overflowing_content_root.children[0]
+                )
 
-            content_injected = False
-            if original_overflow_column_id:
-                for col in new_continuation_root.children:
-                    if (
-                        isinstance(col, Section)
-                        and col.id == original_overflow_column_id
-                    ):
-                        col.children = continuation_slide.root_section.children
-                        content_injected = True
+                if original_overflow_parent:
+                    # Inject the new content into the corresponding column in our copied context.
+                    target_column = self._find_section_by_id(
+                        new_continuation_root, original_overflow_parent.id
+                    )
+                    if target_column:
+                        target_column.children = overflowing_content_root.children
                         logger.debug(
-                            f"[Fill Handler] Injected overflow content into matching column '{col.id}'."
+                            f"[Fill Handler] Injected overflow content into matching column '{target_column.id}'."
                         )
-                        break
-
-            if not content_injected:
-                # Fallback: inject into the first column that doesn't have a fill image.
-                for col in new_continuation_root.children:
-                    if isinstance(col, Section) and not self._has_fill_descendant(col):
-                        col.children = continuation_slide.root_section.children
-                        logger.debug(
-                            f"[Fill Handler] Injected overflow content into fallback column '{col.id}'."
-                        )
-                        break
 
             continuation_slide.root_section = new_continuation_root
             repositioned_continuation = self.manager.layout_manager.calculate_positions(
@@ -161,7 +136,6 @@ class FillContextOverflowHandler:
             self.manager._finalize_slide(slide)
             return [slide]
 
-        # Create the fitted slide with content before the context row.
         fitted_root = deepcopy(slide.root_section)
         parent_in_fitted_tree = self._find_section_by_id(fitted_root, parent_section.id)
         if parent_in_fitted_tree:
@@ -179,32 +153,12 @@ class FillContextOverflowHandler:
         self.manager._finalize_slide(fitted_slide)
         logger.debug("[Fill Handler] Created fitted slide without the context row.")
 
-        # Create the continuation slide with the context row and any subsequent siblings.
         overflowing_children = parent_section.children[split_index:]
-
-        # If the overflowing content is just the context row itself, we can use it directly as the root.
-        if (
-            len(overflowing_children) == 1
-            and overflowing_children[0].id == context_row.id
-        ):
-            continuation_root = deepcopy(context_row)
-        else:
-            continuation_root = Section(
-                id=f"cont_root_{context_row.id}",
-                type=parent_section.type,
-                children=deepcopy(overflowing_children),
-            )
-
-        # CRITICAL FIX: Ensure the new root for the continuation slide has explicit
-        # dimensions if it contains a [fill] image, to satisfy LayoutManager.
-        if self._has_fill_descendant(continuation_root):
-            if "width" not in continuation_root.directives:
-                continuation_root.directives["width"] = "100%"
-            if "height" not in continuation_root.directives:
-                continuation_root.directives["height"] = "100%"
-            logger.debug(
-                f"[Fill Handler] CRITICAL: Ensured continuation root has width/height directives: {continuation_root.directives}"
-            )
+        continuation_root = Section(
+            id=f"cont_root_{context_row.id}",
+            type=parent_section.type,
+            children=deepcopy(overflowing_children),
+        )
 
         slide_builder = SlideBuilder(slide)
         continuation_slide = slide_builder.create_continuation_slide(
@@ -244,21 +198,21 @@ class FillContextOverflowHandler:
                 return True
         return False
 
-    def _find_overflowing_column_id(
-        self, root: "Section", overflowing_element: "Element"
-    ) -> str | None:
-        """Finds the ID of the column that is the direct parent of the overflowing element."""
+    def _find_parent_of_first_content(
+        self, root: "Section", content_element: "Element"
+    ) -> Optional["Section"]:
+        """Finds the direct parent section of a specific content element instance."""
         path = self.handler._find_path_to_parent(
-            root, self.handler._get_node_id(overflowing_element)
+            root, self.handler._get_node_id(content_element)
         )
-        if path:
-            return path[-1].id
-        return None
+        return path[-1] if path else None
 
     def _find_section_by_id(
         self, root: "Section", section_id: str
     ) -> Optional["Section"]:
         """Find a section by ID within a tree."""
+        if not root or not section_id:
+            return None
         if root.id == section_id:
             return root
         for child in root.children:

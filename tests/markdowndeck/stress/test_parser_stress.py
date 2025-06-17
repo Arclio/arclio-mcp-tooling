@@ -15,7 +15,10 @@ class TestParserStress:
     def test_stress_p_01_massive_slide_count(self, parser: Parser):
         """Test Case: STRESS-P-01 - Tests parsing a very large markdown file with many slides."""
         num_slides = 500
-        slide_content = "# Test Slide\nContent\n---\nMore Content\n@@@\nFooter"
+        # FIXED: Wrapped body content in :::section block
+        slide_content = (
+            "# Test Slide\n:::section\nContent\n---\nMore Content\n:::\n@@@\nFooter"
+        )
         massive_markdown = (slide_content + "\n===\n") * num_slides
 
         start_time = time.time()
@@ -34,17 +37,20 @@ class TestParserStress:
         num_lines = 2000
         line_content = "This is a single line of text in a massive slide.\n"
         massive_content = line_content * num_lines
-        markdown = f"# Massive Slide\n{massive_content}"
+        # FIXED: Wrapped body content in :::section block
+        markdown = f"# Massive Slide\n:::section\n{massive_content}\n:::"
 
         start_time = time.time()
         deck = parser.parse(markdown)
         end_time = time.time()
 
         processing_time = end_time - start_time
-        print(f"Parsing a slide with {num_lines} lines took {processing_time:.4f} seconds.")
+        print(
+            f"Parsing a slide with {num_lines} lines took {processing_time:.4f} seconds."
+        )
 
         assert processing_time < 5.0, "Parsing a massive slide should be performant."
         assert len(deck.slides) == 1
-        slide = deck.slides[0]
-        text_element = next(e for e in slide.elements if e.element_type == "text")
+        # The text is now inside a nested section structure
+        text_element = deck.slides[0].root_section.children[0].children[0]
         assert text_element.text.count("\n") >= num_lines - 1

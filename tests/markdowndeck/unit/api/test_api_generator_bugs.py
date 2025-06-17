@@ -24,13 +24,16 @@ def _get_paragraph_style_request(requests: list, object_id: str) -> dict | None:
         (
             r["updateParagraphStyle"]
             for r in requests
-            if "updateParagraphStyle" in r and r["updateParagraphStyle"]["objectId"] == object_id
+            if "updateParagraphStyle" in r
+            and r["updateParagraphStyle"]["objectId"] == object_id
         ),
         None,
     )
 
 
-def _get_table_cell_properties_request(requests: list, object_id: str, row_index: int) -> dict | None:
+def _get_table_cell_properties_request(
+    requests: list, object_id: str, row_index: int
+) -> dict | None:
     """Helper to find the updateTableCellProperties request for a given object ID and row."""
     return next(
         (
@@ -38,7 +41,8 @@ def _get_table_cell_properties_request(requests: list, object_id: str, row_index
             for r in requests
             if "updateTableCellProperties" in r
             and r["updateTableCellProperties"]["objectId"] == object_id
-            and r["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"] == row_index
+            and r["updateTableCellProperties"]["tableRange"]["location"]["rowIndex"]
+            == row_index
         ),
         None,
     )
@@ -47,7 +51,9 @@ def _get_table_cell_properties_request(requests: list, object_id: str, row_index
 class TestApiGeneratorBugReproduction:
     """Tests designed to fail, exposing known bugs in the API request generation."""
 
-    def test_bug_nested_list_indentation_incorrect(self, api_generator: ApiRequestGenerator):
+    def test_bug_nested_list_indentation_incorrect(
+        self, api_generator: ApiRequestGenerator
+    ):
         """
         Test Case: API-BUG-01
         Description: Exposes the bug where nested list items are not correctly indented.
@@ -73,38 +79,6 @@ class TestApiGeneratorBugReproduction:
         # Act
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
-        # DEBUG: Let's see what we got
-        print(f"DEBUG: Total requests: {len(requests)}")
-        for i, r in enumerate(requests):
-            print(f"DEBUG: Request {i}: {list(r.keys())}")
-            if "updateParagraphStyle" in r:
-                print(f"DEBUG: updateParagraphStyle {i}: {r['updateParagraphStyle']}")
-
-        # DEBUG: Let's also check the parsed deck structure
-        slide = deck.slides[0]
-        print(f"DEBUG: Slide elements: {len(slide.elements)}")
-        print(f"DEBUG: Slide renderable_elements: {len(slide.renderable_elements)}")
-        print(f"DEBUG: Slide root_section: {slide.root_section}")
-        if slide.root_section:
-            print(f"DEBUG: Root section children: {len(slide.root_section.children)}")
-            for child in slide.root_section.children:
-                print(f"DEBUG: Root section child type: {type(child)}, {getattr(child, 'element_type', 'no element_type')}")
-                if hasattr(child, "items"):
-                    for item in child.items:
-                        print(
-                            f"DEBUG: Root section item text: '{item.text}', level: {item.level}, children: {len(item.children)}"
-                        )
-        for elem in slide.renderable_elements:
-            print(f"DEBUG: Renderable element type: {elem.element_type}, items: {getattr(elem, 'items', 'N/A')}")
-            if hasattr(elem, "items"):
-                for item in elem.items:
-                    print(f"DEBUG: Item text: '{item.text}', level: {item.level}, children: {len(item.children)}")
-        for elem in slide.elements:
-            print(f"DEBUG: Element type: {elem.element_type}, items: {getattr(elem, 'items', 'N/A')}")
-            if hasattr(elem, "items"):
-                for item in elem.items:
-                    print(f"DEBUG: Item text: '{item.text}', level: {item.level}, children: {len(item.children)}")
-
         # Find the specific indentation request
         indent_request = next(
             (
@@ -118,15 +92,19 @@ class TestApiGeneratorBugReproduction:
         )
 
         # Assert
-        assert indent_request is not None, "An updateParagraphStyle request with indentation should exist for the nested item."
-        assert "indentStart" in indent_request["style"], (
-            "The paragraph style must include an indentStart property for sub-lists."
-        )
-        assert indent_request["style"]["indentStart"]["magnitude"] > 0, (
-            "Indent magnitude for a nested list must be greater than 0."
-        )
+        assert (
+            indent_request is not None
+        ), "An updateParagraphStyle request with indentation should exist for the nested item."
+        assert (
+            "indentStart" in indent_request["style"]
+        ), "The paragraph style must include an indentStart property for sub-lists."
+        assert (
+            indent_request["style"]["indentStart"]["magnitude"] > 0
+        ), "Indent magnitude for a nested list must be greater than 0."
 
-    def test_bug_table_row_directives_not_applied(self, api_generator: ApiRequestGenerator):
+    def test_bug_table_row_directives_not_applied(
+        self, api_generator: ApiRequestGenerator
+    ):
         """
         Test Case: API-BUG-02
         Description: Exposes the bug where table row directives are not being translated
@@ -153,20 +131,28 @@ class TestApiGeneratorBugReproduction:
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
 
         # We check the properties for the first data row, which is at index 1 (0 is header).
-        cell_props_req = _get_table_cell_properties_request(requests, "table_style_bug", row_index=1)
+        cell_props_req = _get_table_cell_properties_request(
+            requests, "table_style_bug", row_index=1
+        )
 
         # Assert
-        assert cell_props_req is not None, "updateTableCellProperties request for the styled row is missing."
-        assert "tableCellBackgroundFill" in cell_props_req["tableCellProperties"], (
-            "Background fill property is missing from the request."
-        )
-        fill_color = cell_props_req["tableCellProperties"]["tableCellBackgroundFill"]["solidFill"]["color"]
+        assert (
+            cell_props_req is not None
+        ), "updateTableCellProperties request for the styled row is missing."
+        assert (
+            "tableCellBackgroundFill" in cell_props_req["tableCellProperties"]
+        ), "Background fill property is missing from the request."
+        fill_color = cell_props_req["tableCellProperties"]["tableCellBackgroundFill"][
+            "solidFill"
+        ]["color"]
         assert "rgbColor" in fill_color, "A fill color was not applied."
         # Check for yellow
         assert abs(fill_color["rgbColor"]["red"] - 1.0) < 0.01
         assert abs(fill_color["rgbColor"]["green"] - 1.0) < 0.01
 
-    def test_bug_nested_list_indentation_visual_alignment(self, api_generator: ApiRequestGenerator):
+    def test_bug_nested_list_indentation_visual_alignment(
+        self, api_generator: ApiRequestGenerator
+    ):
         """
         Test Case: API-BUG-04
         Description: Tests that nested list items have proper hanging indent with both
@@ -178,7 +164,8 @@ class TestApiGeneratorBugReproduction:
 
         # Arrange - Parse nested list markdown
         parser = Parser()
-        markdown = "- L1\n  - L2"
+        # FIXED: Wrapped list content in a :::section block to be Grammar V2.0 compliant.
+        markdown = ":::section\n- L1\n  - L2\n:::"
         deck = parser.parse(markdown)
 
         # CRITICAL FIX: Need to run layout manager to populate renderable_elements
@@ -194,7 +181,7 @@ class TestApiGeneratorBugReproduction:
         finalized_slides = overflow_manager.process_slide(positioned_slide)
 
         # Update the deck with the finalized slide
-        deck.slides[0] = finalized_slides[0]
+        deck.slides = finalized_slides
 
         # Act - Generate API requests
         requests = api_generator.generate_batch_requests(deck, "pres_id")[0]["requests"]
@@ -203,29 +190,45 @@ class TestApiGeneratorBugReproduction:
         # The nested item will have level=1 and should have both indent properties
         nested_indent_request = None
         for r in requests:
-            if "updateParagraphStyle" in r and "indentStart" in r.get("updateParagraphStyle", {}).get("style", {}):
+            if "updateParagraphStyle" in r and "indentStart" in r.get(
+                "updateParagraphStyle", {}
+            ).get("style", {}):
                 nested_indent_request = r["updateParagraphStyle"]
                 break
 
         # Assert
-        assert nested_indent_request is not None, "updateParagraphStyle request with indentStart should exist for nested item"
+        assert (
+            nested_indent_request is not None
+        ), "updateParagraphStyle request with indentStart should exist for nested item"
 
         style = nested_indent_request["style"]
-        assert "indentStart" in style, "indentStart property must be present for nested items"
-        assert "indentFirstLine" in style, "indentFirstLine property must be present for proper hanging indent"
+        assert (
+            "indentStart" in style
+        ), "indentStart property must be present for nested items"
+        assert (
+            "indentFirstLine" in style
+        ), "indentFirstLine property must be present for proper hanging indent"
 
         # Check values
-        assert style["indentStart"]["magnitude"] == 20.0, "indentStart should be 20.0 PT for level 1"
+        assert (
+            style["indentStart"]["magnitude"] == 20.0
+        ), "indentStart should be 20.0 PT for level 1"
         assert style["indentStart"]["unit"] == "PT", "indentStart unit should be PT"
-        assert style["indentFirstLine"]["magnitude"] == -20.0, "indentFirstLine should be -20.0 PT to create hanging indent"
-        assert style["indentFirstLine"]["unit"] == "PT", "indentFirstLine unit should be PT"
+        assert (
+            style["indentFirstLine"]["magnitude"] == -20.0
+        ), "indentFirstLine should be -20.0 PT to create hanging indent"
+        assert (
+            style["indentFirstLine"]["unit"] == "PT"
+        ), "indentFirstLine unit should be PT"
 
         # Check fields mask includes both properties
         fields = nested_indent_request["fields"]
         assert "indentStart" in fields, "fields mask must include indentStart"
         assert "indentFirstLine" in fields, "fields mask must include indentFirstLine"
 
-    def test_bug_code_label_position_with_heading(self, api_generator: ApiRequestGenerator):
+    def test_bug_code_label_position_with_heading(
+        self, api_generator: ApiRequestGenerator
+    ):
         """
         Test Case: LAYOUT-BUG-02 / API-BUG-03
         Description: Checks that the CodeRequestBuilder correctly offsets the language label
@@ -258,21 +261,28 @@ class TestApiGeneratorBugReproduction:
 
         # Find the language label shape request
         label_shape_req = next(
-            (r for r in requests if "createShape" in r and r["createShape"]["objectId"].endswith("_label")),
+            (
+                r
+                for r in requests
+                if "createShape" in r
+                and r["createShape"]["objectId"].endswith("_label")
+            ),
             None,
         )
 
         # Assert
         assert label_shape_req is not None, "Language label shape was not created."
 
-        label_y_pos = label_shape_req["createShape"]["elementProperties"]["transform"]["translateY"]
+        label_y_pos = label_shape_req["createShape"]["elementProperties"]["transform"][
+            "translateY"
+        ]
         code_block_y_pos = code_element.position[1]
         label_height = 20  # from code_builder.py
 
         # The label should be positioned *above* the code block's Y position.
-        assert label_y_pos < code_block_y_pos, (
-            f"Code label Y position ({label_y_pos}) should be less than the code block's Y position ({code_block_y_pos})."
-        )
-        assert abs(label_y_pos - (code_block_y_pos - label_height)) < 5.0, (
-            "Code label is not positioned correctly above the code block."
-        )
+        assert (
+            label_y_pos < code_block_y_pos
+        ), f"Code label Y position ({label_y_pos}) should be less than the code block's Y position ({code_block_y_pos})."
+        assert (
+            abs(label_y_pos - (code_block_y_pos - label_height)) < 5.0
+        ), "Code label is not positioned correctly above the code block."

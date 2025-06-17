@@ -1,13 +1,3 @@
-"""
-Refactored base position calculator with robust height constraint handling.
-
-CHANGES FROM ORIGINAL:
-- Enhanced calculate_element_height_with_proactive_scaling to properly handle both width and height constraints
-- Improved integration with the new two-pass layout algorithm
-- Better support for proactive image scaling (Law #2)
-- More robust directive merging with proper precedence (Law #1)
-"""
-
 import logging
 
 from markdowndeck.layout.constants import (
@@ -258,6 +248,7 @@ class PositionCalculator:
             return
 
         # Define inheritable directives that cascade from section to elements
+        # FIXED: Added 'background' to this set to allow row backgrounds to propagate to child elements.
         inheritable_directives = {
             "align",
             "color",
@@ -267,6 +258,7 @@ class PositionCalculator:
             "italic",
             "line-spacing",
             "valign",
+            "background",
         }
 
         # Only merge inheritable directives, element directives take precedence

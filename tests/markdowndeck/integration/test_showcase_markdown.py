@@ -1,3 +1,7 @@
+# File: tests/markdowndeck/integration/test_showcase_markdown.py
+# Purpose: Validates the pipeline against a complex showcase markdown file.
+# Key Changes: Wrapped all body content in :::section blocks to conform to Grammar V2.0.
+
 import pytest
 from markdowndeck import markdown_to_requests
 
@@ -6,10 +10,13 @@ SHOWCASE_MARKDOWN = """
 ## Uneven Column Widths
 :::row [gap=40]
 :::column [width=65%]
+:::section
 ### Main Content Area (65%)
 This column takes up 65% of the available width. It's perfect for main content, detailed explanations, or primary information like charts and detailed text. You can use percentage widths to create asymmetric layouts that guide the viewer's focus.
 :::
+:::
 :::column [width=35%]
+:::section
 ### Sidebar (35%)
 This narrow column is ideal for:
 - Quick facts
@@ -18,21 +25,25 @@ This narrow column is ideal for:
 - Callouts & quotes
 :::
 :::
+:::
 @@@
 MarkdownDeck Showcase | Slide 18 of 56
 ===
 # Content Elements
 ## Bullet Lists
+:::section
 ### Styled List Items
 - Regular item
 - [color=#0A74DA] Blue colored item
 - **[bold] Bold item**
 - *[color=#EF4444] Red italic item*
+:::
 @@@
 MarkdownDeck Showcase | Slide 24 of 56
 ===
 # Content Elements
 ## Nested Lists
+:::section
 ### Mixed Nested Lists
 1. Ordered item 1
    - Bullet sub-item
@@ -40,17 +51,20 @@ MarkdownDeck Showcase | Slide 24 of 56
 2. Ordered item 2
    1. Nested ordered item
    2. Another nested ordered item
+:::
 @@@
 MarkdownDeck Showcase | Slide 26 of 56
 ===
 # Content Elements
 ## Table Row Styling
+:::section
 | Department | Q1 Sales | Q3 Sales | Directives |
 |---|---|---|---|
 | | | | [background=#1E293B][color=white][bold] |
 | North | $50,000 | $62,000 | |
 | South | $48,000 | $54,000 | [background=#F8FAFC] |
 | **Total** | **$211k** | **$245k** | [background=#FEF3C7][bold] |
+:::
 @@@
 MarkdownDeck Showcase | Slide 29 of 56
 """

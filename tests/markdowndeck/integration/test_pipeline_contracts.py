@@ -97,8 +97,10 @@ class TestPipelineContracts:
         # Assert 1: Validate "Positioned" state
         assert positioned_slide.root_section.position is not None
         assert positioned_slide.root_section.size is not None
-        assert positioned_slide.root_section.children[0].position is not None
-        assert positioned_slide.root_section.children[0].size is not None
+        assert (
+            positioned_slide.root_section.children[0].children[0].position is not None
+        )
+        assert positioned_slide.root_section.children[0].children[0].size is not None
 
         # Act 2: Get "Finalized" state
         finalized_slides = overflow_manager.process_slide(positioned_slide)
@@ -232,7 +234,7 @@ class TestPipelineContracts:
         """Test Case: INTEGRATION-P-10 - Verify "Container-First" clamping behavior."""
         # Arrange: Two columns each want 60% of width, which is impossible.
         # REFACTORED: Use :::row and :::column for layout.
-        markdown = ":::row\n:::column [width=60%]\nLeft\n:::\n:::column [width=60%]\nRight\n:::\n:::"
+        markdown = ":::row\n:::column [width=60%]\n:::section\nLeft\n:::\n:::\n:::column [width=60%]\n:::section\nRight\n:::\n:::\n:::"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -259,7 +261,7 @@ class TestPipelineContracts:
     def test_p_11_invalid_image_url_e2e(self):
         """Test Case: INTEGRATION-P-11 - End-to-end handling of an invalid image URL."""
         # Arrange
-        markdown = "![alt](http://localhost/invalid.png) [width=100][height=100]"
+        markdown = ":::section\n![alt](http://localhost/invalid.png) [width=100][height=100]\n:::"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -279,7 +281,7 @@ class TestPipelineContracts:
         """Test Case: INTEGRATION-P-12 - Verify directive precedence for meta-elements."""
         # Arrange: Section-level directive is red, title's same-line directive is blue.
         # REFACTORED: Base directives are now used for slide-wide styling.
-        markdown = "[color=red]\n# Title [color=blue]"
+        markdown = "[color=red]\n# Title [color=blue]\n:::section\nBody\n:::"
 
         # Act
         result = markdown_to_requests(markdown)
@@ -328,10 +330,14 @@ class TestPipelineContracts:
 
 :::row
 :::column [width=50%]
+:::section
 ![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200) [width=100%][height=600]
 :::
+:::
 :::column [width=50%]
+:::section
 Some text content in the other column.
+:::
 :::
 :::
 """
@@ -374,23 +380,23 @@ Some text content in the other column.
         scaled and laid out by the LayoutManager, preventing a false overflow trigger.
         """
         # Arrange
-        # REFACTORED: Use :::row/column and add mandatory image dimension directives.
         markdown = """
 # Image in a Column
 
 :::row
 :::column [width=50%]
+:::section
 ![Test Image](https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&h=1200) [width=100%][height=600]
 A short line of text below the image.
 :::
+:::
 :::column [width=50%]
+:::section
 Some text content in the other column.
 :::
 :::
+:::
 """
-        # The image is very tall and would cause an overflow if its height
-        # were not constrained by the slide's body height during intrinsic calculation.
-
         unpositioned_slide = parser.parse(markdown).slides[0]
 
         # Act
@@ -426,7 +432,6 @@ Some text content in the other column.
         )
         assert text_element is not None, "Text element should be present below image."
 
-        # Check that the text is positioned below the image.
         image_bottom = image_element.position[1] + image_element.size[1]
         text_top = text_element.position[1]
         assert text_top >= image_bottom, "Text must be positioned below the image."
@@ -434,38 +439,33 @@ Some text content in the other column.
     def test_p_15_image_fill_with_sibling_overflow(self):
         """
         Test Case: INTEGRATION-P-15 - Specialized overflow handling for slides with [fill] context.
-
-        Tests the "excise and replace" algorithm per OVERFLOW_SPEC.md Rule #9.
-        A row layout with a [fill] image in the left column and overflowing text in the right column
-        should result in two slides, both containing the [fill] image context.
         """
-        # Arrange: Row layout with [fill] image in left column, overflowing text in right column
-        long_text = " ".join(
-            [f"Word {i}" for i in range(200)]
-        )  # Long enough to cause overflow
+        long_text = " ".join([f"Word {i}" for i in range(200)])
+        # FIXED: Added explicit width and height to the section containing the [fill] image.
+        # This satisfies the new, simpler validation logic.
         markdown = f"""
 # Fill Context Test
 
 :::row
 :::column [width=40%][height=100%]
-![Fill Image](https://example.com/image.png) [fill]
+:::section [width=100%][height=100%]
+![Fill Image](https://images.unsplash.com/photo-1521737711867-e3b97375f902?w=500) [fill]
+:::
 :::
 :::column [width=60%]
+:::section
 {long_text}
 :::
 :::
+:::
 """
-
-        # Act: Run the full pipeline
         result = markdown_to_requests(markdown)
         slide_batches = result["slide_batches"]
 
-        # Assert: Two slides should be created
         assert (
             len(slide_batches) == 2
         ), "Specialized fill overflow should create exactly 2 slides"
 
-        # Validate first slide has both image and some text
         slide1_requests = slide_batches[0]["requests"]
         slide1_image = next((r for r in slide1_requests if "createImage" in r), None)
         slide1_text = next(
@@ -482,7 +482,6 @@ Some text content in the other column.
             slide1_text is not None
         ), "First slide must contain some of the text content"
 
-        # Validate second slide has both duplicated image and continuation text
         slide2_requests = slide_batches[1]["requests"]
         slide2_image = next((r for r in slide2_requests if "createImage" in r), None)
         slide2_text = next(
@@ -501,14 +500,7 @@ Some text content in the other column.
             slide2_text is not None
         ), "Second slide must contain the overflowing text content"
 
-        # Verify the images use the same URL (context duplication)
-        assert (
-            slide1_image["createImage"]["url"] == slide2_image["createImage"]["url"]
-        ), "Both slides should have the same image URL"
-
-        # Verify different text content (showing proper content partitioning)
+        assert slide1_image["createImage"]["url"] == slide2_image["createImage"]["url"]
         slide1_text_content = slide1_text["insertText"]["text"]
         slide2_text_content = slide2_text["insertText"]["text"]
-        assert (
-            slide1_text_content != slide2_text_content
-        ), "Slides should have different text content (proper partitioning)"
+        assert slide1_text_content != slide2_text_content

@@ -75,19 +75,10 @@ class ContentParser:
             meta_elements.append(subtitle_element)
 
         if root_section:
-            self._process_section_recursively(root_section, base_directives)
-
-        body_elements: list[Element] = []
-
-        def extract_elements(sec: Section):
-            for child in sec.children:
-                if isinstance(child, Section):
-                    extract_elements(child)
-                elif isinstance(child, Element):
-                    body_elements.append(child)
-
-        if root_section:
-            extract_elements(root_section)
+            # This call mutates root_section in-place AND returns a flat list of all created body elements.
+            body_elements = self._populate_section_tree(root_section, base_directives)
+        else:
+            body_elements = []
 
         if slide_footer_text:
             final_footer_directives = {**base_directives, **(footer_directives or {})}
@@ -100,97 +91,68 @@ class ContentParser:
         logger.info(f"Created {len(all_elements)} total elements from content")
         return all_elements
 
-    def _process_section_recursively(
+    def _populate_section_tree(
         self, section: Section, inherited_directives: dict
-    ):
+    ) -> list[Element]:
         """
-        Process a section's raw content into elements and recurse through child sections.
+        Recursively traverses the section tree, parsing raw content strings into
+        Element objects and replacing them in the section's children list.
+        Returns a flat list of all created elements.
         """
+        all_created_elements: list[Element] = []
+        final_children: list[Element | Section] = []
+
         current_directives = {**inherited_directives, **section.directives}
 
-        parsed_elements = []
-        content_str = getattr(section, "content", None)
-        if content_str:
-            tokens = self.md.parse(content_str)
-            parsed_elements = self._process_tokens_with_directive_detection(
-                tokens, current_directives
-            )
-            section.content = None
+        for child in section.children:
+            if isinstance(child, str):
+                tokens = self.md.parse(child)
+                parsed_elements = self._process_tokens_with_directive_detection(
+                    tokens, current_directives
+                )
+                all_created_elements.extend(parsed_elements)
+                final_children.extend(parsed_elements)
+            elif isinstance(child, Section):
+                created_in_child = self._populate_section_tree(
+                    child, current_directives
+                )
+                all_created_elements.extend(created_in_child)
+                final_children.append(child)
 
-        child_sections = [
-            child for child in section.children if isinstance(child, Section)
-        ]
-        for child_section in child_sections:
-            self._process_section_recursively(child_section, current_directives)
-
-        section.children = parsed_elements + child_sections
+        section.children = final_children
+        return all_created_elements
 
     def _process_tokens_with_directive_detection(
         self, tokens: list[Token], section_directives: dict[str, Any]
     ) -> list[Element]:
         """Process tokens, detecting and applying directives correctly."""
         elements: list[Element] = []
-        current_index = 0
-
-        while current_index < len(tokens):
-            # Skip empty tokens that can appear at the start
-            if not tokens[current_index].type:
-                current_index += 1
+        i = 0
+        while i < len(tokens):
+            if tokens[i].type.endswith("_close"):
+                i += 1
                 continue
 
-            created_elements, new_index = self._dispatch_to_formatter(
-                tokens, current_index, section_directives
-            )
+            processed = False
+            for formatter in self.formatters:
+                if formatter.can_handle(tokens[i], tokens[i:]):
+                    try:
+                        created_elements, end_index = formatter.process(
+                            tokens, i, section_directives
+                        )
+                        if created_elements:
+                            elements.extend(created_elements)
+                        i = end_index + 1
+                        processed = True
+                        break
+                    except Exception as e:
+                        logger.error(
+                            f"Error in {formatter.__class__.__name__}: {e}",
+                            exc_info=True,
+                        )
+                        raise
 
-            if created_elements:
-                elements.extend(created_elements)
-
-            # FIXED: Correctly advance the index to the token AFTER the block
-            # that was just processed.
-            current_index = new_index + 1
+            if not processed:
+                i += 1
 
         return elements
-
-    def find_closing_token(
-        self, tokens: list[Token], open_token_index: int, close_tag_type: str
-    ) -> int:
-        open_token = tokens[open_token_index]
-        depth = 1
-        for i in range(open_token_index + 1, len(tokens)):
-            token = tokens[i]
-            if token.level == open_token.level:
-                if token.type == open_token.type:
-                    depth += 1
-                elif token.type == close_tag_type:
-                    depth -= 1
-                    if depth == 0:
-                        return i
-        return len(tokens) - 1
-
-    def _dispatch_to_formatter(
-        self,
-        tokens: list[Token],
-        current_index: int,
-        section_directives: dict[str, Any],
-    ) -> tuple[list[Element], int]:
-        if current_index >= len(tokens):
-            return [], current_index
-        token = tokens[current_index]
-
-        for formatter in self.formatters:
-            if formatter.can_handle(token, tokens[current_index:]):
-                try:
-                    elements, end_index = formatter.process(
-                        tokens, current_index, section_directives
-                    )
-                    if elements is not None:
-                        return elements, end_index
-                except Exception as e:
-                    logger.error(
-                        f"Error in {formatter.__class__.__name__}: {e}", exc_info=True
-                    )
-                    raise
-
-        # If no formatter can handle the token, return the current index.
-        # The main loop will increment by one to skip it.
-        return [], current_index

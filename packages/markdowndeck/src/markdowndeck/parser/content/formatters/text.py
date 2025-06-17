@@ -65,9 +65,26 @@ class TextFormatter(BaseFormatter):
     def _process_heading(
         self, tokens: list[Token], start_index: int, directives: dict[str, Any]
     ) -> tuple[Element | None, int]:
+        # FIXED: This method is now more robust to prevent content loss.
+        # A heading block is guaranteed by markdown-it to be three tokens:
+        # heading_open, inline, heading_close. We explicitly use this structure
+        # to determine the end index, preventing the formatter from consuming
+        # subsequent content blocks.
         open_token = tokens[start_index]
-        level = int(open_token.tag[1])
-        end_idx = self.find_closing_token(tokens, start_index, "heading_close")
+        level = int(open_token.tag[1:])
+        end_idx = start_index + 2
+
+        # Defensive check in case of a malformed token stream.
+        if (
+            end_idx >= len(tokens)
+            or tokens[end_idx].type != "heading_close"
+            or tokens[start_index + 1].type != "inline"
+        ):
+            logger.warning(
+                f"Unexpected token structure for heading at index {start_index}. Using generic token finder as fallback."
+            )
+            end_idx = self.find_closing_token(tokens, start_index, "heading_close")
+
         inline_token = tokens[start_index + 1]
         raw_content = inline_token.content or ""
         cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
@@ -75,6 +92,7 @@ class TextFormatter(BaseFormatter):
         )
         final_directives = {**directives, **line_directives}
         text_content, formatting = self._extract_clean_text_and_formatting(cleaned_text)
+
         if not text_content:
             return None, end_idx
 
@@ -93,7 +111,6 @@ class TextFormatter(BaseFormatter):
     ) -> tuple[list[Element], int]:
         """
         Processes a paragraph, correctly handling mixed content like images and captions.
-        Also prevents directives from being parsed inside `code_inline` tokens.
         """
         inline_token = tokens[start_index + 1]
         close_index = self.find_closing_token(tokens, start_index, "paragraph_close")
@@ -148,18 +165,16 @@ class TextFormatter(BaseFormatter):
         self, text_tokens: list[Token], directives: dict[str, Any]
     ) -> Element | None:
         """
-        Create a text element from a list of inline tokens, protecting inline code from directive parsing
-        and preserving newlines.
+        Create a text element from a list of inline tokens.
         """
         final_text_parts = []
         final_directives = directives.copy()
 
         for child in text_tokens:
-            # FIXED: Handle newlines correctly to fix the stress test failure.
             if child.type in ["softbreak", "hardbreak"]:
                 final_text_parts.append("\n")
             elif child.type == "code_inline":
-                final_text_parts.append(child.content)
+                final_text_parts.append(f"`{child.content}`")
             elif hasattr(child, "content"):
                 cleaned_content, line_directives = (
                     self.directive_parser.parse_and_strip_from_text(child.content)
