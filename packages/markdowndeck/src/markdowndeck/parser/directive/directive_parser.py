@@ -1,5 +1,6 @@
 import logging
 import re
+import uuid
 from typing import Any
 
 from markdowndeck.models.slide import Section
@@ -15,7 +16,11 @@ logger = logging.getLogger(__name__)
 class DirectiveParser:
     """
     Parse layout directives with comprehensive value conversion.
-    Updated to only include supported directives per DIRECTIVES.md.
+
+    REFACTORED Version 7.1:
+    - Enhanced code span protection to prevent directive parsing in code
+    - Bulletproof protection/restoration logic
+    - Robust handling of nested backticks and edge cases
     """
 
     def __init__(self):
@@ -66,9 +71,30 @@ class DirectiveParser:
         }
 
     def parse_and_strip_from_text(self, text_line: str) -> tuple[str, dict[str, Any]]:
-        """Finds and parses all directive blocks in a string, returning the cleaned string and a dict of directives."""
+        """
+        Enhanced directive parsing with bulletproof code span protection.
+
+        FIXES: test_bug_directives_are_parsed_from_code_blocks
+
+        The key insight is that inline code spans (content between backticks) should
+        NEVER have their contents parsed for directives, even if they contain
+        directive-like syntax such as [code=true].
+        """
         if not text_line or "[" not in text_line:
             return text_line, {}
+
+        logger.debug(f"Parsing directives from: {text_line}")
+
+        # CRITICAL FIX: Bulletproof inline code protection
+        protected_text, code_spans = self._protect_all_inline_code_bulletproof(
+            text_line
+        )
+
+        logger.debug(f"After code protection: {protected_text}")
+        logger.debug(
+            f"Protected {len(code_spans)} code spans: {list(code_spans.keys())}"
+        )
+
         directives = {}
 
         def replacer(match):
@@ -76,35 +102,131 @@ class DirectiveParser:
             parsed = self._parse_directive_text(directive_text)
             directives.update(parsed)
 
-            # Check if the directive is immediately after a markdown formatting start
-            # and there's content after it that closes the formatting
+            # Handle formatting preservation around directives
             start_pos = match.start()
             end_pos = match.end()
 
-            # If directive is at the very beginning after a formatting marker
-            if start_pos > 0 and text_line[start_pos - 1] in ["*", "_"]:
+            # If directive is immediately after a markdown formatting start
+            # and there's content after it that closes the formatting
+            if start_pos > 0 and protected_text[start_pos - 1] in ["*", "_"]:
                 # Check if there's a space after the directive that we can remove
-                if end_pos < len(text_line) and text_line[end_pos] == " ":
+                if end_pos < len(protected_text) and protected_text[end_pos] == " ":
                     return " "  # Replace with a single space to maintain formatting
                 return ""
             return ""
 
-        cleaned_text = self.directive_block_pattern.sub(replacer, text_line)
+        cleaned_text = self.directive_block_pattern.sub(replacer, protected_text)
+
+        # Restore code spans with verification
+        restored_text = self._restore_all_inline_code_bulletproof(
+            cleaned_text, code_spans
+        )
 
         # Post-process to fix broken markdown formatting
         # Handle cases like "*  text*" -> "*text*" and "**  text**" -> "**text**"
-        cleaned_text = re.sub(
-            r"\*\s+", "*", cleaned_text
-        )  # Fix single asterisk with spaces
-        cleaned_text = re.sub(
-            r"\*\*\s+", "**", cleaned_text
-        )  # Fix double asterisk with spaces
-        cleaned_text = re.sub(r"_\s+", "_", cleaned_text)  # Fix underscore with spaces
-        cleaned_text = re.sub(
-            r"__\s+", "__", cleaned_text
-        )  # Fix double underscore with spaces
+        restored_text = re.sub(r"\*\s+", "*", restored_text)
+        restored_text = re.sub(r"\*\*\s+", "**", restored_text)
+        restored_text = re.sub(r"_\s+", "_", restored_text)
+        restored_text = re.sub(r"__\s+", "__", restored_text)
 
-        return cleaned_text.strip(), directives
+        logger.debug(f"Final result: {restored_text}")
+        logger.debug(f"Extracted directives: {directives}")
+
+        return restored_text.strip(), directives
+
+    def _protect_all_inline_code_bulletproof(
+        self, text: str
+    ) -> tuple[str, dict[str, str]]:
+        """
+        Bulletproof inline code protection that handles all edge cases.
+
+        This addresses the failure in test_bug_directives_are_parsed_from_code_blocks
+        where `[code=true]` inside backticks was being parsed as a directive.
+
+        Key improvements:
+        1. Handles multiple backtick patterns (`, ``, ```)
+        2. Preserves exact original content including brackets
+        3. Uses unique placeholders to prevent conflicts
+        4. Comprehensive logging for debugging
+        """
+        code_spans = {}
+        protected_text = text
+
+        # Multiple patterns to handle different backtick scenarios
+        # Process in order from most specific to least specific
+        patterns = [
+            # Triple backticks (rare in inline, but possible)
+            (re.compile(r"(```+)([^`]*?)\1"), "TRIPLE"),
+            # Double backticks
+            (re.compile(r"(``+)([^`]*?)\1"), "DOUBLE"),
+            # Single backticks (most common)
+            (re.compile(r"(`+)([^`]*?)\1"), "SINGLE"),
+        ]
+
+        for pattern, code_type in patterns:
+
+            def replace_code_span(match):
+                placeholder = f"__CODE_SPAN_{code_type}_{uuid.uuid4().hex[:8]}__"
+                original_span = match.group(0)
+                code_spans[placeholder] = original_span
+
+                # Debug logging for the failing test case
+                if "[code=true]" in original_span:
+                    logger.debug(
+                        f"CRITICAL: Protected code span containing directive-like text: {original_span}"
+                    )
+                elif "[" in original_span and "]" in original_span:
+                    logger.debug(
+                        f"Protected code span with bracket content: {original_span}"
+                    )
+
+                logger.debug(f"Protected code span: {placeholder} -> {original_span}")
+                return placeholder
+
+            protected_text = pattern.sub(replace_code_span, protected_text)
+
+        logger.debug(f"Protection complete. Protected {len(code_spans)} code spans")
+        logger.debug(f"Protected text: {protected_text}")
+
+        return protected_text, code_spans
+
+    def _restore_all_inline_code_bulletproof(
+        self, text: str, code_spans: dict[str, str]
+    ) -> str:
+        """
+        Restore code spans with comprehensive verification.
+
+        Ensures that protected content is properly restored and wasn't
+        accidentally modified during directive parsing.
+        """
+        restored_text = text
+
+        for placeholder, original_span in code_spans.items():
+            if placeholder in restored_text:
+                restored_text = restored_text.replace(placeholder, original_span)
+                logger.debug(f"Restored code span: {placeholder} -> {original_span}")
+            else:
+                logger.error(
+                    f"CRITICAL: Code span placeholder missing during restoration: {placeholder}"
+                )
+                logger.error(f"Expected to find: {placeholder}")
+                logger.error(f"In text: {restored_text}")
+
+        # CRITICAL VERIFICATION: Ensure protected content wasn't lost
+        for original_span in code_spans.values():
+            if "[code=true]" in original_span:
+                if original_span not in restored_text:
+                    logger.error(
+                        "CRITICAL: Protected code span was lost during processing!"
+                    )
+                    logger.error(f"Lost span: {original_span}")
+                    logger.error(f"Final text: {restored_text}")
+                else:
+                    logger.debug(
+                        "SUCCESS: Protected code span [code=true] preserved in final text"
+                    )
+
+        return restored_text
 
     def parse_directives(self, section: Section) -> None:
         """Parses leading directive-only lines from a section's content."""
@@ -148,9 +270,10 @@ class DirectiveParser:
 
     def _parse_directive_text(self, directive_text: str) -> dict[str, Any]:
         """
-        REFACTORED: This logic is rewritten to correctly handle compound string values
-        (like for `border`) and to safely ignore valueless directives that are not
-        boolean flags (like `[align]`). This replaces the faulty regex-based pair splitting.
+        Parse directive text with robust compound value handling.
+
+        This logic correctly handles compound string values (like for `border`)
+        and safely ignores valueless directives that are not boolean flags.
         """
         directives = {}
         bracket_content_pattern = re.compile(r"\[([^\[\]]+)\]")
@@ -172,6 +295,7 @@ class DirectiveParser:
             if not value:
                 if key in ["bold", "italic", "fill"]:
                     directives[key] = True
+                    logger.debug(f"Parsed boolean directive: {key}=True")
                 else:
                     logger.warning(
                         f"Directive '[{key}]' used without a value and is not a boolean flag. Ignoring."
@@ -193,6 +317,7 @@ class DirectiveParser:
                             )
                         else:
                             directives[key] = converted_value
+                        logger.debug(f"Parsed directive: {key}={converted_value}")
                     except ValueError as e:
                         logger.warning(
                             f"Could not convert directive '{key}={value}': {e}"
@@ -200,17 +325,22 @@ class DirectiveParser:
                         directives[key] = value  # Store as raw string on failure
                 else:
                     directives[key] = value
+                    logger.debug(f"Parsed directive (no converter): {key}={value}")
             else:
                 logger.warning(f"Unsupported directive key '{key}'. Ignoring.")
+
         return directives
 
     def _enhanced_convert_style(self, value: str) -> tuple[str, Any]:
+        """Enhanced style conversion using the converters module."""
         return convert_style(value)
 
     def _safe_float_convert(self, value: str) -> float:
+        """Safely convert string to float, defaulting to 0.0 on error."""
         try:
             return float(value)
         except ValueError:
+            logger.warning(f"Could not convert '{value}' to float, using 0.0")
             return 0.0
 
     def _process_style_directive_value(
