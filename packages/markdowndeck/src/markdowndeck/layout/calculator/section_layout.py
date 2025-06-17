@@ -322,22 +322,32 @@ def _position_vertical_children(calculator, children, area, parent_section):
 
     area_left, area_top, area_width, area_height = area
     parent_directives = parent_section.directives if parent_section else {}
-    gap = parent_directives.get("gap", calculator.VERTICAL_SPACING)
+    # Ensure gap is a float
+    gap_value = parent_directives.get("gap", calculator.VERTICAL_SPACING)
+    try:
+        gap = float(gap_value)
+    except (ValueError, TypeError):
+        gap = float(calculator.VERTICAL_SPACING)
 
-    child_heights = [child.size[1] for child in children if child.size]
+    child_heights = [child.size[1] for child in children if child and child.size]
     start_y = _apply_vertical_alignment(
         area_top, area_height, child_heights, gap, parent_directives
     )
 
     current_y = start_y
-    for child in children:
-        if not child.size:
+    for i, child in enumerate(children):
+        if not child or not child.size:
             continue
 
+        # Apply horizontal alignment which sets the position
         apply_horizontal_alignment(
             child, area_left, area_width, current_y, parent_directives
         )
-        current_y += child.size[1] + adjust_vertical_spacing(child, gap)
+
+        # Increment current_y for the next element
+        current_y += child.size[1]
+        if i < len(children) - 1:  # Only add gap if it's not the last element
+            current_y += adjust_vertical_spacing(child, gap)
 
 
 def _position_horizontal_children(calculator, children, area, parent_section):

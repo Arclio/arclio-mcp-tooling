@@ -1,6 +1,4 @@
 import logging
-import re
-import textwrap
 from typing import Any
 
 from markdown_it import MarkdownIt
@@ -8,6 +6,7 @@ from markdown_it.token import Token
 
 from markdowndeck.models import Element
 from markdowndeck.models.slide import Section
+from markdowndeck.parser.content.content_normalizer import ContentNormalizer
 from markdowndeck.parser.content.element_factory import ElementFactory
 from markdowndeck.parser.content.formatters import (
     BaseFormatter,
@@ -44,6 +43,7 @@ class ContentParser:
 
         self.element_factory = ElementFactory()
         self.directive_parser = DirectiveParser()
+        self.normalizer = ContentNormalizer()
         self.formatters: list[BaseFormatter] = [
             ListFormatter(self.element_factory),
             CodeFormatter(self.element_factory),
@@ -126,7 +126,7 @@ class ContentParser:
                 )
 
                 # PHASE 1: Normalize content for consistent processing
-                normalized_content = self._normalize_content_for_parsing(child)
+                normalized_content = self.normalizer.normalize(child)
 
                 logger.debug(
                     f"--- NORMALIZED CONTENT ---\n{normalized_content}\n---------------------------------"
@@ -170,141 +170,6 @@ class ContentParser:
 
         section.children = final_children
         return all_created_elements
-
-    def _normalize_content_for_parsing(self, content: str) -> str:
-        """
-        Normalize content to ensure consistent tokenization by markdown-it.
-
-        This eliminates the inconsistent processing paths that cause tests to fail.
-        The goal is to ensure similar input structures always produce similar tokens.
-        """
-        if not content.strip():
-            return content
-
-        logger.debug(f"Starting normalization of {len(content)} character content")
-
-        # STEP 1: Protect all code constructs
-        protected_content, protected_blocks = self._protect_all_code_constructs(content)
-        logger.debug(f"Protected {len(protected_blocks)} code constructs")
-
-        # STEP 2: Normalize indentation (prevents code_block tokenization)
-        normalized_content = textwrap.dedent(protected_content).strip()
-        logger.debug("Dedented content: removed common leading whitespace")
-
-        # STEP 3: Ensure proper block separation for predictable parsing
-        normalized_content = self._ensure_proper_block_separation(normalized_content)
-        logger.debug("Applied block separation rules")
-
-        # STEP 4: Restore protected code
-        final_content = self._restore_all_code_constructs(
-            normalized_content, protected_blocks
-        )
-
-        logger.debug(
-            f"Content normalization complete: {len(content)} chars -> {len(final_content)} chars"
-        )
-        return final_content
-
-    def _protect_all_code_constructs(self, content: str) -> tuple[str, dict[str, str]]:
-        """Protect both fenced code blocks AND inline code spans."""
-        protected_blocks = {}
-
-        # Protect fenced code blocks first (higher priority)
-        content, fenced_blocks = self._protect_fenced_code_blocks(content)
-        protected_blocks.update(fenced_blocks)
-
-        # Protect inline code spans
-        content, inline_blocks = self._protect_inline_code_spans(content)
-        protected_blocks.update(inline_blocks)
-
-        return content, protected_blocks
-
-    def _protect_fenced_code_blocks(self, content: str) -> tuple[str, dict[str, str]]:
-        """Protect fenced code blocks from normalization."""
-        protected_blocks = {}
-
-        # Pattern for both ``` and ~~~ code blocks
-        fenced_pattern = re.compile(
-            r"^(```|~~~).*?\n(.*?)\n\1\s*$", re.MULTILINE | re.DOTALL
-        )
-
-        def replace_fenced_block(match):
-            placeholder = f"__FENCED_BLOCK_{len(protected_blocks)}__"
-            protected_blocks[placeholder] = match.group(0)
-            logger.debug(f"Protected fenced code block: {placeholder}")
-            return placeholder
-
-        protected_content = fenced_pattern.sub(replace_fenced_block, content)
-        return protected_content, protected_blocks
-
-    def _protect_inline_code_spans(self, content: str) -> tuple[str, dict[str, str]]:
-        """Protect inline code spans from normalization."""
-        protected_blocks = {}
-
-        # Robust pattern for inline code (single to triple backticks)
-        inline_pattern = re.compile(r"(`{1,3})([^`]*?)\1")
-
-        def replace_inline_code(match):
-            placeholder = f"__INLINE_CODE_{len(protected_blocks)}__"
-            original_span = match.group(0)
-            protected_blocks[placeholder] = original_span
-
-            # Debug logging for directive-like content in code spans
-            if "[" in original_span and "]" in original_span:
-                logger.debug(
-                    f"Protected inline code with directive-like content: {original_span}"
-                )
-
-            return placeholder
-
-        protected_content = inline_pattern.sub(replace_inline_code, content)
-        return protected_content, protected_blocks
-
-    def _ensure_proper_block_separation(self, content: str) -> str:
-        """
-        Ensure content has proper spacing for predictable markdown parsing.
-
-        This addresses the inconsistent splitting behavior by ensuring headings
-        are properly separated from following content.
-        """
-        lines = content.split("\n")
-        normalized_lines = []
-
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-
-            # Add current line
-            normalized_lines.append(line)
-
-            # Add spacing after headings if next line isn't empty
-            if (
-                stripped.startswith("#")
-                and i + 1 < len(lines)
-                and lines[i + 1].strip()
-                and not lines[i + 1].strip().startswith("#")
-                and lines[i + 1].strip()  # Combined condition to avoid nested if
-            ):
-                normalized_lines.append("")
-                logger.debug(f"Added separator after heading: {stripped[:50]}...")
-
-        return "\n".join(normalized_lines)
-
-    def _restore_all_code_constructs(
-        self, content: str, protected_blocks: dict[str, str]
-    ) -> str:
-        """Restore all protected code constructs."""
-        restored_content = content
-
-        for placeholder, original_block in protected_blocks.items():
-            if placeholder in restored_content:
-                restored_content = restored_content.replace(placeholder, original_block)
-                logger.debug(f"Restored code construct: {placeholder}")
-            else:
-                logger.warning(
-                    f"Code construct placeholder not found during restoration: {placeholder}"
-                )
-
-        return restored_content
 
     def _process_tokens(
         self, tokens: list[Token], section_directives: dict[str, Any]

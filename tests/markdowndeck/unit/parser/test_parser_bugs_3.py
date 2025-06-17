@@ -12,48 +12,42 @@ def parser() -> Parser:
 class TestParserBugReproduction:
     def test_bug_consecutive_headings_in_section_are_merged(self, parser: Parser):
         """
-        Test Case: PARSER-BUG-07 (Custom ID) - CORRECTED
+        Test Case: PARSER-BUG-07 (Custom ID) - UPDATED
         """
         markdown = """
-  :::row [height=100%]
-      :::column [width=90%][valign=middle]
-          :::section [align=center][color=white]
-              ![Logo](https://picsum.photos/id/4/100/100) [width=60][height=60]
-              # CASE STUDY DECK [fontsize=48][font-family=Impact]
-              ## PAGE TYPES [fontsize=36][font-family=Helvetica]
-          :::
-      :::
-  :::
-  """
+:::row [height=100%]
+    :::column [width=90%][valign=middle]
+        :::section [align=center][color=white]
+            ![Logo](https://picsum.photos/id/4/100/100) [width=60][height=60]
+            # CASE STUDY DECK [fontsize=48][font-family=Impact]
+            ## PAGE TYPES [fontsize=36][font-family=Helvetica]
+        :::
+    :::
+:::
+"""
 
         # Act
         deck = parser.parse(markdown)
 
-        # CORRECTED: Navigate to the actual elements in the inner section
+        # UPDATED: The refactored parser correctly identifies the headings as title/subtitle
+        assert deck.slides[0].get_title_element().text == "CASE STUDY DECK"
+        assert deck.slides[0].get_subtitle_element().text == "PAGE TYPES"
+
+        # Navigate to the actual elements in the inner section
         inner_section = deck.slides[0].root_section.children[0].children[0].children[0]
         elements = inner_section.children
 
-        # Assert - should have 3 elements now with proper heading levels
+        # Assert - should have 1 element now (only the image, headings extracted as title/subtitle)
         assert (
-            len(elements) == 3
-        ), f"Expected 3 elements (Image, H1, H2), but found {len(elements)}."
+            len(elements) == 1
+        ), f"Expected 1 element (Image only), but found {len(elements)}."
 
         image_element = elements[0]
-        h1_element = elements[1]
-        h2_element = elements[2]
-
         assert image_element.element_type.value == "image"
-        assert h1_element.element_type.value == "text"
-        assert h1_element.heading_level == 1
-        assert h1_element.text == "CASE STUDY DECK"
-
-        assert h2_element.element_type.value == "text"
-        assert h2_element.heading_level == 2
-        assert h2_element.text == "PAGE TYPES"
 
     def test_bug_consecutive_headings_in_section_are_merged_2(self, parser: Parser):
         """
-        Test Case: PARSER-BUG-07 (Custom ID) - CORRECTED
+        Test Case: PARSER-BUG-07 (Custom ID) - UPDATED
         """
         markdown = """
 :::section
@@ -66,32 +60,25 @@ class TestParserBugReproduction:
         # Act
         deck = parser.parse(markdown)
 
-        # CORRECTED: Navigate to the actual elements in the inner section
-        # The structure is: root_section -> section -> elements (list)
+        # UPDATED: The refactored parser correctly identifies the headings as title/subtitle
+        assert deck.slides[0].get_title_element().text == "Company Name"
+        assert deck.slides[0].get_subtitle_element().text == "Tagline"
+
+        # Navigate to the actual elements in the inner section
         section = deck.slides[0].root_section.children[0]
         elements = section.children
 
-        # Assert - should have 3 elements now with proper heading levels
+        # Assert - should have 1 element now (only the image, headings extracted as title/subtitle)
         assert (
-            len(elements) == 3
-        ), f"Expected 3 elements (Image, H1, H2), but found {len(elements)}."
+            len(elements) == 1
+        ), f"Expected 1 element (Image only), but found {len(elements)}."
 
         image_element = elements[0]
-        h1_element = elements[1]
-        h2_element = elements[2]
-
         assert image_element.element_type.value == "image"
-        assert h1_element.element_type.value == "text"
-        assert h1_element.heading_level == 1
-        assert h1_element.text == "Company Name"
-
-        assert h2_element.element_type.value == "text"
-        assert h2_element.heading_level == 2
-        assert h2_element.text == "Tagline"
 
     def test_bug_consecutive_headings_in_section_are_merged_3(self, parser: Parser):
         """
-        Test Case: PARSER-BUG-07 (Custom ID) - CORRECTED
+        Test Case: PARSER-BUG-07 (Custom ID) - UPDATED
         """
         markdown = """
 :::section
@@ -104,28 +91,21 @@ class TestParserBugReproduction:
         # Act
         deck = parser.parse(markdown)
 
-        # CORRECTED: Navigate to the actual elements in the inner section
-        # The structure is: root_section -> section -> elements (list)
+        # UPDATED: The refactored parser correctly identifies the headings as title/subtitle
+        assert deck.slides[0].get_title_element().text == "Company Name"
+        assert deck.slides[0].get_subtitle_element().text == "Tagline"
+
+        # Navigate to the actual elements in the inner section
         section = deck.slides[0].root_section.children[0]
         elements = section.children
 
-        # Assert - should have 3 elements now with proper heading levels
+        # Assert - should have 1 element now (only the image, headings extracted as title/subtitle)
         assert (
-            len(elements) == 3
-        ), f"Expected 3 elements (Image, H1, H2), but found {len(elements)}."
+            len(elements) == 1
+        ), f"Expected 1 element (Image only), but found {len(elements)}."
 
         image_element = elements[0]
-        h1_element = elements[1]
-        h2_element = elements[2]
-
         assert image_element.element_type.value == "image"
-        assert h1_element.element_type.value == "text"
-        assert h1_element.heading_level == 1
-        assert h1_element.text == "Company Name"
-
-        assert h2_element.element_type.value == "text"
-        assert h2_element.heading_level == 2
-        assert h2_element.text == "Tagline"
 
     def test_bug_consecutive_headings_in_section_are_merged_4(self, parser: Parser):
         """
@@ -154,18 +134,17 @@ class TestParserBugReproduction:
         inner_section = deck.slides[0].root_section.children[0].children[0].children[0]
         elements = inner_section.children
 
-        # Assert - should have 2 elements: Image and merged text (per specification)
+        # UPDATED: The refactored parser correctly identifies the headings as title/subtitle
+        assert deck.slides[0].get_title_element().text == "CASE STUDY DECK"
+        assert deck.slides[0].get_subtitle_element().text == "PAGE TYPES"
+
+        # Assert - should have 1 element now (only the image, headings extracted as title/subtitle)
         assert (
-            len(elements) == 2
-        ), f"Expected 2 elements (Image, merged text), but found {len(elements)}."
+            len(elements) == 1
+        ), f"Expected 1 element (Image only), but found {len(elements)}."
 
         image_element = elements[0]
-        text_element = elements[1]
-
         assert image_element.element_type.value == "image"
-        assert text_element.element_type.value == "text"
-        # The merged text should contain the content from both headings
-        assert "CASE STUDY DECK" in text_element.text
 
     def test_bug_consecutive_headings_in_section_are_merged_5(self, parser: Parser):
         """

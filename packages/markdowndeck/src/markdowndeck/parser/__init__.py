@@ -2,6 +2,7 @@ import logging
 
 from markdowndeck.models import Deck, Slide, SlideLayout
 from markdowndeck.parser.content import ContentParser
+from markdowndeck.parser.content.content_normalizer import ContentNormalizer
 from markdowndeck.parser.errors import GrammarError
 from markdowndeck.parser.section import SectionParser
 from markdowndeck.parser.slide_extractor import SlideExtractor

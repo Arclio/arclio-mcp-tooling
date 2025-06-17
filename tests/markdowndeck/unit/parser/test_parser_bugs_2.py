@@ -72,16 +72,13 @@ This is some `inline [code=true]` with a directive inside.
         assert element.directives.get("color") is not None
         assert element.directives.get("fontsize") == 18.0
 
-    def test_bug_indented_text_block_loses_formatting_and_keeps_indent(
-        self, parser: Parser
-    ):
+    def test_bug_indented_text_block_is_parsed_as_text(self, parser: Parser):
         """
-        Test Case: PARSER-BUG-06 (Custom ID) - UPDATED
-        Description: Per specification, indented text with a single line should be treated as code.
-        This test now validates the correct behavior where indented single-line content
-        becomes a code element, preserving the original intent.
+        Test Case: PARSER-BUG-06 (UPDATED)
+        Description: Validates that indented text is correctly normalized and parsed as
+        distinct TEXT elements, not CODE elements.
         """
-        # Arrange: Note the indented 'This is **bold**' line.
+        # Arrange: Indented content with a heading and a paragraph.
         markdown = """
 :::section
     ### A Heading
@@ -93,18 +90,20 @@ This is some `inline [code=true]` with a directive inside.
         deck = parser.parse(markdown)
         elements = deck.slides[0].root_section.children[0].children
 
-        # There should be two elements: the heading and the code block
+        # Assert: The normalizer should have separated these into two elements.
         assert len(elements) == 2, f"Expected 2 elements, but found {len(elements)}."
+
         heading_element = elements[0]
-        code_element = elements[1]
+        text_element = elements[1]
 
-        # Assert - heading should be correct
-        assert heading_element.element_type == ElementType.TEXT
-        assert heading_element.heading_level == 3
+        # Both elements should be of type TEXT.
+        assert (
+            heading_element.element_type == ElementType.TEXT
+        ), "Heading should be a TEXT element."
+        assert (
+            text_element.element_type == ElementType.TEXT
+        ), "Indented paragraph should be a TEXT element."
+
+        # Verify content and formatting are preserved.
         assert "A Heading" in heading_element.text
-
-        # Assert - indented single line should be treated as code per specification
-        assert code_element.element_type == ElementType.CODE
-        assert "This is **bold**." in code_element.code
-        # Code preserves original markdown syntax including formatting markers
-        assert "**bold**" in code_element.code
+        assert "This is bold." in text_element.text

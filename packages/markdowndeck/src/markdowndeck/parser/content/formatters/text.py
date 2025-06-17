@@ -110,6 +110,13 @@ class TextFormatter(BaseFormatter):
         # Remove indentation and analyze content
         dedented_content = textwrap.dedent(raw_content).strip()
 
+        # ENHANCEMENT: Check if this is actually a table that was mis-tokenized
+        if self._looks_like_table(dedented_content):
+            logger.debug("Code block contains table content - processing as table")
+            return self._process_table_from_content(
+                dedented_content, directives, start_index
+            )
+
         # Check if this contains text-like content (headings or multiple text lines)
         lines = dedented_content.strip().split("\n")
         heading_lines = sum(1 for line in lines if line.strip().startswith("#"))
@@ -152,6 +159,73 @@ class TextFormatter(BaseFormatter):
             f"Created code element from code_block token at index {start_index}"
         )
         return [element], start_index
+
+    def _looks_like_table(self, content: str) -> bool:
+        """
+        Check if content looks like a Markdown table.
+
+        A table should have:
+        - Multiple lines with | characters
+        - At least one line with --- separator pattern
+        """
+        lines = content.strip().split("\n")
+        if len(lines) < 2:
+            return False
+
+        # Check for pipe characters in multiple lines
+        pipe_lines = sum(1 for line in lines if "|" in line.strip())
+        if pipe_lines < 2:
+            return False
+
+        # Check for separator line (contains --- pattern)
+        separator_lines = sum(
+            1 for line in lines if "|" in line and "---" in line.replace(" ", "")
+        )
+
+        return separator_lines >= 1
+
+    def _process_table_from_content(
+        self, content: str, directives: dict[str, Any], start_index: int
+    ) -> tuple[list[Element], int]:
+        """
+        Process table content that was mis-tokenized as a code block.
+        Re-tokenize the content and delegate to TableFormatter.
+        """
+        # Re-tokenize the content specifically as markdown
+        table_tokens = self.md.parse(content)
+
+        # Find table tokens and delegate to TableFormatter
+        for i, token in enumerate(table_tokens):
+            if token.type == "table_open":
+                # Import TableFormatter here to avoid circular imports
+                from markdowndeck.parser.content.formatters.table import TableFormatter
+
+                table_formatter = TableFormatter(self.element_factory)
+
+                if table_formatter.can_handle(token, table_tokens[i:]):
+                    elements, _ = table_formatter.process(table_tokens, i, directives)
+                    return elements, start_index
+
+        # If no table found, fall back to text processing
+        logger.warning(
+            "Table detection succeeded but no table tokens found - treating as text"
+        )
+        cleaned_text, line_directives = self.directive_parser.parse_and_strip_from_text(
+            content
+        )
+        final_directives = {**directives, **line_directives}
+
+        if cleaned_text.strip():
+            text_content, formatting = self._extract_clean_text_and_formatting(
+                cleaned_text
+            )
+            if text_content:
+                element = self.element_factory.create_text_element(
+                    text_content, formatting, AlignmentType.LEFT, final_directives
+                )
+                return [element], start_index
+
+        return [], start_index
 
     def _process_heading(
         self, tokens: list[Token], start_index: int, directives: dict[str, Any]

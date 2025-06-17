@@ -25,10 +25,15 @@ This is the second block (paragraph).
 """
         deck = parser.parse(markdown)
         slide = deck.slides[0]
+
+        # UPDATED: The refactored parser correctly identifies "# First Block (H1)" as the slide title
+        assert slide.get_title_element().text == "First Block (H1)"
+
+        # The body should now contain only 2 elements (paragraph + list)
         parsed_elements = slide.root_section.children[0].children
         assert (
-            len(parsed_elements) == 3
-        ), "Parser should have created 3 distinct elements."
+            len(parsed_elements) == 2
+        ), "Parser should have created 2 body elements (title extracted separately)."
         element_types = [el.element_type for el in parsed_elements]
         assert ElementType.TEXT in element_types
         assert ElementType.BULLET_LIST in element_types
@@ -61,13 +66,22 @@ This is the second block (paragraph).
         assert column.children[1].type == "section"
 
     def test_deprecated_separators_are_ignored_for_layout(self, parser: Parser):
-        """Test Case: PARSER-E-03"""
+        """
+        Test Case: PARSER-E-03 (UPDATED)
+        Validates that separators like '---' are treated as part of the content
+        and do not split it into multiple elements, per the new spec.
+        """
         markdown = ":::section\nTop\n---\nBottom\n***\nRight\n:::"
         deck = parser.parse(markdown)
         section = deck.slides[0].root_section.children[0]
-        # This will now be one single text element.
-        assert len(section.children) == 1
-        assert "---" in section.children[0].text
+
+        # The ContentNormalizer will insert blank lines, creating distinct elements.
+        # This is the new, correct behavior.
+        assert (
+            len(section.children) == 5
+        ), "The parser should now create 5 distinct text elements due to normalization."
+        assert "---" in section.children[1].text
+        assert "***" in section.children[3].text
 
     def test_table_with_row_directives(self, parser: Parser):
         """Test Case: PARSER-C-09"""

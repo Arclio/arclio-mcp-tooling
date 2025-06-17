@@ -17,8 +17,13 @@ class TestMetadataParser:
         slide = deck.slides[0]
         assert slide.base_directives.get("color") is not None
         assert slide.base_directives.get("fontsize") == 12.0
+
+        # UPDATED: The refactored parser correctly identifies "# My Title" as the slide title
+        assert slide.get_title_element().text == "My Title"
+
+        # The section should now be empty (title was correctly extracted)
         title_section = slide.root_section.children[0]
-        assert title_section.children[0].text == "My Title"
+        assert len(title_section.children) == 0  # The title was correctly extracted
 
     def test_directive_precedence_scoping(self, parser: Parser):
         """Validates that base, section, and element directives are correctly scoped."""

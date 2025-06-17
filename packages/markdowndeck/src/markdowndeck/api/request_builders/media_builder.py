@@ -2,6 +2,7 @@ import contextlib
 import logging
 
 from markdowndeck.api.request_builders.base_builder import BaseRequestBuilder
+from markdowndeck.api.validation import is_valid_image_url
 from markdowndeck.models import ImageElement
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,20 @@ class MediaRequestBuilder(BaseRequestBuilder):
                 f"Skipping request generation for zero-sized image element on slide {slide_id}."
             )
             return []
+
+        if not is_valid_image_url(element.url):
+            from markdowndeck.api.placeholder import create_placeholder_image_url
+
+            logger.warning(
+                f"Image URL failed validation at API request generation: {element.url}. "
+                "Substituting with placeholder to prevent HttpError 400."
+            )
+            width_directive = getattr(element, "directives", {}).get("width", size[0])
+            height_directive = getattr(element, "directives", {}).get("height", size[1])
+
+            element.url = create_placeholder_image_url(
+                int(width_directive), int(height_directive), "Invalid Image"
+            )
 
         if not element.object_id:
             element.object_id = self._generate_id(f"image_{slide_id}")
