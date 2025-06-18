@@ -350,9 +350,16 @@ async def drive_find_folders_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
+    # Clean the folder name - remove surrounding quotes if present
+    clean_folder_name = folder_name.strip()
+    if (clean_folder_name.startswith('"') and clean_folder_name.endswith('"')) or (
+        clean_folder_name.startswith("'") and clean_folder_name.endswith("'")
+    ):
+        clean_folder_name = clean_folder_name[1:-1]
+
     # Build query to find folders with the specified name
-    # Use 'name contains' for partial matching and specify mimeType for folders
-    query = f"name contains '{folder_name}' and mimeType='application/vnd.google-apps.folder'"
+    # The escaping will be handled by the service layer
+    query = f"name contains '{clean_folder_name}' and mimeType='application/vnd.google-apps.folder'"
 
     drive_service = DriveService()
     folders = drive_service.search_files(
@@ -407,8 +414,15 @@ async def drive_search_in_folder_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
+    # Clean the folder name - remove surrounding quotes if present
+    clean_folder_name = folder_name.strip()
+    if (clean_folder_name.startswith('"') and clean_folder_name.endswith('"')) or (
+        clean_folder_name.startswith("'") and clean_folder_name.endswith("'")
+    ):
+        clean_folder_name = clean_folder_name[1:-1]
+
     # First, find the folder
-    folder_search_query = f"name contains '{folder_name}' and mimeType='application/vnd.google-apps.folder'"
+    folder_search_query = f"name contains '{clean_folder_name}' and mimeType='application/vnd.google-apps.folder'"
 
     drive_service = DriveService()
     folders = drive_service.search_files(

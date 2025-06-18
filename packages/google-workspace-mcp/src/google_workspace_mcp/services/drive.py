@@ -32,25 +32,34 @@ class DriveService(BaseGoogleService):
         Escape special characters in Drive API queries according to Google Drive API documentation.
 
         Args:
-            query: Raw query string
+            query: Raw query string that may contain structured queries like "name contains 'value'"
 
         Returns:
             Properly escaped query string for Drive API
         """
-        # According to Google Drive API docs:
-        # - Single quotes in queries must be escaped with \', such as 'Valentine\'s Day'
-        # - String values should be surrounded by single quotes
-
-        # First, escape any existing single quotes
-        escaped = query.replace("'", "\\'")
+        # For structured queries (like those built by tools), we need to be more careful
+        # Only escape single quotes that are INSIDE string values, not structural quotes
 
         # Remove any surrounding double quotes that might have been added by user
-        if escaped.startswith('"') and escaped.endswith('"'):
-            escaped = escaped[1:-1]
-            # Re-escape any single quotes that were inside the double quotes
-            escaped = escaped.replace("'", "\\'")
+        if query.startswith('"') and query.endswith('"'):
+            query = query[1:-1]
 
-        return escaped
+        # Simple approach: escape single quotes only when they appear to be inside string values
+        # This is a basic implementation that handles most common cases
+        import re
+
+        # Pattern to find string values in Drive API queries (content between single quotes)
+        # This will match 'some value' but not the structural single quotes
+        def escape_string_content(match):
+            string_content = match.group(1)
+            # Escape any single quotes inside the string content
+            escaped_content = string_content.replace("'", "\\'")
+            return f"'{escaped_content}'"
+
+        # Apply escaping only to content within single quotes
+        escaped_query = re.sub(r"'([^']*)'", escape_string_content, query)
+
+        return escaped_query
 
     def search_files(
         self,
