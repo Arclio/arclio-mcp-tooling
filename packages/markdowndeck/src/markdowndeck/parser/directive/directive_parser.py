@@ -25,7 +25,7 @@ class DirectiveParser:
 
     def __init__(self):
         """Initialize the directive parser with only supported directives."""
-        self.directive_block_pattern = re.compile(r"(\[[^\[\]]+\])")
+        self.directive_block_pattern = re.compile(r"(\s*\[[^\[\]]+\])")
         self.directive_types = {
             "width": "dimension",
             "height": "dimension",
@@ -98,21 +98,31 @@ class DirectiveParser:
         directives = {}
 
         def replacer(match):
-            directive_text = match.group(0)
+            full_match = match.group(0)  # Could be " [color=red]" or "[color=red]"
+
+            # Extract just the directive part (without leading space)
+            directive_text = full_match.lstrip()
             parsed = self._parse_directive_text(directive_text)
             directives.update(parsed)
 
-            # Handle formatting preservation around directives
+            # FIXED: Handle formatting preservation around directives
             start_pos = match.start()
             end_pos = match.end()
 
-            # If directive is immediately after a markdown formatting start
+            # Check if the full match includes a leading space
+            full_match.startswith(" ")
+
+            # If directive is immediately after a markdown formatting marker
             # and there's content after it that closes the formatting
             if start_pos > 0 and protected_text[start_pos - 1] in ["*", "_"]:
                 # Check if there's a space after the directive that we can remove
                 if end_pos < len(protected_text) and protected_text[end_pos] == " ":
                     return " "  # Replace with a single space to maintain formatting
                 return ""
+
+            # CRITICAL FIX: Preserve spacing by returning empty string
+            # Since our pattern now captures the space before the directive,
+            # we can simply return empty string and the original spacing is preserved
             return ""
 
         cleaned_text = self.directive_block_pattern.sub(replacer, protected_text)
@@ -122,12 +132,10 @@ class DirectiveParser:
             cleaned_text, code_spans
         )
 
-        # Post-process to fix broken markdown formatting
-        # Handle cases like "*  text*" -> "*text*" and "**  text**" -> "**text**"
-        restored_text = re.sub(r"\*\s+", "*", restored_text)
-        restored_text = re.sub(r"\*\*\s+", "**", restored_text)
-        restored_text = re.sub(r"_\s+", "_", restored_text)
-        restored_text = re.sub(r"__\s+", "__", restored_text)
+        # FIXED: Removed overly aggressive post-processing that was removing legitimate spaces
+        # The original patterns were causing the "bold textusing" concatenation bug
+        # Post-processing to fix broken markdown formatting is disabled for now
+        # TODO: If needed, implement more targeted post-processing that preserves legitimate spaces
 
         logger.debug(f"Final result: {restored_text}")
         logger.debug(f"Extracted directives: {directives}")
