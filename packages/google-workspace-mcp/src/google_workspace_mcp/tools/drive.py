@@ -384,6 +384,11 @@ async def drive_search_in_folder_by_name(
     Find a folder by name and search for files within it.
     This is useful when you know the folder name but not the folder ID.
 
+    Example use cases:
+    - Search for "budget" files in "Frank's RedHot" folder
+    - Find all files in "Marketing Materials" folder
+    - Search for PDFs in "Project Documents" folder
+
     Args:
         folder_name: The name of the folder to search for.
         file_query: Optional search query for files within the folder. If empty, returns all files.
@@ -392,6 +397,7 @@ async def drive_search_in_folder_by_name(
 
     Returns:
         A dictionary containing the folder info and files within it, or an error message.
+        Includes 'target_folder', 'folders_found' count, and 'files' list.
     """
     logger.info(
         f"Executing drive_search_in_folder_by_name with folder_name: '{folder_name}', "
