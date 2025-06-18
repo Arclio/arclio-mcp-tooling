@@ -3,6 +3,7 @@ import logging
 from markdowndeck.layout.constants import (
     DEFAULT_SLIDE_HEIGHT,
     DEFAULT_SLIDE_WIDTH,
+    FOOTER_BOTTOM_MARGIN,
     HORIZONTAL_SPACING,
     VERTICAL_SPACING,
 )
@@ -164,7 +165,12 @@ class PositionCalculator:
 
             footer_height = calculate_element_height(footer, self.max_content_width)
             footer.size = (self.max_content_width, footer_height)
-            footer_top = self.slide_height - self.margins["bottom"] - footer_height
+            footer_top = (
+                self.slide_height
+                - self.margins["bottom"]
+                - footer_height
+                - FOOTER_BOTTOM_MARGIN
+            )
             footer.position = (self.margins["left"], footer_top)
             total_height += footer_height
 

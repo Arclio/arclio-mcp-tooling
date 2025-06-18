@@ -7,6 +7,7 @@
 # Zone Heights (Fixed zones on slide)
 HEADER_HEIGHT = 90.0  # Height reserved for title/subtitle zone
 FOOTER_HEIGHT = 30.0  # Height reserved for footer zone
+FOOTER_BOTTOM_MARGIN = 5.0  # Extra space below the footer text
 
 # Inter-Zone Spacing (Clear spacing between major slide zones)
 # REFACTORED: Set to 0.0 per "Zero Default Spacing" principle.
@@ -37,7 +38,7 @@ FOOTER_FONT_SIZE = 10.0  # Footer text font size
 # Line Height Multipliers (relative to font size)
 H1_LINE_HEIGHT_MULTIPLIER = 1.2  # Title line height
 H2_LINE_HEIGHT_MULTIPLIER = 1.2  # Subtitle line height
-P_LINE_HEIGHT_MULTIPLIER = 1.4  # Paragraph line height
+P_LINE_HEIGHT_MULTIPLIER = 1.2  # Default line height for paragraphs
 CODE_LINE_HEIGHT_MULTIPLIER = 1.2  # Code line height
 LIST_LINE_HEIGHT_MULTIPLIER = 1.3  # List item line height
 
