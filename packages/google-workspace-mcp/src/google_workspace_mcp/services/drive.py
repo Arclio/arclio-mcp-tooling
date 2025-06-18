@@ -10,9 +10,10 @@ import logging
 import mimetypes
 from typing import Any
 
-from google_workspace_mcp.services.base import BaseGoogleService
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
+
+from google_workspace_mcp.services.base import BaseGoogleService
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,37 @@ class DriveService(BaseGoogleService):
         """Initialize the Drive service."""
         super().__init__("drive", "v3")
 
+    def _escape_drive_query(self, query: str) -> str:
+        """
+        Escape special characters in Drive API queries according to Google Drive API documentation.
+
+        Args:
+            query: Raw query string
+
+        Returns:
+            Properly escaped query string for Drive API
+        """
+        # According to Google Drive API docs:
+        # - Single quotes in queries must be escaped with \', such as 'Valentine\'s Day'
+        # - String values should be surrounded by single quotes
+
+        # First, escape any existing single quotes
+        escaped = query.replace("'", "\\'")
+
+        # Remove any surrounding double quotes that might have been added by user
+        if escaped.startswith('"') and escaped.endswith('"'):
+            escaped = escaped[1:-1]
+            # Re-escape any single quotes that were inside the double quotes
+            escaped = escaped.replace("'", "\\'")
+
+        return escaped
+
     def search_files(
-        self, query: str, page_size: int = 10, shared_drive_id: str | None = None
+        self,
+        query: str,
+        page_size: int = 10,
+        shared_drive_id: str | None = None,
+        include_shared_drives: bool = True,
     ) -> list[dict[str, Any]]:
         """
         Search for files in Google Drive.
@@ -36,39 +66,42 @@ class DriveService(BaseGoogleService):
             query: Search query string
             page_size: Maximum number of files to return (1-1000)
             shared_drive_id: Optional shared drive ID to search within a specific shared drive
+            include_shared_drives: Whether to include shared drives in search (default True)
 
         Returns:
             List of file metadata dictionaries (id, name, mimeType, etc.) or an error dictionary
         """
         try:
             logger.info(
-                f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+                f"Searching files with query: '{query}', page_size: {page_size}, "
+                f"shared_drive_id: {shared_drive_id}, include_shared_drives: {include_shared_drives}"
             )
 
             # Validate and constrain page_size
             page_size = max(1, min(page_size, 1000))
 
-            # Format query with proper escaping
-            formatted_query = query.replace("'", "\\'")
+            # Properly escape the query for Drive API
+            escaped_query = self._escape_drive_query(query)
 
-            # Build list parameters with shared drive support
+            # Build list parameters with comprehensive shared drive support
             list_params = {
-                "q": query,  # Use the query directly without modification
+                "q": escaped_query,
                 "pageSize": page_size,
-                "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
+                "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink, parents)",
                 "supportsAllDrives": True,
                 "includeItemsFromAllDrives": True,
             }
 
             if shared_drive_id:
+                # Search within a specific shared drive
                 list_params["driveId"] = shared_drive_id
-                list_params["corpora"] = (
-                    "drive"  # Search within the specified shared drive
-                )
+                list_params["corpora"] = "drive"
+            elif include_shared_drives:
+                # Search across all drives (user's files + shared drives + shared folders)
+                list_params["corpora"] = "allDrives"
             else:
-                list_params["corpora"] = (
-                    "user"  # Default to user's files if no specific shared drive ID
-                )
+                # Search only user's personal files
+                list_params["corpora"] = "user"
 
             results = self.service.files().list(**list_params).execute()
             files = results.get("files", [])

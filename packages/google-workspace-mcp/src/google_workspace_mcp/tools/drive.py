@@ -22,6 +22,7 @@ async def drive_search_files(
     query: str,
     page_size: int = 10,
     shared_drive_id: str | None = None,
+    include_shared_drives: bool = True,
 ) -> dict[str, Any]:
     """
     Search for files in Google Drive, optionally within a specific shared drive.
@@ -30,12 +31,15 @@ async def drive_search_files(
         query: Search query string. Can be a simple text search or complex query with operators.
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
+        include_shared_drives: Whether to include shared drives and folders in search (default True).
+                              Set to False to search only personal files.
 
     Returns:
         A dictionary containing a list of files or an error message.
     """
     logger.info(
-        f"Executing drive_search_files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+        f"Executing drive_search_files with query: '{query}', page_size: {page_size}, "
+        f"shared_drive_id: {shared_drive_id}, include_shared_drives: {include_shared_drives}"
     )
 
     if not query or not query.strip():
@@ -43,7 +47,10 @@ async def drive_search_files(
 
     drive_service = DriveService()
     files = drive_service.search_files(
-        query=query, page_size=page_size, shared_drive_id=shared_drive_id
+        query=query,
+        page_size=page_size,
+        shared_drive_id=shared_drive_id,
+        include_shared_drives=include_shared_drives,
     )
 
     if isinstance(files, dict) and files.get("error"):
@@ -224,3 +231,224 @@ async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
         return {"message": "No shared drives found or accessible."}
 
     return {"count": len(drives), "shared_drives": drives}
+
+
+@mcp.tool(
+    name="drive_search_files_in_folder",
+    description="Search for files within a specific folder in Google Drive.",
+)
+async def drive_search_files_in_folder(
+    folder_id: str,
+    query: str = "",
+    page_size: int = 10,
+) -> dict[str, Any]:
+    """
+    Search for files within a specific folder in Google Drive.
+    This works for both personal folders and shared folders.
+
+    Args:
+        folder_id: The ID of the folder to search within.
+        query: Optional search query string. If empty, returns all files in the folder.
+        page_size: Maximum number of files to return (1 to 1000, default 10).
+
+    Returns:
+        A dictionary containing a list of files in the folder or an error message.
+    """
+    logger.info(
+        f"Executing drive_search_files_in_folder with folder_id: '{folder_id}', "
+        f"query: '{query}', page_size: {page_size}"
+    )
+
+    if not folder_id or not folder_id.strip():
+        raise ValueError("Folder ID cannot be empty")
+
+    # Build the search query to search within the specific folder
+    folder_query = f"'{folder_id}' in parents"
+    if query and query.strip():
+        # Combine folder constraint with user query
+        combined_query = f"({query}) and {folder_query}"
+    else:
+        combined_query = folder_query
+
+    drive_service = DriveService()
+    files = drive_service.search_files(
+        query=combined_query,
+        page_size=page_size,
+        include_shared_drives=True,  # Always include shared drives for folder searches
+    )
+
+    if isinstance(files, dict) and files.get("error"):
+        raise ValueError(
+            f"Folder search failed: {files.get('message', 'Unknown error')}"
+        )
+
+    return {"folder_id": folder_id, "files": files}
+
+
+@mcp.tool(
+    name="drive_get_folder_info",
+    description="Get information about a specific folder in Google Drive.",
+)
+async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
+    """
+    Get detailed information about a folder in Google Drive.
+    Useful for understanding folder permissions and hierarchy.
+
+    Args:
+        folder_id: The ID of the folder to get information about.
+
+    Returns:
+        A dictionary containing folder metadata or an error message.
+    """
+    logger.info(f"Executing drive_get_folder_info with folder_id: '{folder_id}'")
+
+    if not folder_id or not folder_id.strip():
+        raise ValueError("Folder ID cannot be empty")
+
+    drive_service = DriveService()
+    folder_info = drive_service.get_file_metadata(file_id=folder_id)
+
+    if isinstance(folder_info, dict) and folder_info.get("error"):
+        raise ValueError(
+            f"Failed to get folder info: {folder_info.get('message', 'Unknown error')}"
+        )
+
+    # Verify it's actually a folder
+    if folder_info.get("mimeType") != "application/vnd.google-apps.folder":
+        raise ValueError(
+            f"ID '{folder_id}' is not a folder (mimeType: {folder_info.get('mimeType')})"
+        )
+
+    return folder_info
+
+
+@mcp.tool(
+    name="drive_find_folders_by_name",
+    description="Find folders in Google Drive by name.",
+)
+async def drive_find_folders_by_name(
+    folder_name: str,
+    page_size: int = 10,
+    shared_drive_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Find folders in Google Drive by name. This works for both personal and shared folders.
+
+    Args:
+        folder_name: The name of the folder to search for (supports partial matches).
+        page_size: Maximum number of folders to return (1 to 1000, default 10).
+        shared_drive_id: Optional shared drive ID to search within a specific shared drive.
+
+    Returns:
+        A dictionary containing a list of matching folders or an error message.
+    """
+    logger.info(
+        f"Executing drive_find_folders_by_name with folder_name: '{folder_name}', "
+        f"page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+    )
+
+    if not folder_name or not folder_name.strip():
+        raise ValueError("Folder name cannot be empty")
+
+    # Build query to find folders with the specified name
+    # Use 'name contains' for partial matching and specify mimeType for folders
+    query = f"name contains '{folder_name}' and mimeType='application/vnd.google-apps.folder'"
+
+    drive_service = DriveService()
+    folders = drive_service.search_files(
+        query=query,
+        page_size=page_size,
+        shared_drive_id=shared_drive_id,
+        include_shared_drives=True,  # Always include shared drives when searching for folders
+    )
+
+    if isinstance(folders, dict) and folders.get("error"):
+        raise ValueError(
+            f"Folder search failed: {folders.get('message', 'Unknown error')}"
+        )
+
+    return {"folder_name": folder_name, "folders": folders}
+
+
+@mcp.tool(
+    name="drive_search_in_folder_by_name",
+    description="Find a folder by name and search for files within it.",
+)
+async def drive_search_in_folder_by_name(
+    folder_name: str,
+    file_query: str = "",
+    page_size: int = 10,
+    shared_drive_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Find a folder by name and search for files within it.
+    This is useful when you know the folder name but not the folder ID.
+
+    Args:
+        folder_name: The name of the folder to search for.
+        file_query: Optional search query for files within the folder. If empty, returns all files.
+        page_size: Maximum number of files to return (1 to 1000, default 10).
+        shared_drive_id: Optional shared drive ID to search within a specific shared drive.
+
+    Returns:
+        A dictionary containing the folder info and files within it, or an error message.
+    """
+    logger.info(
+        f"Executing drive_search_in_folder_by_name with folder_name: '{folder_name}', "
+        f"file_query: '{file_query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+    )
+
+    if not folder_name or not folder_name.strip():
+        raise ValueError("Folder name cannot be empty")
+
+    # First, find the folder
+    folder_search_query = f"name contains '{folder_name}' and mimeType='application/vnd.google-apps.folder'"
+
+    drive_service = DriveService()
+    folders = drive_service.search_files(
+        query=folder_search_query,
+        page_size=5,  # Limit to 5 folders to avoid too many results
+        shared_drive_id=shared_drive_id,
+        include_shared_drives=True,
+    )
+
+    if isinstance(folders, dict) and folders.get("error"):
+        raise ValueError(
+            f"Folder search failed: {folders.get('message', 'Unknown error')}"
+        )
+
+    if not folders:
+        return {
+            "folder_name": folder_name,
+            "folders_found": [],
+            "message": f"No folders found with name containing '{folder_name}'",
+        }
+
+    # If we found folders, search in the first one (most relevant match)
+    target_folder = folders[0]
+    folder_id = target_folder["id"]
+
+    # Build the search query for files within the folder
+    folder_constraint = f"'{folder_id}' in parents"
+    combined_query = (
+        f"({file_query}) and {folder_constraint}"
+        if file_query and file_query.strip()
+        else folder_constraint
+    )
+
+    # Search for files in the folder
+    files = drive_service.search_files(
+        query=combined_query, page_size=page_size, include_shared_drives=True
+    )
+
+    if isinstance(files, dict) and files.get("error"):
+        raise ValueError(
+            f"File search in folder failed: {files.get('message', 'Unknown error')}"
+        )
+
+    return {
+        "folder_name": folder_name,
+        "target_folder": target_folder,
+        "folders_found": len(folders),
+        "files": files,
+    }
