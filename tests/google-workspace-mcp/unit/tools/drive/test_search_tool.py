@@ -16,7 +16,9 @@ class TestDriveSearchFilesTool:
     @pytest.fixture
     def mock_drive_service_for_tool(self):
         """Patch DriveService for tool tests."""
-        with patch("google_workspace_mcp.tools.drive.DriveService") as mock_service_class:
+        with patch(
+            "google_workspace_mcp.tools.drive.DriveService"
+        ) as mock_service_class:
             mock_service_instance = MagicMock()
             mock_service_class.return_value = mock_service_instance
             yield mock_service_instance
@@ -33,21 +35,52 @@ class TestDriveSearchFilesTool:
 
         assert result == {"files": mock_files}
         mock_drive_service_for_tool.search_files.assert_called_once_with(
-            query="test documents", page_size=5, shared_drive_id=None
+            query="test documents",
+            page_size=5,
+            shared_drive_id=None,
+            include_shared_drives=True,
         )
 
-    async def test_tool_search_files_with_shared_drive(self, mock_drive_service_for_tool):
+    async def test_tool_search_files_with_shared_drive(
+        self, mock_drive_service_for_tool
+    ):
         """Test drive_search_files tool with shared drive."""
         mock_files = [
             {"id": "shared1", "name": "shared_doc.txt", "mimeType": "text/plain"},
         ]
         mock_drive_service_for_tool.search_files.return_value = mock_files
 
-        result = await drive_search_files(query="shared documents", page_size=10, shared_drive_id="drive123")
+        result = await drive_search_files(
+            query="shared documents", page_size=10, shared_drive_id="drive123"
+        )
 
         assert result == {"files": mock_files}
         mock_drive_service_for_tool.search_files.assert_called_once_with(
-            query="shared documents", page_size=10, shared_drive_id="drive123"
+            query="shared documents",
+            page_size=10,
+            shared_drive_id="drive123",
+            include_shared_drives=True,
+        )
+
+    async def test_tool_search_files_exclude_shared_drives(
+        self, mock_drive_service_for_tool
+    ):
+        """Test drive_search_files tool excluding shared drives."""
+        mock_files = [
+            {"id": "personal1", "name": "personal_doc.txt", "mimeType": "text/plain"},
+        ]
+        mock_drive_service_for_tool.search_files.return_value = mock_files
+
+        result = await drive_search_files(
+            query="personal documents", include_shared_drives=False
+        )
+
+        assert result == {"files": mock_files}
+        mock_drive_service_for_tool.search_files.assert_called_once_with(
+            query="personal documents",
+            page_size=10,
+            shared_drive_id=None,
+            include_shared_drives=False,
         )
 
     async def test_tool_search_files_empty_results(self, mock_drive_service_for_tool):
@@ -63,7 +96,9 @@ class TestDriveSearchFilesTool:
         with pytest.raises(ValueError, match="Query cannot be empty"):
             await drive_search_files(query="")
 
-    async def test_tool_search_files_whitespace_query(self, mock_drive_service_for_tool):
+    async def test_tool_search_files_whitespace_query(
+        self, mock_drive_service_for_tool
+    ):
         """Test drive_search_files tool with whitespace-only query."""
         with pytest.raises(ValueError, match="Query cannot be empty"):
             await drive_search_files(query="   ")
@@ -80,7 +115,9 @@ class TestDriveSearchFilesTool:
         with pytest.raises(Exception, match="Search failed: API rate limit exceeded"):
             await drive_search_files(query="test")
 
-    async def test_tool_search_files_service_unknown_error(self, mock_drive_service_for_tool):
+    async def test_tool_search_files_service_unknown_error(
+        self, mock_drive_service_for_tool
+    ):
         """Test drive_search_files tool when service returns error without message."""
         error_response = {"error": True, "error_type": "unknown"}
         mock_drive_service_for_tool.search_files.return_value = error_response
@@ -88,7 +125,9 @@ class TestDriveSearchFilesTool:
         with pytest.raises(Exception, match="Search failed: Unknown error"):
             await drive_search_files(query="test")
 
-    async def test_tool_search_files_default_parameters(self, mock_drive_service_for_tool):
+    async def test_tool_search_files_default_parameters(
+        self, mock_drive_service_for_tool
+    ):
         """Test drive_search_files tool with default parameters."""
         mock_files = [{"id": "file1", "name": "test.txt"}]
         mock_drive_service_for_tool.search_files.return_value = mock_files
@@ -96,5 +135,7 @@ class TestDriveSearchFilesTool:
         result = await drive_search_files(query="test")
 
         # Verify default parameters
-        mock_drive_service_for_tool.search_files.assert_called_once_with(query="test", page_size=10, shared_drive_id=None)
+        mock_drive_service_for_tool.search_files.assert_called_once_with(
+            query="test", page_size=10, shared_drive_id=None, include_shared_drives=True
+        )
         assert result == {"files": mock_files}

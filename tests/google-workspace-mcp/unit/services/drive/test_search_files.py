@@ -33,7 +33,7 @@ class TestDriveSearchFiles:
         assert call_args["pageSize"] == 10
         assert call_args["supportsAllDrives"] is True
         assert call_args["includeItemsFromAllDrives"] is True
-        assert call_args["corpora"] == "user"
+        assert call_args["corpora"] == "allDrives"  # Default now includes all drives
         assert "driveId" not in call_args
 
     def test_search_files_with_shared_drive(self, mock_drive_service: DriveService):
@@ -152,3 +152,28 @@ class TestDriveSearchFiles:
         mock_drive_service.handle_api_error.assert_called_once_with(
             "search_files", exception
         )
+
+    def test_search_files_exclude_shared_drives(self, mock_drive_service: DriveService):
+        """Test file search excluding shared drives."""
+        mock_api_response = {
+            "files": [
+                {"id": "file1", "name": "personal file 1", "mimeType": "text/plain"},
+            ]
+        }
+        mock_drive_service.service.files.return_value.list.return_value.execute.return_value = (
+            mock_api_response
+        )
+
+        result = mock_drive_service.search_files(
+            query="personal", page_size=10, include_shared_drives=False
+        )
+
+        assert result == mock_api_response["files"]
+        # Verify API call parameters for user-only search
+        call_args = mock_drive_service.service.files.return_value.list.call_args[1]
+        assert call_args["q"] == "personal"
+        assert call_args["pageSize"] == 10
+        assert call_args["supportsAllDrives"] is True
+        assert call_args["includeItemsFromAllDrives"] is True
+        assert call_args["corpora"] == "user"
+        assert "driveId" not in call_args
