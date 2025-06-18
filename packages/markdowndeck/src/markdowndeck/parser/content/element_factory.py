@@ -211,9 +211,7 @@ class ElementFactory:
         )
 
     def _extract_formatting_from_inline_token(self, token: Token) -> list[TextFormat]:
-        """
-        Extract text formatting from an inline token's children.
-        """
+        """FIXED: Extract text formatting using a stateful stack-based approach."""
         if (
             token.type != "inline"
             or not hasattr(token, "children")
@@ -223,7 +221,7 @@ class ElementFactory:
 
         plain_text = ""
         formatting_data = []
-        active_formats = []
+        active_formats = []  # Stack to track open formats
 
         for child in token.children:
             child_type = getattr(child, "type", "")
@@ -232,61 +230,66 @@ class ElementFactory:
                 plain_text += child.content
             elif child_type == "code_inline":
                 start_pos = len(plain_text)
-                code_content = child.content
-                plain_text += code_content
-                if code_content.strip():
+                plain_text += child.content
+                end_pos = len(plain_text)
+                if start_pos < end_pos:
                     formatting_data.append(
                         TextFormat(
                             start=start_pos,
-                            end=start_pos + len(code_content),
+                            end=end_pos,
                             format_type=TextFormatType.CODE,
                         )
                     )
             elif child_type in ["softbreak", "hardbreak"]:
                 plain_text += "\n"
-            elif child_type == "image":
-                alt_text = child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
-                plain_text += alt_text
             elif child_type.endswith("_open"):
-                base_type = child_type.split("_")[0]
-                format_type_enum = None
-                value: Any = True
-                if base_type == "strong":
-                    format_type_enum = TextFormatType.BOLD
-                elif base_type == "em":
-                    format_type_enum = TextFormatType.ITALIC
-                elif base_type == "s":
-                    format_type_enum = TextFormatType.STRIKETHROUGH
-                elif base_type == "link":
-                    format_type_enum = TextFormatType.LINK
+                format_type = None
+                value = True
+                if child_type == "strong_open":
+                    format_type = TextFormatType.BOLD
+                elif child_type == "em_open":
+                    format_type = TextFormatType.ITALIC
+                elif child_type == "s_open":
+                    format_type = TextFormatType.STRIKETHROUGH
+                elif child_type == "link_open":
+                    format_type = TextFormatType.LINK
                     value = (
-                        child.attrs.get("href", "") if hasattr(child, "attrs") else ""
+                        dict(child.attrs).get("href", "")
+                        if hasattr(child, "attrs")
+                        else ""
                     )
-                if format_type_enum:
-                    active_formats.append((format_type_enum, len(plain_text), value))
+
+                if format_type:
+                    active_formats.append(
+                        {"type": format_type, "start": len(plain_text), "value": value}
+                    )
+
             elif child_type.endswith("_close"):
-                base_type = child_type.split("_")[0]
-                expected_format_type = None
-                if base_type == "strong":
-                    expected_format_type = TextFormatType.BOLD
-                elif base_type == "em":
-                    expected_format_type = TextFormatType.ITALIC
-                elif base_type == "s":
-                    expected_format_type = TextFormatType.STRIKETHROUGH
-                elif base_type == "link":
-                    expected_format_type = TextFormatType.LINK
+                expected_type = None
+                if child_type == "strong_close":
+                    expected_type = TextFormatType.BOLD
+                elif child_type == "em_close":
+                    expected_type = TextFormatType.ITALIC
+                elif child_type == "s_close":
+                    expected_type = TextFormatType.STRIKETHROUGH
+                elif child_type == "link_close":
+                    expected_type = TextFormatType.LINK
+
+                # Find the corresponding opening tag on the stack
                 for i in range(len(active_formats) - 1, -1, -1):
-                    fmt_type, start_pos, fmt_value = active_formats[i]
-                    if fmt_type == expected_format_type:
-                        if start_pos < len(plain_text):
+                    if active_formats[i]["type"] == expected_type:
+                        fmt = active_formats.pop(i)
+                        start_pos = fmt["start"]
+                        end_pos = len(plain_text)
+                        if start_pos < end_pos:
                             formatting_data.append(
                                 TextFormat(
                                     start=start_pos,
-                                    end=len(plain_text),
-                                    format_type=fmt_type,
-                                    value=fmt_value,
+                                    end=end_pos,
+                                    format_type=fmt["type"],
+                                    value=fmt["value"],
                                 )
                             )
-                        active_formats.pop(i)
                         break
+
         return formatting_data

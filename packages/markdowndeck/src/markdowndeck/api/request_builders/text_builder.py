@@ -183,6 +183,39 @@ class TextRequestBuilder(BaseRequestBuilder):
             para_fields.append("lineSpacing")
 
         # --- Text Styles ---
+
+        # FIXED: Apply font size based on heading level first, then allow override by fontsize directive
+        from markdowndeck.layout.constants import (
+            H1_FONT_SIZE,
+            H2_FONT_SIZE,
+            H3_FONT_SIZE,
+            H4_FONT_SIZE,
+            H5_FONT_SIZE,
+            H6_FONT_SIZE,
+        )
+
+        # Mapping from heading level to font size
+        heading_font_sizes = {
+            1: H1_FONT_SIZE,
+            2: H2_FONT_SIZE,
+            3: H3_FONT_SIZE,
+            4: H4_FONT_SIZE,
+            5: H5_FONT_SIZE,
+            6: H6_FONT_SIZE,
+        }
+
+        # Apply font size from heading level if present
+        if (
+            hasattr(element, "heading_level")
+            and element.heading_level in heading_font_sizes
+        ):
+            font_size = heading_font_sizes[element.heading_level]
+            text_style_updates["fontSize"] = {
+                "magnitude": font_size,
+                "unit": "PT",
+            }
+            text_fields.append("fontSize")
+
         color_directive = directives.get("color")
         if isinstance(color_directive, dict) and color_directive.get("type") == "color":
             color_value = color_directive.get("value", {})
@@ -203,16 +236,19 @@ class TextRequestBuilder(BaseRequestBuilder):
                 except (ValueError, AttributeError):
                     logger.warning(f"Invalid text color value: {color_str}")
 
+        # FIXED: fontsize directive now processed AFTER heading level to allow override
         fontsize_directive = directives.get("fontsize")
         if fontsize_directive:
             try:
                 font_size = float(fontsize_directive)
                 if font_size > 0:
+                    # This will override the heading-level font size if both are present
                     text_style_updates["fontSize"] = {
                         "magnitude": font_size,
                         "unit": "PT",
                     }
-                    text_fields.append("fontSize")
+                    if "fontSize" not in text_fields:
+                        text_fields.append("fontSize")
             except (ValueError, TypeError):
                 logger.warning(f"Invalid font size value: {fontsize_directive}")
 

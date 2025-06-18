@@ -209,13 +209,15 @@ def _calculate_wrapped_text_bbox(
                 line_width = len(line) * font.size * 0.6
             max_line_width = max(max_line_width, line_width)
 
-    total_height = len(all_lines) * proper_line_height
-
-    # WORKAROUND: Per gotchas/METRICS_AND_RENDERING.md, add exactly one line of
-    # height to wrapped text calculations to compensate for a known discrepancy
-    # between Pillow's font metrics and Google Slides' rendering engine.
-    if len(all_lines) > 1:
-        total_height += proper_line_height
+    # --- START NEW, ACCURATE ALGORITHM ---
+    num_lines = len(all_lines)
+    if num_lines > 0:
+        # The total height is the height of the first line (ascent + descent)
+        # plus the gap between each subsequent line's baseline.
+        total_height = base_line_height + ((num_lines - 1) * proper_line_height)
+    else:
+        total_height = 0.0
+    # --- END NEW, ACCURATE ALGORITHM ---
 
     return (float(max_line_width), float(total_height), line_metrics)
 

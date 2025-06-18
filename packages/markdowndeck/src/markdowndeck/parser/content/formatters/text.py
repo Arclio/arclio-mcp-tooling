@@ -509,10 +509,22 @@ class TextFormatter(BaseFormatter):
                     child.attrs.get("alt", "") if hasattr(child, "attrs") else ""
                 )
             elif child.type.endswith("_open"):
-                # For formatting like bold, italic - we don't need the markers for directive parsing
-                pass
+                # FIXED: Preserve formatting markers so they can be processed later
+                if child.type == "strong_open":
+                    preserved_text += "**"
+                elif child.type == "em_open":
+                    preserved_text += "*"
+                elif child.type == "s_open":
+                    preserved_text += "~~"
+                # For other markers, we can skip them for directive parsing purposes
             elif child.type.endswith("_close"):
-                pass
-            # Skip other formatting markers but preserve their content via the text tokens
+                # FIXED: Preserve formatting markers so they can be processed later
+                if child.type == "strong_close":
+                    preserved_text += "**"
+                elif child.type == "em_close":
+                    preserved_text += "*"
+                elif child.type == "s_close":
+                    preserved_text += "~~"
+                # For other markers, we can skip them for directive parsing purposes
 
         return preserved_text

@@ -504,3 +504,106 @@ Some text content in the other column.
         slide1_text_content = slide1_text["insertText"]["text"]
         slide2_text_content = slide2_text["insertText"]["text"]
         assert slide1_text_content != slide2_text_content
+
+    def test_p_16_heading_style_and_color_directive_flow(self):
+        """
+        Test Case: INTEGRATION-P-16
+        Validates that both font size from a heading level and a color
+        directive are correctly translated into a single updateTextStyle API request.
+        """
+        # Arrange: A heading with a color directive.
+        markdown = ":::section\n## My Blue H2 Heading [color=blue]\n:::"
+
+        # Act
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        # Find the text element's ID
+        shape = _find_shape_by_text(requests, "My Blue H2 Heading")
+        assert shape is not None, "Could not find the shape for the heading."
+        object_id = shape["objectId"]
+
+        # Find the text style request for this object
+        style_req = next(
+            (
+                r["updateTextStyle"]
+                for r in requests
+                if "updateTextStyle" in r
+                and r["updateTextStyle"]["objectId"] == object_id
+            ),
+            None,
+        )
+
+        # Assert
+        assert style_req is not None, "An updateTextStyle request must be generated."
+
+        style = style_req["style"]
+        fields = style_req["fields"]
+
+        # 1. Assert Font Size (from H2)
+        from markdowndeck.layout.constants import H2_FONT_SIZE
+
+        assert "fontSize" in style, "Style dictionary must contain fontSize."
+        assert (
+            style["fontSize"]["magnitude"] == H2_FONT_SIZE
+        ), f"Font size should be {H2_FONT_SIZE} for an H2."
+        assert "fontSize" in fields, "Fields mask must include fontSize."
+
+        # 2. Assert Color (from directive)
+        assert (
+            "foregroundColor" in style
+        ), "Style dictionary must contain foregroundColor."
+        color = style["foregroundColor"]["opaqueColor"]["rgbColor"]
+        assert abs(color["blue"] - 1.0) < 0.01, "Text color should be blue."
+        assert "foregroundColor" in fields, "Fields mask must include foregroundColor."
+
+    def test_p_18_inline_and_block_styling_flow(self):
+        """
+        Test Case: INTEGRATION-P-18
+        Validates that both standard inline markdown formatting (bold, italic) and
+        block-level directives (color) are correctly parsed and applied.
+        """
+        # Arrange
+        markdown = ":::section [color=blue]\nThis is **bold** and *italic*.\n:::"
+
+        # Act
+        result = markdown_to_requests(markdown)
+        requests = result["slide_batches"][0]["requests"]
+
+        # Find the text element's ID
+        shape = _find_shape_by_text(requests, "This is bold and italic.")
+        assert shape is not None, "Could not find the shape for the text element."
+        object_id = shape["objectId"]
+
+        # Find all style requests for this object
+        style_requests = [
+            r["updateTextStyle"]
+            for r in requests
+            if "updateTextStyle" in r and r["updateTextStyle"]["objectId"] == object_id
+        ]
+
+        assert (
+            len(style_requests) >= 2
+        ), "Expected at least two styling requests (one for block, one for inline)."
+
+        # 1. Assert Block-Level Color (applied to the whole range)
+        block_style_req = next(
+            (r for r in style_requests if r["textRange"]["type"] == "ALL"), None
+        )
+        assert block_style_req is not None, "Block-level style request is missing."
+        color = block_style_req["style"]["foregroundColor"]["opaqueColor"]["rgbColor"]
+        assert abs(color["blue"] - 1.0) < 0.01, "Block color should be blue."
+
+        # 2. Assert Inline Bold Formatting (applied to a fixed range)
+        bold_req = next((r for r in style_requests if r["style"].get("bold")), None)
+        assert bold_req is not None, "Bold style request is missing."
+        assert bold_req["textRange"]["type"] == "FIXED_RANGE"
+        assert bold_req["textRange"]["startIndex"] == 8
+        assert bold_req["textRange"]["endIndex"] == 12
+
+        # 3. Assert Inline Italic Formatting (applied to a fixed range)
+        italic_req = next((r for r in style_requests if r["style"].get("italic")), None)
+        assert italic_req is not None, "Italic style request is missing."
+        assert italic_req["textRange"]["type"] == "FIXED_RANGE"
+        assert italic_req["textRange"]["startIndex"] == 17
+        assert italic_req["textRange"]["endIndex"] == 23
