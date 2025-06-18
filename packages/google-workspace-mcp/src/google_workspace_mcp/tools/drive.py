@@ -23,6 +23,7 @@ async def drive_search_files(
     page_size: int = 10,
     shared_drive_id: str | None = None,
     include_shared_drives: bool = True,
+    include_trashed: bool = False,
 ) -> dict[str, Any]:
     """
     Search for files in Google Drive, optionally within a specific shared drive.
@@ -40,21 +41,28 @@ async def drive_search_files(
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
         include_shared_drives: Whether to include shared drives and folders in search (default True).
                               Set to False to search only personal files.
+        include_trashed: Whether to include trashed files in search results (default False).
 
     Returns:
         A dictionary containing a list of files or an error message.
     """
     logger.info(
         f"Executing drive_search_files with query: '{query}', page_size: {page_size}, "
-        f"shared_drive_id: {shared_drive_id}, include_shared_drives: {include_shared_drives}"
+        f"shared_drive_id: {shared_drive_id}, include_shared_drives: {include_shared_drives}, "
+        f"include_trashed: {include_trashed}"
     )
 
     if not query or not query.strip():
         raise ValueError("Query cannot be empty")
 
+    # Add trashed filter to query if not including trashed items
+    final_query = query
+    if not include_trashed:
+        final_query = f"({query}) and trashed=false"
+
     drive_service = DriveService()
     files = drive_service.search_files(
-        query=query,
+        query=final_query,
         page_size=page_size,
         shared_drive_id=shared_drive_id,
         include_shared_drives=include_shared_drives,
@@ -251,7 +259,7 @@ async def drive_search_files_in_folder(
 ) -> dict[str, Any]:
     """
     Search for files within a specific folder in Google Drive.
-    This works for both personal folders and shared folders.
+    This works for both personal folders and shared folders. Trashed files are excluded.
 
     Note: If you don't know the folder ID, use drive_find_folder_by_name with include_files=True instead.
 
@@ -261,7 +269,7 @@ async def drive_search_files_in_folder(
         page_size: Maximum number of files to return (1 to 1000, default 10).
 
     Returns:
-        A dictionary containing a list of files in the folder or an error message.
+        A dictionary containing a list of files in the folder (excluding trashed) or an error message.
     """
     logger.info(
         f"Executing drive_search_files_in_folder with folder_id: '{folder_id}', "
@@ -272,7 +280,7 @@ async def drive_search_files_in_folder(
         raise ValueError("Folder ID cannot be empty")
 
     # Build the search query to search within the specific folder
-    folder_query = f"'{folder_id}' in parents"
+    folder_query = f"'{folder_id}' in parents and trashed=false"
     if query and query.strip():
         # Combine folder constraint with user query
         combined_query = f"({query}) and {folder_query}"
@@ -333,7 +341,7 @@ async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="drive_find_folder_by_name",
-    description="Find folders in Google Drive by name, with optional file search within the folder.",
+    description="Find folders in Google Drive by name, with optional file search within the found folder.",
 )
 async def drive_find_folder_by_name(
     folder_name: str,
@@ -344,7 +352,7 @@ async def drive_find_folder_by_name(
 ) -> dict[str, Any]:
     """
     Find folders in Google Drive by name, with optional file search within the found folder.
-    This works for both personal and shared folders.
+    This works for both personal and shared folders. Trashed folders and files are excluded.
 
     Important: If folder names contain apostrophes ('), you must escape them with backslash (\').
 
@@ -365,8 +373,8 @@ async def drive_find_folder_by_name(
 
     Returns:
         A dictionary containing:
-        - folders_found: List of matching folders
-        - If include_files=True: target_folder info and files list
+        - folders_found: List of matching folders (excluding trashed)
+        - If include_files=True: target_folder info and files list (excluding trashed)
         - If include_files=False: Just the folders list
     """
     logger.info(
@@ -380,7 +388,7 @@ async def drive_find_folder_by_name(
 
     # Build query to find folders with the specified name
     # Note: Users should escape apostrophes manually (e.g., John\'s Documents)
-    folder_search_query = f"name contains '{folder_name.strip()}' and mimeType='application/vnd.google-apps.folder'"
+    folder_search_query = f"name contains '{folder_name.strip()}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
 
     drive_service = DriveService()
     folders = drive_service.search_files(
@@ -416,7 +424,7 @@ async def drive_find_folder_by_name(
     folder_id = target_folder["id"]
 
     # Build the search query for files within the folder
-    folder_constraint = f"'{folder_id}' in parents"
+    folder_constraint = f"'{folder_id}' in parents and trashed=false"
     combined_query = (
         f"({file_query}) and {folder_constraint}"
         if file_query and file_query.strip()
