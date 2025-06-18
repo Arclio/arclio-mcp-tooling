@@ -29,37 +29,20 @@ class DriveService(BaseGoogleService):
 
     def _escape_drive_query(self, query: str) -> str:
         """
-        Escape special characters in Drive API queries according to Google Drive API documentation.
+        Basic query cleaning for Drive API queries.
 
         Args:
-            query: Raw query string that may contain structured queries like "name contains 'value'"
+            query: Query string (users should manually escape apostrophes with \')
 
         Returns:
-            Properly escaped query string for Drive API
+            Cleaned query string for Drive API
         """
-        # For structured queries (like those built by tools), we need to be more careful
-        # Only escape single quotes that are INSIDE string values, not structural quotes
-
-        # Remove any surrounding double quotes that might have been added by user
+        # Simply remove surrounding double quotes if present
+        # Users should handle apostrophe escaping manually (e.g., John\'s Documents)
         if query.startswith('"') and query.endswith('"'):
             query = query[1:-1]
 
-        # Simple approach: escape single quotes only when they appear to be inside string values
-        # This is a basic implementation that handles most common cases
-        import re
-
-        # Pattern to find string values in Drive API queries (content between single quotes)
-        # This will match 'some value' but not the structural single quotes
-        def escape_string_content(match):
-            string_content = match.group(1)
-            # Escape any single quotes inside the string content
-            escaped_content = string_content.replace("'", "\\'")
-            return f"'{escaped_content}'"
-
-        # Apply escaping only to content within single quotes
-        escaped_query = re.sub(r"'([^']*)'", escape_string_content, query)
-
-        return escaped_query
+        return query
 
     def search_files(
         self,

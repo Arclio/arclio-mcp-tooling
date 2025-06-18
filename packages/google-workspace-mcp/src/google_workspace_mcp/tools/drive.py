@@ -27,8 +27,15 @@ async def drive_search_files(
     """
     Search for files in Google Drive, optionally within a specific shared drive.
 
+    Important: If search queries contain apostrophes ('), you must escape them with backslash (\').
+
+    Examples:
+    - "budget report" → works as-is
+    - "name contains 'John\'s Documents'" → escape apostrophe in query
+
     Args:
         query: Search query string. Can be a simple text search or complex query with operators.
+               Escape apostrophes with \' (e.g., "John\'s Documents").
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
         include_shared_drives: Whether to include shared drives and folders in search (default True).
@@ -334,8 +341,15 @@ async def drive_find_folders_by_name(
     """
     Find folders in Google Drive by name. This works for both personal and shared folders.
 
+    Important: If folder names contain apostrophes ('), you must escape them with backslash (\').
+
+    Examples:
+    - "Marketing Materials" → works as-is
+    - "John's Documents" → use "John\'s Documents"
+
     Args:
         folder_name: The name of the folder to search for (supports partial matches).
+                    Escape apostrophes with \' (e.g., "John\'s Documents").
         page_size: Maximum number of folders to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
 
@@ -350,16 +364,9 @@ async def drive_find_folders_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
-    # Clean the folder name - remove surrounding quotes if present
-    clean_folder_name = folder_name.strip()
-    if (clean_folder_name.startswith('"') and clean_folder_name.endswith('"')) or (
-        clean_folder_name.startswith("'") and clean_folder_name.endswith("'")
-    ):
-        clean_folder_name = clean_folder_name[1:-1]
-
     # Build query to find folders with the specified name
-    # The escaping will be handled by the service layer
-    query = f"name contains '{clean_folder_name}' and mimeType='application/vnd.google-apps.folder'"
+    # Note: Users should escape apostrophes manually (e.g., John\'s Documents)
+    query = f"name contains '{folder_name.strip()}' and mimeType='application/vnd.google-apps.folder'"
 
     drive_service = DriveService()
     folders = drive_service.search_files(
@@ -391,13 +398,15 @@ async def drive_search_in_folder_by_name(
     Find a folder by name and search for files within it.
     This is useful when you know the folder name but not the folder ID.
 
-    Example use cases:
-    - Search for "budget" files in "Frank's RedHot" folder
-    - Find all files in "Marketing Materials" folder
-    - Search for PDFs in "Project Documents" folder
+    Important: If folder names contain apostrophes ('), you must escape them with backslash (\').
+
+    Examples:
+    - folder_name: "Marketing Materials", file_query: "" → Find all files in "Marketing Materials" folder
+    - folder_name: "John\'s Documents", file_query: "mimeType='application/pdf'" → Find PDFs in "John's Documents" folder
 
     Args:
         folder_name: The name of the folder to search for.
+                    Escape apostrophes with \' (e.g., "John\'s Documents").
         file_query: Optional search query for files within the folder. If empty, returns all files.
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
@@ -414,15 +423,8 @@ async def drive_search_in_folder_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
-    # Clean the folder name - remove surrounding quotes if present
-    clean_folder_name = folder_name.strip()
-    if (clean_folder_name.startswith('"') and clean_folder_name.endswith('"')) or (
-        clean_folder_name.startswith("'") and clean_folder_name.endswith("'")
-    ):
-        clean_folder_name = clean_folder_name[1:-1]
-
     # First, find the folder
-    folder_search_query = f"name contains '{clean_folder_name}' and mimeType='application/vnd.google-apps.folder'"
+    folder_search_query = f"name contains '{folder_name.strip()}' and mimeType='application/vnd.google-apps.folder'"
 
     drive_service = DriveService()
     folders = drive_service.search_files(

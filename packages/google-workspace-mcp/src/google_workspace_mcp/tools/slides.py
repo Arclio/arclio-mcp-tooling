@@ -757,7 +757,7 @@ async def create_slide_from_template_data(
         template_data: Dictionary containing slide elements, example:
             {
                 "title": {
-                    "text": "Frank's RedHot Campaign",
+                    "text": "John's Company Campaign",
                     "position": {"x": 32, "y": 35, "width": 330, "height": 40},
                     "style": {"fontSize": 18, "fontFamily": "Roboto"}
                 },

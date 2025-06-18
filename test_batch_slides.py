@@ -8,9 +8,9 @@ Test script for batch slides functionality
 # OLD WAY - Multiple individual API calls:
 """
 # This would require 15+ separate API calls:
-await create_presentation(title="Frank's RedHot Campaign")
+await create_presentation(title="John's Company Campaign")
 await create_slide(presentation_id, layout="BLANK") 
-await create_textbox_with_text(presentation_id, slide_id, "Frank's RedHot Campaign", ...)  # Call 1
+await create_textbox_with_text(presentation_id, slide_id, "John's Company Campaign", ...)  # Call 1
 await create_textbox_with_text(presentation_id, slide_id, "Campaign description", ...)   # Call 2
 await create_textbox_with_text(presentation_id, slide_id, "43.4M", ...)                 # Call 3
 await update_text_formatting(presentation_id, element_id, "**43.4M**")                  # Call 4
@@ -30,12 +30,12 @@ await add_image_to_slide(presentation_id, slide_id, image_url, ...)             
 # NEW WAY - Single batch API call:
 template_data = {
     "title": {
-        "text": "Frank's RedHot \"That's RedHot\" Super Bowl Campaign",
+        "text": "John's Company \"That's Company\" Super Bowl Campaign",
         "position": {"x": 32, "y": 35, "width": 330, "height": 40},
         "style": {"fontSize": 18, "fontFamily": "Roboto"},
     },
     "description": {
-        "text": "Frank's RedHot leveraged the high-visibility Super Bowl platform to showcase their bold brand personality with \"That's RedHot\" campaign. The campaign successfully generated massive social media engagement and brand awareness across multiple touchpoints.",
+        "text": "John's Company leveraged the high-visibility Super Bowl platform to showcase their bold brand personality with \"That's Company\" campaign. The campaign successfully generated massive social media engagement and brand awareness across multiple touchpoints.",
         "position": {"x": 32, "y": 95, "width": 330, "height": 160},
         "style": {"fontSize": 12, "fontFamily": "Roboto"},
     },
@@ -81,7 +81,7 @@ print("- Atomic operation (all succeed or all fail)")
 # PROBLEM: Two separate API calls needed
 # OLD WAY - Two separate API calls:
 # await create_slide(presentation_id, layout="BLANK")
-# await create_textbox_with_text(presentation_id, slide_id, "Frank's RedHot Campaign", ...)  # Call 1
+# await create_textbox_with_text(presentation_id, slide_id, "John's Company Campaign", ...)  # Call 1
 # await create_textbox_with_text(presentation_id, slide_id, "Campaign description", ...)   # Call 2
 # await create_textbox_with_text(presentation_id, slide_id, "43.4M", ...)                 # Call 3
 # await create_textbox_with_text(presentation_id, slide_id, "TOTAL IMPRESSIONS", ...)     # Call 4
@@ -101,12 +101,12 @@ print("- Atomic operation (all succeed or all fail)")
 # NEW OPTIMIZED WAY - Single batch API call:
 template_data = {
     "title": {
-        "text": "Frank's RedHot \"That's RedHot\" Super Bowl Campaign",
+        "text": "John's Company \"That's Company\" Super Bowl Campaign",
         "position": {"x": 32, "y": 35, "width": 330, "height": 40},
         "style": {"fontSize": 18, "fontFamily": "Roboto"},
     },
     "description": {
-        "text": "Frank's RedHot leveraged the high-visibility Super Bowl platform to showcase their bold brand personality with \"That's RedHot\" campaign. The campaign successfully generated massive social media engagement and brand awareness across multiple touchpoints.",
+        "text": "John's Company leveraged the high-visibility Super Bowl platform to showcase their bold brand personality with \"That's Company\" campaign. The campaign successfully generated massive social media engagement and brand awareness across multiple touchpoints.",
         "position": {"x": 32, "y": 95, "width": 330, "height": 160},
         "style": {"fontSize": 12, "fontFamily": "Roboto"},
     },
@@ -148,7 +148,7 @@ template_data = {
 elements = [
     {
         "type": "textbox",
-        "content": "Frank's RedHot Campaign",
+        "content": "John's Company Campaign",
         "position": {"x": 32, "y": 35, "width": 330, "height": 40},
         "style": {"fontSize": 18, "fontFamily": "Roboto", "bold": True},
     },
