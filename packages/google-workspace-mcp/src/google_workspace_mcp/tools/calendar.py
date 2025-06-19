@@ -40,10 +40,10 @@ logger = logging.getLogger(__name__)
 #     return {"count": len(calendars), "calendars": calendars}
 
 
-@mcp.tool(
-    name="calendar_get_events",
-    description="Retrieve calendar events within a specified time range.",
-)
+# @mcp.tool(
+#     name="calendar_get_events",
+#     description="Retrieve calendar events within a specified time range.",
+# )
 async def calendar_get_events(
     time_min: str,
     time_max: str,
@@ -92,10 +92,10 @@ async def calendar_get_events(
     return {"count": len(events), "events": events}
 
 
-@mcp.tool(
-    name="calendar_get_event_details",
-    description="Retrieves detailed information for a specific calendar event by its ID.",
-)
+# @mcp.tool(
+#     name="calendar_get_event_details",
+#     description="Retrieves detailed information for a specific calendar event by its ID.",
+# )
 async def calendar_get_event_details(event_id: str, calendar_id: str = "primary") -> dict[str, Any]:
     """
     Retrieves details for a specific event in a Google Calendar.
@@ -126,10 +126,10 @@ async def calendar_get_event_details(event_id: str, calendar_id: str = "primary"
     return event_details
 
 
-@mcp.tool(
-    name="create_calendar_event",
-    description="Creates a new event in a specified Google Calendar.",
-)
+# @mcp.tool(
+#     name="create_calendar_event",
+#     description="Creates a new event in a specified Google Calendar.",
+# )
 async def create_calendar_event(
     summary: str,
     start_time: str,
@@ -184,10 +184,10 @@ async def create_calendar_event(
     return result
 
 
-@mcp.tool(
-    name="delete_calendar_event",
-    description="Deletes an event from Google Calendar by its event ID.",
-)
+# @mcp.tool(
+#     name="delete_calendar_event",
+#     description="Deletes an event from Google Calendar by its event ID.",
+# )
 async def delete_calendar_event(
     event_id: str,
     calendar_id: str = "primary",

@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 # --- Slides Tool Functions --- #
 
 
-@mcp.tool(
-    name="get_presentation",
-    description="Get a presentation by ID with its metadata and content.",
-)
+# @mcp.tool(
+#     name="get_presentation",
+#     description="Get a presentation by ID with its metadata and content.",
+# )
 async def get_presentation(presentation_id: str) -> dict[str, Any]:
     """
     Get presentation information including all slides and content.
@@ -42,10 +42,10 @@ async def get_presentation(presentation_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="get_slides",
-    description="Retrieves all slides from a presentation with their elements and notes.",
-)
+# @mcp.tool(
+#     name="get_slides",
+#     description="Retrieves all slides from a presentation with their elements and notes.",
+# )
 async def get_slides(presentation_id: str) -> dict[str, Any]:
     """
     Retrieves all slides from a presentation.
@@ -143,10 +143,10 @@ async def create_presentation(
     return clean_result
 
 
-@mcp.tool(
-    name="create_slide",
-    description="Adds a new slide to a Google Slides presentation with a specified layout.",
-)
+# @mcp.tool(
+#     name="create_slide",
+#     description="Adds a new slide to a Google Slides presentation with a specified layout.",
+# )
 async def create_slide(
     presentation_id: str,
     layout: str = "BLANK",
@@ -328,10 +328,10 @@ async def add_bulleted_list_to_slide(
     return result
 
 
-@mcp.tool(
-    name="add_image_to_slide",
-    description="Adds a single image to a slide from a publicly accessible URL with smart sizing. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. For full-height coverage, only specify size_height. For full-width coverage, only specify size_width. For exact dimensions, specify both.",
-)
+# @mcp.tool(
+#     name="add_image_to_slide",
+#     description="Adds a single image to a slide from a publicly accessible URL with smart sizing. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. For full-height coverage, only specify size_height. For full-width coverage, only specify size_width. For exact dimensions, specify both.",
+# )
 async def add_image_to_slide(
     presentation_id: str,
     slide_id: str,
@@ -408,10 +408,10 @@ async def add_image_to_slide(
     return result
 
 
-@mcp.tool(
-    name="add_table_to_slide",
-    description="Adds a table to a slide in a Google Slides presentation.",
-)
+# @mcp.tool(
+#     name="add_table_to_slide",
+#     description="Adds a table to a slide in a Google Slides presentation.",
+# )
 async def add_table_to_slide(
     presentation_id: str,
     slide_id: str,
@@ -616,10 +616,10 @@ async def create_presentation_from_markdown(
     return result
 
 
-@mcp.tool(
-    name="create_textbox_with_text",
-    description="Creates a single text box with text content, font formatting, and alignment. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. Good for adding individual text boxes to existing slides.",
-)
+# @mcp.tool(
+#     name="create_textbox_with_text",
+#     description="Creates a single text box with text content, font formatting, and alignment. For creating complete slides with multiple elements, use create_slide_with_elements instead for better performance. Good for adding individual text boxes to existing slides.",
+# )
 async def create_textbox_with_text(
     presentation_id: str,
     slide_id: str,
@@ -681,10 +681,10 @@ async def create_textbox_with_text(
     return result
 
 
-@mcp.tool(
-    name="slides_batch_update",
-    description="Apply a list of raw Google Slides API update requests to a presentation in a single batch operation. Allows creating multiple elements (text boxes, images, shapes) efficiently in one API call instead of multiple individual calls.",
-)
+# @mcp.tool(
+#     name="slides_batch_update",
+#     description="Apply a list of raw Google Slides API update requests to a presentation in a single batch operation. Allows creating multiple elements (text boxes, images, shapes) efficiently in one API call instead of multiple individual calls.",
+# )
 async def slides_batch_update(
     presentation_id: str,
     requests: list[dict[str, Any]],
@@ -739,10 +739,10 @@ async def slides_batch_update(
     return result
 
 
-@mcp.tool(
-    name="create_slide_from_template_data",
-    description="Create a complete slide with multiple elements (title, description, stats, image) in a single batch operation. Much faster than individual API calls - reduces 15+ calls to 1 call.",
-)
+# @mcp.tool(
+#     name="create_slide_from_template_data",
+#     description="Create a complete slide with multiple elements (title, description, stats, image) in a single batch operation. Much faster than individual API calls - reduces 15+ calls to 1 call.",
+# )
 async def create_slide_from_template_data(
     presentation_id: str,
     slide_id: str,
@@ -1036,10 +1036,10 @@ async def create_slide_with_elements(
     return result
 
 
-@mcp.tool(
-    name="set_slide_background",
-    description="Set slide background to either a solid color or an image. Background images take precedence over colors when both are provided.",
-)
+# @mcp.tool(
+#     name="set_slide_background",
+#     description="Set slide background to either a solid color or an image. Background images take precedence over colors when both are provided.",
+# )
 async def set_slide_background(
     presentation_id: str,
     slide_id: str,
@@ -1151,10 +1151,10 @@ async def convert_template_zones_to_pt(
     return {"success": True, "converted_zones": result}
 
 
-@mcp.tool(
-    name="update_text_formatting",
-    description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
-)
+# @mcp.tool(
+#     name="update_text_formatting",
+#     description="Updates formatting of text in an existing text box with support for bold, italic, code formatting, font size, font family, and text alignment. Supports applying different formatting to specific text ranges within the same textbox.",
+# )
 async def update_text_formatting(
     presentation_id: str,
     element_id: str,

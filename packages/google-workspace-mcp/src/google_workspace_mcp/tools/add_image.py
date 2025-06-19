@@ -1222,10 +1222,10 @@ class PreciseSlidesPositioning(BaseGoogleService):
             return self.handle_api_error("get_elements_from_specific_slides", error)
 
 
-@mcp.tool(
-    name="analyze_presentation_layout",
-    description="Get a comprehensive overview of all slides in a presentation to identify the correct slide numbers and layouts.",
-)
+# @mcp.tool(
+#     name="analyze_presentation_layout",
+#     description="Get a comprehensive overview of all slides in a presentation to identify the correct slide numbers and layouts.",
+# )
 async def analyze_presentation_layout(
     presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
 ) -> Dict[str, Any]:

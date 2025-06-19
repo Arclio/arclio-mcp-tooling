@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 # --- Gmail Tool Functions --- #
 
 
-@mcp.tool(
-    name="query_gmail_emails",
-    description="Query Gmail emails based on a search query.",
-)
+# @mcp.tool(
+#     name="query_gmail_emails",
+#     description="Query Gmail emails based on a search query.",
+# )
 async def query_gmail_emails(query: str, max_results: int = 100) -> dict[str, Any]:
     """
     Searches for Gmail emails using Gmail query syntax.
@@ -45,10 +45,10 @@ async def query_gmail_emails(query: str, max_results: int = 100) -> dict[str, An
     return {"count": len(emails), "emails": emails}
 
 
-@mcp.tool(
-    name="gmail_get_message_details",
-    description="Retrieves a complete Gmail email message by its ID.",
-)
+# @mcp.tool(
+#     name="gmail_get_message_details",
+#     description="Retrieves a complete Gmail email message by its ID.",
+# )
 async def gmail_get_message_details(email_id: str) -> dict[str, Any]:
     """
     Retrieves a complete Gmail email message by its ID.
@@ -77,10 +77,10 @@ async def gmail_get_message_details(email_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="gmail_get_attachment_content",
-    description="Retrieves a specific attachment from a Gmail message.",
-)
+# @mcp.tool(
+#     name="gmail_get_attachment_content",
+#     description="Retrieves a specific attachment from a Gmail message.",
+# )
 async def gmail_get_attachment_content(message_id: str, attachment_id: str) -> dict[str, Any]:
     """
     Retrieves a specific attachment from a Gmail message.
@@ -109,10 +109,10 @@ async def gmail_get_attachment_content(message_id: str, attachment_id: str) -> d
     return result
 
 
-@mcp.tool(
-    name="create_gmail_draft",
-    description="Creates a draft email message in Gmail.",
-)
+# @mcp.tool(
+#     name="create_gmail_draft",
+#     description="Creates a draft email message in Gmail.",
+# )
 async def create_gmail_draft(
     to: str,
     subject: str,
@@ -150,10 +150,10 @@ async def create_gmail_draft(
     return result
 
 
-@mcp.tool(
-    name="delete_gmail_draft",
-    description="Deletes a Gmail draft email by its draft ID.",
-)
+# @mcp.tool(
+#     name="delete_gmail_draft",
+#     description="Deletes a Gmail draft email by its draft ID.",
+# )
 async def delete_gmail_draft(
     draft_id: str,
 ) -> dict[str, Any]:
@@ -189,10 +189,10 @@ async def delete_gmail_draft(
     }
 
 
-@mcp.tool(
-    name="gmail_send_draft",
-    description="Sends an existing draft email from Gmail.",
-)
+# @mcp.tool(
+#     name="gmail_send_draft",
+#     description="Sends an existing draft email from Gmail.",
+# )
 async def gmail_send_draft(draft_id: str) -> dict[str, Any]:
     """
     Sends a specific draft email.
@@ -219,10 +219,10 @@ async def gmail_send_draft(draft_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="gmail_reply_to_email",
-    description="Create a reply to an existing email. Can be sent or saved as draft.",
-)
+# @mcp.tool(
+#     name="gmail_reply_to_email",
+#     description="Create a reply to an existing email. Can be sent or saved as draft.",
+# )
 async def gmail_reply_to_email(
     email_id: str,
     reply_body: str,
@@ -262,10 +262,10 @@ async def gmail_reply_to_email(
     return result
 
 
-@mcp.tool(
-    name="gmail_bulk_delete_messages",
-    description="Delete multiple emails at once by providing a list of message IDs.",
-)
+# @mcp.tool(
+#     name="gmail_bulk_delete_messages",
+#     description="Delete multiple emails at once by providing a list of message IDs.",
+# )
 async def gmail_bulk_delete_messages(
     message_ids: list[str],
 ) -> dict[str, Any]:
@@ -300,10 +300,10 @@ async def gmail_bulk_delete_messages(
     return result
 
 
-@mcp.tool(
-    name="gmail_send_email",
-    description="Composes and sends an email directly.",
-)
+# @mcp.tool(
+#     name="gmail_send_email",
+#     description="Composes and sends an email directly.",
+# )
 async def gmail_send_email(
     to: list[str],
     subject: str,

@@ -11,10 +11,10 @@ from google_workspace_mcp.services.sheets_service import SheetsService
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(
-    name="sheets_create_spreadsheet",
-    description="Creates a new Google Spreadsheet with a specified title.",
-)
+# @mcp.tool(
+#     name="sheets_create_spreadsheet",
+#     description="Creates a new Google Spreadsheet with a specified title.",
+# )
 async def sheets_create_spreadsheet(title: str) -> dict[str, Any]:
     """
     Creates a new, empty Google Spreadsheet.
@@ -77,10 +77,10 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
     return result
 
 
-@mcp.tool(
-    name="sheets_write_range",
-    description="Writes data to a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
-)
+# @mcp.tool(
+#     name="sheets_write_range",
+#     description="Writes data to a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
+# )
 async def sheets_write_range(
     spreadsheet_id: str,
     range_a1: str,
@@ -129,10 +129,10 @@ async def sheets_write_range(
     return result
 
 
-@mcp.tool(
-    name="sheets_append_rows",
-    description="Appends rows of data to a sheet or table in a Google Spreadsheet (e.g., to 'Sheet1').",
-)
+# @mcp.tool(
+#     name="sheets_append_rows",
+#     description="Appends rows of data to a sheet or table in a Google Spreadsheet (e.g., to 'Sheet1').",
+# )
 async def sheets_append_rows(
     spreadsheet_id: str,
     range_a1: str,
@@ -187,10 +187,10 @@ async def sheets_append_rows(
     return result
 
 
-@mcp.tool(
-    name="sheets_clear_range",
-    description="Clears values from a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
-)
+# @mcp.tool(
+#     name="sheets_clear_range",
+#     description="Clears values from a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
+# )
 async def sheets_clear_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any]:
     """
     Clears all values from a given A1 notation range in a Google Spreadsheet.
@@ -221,10 +221,10 @@ async def sheets_clear_range(spreadsheet_id: str, range_a1: str) -> dict[str, An
     return result
 
 
-@mcp.tool(
-    name="sheets_add_sheet",
-    description="Adds a new sheet (tab) to an existing Google Spreadsheet.",
-)
+# @mcp.tool(
+#     name="sheets_add_sheet",
+#     description="Adds a new sheet (tab) to an existing Google Spreadsheet.",
+# )
 async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
     """
     Adds a new sheet with the given title to the specified spreadsheet.
@@ -255,10 +255,10 @@ async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="sheets_delete_sheet",
-    description="Deletes a specific sheet (tab) from a Google Spreadsheet using its numeric sheet ID.",
-)
+# @mcp.tool(
+#     name="sheets_delete_sheet",
+#     description="Deletes a specific sheet (tab) from a Google Spreadsheet using its numeric sheet ID.",
+# )
 async def sheets_delete_sheet(spreadsheet_id: str, sheet_id: int) -> dict[str, Any]:
     """
     Deletes a sheet from the specified spreadsheet using its numeric ID.

@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 # --- Drive Tool Functions --- #
 
 
-@mcp.tool(
-    name="drive_search_files",
-    description="Search for files in Google Drive with optional shared drive support.",
-)
+# @mcp.tool(
+#     name="drive_search_files",
+#     description="Search for files in Google Drive with optional shared drive support. Trashed files are excluded.",
+# )
 async def drive_search_files(
     query: str,
     page_size: int = 10,
@@ -74,10 +74,10 @@ async def drive_search_files(
     return {"files": files}
 
 
-@mcp.tool(
-    name="drive_read_file_content",
-    description="Read the content of a file from Google Drive.",
-)
+# @mcp.tool(
+#     name="drive_read_file_content",
+#     description="Read the content of a file from Google Drive.",
+# )
 async def drive_read_file_content(file_id: str) -> dict[str, Any]:
     """
     Read the content of a file from Google Drive.
@@ -104,10 +104,10 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
     return result
 
 
-@mcp.tool(
-    name="drive_upload_file",
-    description="Uploads a file to Google Drive by providing its content directly.",
-)
+# @mcp.tool(
+#     name="drive_upload_file",
+#     description="Uploads a file to Google Drive by providing its content directly.",
+# )
 async def drive_upload_file(
     filename: str,
     content_base64: str,
@@ -148,10 +148,10 @@ async def drive_upload_file(
     return result
 
 
-@mcp.tool(
-    name="drive_create_folder",
-    description="Create a new folder in Google Drive.",
-)
+# @mcp.tool(
+#     name="drive_create_folder",
+#     description="Create a new folder in Google Drive.",
+# )
 async def drive_create_folder(
     folder_name: str,
     parent_folder_id: str | None = None,
@@ -190,10 +190,10 @@ async def drive_create_folder(
     return result
 
 
-@mcp.tool(
-    name="drive_delete_file",
-    description="Delete a file from Google Drive using its file ID.",
-)
+# @mcp.tool(
+#     name="drive_delete_file",
+#     description="Delete a file from Google Drive using its file ID.",
+# )
 async def drive_delete_file(
     file_id: str,
 ) -> dict[str, Any]:
@@ -219,10 +219,10 @@ async def drive_delete_file(
     return result
 
 
-@mcp.tool(
-    name="drive_list_shared_drives",
-    description="Lists shared drives accessible by the user.",
-)
+# @mcp.tool(
+#     name="drive_list_shared_drives",
+#     description="Lists shared drives accessible by the user.",
+# )
 async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
     """
     Lists shared drives (formerly Team Drives) that the user has access to.
@@ -248,10 +248,10 @@ async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
     return {"count": len(drives), "shared_drives": drives}
 
 
-@mcp.tool(
-    name="drive_search_files_in_folder",
-    description="Search for files within a specific folder in Google Drive.",
-)
+# @mcp.tool(
+#     name="drive_search_files_in_folder",
+#     description="Search for files within a specific folder in Google Drive.",
+# )
 async def drive_search_files_in_folder(
     folder_id: str,
     query: str = "",
@@ -302,10 +302,10 @@ async def drive_search_files_in_folder(
     return {"folder_id": folder_id, "files": files}
 
 
-@mcp.tool(
-    name="drive_get_folder_info",
-    description="Get information about a specific folder in Google Drive.",
-)
+# @mcp.tool(
+#     name="drive_get_folder_info",
+#     description="Get information about a specific folder in Google Drive.",
+# )
 async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
     """
     Get detailed information about a folder in Google Drive.
