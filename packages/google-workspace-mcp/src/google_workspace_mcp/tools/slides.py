@@ -904,15 +904,10 @@ async def create_slide_with_elements(
         insert_at_index: Position for new slide (only used if create_slide=True)
 
     Text Color Support:
-        - "textColor": "#FFFFFF" - White text (recommended)
-        - "color": "#000000" - Black text (alternative)
-        - "foregroundColor": "#333333" - Dark gray text (alternative)
-        - All three are equivalent, use whichever you prefer
-        - Supports 6-character hex codes: "#FFFFFF", "#000000", "#FF5733"
-        - Supports 8-character hex codes with alpha: "#FFFFFF80" (alpha ignored for text)
-        - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)" (alpha ignored for text)
-        - Supports CSS rgb() format: "rgb(255, 255, 255)"
-        - Supports color names: "white", "black"
+        - "textColor" or "color": "#FFFFFF"
+        - "foregroundColor": "#333333"
+        - Supports 6-character and 8-character hex codes with alpha: "#FFFFFF", "#FFFFFF80"
+        - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)"
         - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
 
     Background Color Support:
@@ -935,7 +930,22 @@ async def create_slide_with_elements(
 
     Advanced textRanges formatting:
         For mixed formatting within a single textbox, use "textRanges" instead of "style":
-        - textRanges: Array of formatting ranges with startIndex, endIndex, and style
+        - textRanges: Array of formatting ranges - now supports TWO formats:
+
+        FORMAT 1 - Content-based (RECOMMENDED - no index calculation needed):
+        "textRanges": [
+            {"content": "43.4M", "style": {"fontSize": 25, "bold": true}},
+            {"content": "TOTAL IMPRESSIONS", "style": {"fontSize": 7.5}}
+        ]
+
+        FORMAT 2 - Index-based (legacy support):
+        "textRanges": [
+            {"startIndex": 0, "endIndex": 5, "style": {"fontSize": 25, "bold": true}},
+            {"startIndex": 6, "endIndex": 23, "style": {"fontSize": 7.5}}
+        ]
+
+        - Content-based ranges automatically find text and calculate indices
+        - Index-based ranges include auto-correction for common off-by-one errors
         - Allows different fonts, sizes, colors, and formatting for different parts of text
         - Perfect for stats with large numbers + small labels in same textbox
         - Each textRange can have its own textColor and backgroundColor
@@ -944,7 +954,6 @@ async def create_slide_with_elements(
         - Use "firstColumnBold": true to emphasize categories/left column
         - Headers: Bold with colored backgrounds (e.g., "#ff6b6b" for brand consistency)
         - Structure: Clear headers with organized data rows
-        - Professional appearance with proper cell spacing
 
     Usage Examples:
         # NEW OPTIMIZED WAY - Single API call to create slide with elements:
@@ -983,16 +992,6 @@ async def create_slide_with_elements(
             create_slide=True,
             background_image_url="https://images.unsplash.com/..."
         )
-
-    Benefits:
-        - Reduces API calls from 2+ to 1 (when create_slide=True)
-        - Atomic operation (all succeed or all fail)
-        - Better performance
-        - Backward compatible (create_slide=False is default)
-        - Comprehensive formatting support
-        - Mixed text formatting with textRanges
-        - Professional table styling
-        - Multiple color format support
 
     Returns:
         Response data confirming slide creation or raises error

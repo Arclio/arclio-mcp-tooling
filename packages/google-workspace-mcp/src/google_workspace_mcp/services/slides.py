@@ -1761,13 +1761,10 @@ class SlidesService(BaseGoogleService):
             insert_at_index: Position for new slide (only used if create_slide=True)
 
         Text Color Support:
-            - "textColor": "#FFFFFF" - White text (recommended)
-            - "color": "#000000" - Black text (alternative)
-            - "foregroundColor": "#333333" - Dark gray text (alternative)
-            - All three are equivalent, use whichever you prefer
-            - Supports 6-character hex codes: "#FFFFFF", "#000000", "#FF5733"
-            - Supports 8-character hex codes with alpha: "#FFFFFF80" (alpha ignored for text)
-            - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)" (alpha ignored for text)
+            - "textColor" or "color": "#FFFFFF"
+            - "foregroundColor": "#333333"
+            - Supports 6-character and 8-character hex codes with alpha: "#FFFFFF", "#FFFFFF80"
+            - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)"
             - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
 
         Background Color Support:
@@ -1778,20 +1775,6 @@ class SlidesService(BaseGoogleService):
             - CSS rgba() format supported: "rgba(255, 255, 255, 0.5)" (alpha channel properly applied)
             - Works in main "style" object for entire text box background
             - Creates semi-transparent background for the entire text box shape
-
-        Advanced textRanges formatting:
-            For mixed formatting within a single textbox, use "textRanges" instead of "style":
-            - textRanges: Array of formatting ranges with startIndex, endIndex, and style
-            - Allows different fonts, sizes, colors, and formatting for different parts of text
-            - Perfect for stats with large numbers + small labels in same textbox
-            - Each textRange can have its own textColor and backgroundColor
-
-        Benefits:
-            - Reduces API calls from 2+ to 1 (when create_slide=True)
-            - Atomic operation (all succeed or all fail)
-            - Better performance
-            - Backward compatible (create_slide=False is default)
-            - Comprehensive formatting support
 
         Returns:
             Response data or error information
@@ -1970,7 +1953,12 @@ class SlidesService(BaseGoogleService):
 
         # Handle mixed text formatting with textRanges
         if text_ranges:
-            for text_range in text_ranges:
+            # Convert content-based ranges to index-based ranges automatically
+            processed_ranges = self._process_text_ranges(
+                element["content"], text_ranges
+            )
+
+            for text_range in processed_ranges:
                 range_style = text_range.get("style", {})
                 start_index = text_range.get("startIndex", 0)
                 end_index = text_range.get("endIndex", len(element["content"]))
@@ -2137,6 +2125,73 @@ class SlidesService(BaseGoogleService):
                 )
 
         return requests
+
+    def _process_text_ranges(self, content: str, text_ranges: list[dict]) -> list[dict]:
+        """
+        Process textRanges to support both content-based and index-based ranges.
+
+        Args:
+            content: The full text content
+            text_ranges: List of textRange objects that can be either:
+                - Index-based: {"startIndex": 0, "endIndex": 5, "style": {...}}
+                - Content-based: {"content": "43.4M", "style": {...}}
+
+        Returns:
+            List of index-based textRange objects
+        """
+        processed_ranges = []
+
+        for text_range in text_ranges:
+            if "content" in text_range:
+                # Content-based range - find the text in the content
+                target_content = text_range["content"]
+                start_index = content.find(target_content)
+
+                if start_index >= 0:
+                    end_index = start_index + len(target_content)
+                    processed_ranges.append(
+                        {
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                            "style": text_range.get("style", {}),
+                        }
+                    )
+                else:
+                    # Content not found - log warning but continue
+                    logger.warning(
+                        f"Content '{target_content}' not found in text: '{content}'"
+                    )
+            else:
+                # Index-based range - use as-is but validate indices
+                start_index = text_range.get("startIndex", 0)
+                end_index = text_range.get("endIndex", len(content))
+
+                # Auto-fix common off-by-one errors
+                if end_index == len(content) - 1:
+                    end_index = len(content)
+                    logger.info(
+                        f"Auto-corrected endIndex from {len(content) - 1} to {len(content)}"
+                    )
+
+                # Validate indices
+                if (
+                    start_index >= 0
+                    and end_index <= len(content)
+                    and start_index < end_index
+                ):
+                    processed_ranges.append(
+                        {
+                            "startIndex": start_index,
+                            "endIndex": end_index,
+                            "style": text_range.get("style", {}),
+                        }
+                    )
+                else:
+                    logger.warning(
+                        f"Invalid text range indices: start={start_index}, end={end_index}, content_length={len(content)}"
+                    )
+
+        return processed_ranges
 
     def _parse_color(self, color_value: str | dict) -> dict | None:
         """Parse color value into Google Slides API format.
