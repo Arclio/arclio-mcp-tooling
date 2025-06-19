@@ -27,17 +27,14 @@ async def drive_search_files(
     """
     Search for files in Google Drive with optional shared drive support. Trashed files are excluded by default.
 
-    CRITICAL: If search queries contain apostrophes ('), you MUST escape them with backslash (\').
-    Example: "Frank's RedHot" → "Frank\'s RedHot"
 
     Examples:
     - "budget report" → works as-is
-    - "name contains 'John\'s Documents'" → escape apostrophe in query
-    - "Frank\'s RedHot" → properly escaped apostrophe
+    - "John's Documents" → automatically handled
 
     Args:
         query: Search query string. Can be a simple text search or complex query with operators.
-               Escape apostrophes with \' (e.g., "John\'s Documents").
+               Apostrophes are automatically escaped for you.
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
         include_shared_drives: Whether to include shared drives and folders in search (default True).
@@ -56,10 +53,13 @@ async def drive_search_files(
     if not query or not query.strip():
         raise ValueError("Query cannot be empty")
 
+    # Automatically escape apostrophes in the query
+    escaped_query = query.replace("'", "\\'")
+
     # Add trashed filter to query if not including trashed items
-    final_query = query
+    final_query = escaped_query
     if not include_trashed:
-        final_query = f"({query}) and trashed=false"
+        final_query = f"({escaped_query}) and trashed=false"
 
     drive_service = DriveService()
     files = drive_service.search_files(
@@ -255,17 +255,13 @@ async def drive_search_files_in_folder(
     """
     Search for files within a specific folder in Google Drive. Trashed files are excluded.
 
-    This works for both personal folders and shared folders.
-
-    CRITICAL: If search queries contain apostrophes ('), you MUST escape them with backslash (\').
-    Example: "Frank's RedHot" → "Frank\'s RedHot"
+    This works for both personal folders and shared folders. Automatically handles apostrophes in search queries.
 
     Note: If you don't know the folder ID, use drive_find_folder_by_name with include_files=True instead.
 
     Args:
         folder_id: The ID of the folder to search within.
         query: Optional search query string. If empty, returns all files in the folder.
-               Escape apostrophes with \' if used in the query.
         page_size: Maximum number of files to return (1 to 1000, default 10).
 
     Returns:
@@ -282,8 +278,10 @@ async def drive_search_files_in_folder(
     # Build the search query to search within the specific folder
     folder_query = f"'{folder_id}' in parents and trashed=false"
     if query and query.strip():
+        # Automatically escape apostrophes in user query
+        escaped_query = query.strip().replace("'", "\\'")
         # Combine folder constraint with user query
-        combined_query = f"({query}) and {folder_query}"
+        combined_query = f"({escaped_query}) and {folder_query}"
     else:
         combined_query = folder_query
 
@@ -352,23 +350,22 @@ async def drive_find_folder_by_name(
     """
     Find folders in Google Drive by name, with optional file search within the found folder.
 
-    CRITICAL: If folder names contain apostrophes ('), you MUST escape them with backslash (\').
-    Example: "Frank's RedHot" → "Frank\'s RedHot"
+    Automatically handles apostrophes in folder names and search queries - no need to escape them manually.
 
     This works for both personal and shared folders. Trashed folders and files are excluded.
 
     Examples:
     - folder_name: "Marketing Materials", include_files: False → Just find the folder
-    - folder_name: "John\'s Documents", include_files: True → Find folder and list all files in it
-    - folder_name: "John\'s Documents", include_files: True, file_query: "budget" → Find folder and search for "budget" files in it
+    - folder_name: "John's Documents", include_files: True → Find folder and list all files in it
+    - folder_name: "John's Documents", include_files: True, file_query: "budget" → Find folder and search for "budget" files in it
     - folder_name: "Project Docs", include_files: True, file_query: "mimeType='application/pdf'" → Find folder and list PDFs in it
 
     Args:
         folder_name: The name of the folder to search for (supports partial matches).
-                    Escape apostrophes with \' (e.g., "John\'s Documents").
+                    Apostrophes are automatically escaped for you.
         include_files: Whether to also search for files within the found folder (default False).
         file_query: Optional search query for files within the folder. Only used if include_files=True.
-                   If empty, returns all files in the folder.
+                   If empty, returns all files in the folder. Apostrophes are automatically escaped.
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
 
@@ -387,9 +384,11 @@ async def drive_find_folder_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
+    # Automatically escape apostrophes in folder name
+    escaped_folder_name = folder_name.strip().replace("'", "\\'")
+
     # Build query to find folders with the specified name
-    # Note: Users should escape apostrophes manually (e.g., John\'s Documents)
-    folder_search_query = f"name contains '{folder_name.strip()}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    folder_search_query = f"name contains '{escaped_folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
 
     drive_service = DriveService()
     folders = drive_service.search_files(
@@ -426,11 +425,13 @@ async def drive_find_folder_by_name(
 
     # Build the search query for files within the folder
     folder_constraint = f"'{folder_id}' in parents and trashed=false"
-    combined_query = (
-        f"({file_query}) and {folder_constraint}"
-        if file_query and file_query.strip()
-        else folder_constraint
-    )
+
+    # Automatically escape apostrophes in file query if provided
+    if file_query and file_query.strip():
+        escaped_file_query = file_query.strip().replace("'", "\\'")
+        combined_query = f"({escaped_file_query}) and {folder_constraint}"
+    else:
+        combined_query = folder_constraint
 
     # Search for files in the folder
     files = drive_service.search_files(
