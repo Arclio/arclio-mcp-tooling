@@ -1224,7 +1224,6 @@ class PreciseSlidesPositioning(BaseGoogleService):
 
 # @mcp.tool(
 #     name="analyze_presentation_layout",
-#     description="Get a comprehensive overview of all slides in a presentation to identify the correct slide numbers and layouts.",
 # )
 async def analyze_presentation_layout(
     presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
@@ -1305,7 +1304,6 @@ async def analyze_presentation_layout(
 
 # @mcp.tool(
 #     name="get_template_elements_from_slides",
-#     description="Extract element positions and dimensions from specific slides in a template presentation. Use this to analyze existing templates and get precise coordinates.",
 # )
 async def get_template_elements_from_slides(
     presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
@@ -1417,7 +1415,6 @@ async def get_template_elements_from_slides(
 
 # @mcp.tool(
 #     name="create_presentation_with_positioned_images",
-#     description="Creates a Google Slides presentation with precisely positioned background and portrait images. Complete workflow with hardcoded images for testing.",
 # )
 async def create_presentation_with_positioned_images(
     title: str = "Press Recap - Paris x Motorola",
@@ -1465,7 +1462,6 @@ async def create_presentation_with_positioned_images(
 
 # @mcp.tool(
 #     name="create_slide_from_template_zones",
-#     description="Extract template zones from a template slide and create a new slide with images placed in those exact zones.",
 # )
 async def create_slide_from_template_zones(
     template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
@@ -1604,7 +1600,6 @@ async def create_slide_from_template_zones(
 
 @mcp.tool(
     name="extract_template_zones_only",
-    description="Extract positioning zones and coordinates from template slides by analyzing placeholder text elements. Returns precise coordinates and dimensions for LLM prompting with configurable units.",
 )
 async def extract_template_zones_only(
     template_presentation_url: str = "https://docs.google.com/presentation/d/1tdBZ0MH-CGiV2VmEptS7h0PfIyXOp3_yXN_AkNzgpTc/edit?slide=id.g360952048d5_0_86#slide=id.g360952048d5_0_86",
@@ -1612,8 +1607,8 @@ async def extract_template_zones_only(
     unit: str = "PT",
 ) -> Dict[str, Any]:
     """
-    Extract template zones from specific slides by finding placeholder text elements.
-    Perfect for getting coordinates to use in LLM prompts for precise positioning.
+    Extract positioning zones and coordinates from specific slides by finding and analyzing placeholder text elements.
+    Returns precise coordinates and dimensions for LLM prompting with configurable units.
 
     Args:
         template_presentation_url: URL of the template presentation

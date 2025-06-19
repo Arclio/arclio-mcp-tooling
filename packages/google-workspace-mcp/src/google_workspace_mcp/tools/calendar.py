@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 # @mcp.tool(
 #     name="list_calendars",
-#     description="Lists all calendars accessible by the user.",
 # )
 # async def list_calendars() -> dict[str, Any]:
 #     """
@@ -42,7 +41,6 @@ logger = logging.getLogger(__name__)
 
 # @mcp.tool(
 #     name="calendar_get_events",
-#     description="Retrieve calendar events within a specified time range.",
 # )
 async def calendar_get_events(
     time_min: str,
@@ -94,7 +92,6 @@ async def calendar_get_events(
 
 # @mcp.tool(
 #     name="calendar_get_event_details",
-#     description="Retrieves detailed information for a specific calendar event by its ID.",
 # )
 async def calendar_get_event_details(event_id: str, calendar_id: str = "primary") -> dict[str, Any]:
     """
@@ -128,7 +125,6 @@ async def calendar_get_event_details(event_id: str, calendar_id: str = "primary"
 
 # @mcp.tool(
 #     name="create_calendar_event",
-#     description="Creates a new event in a specified Google Calendar.",
 # )
 async def create_calendar_event(
     summary: str,
@@ -186,7 +182,6 @@ async def create_calendar_event(
 
 # @mcp.tool(
 #     name="delete_calendar_event",
-#     description="Deletes an event from Google Calendar by its event ID.",
 # )
 async def delete_calendar_event(
     event_id: str,

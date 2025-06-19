@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 # @mcp.tool(
 #     name="sheets_create_spreadsheet",
-#     description="Creates a new Google Spreadsheet with a specified title.",
 # )
 async def sheets_create_spreadsheet(title: str) -> dict[str, Any]:
     """
@@ -44,7 +43,6 @@ async def sheets_create_spreadsheet(title: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="sheets_read_range",
-    description="Reads data from a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
 )
 async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any]:
     """
@@ -79,7 +77,6 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
 
 # @mcp.tool(
 #     name="sheets_write_range",
-#     description="Writes data to a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
 # )
 async def sheets_write_range(
     spreadsheet_id: str,
@@ -131,7 +128,6 @@ async def sheets_write_range(
 
 # @mcp.tool(
 #     name="sheets_append_rows",
-#     description="Appends rows of data to a sheet or table in a Google Spreadsheet (e.g., to 'Sheet1').",
 # )
 async def sheets_append_rows(
     spreadsheet_id: str,
@@ -189,7 +185,6 @@ async def sheets_append_rows(
 
 # @mcp.tool(
 #     name="sheets_clear_range",
-#     description="Clears values from a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
 # )
 async def sheets_clear_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any]:
     """
@@ -223,7 +218,6 @@ async def sheets_clear_range(spreadsheet_id: str, range_a1: str) -> dict[str, An
 
 # @mcp.tool(
 #     name="sheets_add_sheet",
-#     description="Adds a new sheet (tab) to an existing Google Spreadsheet.",
 # )
 async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
     """
@@ -257,7 +251,6 @@ async def sheets_add_sheet(spreadsheet_id: str, title: str) -> dict[str, Any]:
 
 # @mcp.tool(
 #     name="sheets_delete_sheet",
-#     description="Deletes a specific sheet (tab) from a Google Spreadsheet using its numeric sheet ID.",
 # )
 async def sheets_delete_sheet(spreadsheet_id: str, sheet_id: int) -> dict[str, Any]:
     """

@@ -77,7 +77,6 @@ async def drive_search_files(
 
 # @mcp.tool(
 #     name="drive_read_file_content",
-#     description="Read the content of a file from Google Drive.",
 # )
 async def drive_read_file_content(file_id: str) -> dict[str, Any]:
     """
@@ -107,7 +106,6 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 
 # @mcp.tool(
 #     name="drive_upload_file",
-#     description="Uploads a file to Google Drive by providing its content directly.",
 # )
 async def drive_upload_file(
     filename: str,
@@ -151,7 +149,6 @@ async def drive_upload_file(
 
 # @mcp.tool(
 #     name="drive_create_folder",
-#     description="Create a new folder in Google Drive.",
 # )
 async def drive_create_folder(
     folder_name: str,
@@ -193,7 +190,6 @@ async def drive_create_folder(
 
 # @mcp.tool(
 #     name="drive_delete_file",
-#     description="Delete a file from Google Drive using its file ID.",
 # )
 async def drive_delete_file(
     file_id: str,
