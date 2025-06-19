@@ -14,10 +14,9 @@ logger = logging.getLogger(__name__)
 # --- Drive Tool Functions --- #
 
 
-# @mcp.tool(
-#     name="drive_search_files",
-#     description="Search for files in Google Drive with optional shared drive support. Trashed files are excluded.",
-# )
+@mcp.tool(
+    name="drive_search_files",
+)
 async def drive_search_files(
     query: str,
     page_size: int = 10,
@@ -26,13 +25,15 @@ async def drive_search_files(
     include_trashed: bool = False,
 ) -> dict[str, Any]:
     """
-    Search for files in Google Drive, optionally within a specific shared drive.
+    Search for files in Google Drive with optional shared drive support. Trashed files are excluded by default.
 
-    Important: If search queries contain apostrophes ('), you must escape them with backslash (\').
+    CRITICAL: If search queries contain apostrophes ('), you MUST escape them with backslash (\').
+    Example: "Frank's RedHot" → "Frank\'s RedHot"
 
     Examples:
     - "budget report" → works as-is
     - "name contains 'John\'s Documents'" → escape apostrophe in query
+    - "Frank\'s RedHot" → properly escaped apostrophe
 
     Args:
         query: Search query string. Can be a simple text search or complex query with operators.
@@ -219,10 +220,9 @@ async def drive_delete_file(
     return result
 
 
-# @mcp.tool(
-#     name="drive_list_shared_drives",
-#     description="Lists shared drives accessible by the user.",
-# )
+@mcp.tool(
+    name="drive_list_shared_drives",
+)
 async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
     """
     Lists shared drives (formerly Team Drives) that the user has access to.
@@ -248,24 +248,28 @@ async def drive_list_shared_drives(page_size: int = 100) -> dict[str, Any]:
     return {"count": len(drives), "shared_drives": drives}
 
 
-# @mcp.tool(
-#     name="drive_search_files_in_folder",
-#     description="Search for files within a specific folder in Google Drive.",
-# )
+@mcp.tool(
+    name="drive_search_files_in_folder",
+)
 async def drive_search_files_in_folder(
     folder_id: str,
     query: str = "",
     page_size: int = 10,
 ) -> dict[str, Any]:
     """
-    Search for files within a specific folder in Google Drive.
-    This works for both personal folders and shared folders. Trashed files are excluded.
+    Search for files within a specific folder in Google Drive. Trashed files are excluded.
+
+    This works for both personal folders and shared folders.
+
+    CRITICAL: If search queries contain apostrophes ('), you MUST escape them with backslash (\').
+    Example: "Frank's RedHot" → "Frank\'s RedHot"
 
     Note: If you don't know the folder ID, use drive_find_folder_by_name with include_files=True instead.
 
     Args:
         folder_id: The ID of the folder to search within.
         query: Optional search query string. If empty, returns all files in the folder.
+               Escape apostrophes with \' if used in the query.
         page_size: Maximum number of files to return (1 to 1000, default 10).
 
     Returns:
@@ -302,13 +306,13 @@ async def drive_search_files_in_folder(
     return {"folder_id": folder_id, "files": files}
 
 
-# @mcp.tool(
-#     name="drive_get_folder_info",
-#     description="Get information about a specific folder in Google Drive.",
-# )
+@mcp.tool(
+    name="drive_get_folder_info",
+)
 async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
     """
     Get detailed information about a folder in Google Drive.
+
     Useful for understanding folder permissions and hierarchy.
 
     Args:
@@ -341,7 +345,6 @@ async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="drive_find_folder_by_name",
-    description="Find folders in Google Drive by name, with optional file search within the found folder.",
 )
 async def drive_find_folder_by_name(
     folder_name: str,
@@ -352,9 +355,11 @@ async def drive_find_folder_by_name(
 ) -> dict[str, Any]:
     """
     Find folders in Google Drive by name, with optional file search within the found folder.
-    This works for both personal and shared folders. Trashed folders and files are excluded.
 
-    Important: If folder names contain apostrophes ('), you must escape them with backslash (\').
+    CRITICAL: If folder names contain apostrophes ('), you MUST escape them with backslash (\').
+    Example: "Frank's RedHot" → "Frank\'s RedHot"
+
+    This works for both personal and shared folders. Trashed folders and files are excluded.
 
     Examples:
     - folder_name: "Marketing Materials", include_files: False → Just find the folder
