@@ -514,9 +514,12 @@ async def duplicate_slide(
     Duplicate a slide in a presentation.
 
     Args:
-        presentation_id: The ID of the presentation.
+        presentation_id: The ID of the presentation where the new slide will be created.
         slide_id: The ID of the slide to duplicate.
         insert_at_index: Optional index where to insert the duplicated slide.
+
+    Crucial Note: The slide_id MUST belong to the SAME presentation specified by presentation_id.
+    You cannot duplicate a slide from one presentation into another using this tool.
 
     Returns:
         Response data with the new slide ID or raises error.
@@ -538,9 +541,9 @@ async def duplicate_slide(
     return result
 
 
-@mcp.tool(
-    name="delete_slide",
-)
+# @mcp.tool(
+#     name="delete_slide",
+# )
 async def delete_slide(
     presentation_id: str,
     slide_id: str,

@@ -53,13 +53,26 @@ async def drive_search_files(
     if not query or not query.strip():
         raise ValueError("Query cannot be empty")
 
-    # Automatically escape apostrophes in the query
-    escaped_query = query.replace("'", "\\'")
+    # Logic to build a robust query
+    # If the query looks like a simple term (no spaces, no operators), wrap it.
+    # Otherwise, assume the user has provided a full query expression.
+    clean_query = query.strip()
+    if (
+        " " not in clean_query
+        and ":" not in clean_query
+        and "=" not in clean_query
+        and ">" not in clean_query
+        and "<" not in clean_query
+    ):
+        # This is likely a simple term, wrap it for a full-text search.
+        final_query = f"fullText contains '{clean_query.replace("'", "\\'")}'"
+    else:
+        # Assume it's a complex query and use it as-is.
+        final_query = clean_query.replace("'", "\\'")
 
-    # Add trashed filter to query if not including trashed items
-    final_query = escaped_query
+    # Append the trashed filter
     if not include_trashed:
-        final_query = f"({escaped_query}) and trashed=false"
+        final_query = f"{final_query} and trashed=false"
 
     drive_service = DriveService()
     files = drive_service.search_files(
@@ -253,19 +266,18 @@ async def drive_search_files_in_folder(
     page_size: int = 10,
 ) -> dict[str, Any]:
     """
-    Search for files within a specific folder in Google Drive. Trashed files are excluded.
-
-    This works for both personal folders and shared folders. Automatically handles apostrophes in search queries.
-
-    Note: If you don't know the folder ID, use drive_find_folder_by_name with include_files=True instead.
+    Search for files or folders within a specific folder ID. Trashed files are excluded.
+    This works for both regular folders and Shared Drives (when using the Shared Drive's ID as the folder_id).
 
     Args:
-        folder_id: The ID of the folder to search within.
-        query: Optional search query string. If empty, returns all files in the folder.
+        folder_id: The ID of the folder or Shared Drive to search within.
+        query: Optional search query string, following Google Drive API syntax.
+               If empty, returns all items.
+               Example to find only sub-folders: "mimeType = 'application/vnd.google-apps.folder'"
         page_size: Maximum number of files to return (1 to 1000, default 10).
 
     Returns:
-        A dictionary containing a list of files in the folder (excluding trashed) or an error message.
+        A dictionary containing a list of files and folders.
     """
     logger.info(
         f"Executing drive_search_files_in_folder with folder_id: '{folder_id}', "
@@ -281,7 +293,7 @@ async def drive_search_files_in_folder(
         # Automatically escape apostrophes in user query
         escaped_query = query.strip().replace("'", "\\'")
         # Combine folder constraint with user query
-        combined_query = f"({escaped_query}) and {folder_query}"
+        combined_query = f"{escaped_query} and {folder_query}"
     else:
         combined_query = folder_query
 
@@ -300,9 +312,9 @@ async def drive_search_files_in_folder(
     return {"folder_id": folder_id, "files": files}
 
 
-@mcp.tool(
-    name="drive_get_folder_info",
-)
+# @mcp.tool(
+#     name="drive_get_folder_info",
+# )
 async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
     """
     Get detailed information about a folder in Google Drive.
@@ -348,32 +360,22 @@ async def drive_find_folder_by_name(
     shared_drive_id: str | None = None,
 ) -> dict[str, Any]:
     """
-    Find folders in Google Drive by name, with optional file search within the found folder.
+    Finds folders by name using a two-step search: first an exact match, then a partial match.
+    Automatically handles apostrophes in folder names and search queries. Trashed items are excluded.
 
-    Automatically handles apostrophes in folder names and search queries - no need to escape them manually.
-
-    This works for both personal and shared folders. Trashed folders and files are excluded.
-
-    Examples:
-    - folder_name: "Marketing Materials", include_files: False → Just find the folder
-    - folder_name: "John's Documents", include_files: True → Find folder and list all files in it
-    - folder_name: "John's Documents", include_files: True, file_query: "budget" → Find folder and search for "budget" files in it
-    - folder_name: "Project Docs", include_files: True, file_query: "mimeType='application/pdf'" → Find folder and list PDFs in it
+    Crucial Note: This tool finds **regular folders** within "My Drive" or a Shared Drive.
+    It **does not** find Shared Drives themselves. To list available Shared Drives,
+    use the `drive_list_shared_drives` tool.
 
     Args:
-        folder_name: The name of the folder to search for (supports partial matches).
-                    Apostrophes are automatically escaped for you.
+        folder_name: The name of the folder to search for.
         include_files: Whether to also search for files within the found folder (default False).
         file_query: Optional search query for files within the folder. Only used if include_files=True.
-                   If empty, returns all files in the folder. Apostrophes are automatically escaped.
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
 
     Returns:
-        A dictionary containing:
-        - folders_found: List of matching folders (excluding trashed)
-        - If include_files=True: target_folder info and files list (excluding trashed)
-        - If include_files=False: Just the folders list
+        A dictionary containing folders_found and, if requested, file search results.
     """
     logger.info(
         f"Executing drive_find_folder_by_name with folder_name: '{folder_name}', "
@@ -384,56 +386,73 @@ async def drive_find_folder_by_name(
     if not folder_name or not folder_name.strip():
         raise ValueError("Folder name cannot be empty")
 
-    # Automatically escape apostrophes in folder name
+    drive_service = DriveService()
     escaped_folder_name = folder_name.strip().replace("'", "\\'")
 
-    # Build query to find folders with the specified name
-    folder_search_query = f"name contains '{escaped_folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
-
-    drive_service = DriveService()
+    # --- Step 1: Attempt Exact Match ---
+    logger.info(f"Step 1: Searching for exact folder name: '{escaped_folder_name}'")
+    exact_query = f"name = '{escaped_folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
     folders = drive_service.search_files(
-        query=folder_search_query,
-        page_size=5,  # Limit folder search to avoid too many results
+        query=exact_query,
+        page_size=5,
         shared_drive_id=shared_drive_id,
-        include_shared_drives=True,  # Always include shared drives when searching for folders
+        include_shared_drives=True,
     )
+
+    # If no exact match, fall back to partial match
+    if not folders:
+        logger.info(
+            f"No exact match found. Step 2: Searching for folder name containing '{escaped_folder_name}'"
+        )
+        contains_query = f"name contains '{escaped_folder_name}' and mimeType='application/vnd.google-apps.folder' and trashed=false"
+        folders = drive_service.search_files(
+            query=contains_query,
+            page_size=5,
+            shared_drive_id=shared_drive_id,
+            include_shared_drives=True,
+        )
 
     if isinstance(folders, dict) and folders.get("error"):
         raise ValueError(
             f"Folder search failed: {folders.get('message', 'Unknown error')}"
         )
 
-    # Base response
     result = {
         "folder_name": folder_name,
         "folders_found": folders,
         "folder_count": len(folders) if folders else 0,
     }
 
-    # If not including files, return just the folder info
     if not include_files:
         return result
 
-    # If including files but no folders found, return early
     if not folders:
-        result["message"] = f"No folders found with name containing '{folder_name}'"
+        result["message"] = f"No folders found with name matching '{folder_name}'"
         return result
 
-    # Search for files in the first (most relevant) folder
     target_folder = folders[0]
     folder_id = target_folder["id"]
 
     # Build the search query for files within the folder
     folder_constraint = f"'{folder_id}' in parents and trashed=false"
 
-    # Automatically escape apostrophes in file query if provided
     if file_query and file_query.strip():
-        escaped_file_query = file_query.strip().replace("'", "\\'")
-        combined_query = f"({escaped_file_query}) and {folder_constraint}"
+        # Use the same smart query logic as drive_search_files
+        clean_file_query = file_query.strip()
+        if (
+            " " not in clean_file_query
+            and ":" not in clean_file_query
+            and "=" not in clean_file_query
+        ):
+            wrapped_file_query = (
+                f"fullText contains '{clean_file_query.replace("'", "\\'")}'"
+            )
+        else:
+            wrapped_file_query = clean_file_query.replace("'", "\\'")
+        combined_query = f"{wrapped_file_query} and {folder_constraint}"
     else:
         combined_query = folder_constraint
 
-    # Search for files in the folder
     files = drive_service.search_files(
         query=combined_query, page_size=page_size, include_shared_drives=True
     )
@@ -443,7 +462,6 @@ async def drive_find_folder_by_name(
             f"File search in folder failed: {files.get('message', 'Unknown error')}"
         )
 
-    # Add file search results to response
     result["target_folder"] = target_folder
     result["files"] = files
     result["file_count"] = len(files) if files else 0
