@@ -1738,7 +1738,8 @@ class SlidesService(BaseGoogleService):
                             "headers": ["Category", "Metric"],
                             "rows": [
                                 ["Reach & Visibility", "Total Impressions: 43,431,803"],
-                                ["Engagement", "Total Engagements: 134,431"]
+                                ["Engagement", "Total Engagements: 134,431"],
+                                ["Media Value", "Ad Equivalency: $9.1 million"]
                             ]
                         },
                         "position": {"x": 100, "y": 300, "width": 400, "height": 200},
@@ -1760,121 +1761,76 @@ class SlidesService(BaseGoogleService):
             layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
             insert_at_index: Position for new slide (only used if create_slide=True)
 
-        Text Color Support:
-            - "textColor" or "color": "#FFFFFF"
-            - "foregroundColor": "#333333"
-            - Supports 6-character and 8-character hex codes with alpha: "#FFFFFF", "#FFFFFF80"
-            - Supports CSS rgba() format: "rgba(255, 255, 255, 0.5)"
-            - Supports RGB objects: {"r": 255, "g": 255, "b": 255} or {"red": 1.0, "green": 1.0, "blue": 1.0}
-
-        Background Color Support:
-            - "backgroundColor": "#FFFFFF80" - Semi-transparent white background
-            - "backgroundColor": "rgba(255, 255, 255, 0.5)" - Semi-transparent white background (CSS format)
-            - Supports same color formats as text colors
-            - 8-character hex codes supported: "#FFFFFF80" (alpha channel properly applied)
-            - CSS rgba() format supported: "rgba(255, 255, 255, 0.5)" (alpha channel properly applied)
-            - Works in main "style" object for entire text box background
-            - Creates semi-transparent background for the entire text box shape
-
         Returns:
             Response data or error information
         """
         try:
             import time
 
-            requests = []
             final_slide_id = slide_id
+            requests = []
 
             # Step 1: Create slide if requested
             if create_slide:
                 if not final_slide_id:
                     final_slide_id = f"slide_{int(time.time() * 1000)}"
 
-                slide_request = {
+                create_slide_request = {
                     "createSlide": {
                         "objectId": final_slide_id,
                         "slideLayoutReference": {"predefinedLayout": layout},
                     }
                 }
 
+                # Add insertion index if specified
                 if insert_at_index is not None:
-                    slide_request["createSlide"]["insertionIndex"] = insert_at_index
+                    create_slide_request["createSlide"][
+                        "insertionIndex"
+                    ] = insert_at_index
 
-                requests.append(slide_request)
-                logger.info(f"Added createSlide request for slide ID: {final_slide_id}")
-            elif not final_slide_id:
-                raise ValueError("slide_id is required when create_slide=False")
+                requests.append(create_slide_request)
+                logger.info(f"Added slide creation request: {final_slide_id}")
 
-            # Step 2: Set background image or color if specified
-            if final_slide_id and (background_image_url or background_color):
-                if background_image_url:
-                    logger.info(
-                        f"Setting slide background image: {background_image_url}"
-                    )
-                    requests.append(
-                        {
-                            "updatePageProperties": {
-                                "objectId": final_slide_id,
-                                "pageProperties": {
-                                    "pageBackgroundFill": {
-                                        "stretchedPictureFill": {
-                                            "contentUrl": background_image_url
-                                        }
-                                    }
-                                },
-                                "fields": "pageBackgroundFill",
-                            }
-                        }
-                    )
-                elif background_color:
-                    logger.info(f"Setting slide background color: {background_color}")
-                    requests.append(
-                        {
-                            "updatePageProperties": {
-                                "objectId": final_slide_id,
-                                "pageProperties": {
-                                    "pageBackgroundFill": {
-                                        "solidFill": {
-                                            "color": {
-                                                "rgbColor": self._hex_to_rgb(
-                                                    background_color
-                                                )
-                                            }
-                                        }
-                                    }
-                                },
-                                "fields": "pageBackgroundFill.solidFill.color",
-                            }
-                        }
-                    )
+            # Ensure we have a slide ID
+            if not final_slide_id:
+                raise ValueError(
+                    "slide_id is required when create_slide=False, or set create_slide=True"
+                )
 
-            # Step 3: Process each element
-            if elements and final_slide_id:
+            # Step 2: Create background if specified
+            if background_image_url or background_color:
+                bg_request = self._build_background_request(
+                    final_slide_id, background_color, background_image_url
+                )
+                if bg_request:
+                    requests.append(bg_request)
+                    logger.info("Added background request")
+
+            # Step 3: Create elements if provided
+            if elements:
                 for i, element in enumerate(elements):
                     element_id = f"element_{int(time.time() * 1000)}_{i}"
+                    element_type = element.get("type", "textbox").lower()
 
-                    if element["type"] == "textbox":
-                        requests.extend(
-                            self._build_textbox_requests_generic(
-                                element_id, final_slide_id, element
-                            )
+                    if element_type == "textbox":
+                        element_requests = self._build_textbox_requests_generic(
+                            element_id, final_slide_id, element
                         )
-                    elif element["type"] == "image":
-                        requests.append(
-                            self._build_image_request_generic(
-                                element_id, final_slide_id, element
-                            )
+                        requests.extend(element_requests)
+                    elif element_type == "image":
+                        image_request = self._build_image_request_generic(
+                            element_id, final_slide_id, element
                         )
-                    elif element["type"] == "table":
-                        requests.extend(
-                            self._build_table_request_generic(
-                                element_id, final_slide_id, element
-                            )
+                        requests.append(image_request)
+                    elif element_type == "table":
+                        table_requests = self._build_table_request_generic(
+                            element_id, final_slide_id, element
                         )
+                        requests.extend(table_requests)
+                    else:
+                        logger.warning(f"Unknown element type: {element_type}")
 
-            logger.info(
-                f"Built {len(requests)} requests for slide (create_slide={create_slide}, elements={len(elements or [])})"
-            )
+                logger.info(f"Added {len(elements)} element requests")
 
             # Execute batch update
             if requests:
@@ -1916,6 +1872,193 @@ class SlidesService(BaseGoogleService):
 
         except Exception as e:
             return self.handle_api_error("create_slide_with_elements", e)
+
+    def create_multiple_slides_with_elements(
+        self,
+        presentation_id: str,
+        slides_data: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """
+        Create multiple slides with their elements in a single batch operation.
+        PERFECT FOR BULK SLIDE CREATION - eliminates the need for multiple API calls!
+
+        Args:
+            presentation_id: The ID of the presentation
+            slides_data: List of slide dictionaries, each containing:
+                {
+                    "layout": "BLANK",  # Optional, defaults to "BLANK"
+                    "background_color": "#f8cdcd4f",  # Optional
+                    "background_image_url": "https://...",  # Optional
+                    "insert_at_index": 2,  # Optional, where to insert this slide
+                    "elements": [  # Optional list of elements for this slide
+                        {
+                            "type": "textbox",
+                            "content": "Slide 1 Title",
+                            "position": {"x": 100, "y": 100, "width": 400, "height": 50},
+                            "style": {"fontSize": 18, "bold": True}
+                        },
+                        {
+                            "type": "image",
+                            "content": "https://images.unsplash.com/...",
+                            "position": {"x": 200, "y": 200, "width": 300, "height": 200}
+                        }
+                    ]
+                }
+
+        Returns:
+            Response data with all created slide IDs and operation details
+
+        Example Usage:
+            # Create 5 slides with elements in ONE API call:
+            slides_data = [
+                {
+                    "layout": "BLANK",
+                    "background_color": "#f0f0f0",
+                    "elements": [
+                        {
+                            "type": "textbox",
+                            "content": "Slide 1 Title",
+                            "position": {"x": 100, "y": 100, "width": 400, "height": 50},
+                            "style": {"fontSize": 20, "bold": True}
+                        }
+                    ]
+                },
+                {
+                    "layout": "BLANK",
+                    "elements": [
+                        {
+                            "type": "textbox",
+                            "content": "Slide 2 Content",
+                            "position": {"x": 100, "y": 150, "width": 400, "height": 100},
+                            "style": {"fontSize": 14}
+                        },
+                        {
+                            "type": "image",
+                            "content": "https://images.unsplash.com/photo-1565299507177-b0ac66763828",
+                            "position": {"x": 300, "y": 300, "width": 200, "height": 150}
+                        }
+                    ]
+                },
+                # ... up to 3 more slides
+            ]
+
+            result = slides_service.create_multiple_slides_with_elements(
+                presentation_id="abc123",
+                slides_data=slides_data
+            )
+            # Returns: {"slideIds": ["slide_1", "slide_2", ...], "slidesCreated": 5, "totalRequests": 25}
+        """
+        try:
+            import time
+
+            if not slides_data:
+                raise ValueError("slides_data cannot be empty")
+
+            all_requests = []
+            slide_ids = []
+            base_timestamp = int(time.time() * 1000)
+
+            logger.info(f"Creating {len(slides_data)} slides in batch operation")
+
+            # Process each slide
+            for slide_index, slide_data in enumerate(slides_data):
+                slide_id = f"slide_{base_timestamp}_{slide_index}"
+                slide_ids.append(slide_id)
+
+                layout = slide_data.get("layout", "BLANK")
+                background_color = slide_data.get("background_color")
+                background_image_url = slide_data.get("background_image_url")
+                insert_at_index = slide_data.get("insert_at_index")
+                elements = slide_data.get("elements", [])
+
+                # Step 1: Create slide
+                create_slide_request = {
+                    "createSlide": {
+                        "objectId": slide_id,
+                        "slideLayoutReference": {"predefinedLayout": layout},
+                    }
+                }
+
+                # Add insertion index if specified
+                if insert_at_index is not None:
+                    create_slide_request["createSlide"]["insertionIndex"] = (
+                        insert_at_index
+                        + slide_index  # Adjust index for multiple slides
+                    )
+
+                all_requests.append(create_slide_request)
+
+                # Step 2: Add background if specified
+                if background_image_url or background_color:
+                    bg_request = self._build_background_request(
+                        slide_id, background_color, background_image_url
+                    )
+                    if bg_request:
+                        all_requests.append(bg_request)
+
+                # Step 3: Add elements for this slide
+                for element_index, element in enumerate(elements):
+                    element_id = (
+                        f"element_{base_timestamp}_{slide_index}_{element_index}"
+                    )
+                    element_type = element.get("type", "textbox").lower()
+
+                    if element_type == "textbox":
+                        element_requests = self._build_textbox_requests_generic(
+                            element_id, slide_id, element
+                        )
+                        all_requests.extend(element_requests)
+                    elif element_type == "image":
+                        image_request = self._build_image_request_generic(
+                            element_id, slide_id, element
+                        )
+                        all_requests.append(image_request)
+                    elif element_type == "table":
+                        table_requests = self._build_table_request_generic(
+                            element_id, slide_id, element
+                        )
+                        all_requests.extend(table_requests)
+                    else:
+                        logger.warning(f"Unknown element type: {element_type}")
+
+                logger.debug(
+                    f"Slide {slide_index + 1}: {slide_id} with {len(elements)} elements"
+                )
+
+            # Execute all requests in single batch operation
+            logger.info(
+                f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"
+            )
+
+            batch_result = self.batch_update(presentation_id, all_requests)
+
+            # Extract actual slide IDs from response (in case Google changed them)
+            created_slide_ids = []
+            if batch_result.get("replies"):
+                for i, reply in enumerate(batch_result["replies"]):
+                    if "createSlide" in reply:
+                        actual_slide_id = reply["createSlide"].get("objectId")
+                        if actual_slide_id:
+                            created_slide_ids.append(actual_slide_id)
+
+            # Use created IDs if available, otherwise use our generated ones
+            final_slide_ids = created_slide_ids if created_slide_ids else slide_ids
+
+            return {
+                "presentationId": presentation_id,
+                "slideIds": final_slide_ids,
+                "operation": "create_multiple_slides_with_elements",
+                "result": "success",
+                "slidesCreated": len(slides_data),
+                "totalRequests": len(all_requests),
+                "totalElements": sum(
+                    len(slide.get("elements", [])) for slide in slides_data
+                ),
+                "batchResult": batch_result,
+            }
+
+        except Exception as e:
+            return self.handle_api_error("create_multiple_slides_with_elements", e)
 
     def _build_textbox_requests_generic(
         self, object_id: str, slide_id: str, element: dict[str, Any]
@@ -2933,3 +3076,42 @@ class SlidesService(BaseGoogleService):
 
         logger.warning(f"Unsupported color format: {color_value}")
         return None, 1.0
+
+    def _build_background_request(
+        self,
+        slide_id: str,
+        background_color: str | None,
+        background_image_url: str | None,
+    ) -> dict[str, Any] | None:
+        """Helper to build background request for a slide"""
+        if background_image_url:
+            logger.info(f"Setting slide background image: {background_image_url}")
+            return {
+                "updatePageProperties": {
+                    "objectId": slide_id,
+                    "pageProperties": {
+                        "pageBackgroundFill": {
+                            "stretchedPictureFill": {"contentUrl": background_image_url}
+                        }
+                    },
+                    "fields": "pageBackgroundFill",
+                }
+            }
+        elif background_color:
+            logger.info(f"Setting slide background color: {background_color}")
+            return {
+                "updatePageProperties": {
+                    "objectId": slide_id,
+                    "pageProperties": {
+                        "pageBackgroundFill": {
+                            "solidFill": {
+                                "color": {
+                                    "rgbColor": self._hex_to_rgb(background_color)
+                                }
+                            }
+                        }
+                    },
+                    "fields": "pageBackgroundFill.solidFill.color",
+                }
+            }
+        return None
