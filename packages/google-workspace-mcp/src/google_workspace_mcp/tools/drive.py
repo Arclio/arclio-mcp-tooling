@@ -65,7 +65,8 @@ async def drive_search_files(
         and "<" not in clean_query
     ):
         # This is likely a simple term, wrap it for a full-text search.
-        final_query = f"fullText contains '{clean_query.replace("'", "\\'")}'"
+        escaped_query = clean_query.replace("'", "\\'")
+        final_query = f"fullText contains '{escaped_query}'"
     else:
         # Assume it's a complex query and use it as-is.
         final_query = clean_query.replace("'", "\\'")
@@ -444,9 +445,8 @@ async def drive_find_folder_by_name(
             and ":" not in clean_file_query
             and "=" not in clean_file_query
         ):
-            wrapped_file_query = (
-                f"fullText contains '{clean_file_query.replace("'", "\\'")}'"
-            )
+            escaped_file_query = clean_file_query.replace("'", "\\'")
+            wrapped_file_query = f"fullText contains '{escaped_file_query}'"
         else:
             wrapped_file_query = clean_file_query.replace("'", "\\'")
         combined_query = f"{wrapped_file_query} and {folder_constraint}"
