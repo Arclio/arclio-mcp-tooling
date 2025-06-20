@@ -75,9 +75,9 @@ async def docs_get_document_metadata(document_id: str) -> dict[str, Any]:
     return result
 
 
-# @mcp.tool(
-#     name="docs_get_content_as_markdown",
-# )
+@mcp.tool(
+    name="docs_get_content_as_markdown",
+)
 async def docs_get_content_as_markdown(document_id: str) -> dict[str, Any]:
     """
     Retrieves the main textual content of a Google Document, converted to Markdown.
