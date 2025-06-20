@@ -266,19 +266,18 @@ async def drive_search_files_in_folder(
     page_size: int = 10,
 ) -> dict[str, Any]:
     """
-    Search for files within a specific folder in Google Drive. Trashed files are excluded.
-
-    This works for both personal folders and shared folders. Automatically handles apostrophes in search queries.
-
-    Note: If you don't know the folder ID, use drive_find_folder_by_name with include_files=True instead.
+    Search for files or folders within a specific folder ID. Trashed files are excluded.
+    This works for both regular folders and Shared Drives (when using the Shared Drive's ID as the folder_id).
 
     Args:
-        folder_id: The ID of the folder to search within.
-        query: Optional search query string. If empty, returns all files in the folder.
+        folder_id: The ID of the folder or Shared Drive to search within.
+        query: Optional search query string, following Google Drive API syntax.
+               If empty, returns all items.
+               Example to find only sub-folders: "mimeType = 'application/vnd.google-apps.folder'"
         page_size: Maximum number of files to return (1 to 1000, default 10).
 
     Returns:
-        A dictionary containing a list of files in the folder (excluding trashed) or an error message.
+        A dictionary containing a list of files and folders.
     """
     logger.info(
         f"Executing drive_search_files_in_folder with folder_id: '{folder_id}', "
@@ -363,6 +362,10 @@ async def drive_find_folder_by_name(
     """
     Finds folders by name using a two-step search: first an exact match, then a partial match.
     Automatically handles apostrophes in folder names and search queries. Trashed items are excluded.
+
+    Crucial Note: This tool finds **regular folders** within "My Drive" or a Shared Drive.
+    It **does not** find Shared Drives themselves. To list available Shared Drives,
+    use the `drive_list_shared_drives` tool.
 
     Args:
         folder_name: The name of the folder to search for.
