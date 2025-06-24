@@ -2574,6 +2574,49 @@ class SlidesService(BaseGoogleService):
 
         # Add styling based on prompt rules
         if style:
+            # Apply base font formatting to ALL table cells first (like we fixed for textboxes)
+            if "fontSize" in style or "fontFamily" in style:
+                for row_idx in range(num_rows):
+                    for col_idx in range(num_columns):
+                        base_style_request = {
+                            "updateTextStyle": {
+                                "objectId": object_id,
+                                "cellLocation": {
+                                    "rowIndex": row_idx,
+                                    "columnIndex": col_idx,
+                                },
+                                "style": {},
+                                "fields": "",
+                            }
+                        }
+
+                        if "fontSize" in style:
+                            base_style_request["updateTextStyle"]["style"][
+                                "fontSize"
+                            ] = {
+                                "magnitude": style["fontSize"],
+                                "unit": "PT",
+                            }
+                            base_style_request["updateTextStyle"][
+                                "fields"
+                            ] += "fontSize,"
+
+                        if "fontFamily" in style:
+                            base_style_request["updateTextStyle"]["style"][
+                                "fontFamily"
+                            ] = style["fontFamily"]
+                            base_style_request["updateTextStyle"][
+                                "fields"
+                            ] += "fontFamily,"
+
+                        # Clean up trailing comma
+                        base_style_request["updateTextStyle"]["fields"] = (
+                            base_style_request["updateTextStyle"]["fields"].rstrip(",")
+                        )
+
+                        if base_style_request["updateTextStyle"]["fields"]:
+                            requests.append(base_style_request)
+
             # Make first column bold if specified (prompt rule)
             if style.get("firstColumnBold", False):
                 for row_idx in range(num_rows):
