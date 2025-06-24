@@ -2094,7 +2094,57 @@ class SlidesService(BaseGoogleService):
             {"insertText": {"objectId": object_id, "text": element["content"]}},
         ]
 
-        # Handle mixed text formatting with textRanges
+        # Add formatting for the entire text if specified (base formatting)
+        if style:
+            format_request = {
+                "updateTextStyle": {
+                    "objectId": object_id,
+                    "textRange": {"type": "ALL"},
+                    "style": {},
+                    "fields": "",
+                }
+            }
+
+            if "fontSize" in style:
+                format_request["updateTextStyle"]["style"]["fontSize"] = {
+                    "magnitude": style["fontSize"],
+                    "unit": "PT",
+                }
+                format_request["updateTextStyle"]["fields"] += "fontSize,"
+
+            if "fontFamily" in style:
+                format_request["updateTextStyle"]["style"]["fontFamily"] = style[
+                    "fontFamily"
+                ]
+                format_request["updateTextStyle"]["fields"] += "fontFamily,"
+
+            if style.get("bold"):
+                format_request["updateTextStyle"]["style"]["bold"] = True
+                format_request["updateTextStyle"]["fields"] += "bold,"
+
+            # Add foreground color support
+            if "color" in style or "foregroundColor" in style or "textColor" in style:
+                color_value = (
+                    style.get("color")
+                    or style.get("foregroundColor")
+                    or style.get("textColor")
+                )
+                color_obj = self._parse_color(color_value)
+                if color_obj:
+                    format_request["updateTextStyle"]["style"][
+                        "foregroundColor"
+                    ] = color_obj
+                    format_request["updateTextStyle"]["fields"] += "foregroundColor,"
+
+            # Clean up trailing comma and add format request
+            format_request["updateTextStyle"]["fields"] = format_request[
+                "updateTextStyle"
+            ]["fields"].rstrip(",")
+
+            if format_request["updateTextStyle"]["fields"]:
+                requests.append(format_request)
+
+        # Handle mixed text formatting with textRanges (applied on top of base formatting)
         if text_ranges:
             # Convert content-based ranges to index-based ranges automatically
             processed_ranges = self._process_text_ranges(
@@ -2164,56 +2214,6 @@ class SlidesService(BaseGoogleService):
 
                     if format_request["updateTextStyle"]["fields"]:
                         requests.append(format_request)
-
-        # Add formatting for the entire text if specified and no textRanges
-        elif style:
-            format_request = {
-                "updateTextStyle": {
-                    "objectId": object_id,
-                    "textRange": {"type": "ALL"},
-                    "style": {},
-                    "fields": "",
-                }
-            }
-
-            if "fontSize" in style:
-                format_request["updateTextStyle"]["style"]["fontSize"] = {
-                    "magnitude": style["fontSize"],
-                    "unit": "PT",
-                }
-                format_request["updateTextStyle"]["fields"] += "fontSize,"
-
-            if "fontFamily" in style:
-                format_request["updateTextStyle"]["style"]["fontFamily"] = style[
-                    "fontFamily"
-                ]
-                format_request["updateTextStyle"]["fields"] += "fontFamily,"
-
-            if style.get("bold"):
-                format_request["updateTextStyle"]["style"]["bold"] = True
-                format_request["updateTextStyle"]["fields"] += "bold,"
-
-            # Add foreground color support
-            if "color" in style or "foregroundColor" in style or "textColor" in style:
-                color_value = (
-                    style.get("color")
-                    or style.get("foregroundColor")
-                    or style.get("textColor")
-                )
-                color_obj = self._parse_color(color_value)
-                if color_obj:
-                    format_request["updateTextStyle"]["style"][
-                        "foregroundColor"
-                    ] = color_obj
-                    format_request["updateTextStyle"]["fields"] += "foregroundColor,"
-
-            # Clean up trailing comma and add format request
-            format_request["updateTextStyle"]["fields"] = format_request[
-                "updateTextStyle"
-            ]["fields"].rstrip(",")
-
-            if format_request["updateTextStyle"]["fields"]:
-                requests.append(format_request)
 
         # Add text alignment (paragraph-level)
         if style and style.get("textAlignment"):
