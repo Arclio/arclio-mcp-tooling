@@ -1861,14 +1861,13 @@ class SlidesService(BaseGoogleService):
                     "totalRequests": len(requests),
                     "batchResult": batch_result,
                 }
-            else:
-                return {
-                    "presentationId": presentation_id,
-                    "slideId": final_slide_id,
-                    "operation": "no_operation",
-                    "result": "success",
-                    "message": "No requests generated",
-                }
+            return {
+                "presentationId": presentation_id,
+                "slideId": final_slide_id,
+                "operation": "no_operation",
+                "result": "success",
+                "message": "No requests generated",
+            }
 
         except Exception as e:
             return self.handle_api_error("create_slide_with_elements", e)
@@ -2035,7 +2034,7 @@ class SlidesService(BaseGoogleService):
             # Extract actual slide IDs from response (in case Google changed them)
             created_slide_ids = []
             if batch_result.get("replies"):
-                for i, reply in enumerate(batch_result["replies"]):
+                for _i, reply in enumerate(batch_result["replies"]):
                     if "createSlide" in reply:
                         actual_slide_id = reply["createSlide"].get("objectId")
                         if actual_slide_id:
@@ -2066,7 +2065,7 @@ class SlidesService(BaseGoogleService):
         """Generic helper to build textbox creation requests with support for mixed text formatting"""
         pos = element["position"]
         style = element.get("style", {})
-        text_ranges = element.get("textRanges", None)
+        text_ranges = element.get("textRanges")
 
         requests = [
             # Create shape
@@ -2369,12 +2368,12 @@ class SlidesService(BaseGoogleService):
                                 "rgbColor": {"red": r, "green": g, "blue": b}
                             }
                         }
-                    elif len(hex_color) == 8:
+                    if len(hex_color) == 8:
                         # Handle 8-character hex with alpha (RRGGBBAA)
                         r = int(hex_color[0:2], 16) / 255.0
                         g = int(hex_color[2:4], 16) / 255.0
                         b = int(hex_color[4:6], 16) / 255.0
-                        a = int(hex_color[6:8], 16) / 255.0
+                        int(hex_color[6:8], 16) / 255.0
 
                         return {
                             "opaqueColor": {
@@ -2399,7 +2398,7 @@ class SlidesService(BaseGoogleService):
                         }
                     }
                 }
-            elif (
+            if (
                 "red" in color_value
                 and "green" in color_value
                 and "blue" in color_value
@@ -2954,7 +2953,7 @@ class SlidesService(BaseGoogleService):
             # Execute all style requests
             if style_requests:
                 logger.info(f"Applying {len(style_requests)} formatting requests")
-                response = (
+                (
                     self.service.presentations()
                     .batchUpdate(
                         presentationId=presentation_id,
@@ -3043,12 +3042,11 @@ class SlidesService(BaseGoogleService):
 
                     color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
                     return color_obj, alpha
-                else:
-                    logger.warning(f"Invalid rgba format: {color_value}")
-                    return None, 1.0
+                logger.warning(f"Invalid rgba format: {color_value}")
+                return None, 1.0
 
             # Handle rgb() CSS format (no alpha)
-            elif color_value.startswith("rgb("):
+            if color_value.startswith("rgb("):
                 import re
 
                 # Parse rgb(r, g, b) format
@@ -3062,11 +3060,10 @@ class SlidesService(BaseGoogleService):
 
                     color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
                     return color_obj, alpha
-                else:
-                    logger.warning(f"Invalid rgb format: {color_value}")
-                    return None, 1.0
+                logger.warning(f"Invalid rgb format: {color_value}")
+                return None, 1.0
 
-            elif color_value.startswith("#"):
+            if color_value.startswith("#"):
                 # Convert hex to RGB
                 try:
                     hex_color = color_value.lstrip("#")
@@ -3077,7 +3074,7 @@ class SlidesService(BaseGoogleService):
 
                         color_obj = {"rgbColor": {"red": r, "green": g, "blue": b}}
                         return color_obj, alpha
-                    elif len(hex_color) == 8:
+                    if len(hex_color) == 8:
                         # Handle 8-character hex with alpha (RRGGBBAA)
                         r = int(hex_color[0:2], 16) / 255.0
                         g = int(hex_color[2:4], 16) / 255.0
@@ -3102,7 +3099,7 @@ class SlidesService(BaseGoogleService):
                 }
                 alpha = color_value.get("a", 255) / 255.0  # Handle alpha if present
                 return color_obj, alpha
-            elif (
+            if (
                 "red" in color_value
                 and "green" in color_value
                 and "blue" in color_value
@@ -3140,7 +3137,7 @@ class SlidesService(BaseGoogleService):
                     "fields": "pageBackgroundFill",
                 }
             }
-        elif background_color:
+        if background_color:
             logger.info(f"Setting slide background color: {background_color}")
             return {
                 "updatePageProperties": {
@@ -3158,3 +3155,79 @@ class SlidesService(BaseGoogleService):
                 }
             }
         return None
+
+    def embed_sheets_chart(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        spreadsheet_id: str,
+        chart_id: int,
+        position: tuple[float, float],
+        size: tuple[float, float],
+    ) -> dict[str, Any]:
+        """
+        Embeds a chart from Google Sheets into a Google Slides presentation.
+
+        Args:
+            presentation_id: The ID of the presentation.
+            slide_id: The ID of the slide to add the chart to.
+            spreadsheet_id: The ID of the Google Sheet containing the chart.
+            chart_id: The ID of the chart within the sheet.
+            position: Tuple of (x, y) coordinates for position in PT.
+            size: Tuple of (width, height) for the chart size in PT.
+
+        Returns:
+            The API response from the batchUpdate call.
+        """
+        try:
+            element_id = f"chart_{chart_id}_{int(__import__('time').time() * 1000)}"
+            logger.info(
+                f"Embedding chart {chart_id} from sheet {spreadsheet_id} into slide {slide_id}"
+            )
+
+            requests = [
+                {
+                    "createSheetsChart": {
+                        "objectId": element_id,
+                        "spreadsheetId": spreadsheet_id,
+                        "chartId": chart_id,
+                        "linkingMode": "LINKED",
+                        "elementProperties": {
+                            "pageObjectId": slide_id,
+                            "size": {
+                                "width": {"magnitude": size[0], "unit": "PT"},
+                                "height": {"magnitude": size[1], "unit": "PT"},
+                            },
+                            "transform": {
+                                "scaleX": 1,
+                                "scaleY": 1,
+                                "translateX": position[0],
+                                "translateY": position[1],
+                                "unit": "PT",
+                            },
+                        },
+                    }
+                }
+            ]
+
+            response = self.batch_update(presentation_id, requests)
+            if response.get("error"):
+                raise ValueError(
+                    response.get("message", "Batch update for chart embedding failed")
+                )
+
+            created_element_id = (
+                response.get("replies", [{}])[0]
+                .get("createSheetsChart", {})
+                .get("objectId")
+            )
+
+            return {
+                "success": True,
+                "presentation_id": presentation_id,
+                "slide_id": slide_id,
+                "element_id": created_element_id or element_id,
+            }
+
+        except Exception as e:
+            return self.handle_api_error("embed_sheets_chart", e)

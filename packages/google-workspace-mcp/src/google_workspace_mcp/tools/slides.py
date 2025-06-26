@@ -6,6 +6,8 @@ import logging
 from typing import Any
 
 from google_workspace_mcp.app import mcp  # Import from central app module
+from google_workspace_mcp.services.drive import DriveService
+from google_workspace_mcp.services.sheets_service import SheetsService
 from google_workspace_mcp.services.slides import SlidesService
 
 logger = logging.getLogger(__name__)
@@ -1379,3 +1381,187 @@ async def create_multiple_slides_with_elements(
         raise ValueError(result.get("message", "Error creating multiple slides"))
 
     return result
+
+
+@mcp.tool(name="share_presentation_with_domain")
+async def share_presentation_with_domain(presentation_id: str) -> dict[str, Any]:
+    """
+    Shares a Google Slides presentation with the entire organization domain.
+    The domain is configured by the server administrator.
+
+    This tool makes the presentation viewable by anyone in the organization.
+
+    Args:
+        presentation_id: The ID of the Google Slides presentation to share.
+
+    Returns:
+        A dictionary confirming the sharing operation, including a shareable link.
+    """
+    logger.info(
+        f"Executing share_presentation_with_domain for presentation ID: '{presentation_id}'"
+    )
+
+    if not presentation_id or not presentation_id.strip():
+        raise ValueError("Presentation ID cannot be empty.")
+
+    sharing_domain = "rizzbuzz.com"
+
+    drive_service = DriveService()
+    result = drive_service.share_file_with_domain(
+        file_id=presentation_id, domain=sharing_domain, role="reader"
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(
+            result.get("message", "Failed to share presentation with domain.")
+        )
+
+    # Construct the shareable link
+    presentation_link = f"https://docs.google.com/presentation/d/{presentation_id}/"
+
+    return {
+        "success": True,
+        "message": f"Presentation successfully shared with the '{sharing_domain}' domain.",
+        "presentation_id": presentation_id,
+        "presentation_link": presentation_link,
+        "domain": sharing_domain,
+        "role": "reader",
+    }
+
+
+@mcp.tool(name="insert_chart_from_data")
+async def insert_chart_from_data(
+    presentation_id: str,
+    slide_id: str,
+    chart_type: str,
+    data: list[list[Any]],
+    title: str,
+    position_x: float = 50.0,
+    position_y: float = 50.0,
+    size_width: float = 480.0,
+    size_height: float = 320.0,
+) -> dict[str, Any]:
+    """
+    Creates and embeds a native, theme-aware Google Chart into a slide from a data table.
+    This tool handles the entire process: creating a data sheet in a dedicated Drive folder,
+    generating the chart, and embedding it into the slide.
+
+    Supported `chart_type` values:
+    - 'BAR': For bar charts. The API creates a vertical column chart.
+    - 'LINE': For line charts.
+    - 'PIE': For pie charts.
+    - 'COLUMN': For vertical column charts (identical to 'BAR').
+
+    Required `data` format:
+    The data must be a list of lists, where the first inner list contains the column headers.
+    Example: [["Month", "Revenue"], ["Jan", 2500], ["Feb", 3100], ["Mar", 2800]]
+
+    Args:
+        presentation_id: The ID of the presentation to add the chart to.
+        slide_id: The ID of the slide where the chart will be placed.
+        chart_type: The type of chart to create ('BAR', 'LINE', 'PIE', 'COLUMN').
+        data: A list of lists containing the chart data, with headers in the first row.
+        title: The title that will appear on the chart.
+        position_x: The X-coordinate for the chart's top-left corner on the slide (in points).
+        position_y: The Y-coordinate for the chart's top-left corner on the slide (in points).
+        size_width: The width of the chart on the slide (in points).
+        size_height: The height of the chart on the slide (in points).
+
+    Returns:
+        A dictionary confirming the chart creation and embedding.
+    """
+    logger.info(
+        f"Executing insert_chart_from_data: type='{chart_type}', title='{title}'"
+    )
+    sheets_service = SheetsService()
+    slides_service = SlidesService()
+    drive_service = DriveService()
+
+    spreadsheet_id = None
+    try:
+        # 1. Get the dedicated folder for storing data sheets
+        data_folder_id = drive_service._get_or_create_data_folder()
+
+        # 2. Create a temporary Google Sheet for the data
+        sheet_title = f"[Chart Data] - {title}"
+        sheet_result = sheets_service.create_spreadsheet(title=sheet_title)
+        if not sheet_result or sheet_result.get("error"):
+            raise RuntimeError(
+                f"Failed to create data sheet: {sheet_result.get('message')}"
+            )
+
+        spreadsheet_id = sheet_result["spreadsheet_id"]
+
+        # Move the new sheet to the correct folder and remove it from root
+        drive_service.service.files().update(
+            fileId=spreadsheet_id,
+            addParents=data_folder_id,
+            removeParents="root",
+            fields="id, parents",
+        ).execute()
+        logger.info(f"Moved data sheet {spreadsheet_id} to folder {data_folder_id}")
+
+        # 3. Write the data to the temporary sheet
+        num_rows = len(data)
+        num_cols = len(data[0]) if data else 0
+        if num_rows == 0 or num_cols < 2:
+            raise ValueError(
+                "Data must have at least one header row and one data column."
+            )
+
+        range_a1 = f"Sheet1!A1:{chr(ord('A') + num_cols - 1)}{num_rows}"
+        write_result = sheets_service.write_range(spreadsheet_id, range_a1, data)
+        if not write_result or write_result.get("error"):
+            raise RuntimeError(
+                f"Failed to write data to sheet: {write_result.get('message')}"
+            )
+
+        # 4. Create the chart object within the sheet
+        metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
+        sheet_id_numeric = metadata["sheets"][0]["properties"]["sheetId"]
+
+        # --- START OF FIX: Map user-friendly chart type to API-specific chart type ---
+        chart_type_upper = chart_type.upper()
+        if chart_type_upper in ["BAR", "COLUMN"]:
+            api_chart_type = "COLUMN"
+        elif chart_type_upper == "PIE":
+            api_chart_type = "PIE_CHART"
+        else:
+            api_chart_type = chart_type_upper
+        # --- END OF FIX ---
+
+        chart_result = sheets_service.create_chart_on_sheet(
+            spreadsheet_id, sheet_id_numeric, api_chart_type, num_rows, num_cols, title
+        )
+        if not chart_result or chart_result.get("error"):
+            raise RuntimeError(
+                f"Failed to create chart in sheet: {chart_result.get('message')}"
+            )
+        chart_id = chart_result["chartId"]
+
+        # 5. Embed the chart into the Google Slide
+        embed_result = slides_service.embed_sheets_chart(
+            presentation_id,
+            slide_id,
+            spreadsheet_id,
+            chart_id,
+            position=(position_x, position_y),
+            size=(size_width, size_height),
+        )
+        if not embed_result or embed_result.get("error"):
+            raise RuntimeError(
+                f"Failed to embed chart into slide: {embed_result.get('message')}"
+            )
+
+        return {
+            "success": True,
+            "message": f"Successfully added native '{title}' chart to slide.",
+            "presentation_id": presentation_id,
+            "slide_id": slide_id,
+            "chart_element_id": embed_result.get("element_id"),
+        }
+
+    except Exception as e:
+        logger.error(f"Chart creation workflow failed: {e}", exc_info=True)
+        # Re-raise to ensure the MCP framework catches it and reports an error
+        raise RuntimeError(f"An error occurred during the chart creation process: {e}")
