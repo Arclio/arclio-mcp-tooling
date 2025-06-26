@@ -1383,9 +1383,9 @@ async def create_multiple_slides_with_elements(
     return result
 
 
-@mcp.tool(name="share_presentation")
-async def share_presentation(
-    presentation_id: str,
+@mcp.tool(name="share_file")
+async def share_file(
+    file_id: str,
     sharing_type: str,
     role: str = "reader",
     domain: str | None = None,
@@ -1393,10 +1393,10 @@ async def share_presentation(
     send_notification: bool = True,
 ) -> dict[str, Any]:
     """
-    Shares a Google Slides presentation.
+    Shares any Google Drive file (docs, sheets, slides, folders, etc.).
 
     Args:
-        presentation_id: The ID of the Google Slides presentation to share.
+        file_id: The ID of the Google Drive file to share.
         sharing_type: Type of sharing ("domain", "user", "public").
         role: Permission role ("reader", "commenter", "writer"). Defaults to "reader".
         domain: Domain name (required for sharing_type="domain").
@@ -1404,19 +1404,19 @@ async def share_presentation(
         send_notification: Send email notification for user sharing. Defaults to True.
 
     Returns:
-        Dictionary with sharing confirmation and presentation link.
+        Dictionary with sharing confirmation and file link.
 
     Examples:
-        share_presentation("abc123", "domain", "reader", domain="rizzbuzz.com")
-        share_presentation("abc123", "user", "writer", email_address="user@example.com")
-        share_presentation("abc123", "public", "reader")
+        share_file("abc123", "domain", "reader", domain="rizzbuzz.com")
+        share_file("abc123", "user", "writer", email_address="user@example.com")
+        share_file("abc123", "public", "reader")
     """
     logger.info(
-        f"Executing share_presentation for presentation ID: '{presentation_id}', type: '{sharing_type}'"
+        f"Executing share_file for file ID: '{file_id}', type: '{sharing_type}'"
     )
 
-    if not presentation_id or not presentation_id.strip():
-        raise ValueError("Presentation ID cannot be empty.")
+    if not file_id or not file_id.strip():
+        raise ValueError("File ID cannot be empty.")
 
     # Validate sharing_type
     valid_sharing_types = ["domain", "user", "public"]
@@ -1438,19 +1438,17 @@ async def share_presentation(
             raise ValueError("Domain parameter is required for domain sharing.")
 
         result = drive_service.share_file_with_domain(
-            file_id=presentation_id, domain=domain, role=role
+            file_id=file_id, domain=domain, role=role
         )
 
         if isinstance(result, dict) and result.get("error"):
-            raise ValueError(
-                result.get("message", "Failed to share presentation with domain.")
-            )
+            raise ValueError(result.get("message", "Failed to share file with domain."))
 
         return_data = {
             "success": True,
-            "message": f"Presentation successfully shared with the '{domain}' domain with '{role}' access.",
-            "presentation_id": presentation_id,
-            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "message": f"File successfully shared with the '{domain}' domain with '{role}' access.",
+            "file_id": file_id,
+            "file_link": f"https://drive.google.com/file/d/{file_id}/view",
             "sharing_type": sharing_type,
             "domain": domain,
             "role": role,
@@ -1461,22 +1459,20 @@ async def share_presentation(
             raise ValueError("Email address parameter is required for user sharing.")
 
         result = drive_service.share_file_with_user(
-            file_id=presentation_id,
+            file_id=file_id,
             email_address=email_address,
             role=role,
             send_notification=send_notification,
         )
 
         if isinstance(result, dict) and result.get("error"):
-            raise ValueError(
-                result.get("message", "Failed to share presentation with user.")
-            )
+            raise ValueError(result.get("message", "Failed to share file with user."))
 
         return_data = {
             "success": True,
-            "message": f"Presentation successfully shared with '{email_address}' with '{role}' access.",
-            "presentation_id": presentation_id,
-            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "message": f"File successfully shared with '{email_address}' with '{role}' access.",
+            "file_id": file_id,
+            "file_link": f"https://drive.google.com/file/d/{file_id}/view",
             "sharing_type": sharing_type,
             "email_address": email_address,
             "role": role,
@@ -1484,18 +1480,16 @@ async def share_presentation(
         }
 
     elif sharing_type == "public":
-        result = drive_service.share_file_publicly(file_id=presentation_id, role=role)
+        result = drive_service.share_file_publicly(file_id=file_id, role=role)
 
         if isinstance(result, dict) and result.get("error"):
-            raise ValueError(
-                result.get("message", "Failed to share presentation publicly.")
-            )
+            raise ValueError(result.get("message", "Failed to share file publicly."))
 
         return_data = {
             "success": True,
-            "message": f"Presentation successfully shared publicly with '{role}' access.",
-            "presentation_id": presentation_id,
-            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "message": f"File successfully shared publicly with '{role}' access.",
+            "file_id": file_id,
+            "file_link": f"https://drive.google.com/file/d/{file_id}/view",
             "sharing_type": sharing_type,
             "access_type": "public",
             "role": role,
