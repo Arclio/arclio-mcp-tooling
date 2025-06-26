@@ -543,6 +543,110 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("share_file_with_domain", e)
 
+    def share_file_with_user(
+        self,
+        file_id: str,
+        email_address: str,
+        role: str = "reader",
+        send_notification: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Shares a file with a specific user by email address.
+
+        Args:
+            file_id: The ID of the file to share.
+            email_address: The email address of the user to share with.
+            role: The permission role ('reader', 'commenter', 'writer'). Defaults to 'reader'.
+            send_notification: Whether to send an email notification to the user. Defaults to True.
+
+        Returns:
+            A dictionary containing the permission details or an error dictionary.
+        """
+        try:
+            if not file_id or not email_address:
+                raise ValueError("File ID and email address are required.")
+
+            logger.info(
+                f"Sharing file {file_id} with user '{email_address}' as role '{role}'"
+            )
+
+            permission = {"type": "user", "role": role, "emailAddress": email_address}
+
+            # Create the permission
+            permission_result = (
+                self.service.permissions()
+                .create(
+                    fileId=file_id,
+                    body=permission,
+                    sendNotificationEmail=send_notification,
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Successfully created user permission ID: {permission_result.get('id')}"
+            )
+            return {
+                "success": True,
+                "file_id": file_id,
+                "permission_id": permission_result.get("id"),
+                "email_address": email_address,
+                "role": role,
+                "notification_sent": send_notification,
+            }
+
+        except HttpError as error:
+            return self.handle_api_error("share_file_with_user", error)
+        except Exception as e:
+            return self.handle_api_error("share_file_with_user", e)
+
+    def share_file_publicly(self, file_id: str, role: str = "reader") -> dict[str, Any]:
+        """
+        Shares a file publicly (anyone with the link can access).
+
+        Args:
+            file_id: The ID of the file to share.
+            role: The permission role ('reader', 'commenter', 'writer'). Defaults to 'reader'.
+
+        Returns:
+            A dictionary containing the permission details or an error dictionary.
+        """
+        try:
+            if not file_id:
+                raise ValueError("File ID is required.")
+
+            logger.info(f"Sharing file {file_id} publicly with role '{role}'")
+
+            permission = {"type": "anyone", "role": role}
+
+            # Create the permission
+            permission_result = (
+                self.service.permissions()
+                .create(
+                    fileId=file_id,
+                    body=permission,
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Successfully created public permission ID: {permission_result.get('id')}"
+            )
+            return {
+                "success": True,
+                "file_id": file_id,
+                "permission_id": permission_result.get("id"),
+                "access_type": "public",
+                "role": role,
+            }
+
+        except HttpError as error:
+            return self.handle_api_error("share_file_publicly", error)
+        except Exception as e:
+            return self.handle_api_error("share_file_publicly", e)
+
     def _get_or_create_data_folder(self) -> str:
         """
         Finds the dedicated folder for storing chart data, creating it if it doesn't exist.

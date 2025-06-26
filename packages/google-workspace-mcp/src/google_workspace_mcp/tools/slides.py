@@ -1383,50 +1383,125 @@ async def create_multiple_slides_with_elements(
     return result
 
 
-@mcp.tool(name="share_presentation_with_domain")
-async def share_presentation_with_domain(presentation_id: str) -> dict[str, Any]:
+@mcp.tool(name="share_presentation")
+async def share_presentation(
+    presentation_id: str,
+    sharing_type: str,
+    role: str = "reader",
+    domain: str | None = None,
+    email_address: str | None = None,
+    send_notification: bool = True,
+) -> dict[str, Any]:
     """
-    Shares a Google Slides presentation with the entire organization domain.
-    The domain is configured by the server administrator.
-
-    This tool makes the presentation viewable by anyone in the organization.
+    Shares a Google Slides presentation.
 
     Args:
         presentation_id: The ID of the Google Slides presentation to share.
+        sharing_type: Type of sharing ("domain", "user", "public").
+        role: Permission role ("reader", "commenter", "writer"). Defaults to "reader".
+        domain: Domain name (required for sharing_type="domain").
+        email_address: Email address (required for sharing_type="user").
+        send_notification: Send email notification for user sharing. Defaults to True.
 
     Returns:
-        A dictionary confirming the sharing operation, including a shareable link.
+        Dictionary with sharing confirmation and presentation link.
+
+    Examples:
+        share_presentation("abc123", "domain", "reader", domain="rizzbuzz.com")
+        share_presentation("abc123", "user", "writer", email_address="user@example.com")
+        share_presentation("abc123", "public", "reader")
     """
     logger.info(
-        f"Executing share_presentation_with_domain for presentation ID: '{presentation_id}'"
+        f"Executing share_presentation for presentation ID: '{presentation_id}', type: '{sharing_type}'"
     )
 
     if not presentation_id or not presentation_id.strip():
         raise ValueError("Presentation ID cannot be empty.")
 
-    sharing_domain = "rizzbuzz.com"
-
-    drive_service = DriveService()
-    result = drive_service.share_file_with_domain(
-        file_id=presentation_id, domain=sharing_domain, role="reader"
-    )
-
-    if isinstance(result, dict) and result.get("error"):
+    # Validate sharing_type
+    valid_sharing_types = ["domain", "user", "public"]
+    if sharing_type not in valid_sharing_types:
         raise ValueError(
-            result.get("message", "Failed to share presentation with domain.")
+            f"Invalid sharing_type '{sharing_type}'. Must be one of {valid_sharing_types}."
         )
 
-    # Construct the shareable link
-    presentation_link = f"https://docs.google.com/presentation/d/{presentation_id}/"
+    # Validate role
+    valid_roles = ["reader", "commenter", "writer"]
+    if role not in valid_roles:
+        raise ValueError(f"Invalid role '{role}'. Must be one of {valid_roles}.")
 
-    return {
-        "success": True,
-        "message": f"Presentation successfully shared with the '{sharing_domain}' domain.",
-        "presentation_id": presentation_id,
-        "presentation_link": presentation_link,
-        "domain": sharing_domain,
-        "role": "reader",
-    }
+    drive_service = DriveService()
+
+    # Handle different sharing types
+    if sharing_type == "domain":
+        if not domain or not domain.strip():
+            raise ValueError("Domain parameter is required for domain sharing.")
+
+        result = drive_service.share_file_with_domain(
+            file_id=presentation_id, domain=domain, role=role
+        )
+
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(
+                result.get("message", "Failed to share presentation with domain.")
+            )
+
+        return_data = {
+            "success": True,
+            "message": f"Presentation successfully shared with the '{domain}' domain with '{role}' access.",
+            "presentation_id": presentation_id,
+            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "sharing_type": sharing_type,
+            "domain": domain,
+            "role": role,
+        }
+
+    elif sharing_type == "user":
+        if not email_address or not email_address.strip():
+            raise ValueError("Email address parameter is required for user sharing.")
+
+        result = drive_service.share_file_with_user(
+            file_id=presentation_id,
+            email_address=email_address,
+            role=role,
+            send_notification=send_notification,
+        )
+
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(
+                result.get("message", "Failed to share presentation with user.")
+            )
+
+        return_data = {
+            "success": True,
+            "message": f"Presentation successfully shared with '{email_address}' with '{role}' access.",
+            "presentation_id": presentation_id,
+            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "sharing_type": sharing_type,
+            "email_address": email_address,
+            "role": role,
+            "notification_sent": send_notification,
+        }
+
+    elif sharing_type == "public":
+        result = drive_service.share_file_publicly(file_id=presentation_id, role=role)
+
+        if isinstance(result, dict) and result.get("error"):
+            raise ValueError(
+                result.get("message", "Failed to share presentation publicly.")
+            )
+
+        return_data = {
+            "success": True,
+            "message": f"Presentation successfully shared publicly with '{role}' access.",
+            "presentation_id": presentation_id,
+            "presentation_link": f"https://docs.google.com/presentation/d/{presentation_id}/",
+            "sharing_type": sharing_type,
+            "access_type": "public",
+            "role": role,
+        }
+
+    return return_data
 
 
 @mcp.tool(name="insert_chart_from_data")
@@ -1485,7 +1560,9 @@ async def insert_chart_from_data(
         # 2. Create a temporary Google Sheet for the data
         sheet_title = f"[Chart Data] - {title}"
         sheet_result = sheets_service.create_spreadsheet(title=sheet_title)
-        if not sheet_result or sheet_result.get("error"):
+        if not sheet_result:
+            raise RuntimeError("Failed to create data sheet: No result returned")
+        if sheet_result.get("error"):
             raise RuntimeError(
                 f"Failed to create data sheet: {sheet_result.get('message')}"
             )
@@ -1511,13 +1588,17 @@ async def insert_chart_from_data(
 
         range_a1 = f"Sheet1!A1:{chr(ord('A') + num_cols - 1)}{num_rows}"
         write_result = sheets_service.write_range(spreadsheet_id, range_a1, data)
-        if not write_result or write_result.get("error"):
+        if not write_result:
+            raise RuntimeError("Failed to write data to sheet: No result returned")
+        if write_result.get("error"):
             raise RuntimeError(
                 f"Failed to write data to sheet: {write_result.get('message')}"
             )
 
         # 4. Create the chart object within the sheet
         metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
+        if not metadata or not metadata.get("sheets"):
+            raise RuntimeError("Failed to get spreadsheet metadata or no sheets found")
         sheet_id_numeric = metadata["sheets"][0]["properties"]["sheetId"]
 
         # --- START OF FIX: Map user-friendly chart type to API-specific chart type ---
@@ -1533,7 +1614,9 @@ async def insert_chart_from_data(
         chart_result = sheets_service.create_chart_on_sheet(
             spreadsheet_id, sheet_id_numeric, api_chart_type, num_rows, num_cols, title
         )
-        if not chart_result or chart_result.get("error"):
+        if not chart_result:
+            raise RuntimeError("Failed to create chart in sheet: No result returned")
+        if chart_result.get("error"):
             raise RuntimeError(
                 f"Failed to create chart in sheet: {chart_result.get('message')}"
             )
