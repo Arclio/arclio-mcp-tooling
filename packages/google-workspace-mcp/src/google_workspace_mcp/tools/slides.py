@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from google_workspace_mcp.app import mcp  # Import from central app module
+from google_workspace_mcp.services.drive import DriveService
 from google_workspace_mcp.services.slides import SlidesService
 
 logger = logging.getLogger(__name__)
@@ -1379,3 +1380,49 @@ async def create_multiple_slides_with_elements(
         raise ValueError(result.get("message", "Error creating multiple slides"))
 
     return result
+
+
+@mcp.tool(name="share_presentation_with_domain")
+async def share_presentation_with_domain(presentation_id: str) -> dict[str, Any]:
+    """
+    Shares a Google Slides presentation with the entire organization domain.
+    The domain is configured by the server administrator.
+
+    This tool makes the presentation viewable by anyone in the organization.
+
+    Args:
+        presentation_id: The ID of the Google Slides presentation to share.
+
+    Returns:
+        A dictionary confirming the sharing operation, including a shareable link.
+    """
+    logger.info(
+        f"Executing share_presentation_with_domain for presentation ID: '{presentation_id}'"
+    )
+
+    if not presentation_id or not presentation_id.strip():
+        raise ValueError("Presentation ID cannot be empty.")
+
+    sharing_domain = "rizzbuzz.com"
+
+    drive_service = DriveService()
+    result = drive_service.share_file_with_domain(
+        file_id=presentation_id, domain=sharing_domain, role="reader"
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(
+            result.get("message", "Failed to share presentation with domain.")
+        )
+
+    # Construct the shareable link
+    presentation_link = f"https://docs.google.com/presentation/d/{presentation_id}/"
+
+    return {
+        "success": True,
+        "message": f"Presentation successfully shared with the '{sharing_domain}' domain.",
+        "presentation_id": presentation_id,
+        "presentation_link": presentation_link,
+        "domain": sharing_domain,
+        "role": "reader",
+    }

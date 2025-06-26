@@ -475,3 +475,70 @@ class DriveService(BaseGoogleService):
                 "message": str(e),
                 "operation": "list_shared_drives",
             }
+
+    def share_file_with_domain(
+        self, file_id: str, domain: str, role: str = "reader"
+    ) -> dict[str, Any]:
+        """
+        Shares a file with an entire domain.
+
+        Args:
+            file_id: The ID of the file to share.
+            domain: The domain to share the file with (e.g., 'example.com').
+            role: The permission role ('reader', 'commenter', 'writer'). Defaults to 'reader'.
+
+        Returns:
+            A dictionary containing the permission details or an error dictionary.
+        """
+        try:
+            if not file_id or not domain:
+                raise ValueError("File ID and domain are required.")
+
+            logger.info(
+                f"Sharing file {file_id} with domain '{domain}' as role '{role}'"
+            )
+
+            permission = {"type": "domain", "role": role, "domain": domain}
+
+            # Create the permission
+            permission_result = (
+                self.service.permissions()
+                .create(
+                    fileId=file_id,
+                    body=permission,
+                    sendNotificationEmail=False,  # Avoid spamming the domain
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Successfully created domain permission ID: {permission_result.get('id')}"
+            )
+            return {
+                "success": True,
+                "file_id": file_id,
+                "permission_id": permission_result.get("id"),
+                "domain": domain,
+                "role": role,
+            }
+
+        except HttpError as error:
+            # Check for a 403 error related to sharing policies
+            if error.resp.status == 403:
+                error_content = error.content.decode("utf-8")
+                if (
+                    "cannotShareTeamDriveItem" in error_content
+                    or "sharingRateLimitExceeded" in error_content
+                ):
+                    logger.error(
+                        f"Domain sharing policy prevents sharing file {file_id}: {error_content}"
+                    )
+                    # Return a more specific error message
+                    return self.handle_api_error(
+                        "share_file_with_domain_policy_error", error
+                    )
+
+            return self.handle_api_error("share_file_with_domain", error)
+        except Exception as e:
+            return self.handle_api_error("share_file_with_domain", e)
