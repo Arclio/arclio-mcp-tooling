@@ -542,3 +542,31 @@ class DriveService(BaseGoogleService):
             return self.handle_api_error("share_file_with_domain", error)
         except Exception as e:
             return self.handle_api_error("share_file_with_domain", e)
+
+    def _get_or_create_data_folder(self) -> str:
+        """
+        Finds the dedicated folder for storing chart data, creating it if it doesn't exist.
+        The result is cached to avoid repeated API calls within the same session.
+
+        Returns:
+            The ID of the data folder.
+        """
+        folder_name = "[MCP] Generated Chart Data"
+        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+
+        logger.info(f"Searching for data folder: '{folder_name}'")
+        search_result = self.search_files(query=query, page_size=1)
+
+        if search_result and len(search_result) > 0:
+            folder_id = search_result[0]["id"]
+            logger.info(f"Found existing data folder with ID: {folder_id}")
+            return folder_id
+        logger.info("Data folder not found. Creating a new one.")
+        create_result = self.create_folder(folder_name=folder_name)
+        if create_result and not create_result.get("error"):
+            folder_id = create_result["id"]
+            logger.info(f"Successfully created data folder with ID: {folder_id}")
+            return folder_id
+        raise RuntimeError(
+            "Failed to create the necessary data folder in Google Drive."
+        )
