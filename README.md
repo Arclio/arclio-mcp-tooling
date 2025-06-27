@@ -124,6 +124,36 @@ make build
 make publish
 ```
 
+### Using Poe Tasks
+
+For more convenient package management, you can use the included Poe tasks:
+
+```bash
+# Check current version of google-workspace-mcp
+poe version-gw
+
+# Build the google-workspace-mcp package
+poe build-gw
+
+# Publish the google-workspace-mcp package (requires PYPI_TOKEN env var)
+poe publish-gw
+
+# Build and publish in one command
+poe release-gw
+
+# Clean build artifacts
+poe clean-gw
+```
+
+#### Setting up Publishing
+
+1. Copy `env.example` to `.env`
+2. Add your PyPI token to the `.env` file:
+   ```bash
+   PYPI_TOKEN=your-actual-token-here
+   ```
+3. Run: `poe release-gw`
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file in each package for details.

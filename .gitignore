@@ -103,3 +103,5 @@ instance/
 .pypirc
 
 misc/*
+
+.cache_ggshield

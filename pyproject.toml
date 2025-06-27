@@ -6,12 +6,10 @@ build-backend = "hatchling.build"
 name = "arclio-mcp-tooling"
 version = "0.1.0"
 description = "Model Context Protocol tooling monorepo"
-authors = [
-    {name = "Arclio Team", email = "info@arclio.com"},
-]
+authors = [{ name = "Arclio Team", email = "info@arclio.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]
@@ -25,7 +23,7 @@ dev = [
     "trio>=0.22.0",
     "ipykernel>=6.29.0",
     "matplotlib>=3.8.0",
-
+    "poethepoet>=0.24.0",
 ]
 
 [tool.pytest.ini_options]
@@ -58,15 +56,29 @@ directory = "coverage_html"
 
 [tool.uv.workspace]
 # List all workspace packages
-members = [
-    "packages/google-workspace-mcp",
-    "packages/markdowndeck",
-]
+members = ["packages/google-workspace-mcp", "packages/markdowndeck"]
 
 [tool.uv.sources]
-google-workspace-mcp = {workspace = true}
+google-workspace-mcp = { workspace = true }
 markdowndeck = { workspace = true }
 
 
 [tool.hatch.build.targets.wheel]
 packages = ["packages/*"]
+
+[tool.poe.tasks]
+# Build the google-workspace-mcp package
+build-gw = { shell = "source .env && cd packages/google-workspace-mcp && uv build" }
+
+# Get version from package pyproject.toml
+version-gw = { shell = "source .env && cd packages/google-workspace-mcp && python -c \"import tomllib; print('Current version:', tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])\"" }
+
+# Publish the google-workspace-mcp package (requires PYPI_TOKEN in environment)
+# Use wildcard to match any version - simpler and more reliable
+publish-gw = { shell = "source .env && uv publish --token $PYPI_TOKEN dist/google_workspace_mcp_hotfix-*" }
+
+# Build and publish in one command
+release-gw = ["build-gw", "publish-gw"]
+
+# Clean build artifacts
+clean-gw = { shell = "rm -rf dist/ packages/google-workspace-mcp/dist/" }
