@@ -1964,6 +1964,7 @@ class SlidesService(BaseGoogleService):
 
             all_requests = []
             slide_ids = []
+            chart_data = []  # Store chart elements for post-processing
             base_timestamp = int(time.time() * 1000)
 
             logger.info(f"Creating {len(slides_data)} slides in batch operation")
@@ -2026,6 +2027,18 @@ class SlidesService(BaseGoogleService):
                             element_id, slide_id, element
                         )
                         all_requests.extend(table_requests)
+                    elif element_type == "chart":
+                        # Collect chart data for post-processing
+                        chart_data.append(
+                            {
+                                "slide_id": slide_id,
+                                "element_id": element_id,
+                                "chart_data": element,
+                            }
+                        )
+                        logger.info(
+                            f"Collected chart element for post-processing: {element_id}"
+                        )
                     else:
                         logger.warning(f"Unknown element type: {element_type}")
 
@@ -2052,6 +2065,30 @@ class SlidesService(BaseGoogleService):
             # Use created IDs if available, otherwise use our generated ones
             final_slide_ids = created_slide_ids if created_slide_ids else slide_ids
 
+            # Process charts after slide creation is complete
+            chart_results = []
+            if chart_data:
+                logger.info(f"Processing {len(chart_data)} chart elements")
+                for chart_element in chart_data:
+                    try:
+                        chart_result = self._process_chart_element(
+                            presentation_id,
+                            chart_element["slide_id"],
+                            chart_element["chart_data"],
+                            chart_element["element_id"],
+                        )
+                        chart_results.append(chart_result)
+                        logger.info(
+                            f"Successfully processed chart element: {chart_element['element_id']}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to process chart element {chart_element['element_id']}: {e}"
+                        )
+                        chart_results.append(
+                            {"error": str(e), "element_id": chart_element["element_id"]}
+                        )
+
             return {
                 "presentationId": presentation_id,
                 "slideIds": final_slide_ids,
@@ -2059,10 +2096,12 @@ class SlidesService(BaseGoogleService):
                 "result": "success",
                 "slidesCreated": len(slides_data),
                 "totalRequests": len(all_requests),
+                "chartsProcessed": len(chart_data),
                 "totalElements": sum(
                     len(slide.get("elements", [])) for slide in slides_data
                 ),
                 "batchResult": batch_result,
+                "chartResults": chart_results,
             }
 
         except Exception as e:
@@ -3164,6 +3203,134 @@ class SlidesService(BaseGoogleService):
                 }
             }
         return None
+
+    def _process_chart_element(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        chart_element: dict[str, Any],
+        element_id: str,
+    ) -> dict[str, Any]:
+        """Process a chart element by creating sheet, chart, and embedding into slide"""
+        import time
+
+        from google_workspace_mcp.services.drive import DriveService
+        from google_workspace_mcp.services.sheets_service import SheetsService
+
+        try:
+            sheets_service = SheetsService()
+            drive_service = DriveService()
+
+            # Extract chart data from element
+            content = chart_element.get("content", {})
+            chart_type = content.get("chart_type", "BAR")
+            data = content.get("data", [])
+            title = content.get("title", "Chart")
+            position = chart_element.get(
+                "position", {"x": 100, "y": 100, "width": 400, "height": 300}
+            )
+
+            # Get the dedicated folder for storing data sheets
+            data_folder_id = drive_service._get_or_create_data_folder()
+
+            # Create a temporary Google Sheet for the data
+            sheet_title = f"[Chart Data] - {title}"
+            sheet_result = sheets_service.create_spreadsheet(title=sheet_title)
+            if not sheet_result or sheet_result.get("error"):
+                raise RuntimeError(
+                    f"Failed to create data sheet: {sheet_result.get('message') if sheet_result else 'No result'}"
+                )
+
+            spreadsheet_id = sheet_result["spreadsheet_id"]
+
+            # Move the new sheet to the correct folder and remove it from root
+            drive_service.service.files().update(
+                fileId=spreadsheet_id,
+                addParents=data_folder_id,
+                removeParents="root",
+                fields="id, parents",
+            ).execute()
+            logger.info(f"Moved data sheet {spreadsheet_id} to folder {data_folder_id}")
+
+            # Write the data to the temporary sheet
+            num_rows = len(data)
+            num_cols = len(data[0]) if data else 0
+            if num_rows == 0 or num_cols < 2:
+                raise ValueError(
+                    "Data must have at least one header row and one data column."
+                )
+
+            range_a1 = f"Sheet1!A1:{chr(ord('A') + num_cols - 1)}{num_rows}"
+            write_result = sheets_service.write_range(spreadsheet_id, range_a1, data)
+            if not write_result or write_result.get("error"):
+                raise RuntimeError(
+                    f"Failed to write data to sheet: {write_result.get('message') if write_result else 'No result'}"
+                )
+
+            # Get sheet metadata to get numeric sheet ID
+            metadata = sheets_service.get_spreadsheet_metadata(spreadsheet_id)
+            if not metadata or not metadata.get("sheets"):
+                raise RuntimeError(
+                    "Failed to get spreadsheet metadata or no sheets found"
+                )
+            sheet_id_numeric = metadata["sheets"][0]["properties"]["sheetId"]
+
+            # Map user-friendly chart type to API-specific chart type
+            chart_type_upper = chart_type.upper()
+            if chart_type_upper in ["BAR", "COLUMN"]:
+                api_chart_type = "COLUMN"
+            elif chart_type_upper == "PIE":
+                api_chart_type = "PIE_CHART"
+            else:
+                api_chart_type = chart_type_upper
+
+            # Create the chart object within the sheet
+            chart_result = sheets_service.create_chart_on_sheet(
+                spreadsheet_id,
+                sheet_id_numeric,
+                api_chart_type,
+                num_rows,
+                num_cols,
+                title,
+            )
+            if not chart_result or chart_result.get("error"):
+                raise RuntimeError(
+                    f"Failed to create chart in sheet: {chart_result.get('message') if chart_result else 'No result'}"
+                )
+            chart_id = chart_result["chartId"]
+
+            # Embed the chart into the Google Slide
+            embed_result = self.embed_sheets_chart(
+                presentation_id,
+                slide_id,
+                spreadsheet_id,
+                chart_id,
+                position=(position.get("x", 100), position.get("y", 100)),
+                size=(position.get("width", 400), position.get("height", 300)),
+            )
+            if not embed_result or embed_result.get("error"):
+                raise RuntimeError(
+                    f"Failed to embed chart into slide: {embed_result.get('message') if embed_result else 'No result'}"
+                )
+
+            return {
+                "success": True,
+                "message": f"Successfully processed chart '{title}'",
+                "element_id": element_id,
+                "chart_element_id": embed_result.get("element_id"),
+                "spreadsheet_id": spreadsheet_id,
+                "chart_id": chart_id,
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Chart processing failed for element {element_id}: {e}", exc_info=True
+            )
+            return {
+                "error": True,
+                "message": f"Chart processing failed: {e}",
+                "element_id": element_id,
+            }
 
     def embed_sheets_chart(
         self,
