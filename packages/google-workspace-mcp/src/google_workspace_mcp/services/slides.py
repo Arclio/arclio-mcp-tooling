@@ -1752,6 +1752,15 @@ class SlidesService(BaseGoogleService):
                             "fontSize": 12,
                             "fontFamily": "Roboto"
                         }
+                    },
+                    {
+                        "type": "chart",
+                        "content": {
+                            "chart_type": "BAR",
+                            "data": [["Month", "Revenue"], ["Jan", 2500], ["Feb", 3100], ["Mar", 2800]],
+                            "title": "Monthly Revenue"
+                        },
+                        "position": {"x": 100, "y": 400, "width": 480, "height": 320}
                     }
                 ]
             background_color: Optional slide background color (e.g., "#f8cdcd4f")

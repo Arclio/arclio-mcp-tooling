@@ -879,28 +879,37 @@ async def create_slide_with_elements(
                     "content": "https://drive.google.com/file/d/.../view",
                     "position": {"x": 675, "y": 0, "width": 238, "height": 514}
                 },
-                {
-                    "type": "table",
-                    "content": {
-                        "headers": ["Category", "Metric"],
-                        "rows": [
-                            ["Reach & Visibility", "Total Impressions: 43,431,803"],
-                            ["Engagement", "Total Engagements: 134,431"],
-                            ["Media Value", "Ad Equivalency: $9.1 million"]
-                        ]
-                    },
-                    "position": {"x": 100, "y": 300, "width": 400, "height": 200},
-                    "style": {
-                        "headerStyle": {
-                            "bold": true,
-                            "backgroundColor": "#ff6b6b"
+                                    {
+                        "type": "table",
+                        "content": {
+                            "headers": ["Category", "Metric"],
+                            "rows": [
+                                ["Reach & Visibility", "Total Impressions: 43,431,803"],
+                                ["Engagement", "Total Engagements: 134,431"],
+                                ["Media Value", "Ad Equivalency: $9.1 million"]
+                            ]
                         },
-                        "firstColumnBold": true,
-                        "fontSize": 12,
-                        "fontFamily": "Roboto"
+                        "position": {"x": 100, "y": 300, "width": 400, "height": 200},
+                        "style": {
+                            "headerStyle": {
+                                "bold": true,
+                                "backgroundColor": "#ff6b6b"
+                            },
+                            "firstColumnBold": true,
+                            "fontSize": 12,
+                            "fontFamily": "Roboto"
+                        }
+                    },
+                    {
+                        "type": "chart",
+                        "content": {
+                            "chart_type": "BAR",
+                            "data": [["Month", "Revenue"], ["Jan", 2500], ["Feb", 3100], ["Mar", 2800]],
+                            "title": "Monthly Revenue"
+                        },
+                        "position": {"x": 100, "y": 400, "width": 480, "height": 320}
                     }
-                }
-            ]
+                ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
         background_image_url: Optional slide background image URL (takes precedence over background_color)
                              Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
@@ -959,6 +968,30 @@ async def create_slide_with_elements(
         - Use "firstColumnBold": true to emphasize categories/left column
         - Headers: Bold with colored backgrounds (e.g., "#ff6b6b" for brand consistency)
         - Structure: Clear headers with organized data rows
+
+    Chart Element Support:
+        - Type: "chart" - Creates and embeds Google Charts from data
+        - Content format:
+            {
+                "chart_type": "BAR" | "LINE" | "PIE" | "COLUMN",
+                "data": [["Headers"], ["Row1"], ["Row2"], ...],
+                "title": "Chart Title"
+            }
+        - Supported chart types: BAR, COLUMN (vertical bars), LINE, PIE
+        - Data format: First row = headers, subsequent rows = data
+        - Position: Standard x, y, width, height in points (PT)
+        - Charts automatically create temporary Google Sheets in dedicated folder
+        - Charts are theme-aware and integrate with slide design
+        - Example:
+            {
+                "type": "chart",
+                "content": {
+                    "chart_type": "BAR",
+                    "data": [["Month", "Revenue"], ["Jan", 2500], ["Feb", 3100], ["Mar", 2800]],
+                    "title": "Monthly Revenue Trend"
+                },
+                "position": {"x": 100, "y": 400, "width": 480, "height": 320}
+            }
 
     Usage Examples:
         # NEW OPTIMIZED WAY - Single API call to create slide with elements:
@@ -1244,6 +1277,15 @@ async def create_multiple_slides_with_elements(
                             },
                             "position": {"x": 100, "y": 400, "width": 400, "height": 150},
                             "style": {"fontSize": 12, "headerStyle": {"bold": True}}
+                        },
+                        {
+                            "type": "chart",
+                            "content": {
+                                "chart_type": "PIE",
+                                "data": [["Category", "Value"], ["Desktop", 60], ["Mobile", 40]],
+                                "title": "Traffic Sources"
+                            },
+                            "position": {"x": 500, "y": 200, "width": 300, "height": 250}
                         }
                     ]
                 },
