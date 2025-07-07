@@ -735,7 +735,14 @@ class PreciseSlidesPositioning(BaseGoogleService):
                                     zone_data, unit
                                 )
 
-                            template_zones[zone_name] = zone_data
+                            # Handle duplicate zone names by adding a counter
+                            unique_zone_name = zone_name
+                            counter = 2
+                            while unique_zone_name in template_zones:
+                                unique_zone_name = f"{zone_name}_{counter}"
+                                counter += 1
+
+                            template_zones[unique_zone_name] = zone_data
 
                             unit_suffix = unit.lower() if unit != "EMU" else "emu"
                             width_key = (
@@ -755,7 +762,7 @@ class PreciseSlidesPositioning(BaseGoogleService):
                             y_val = zone_data.get(y_key, y_inches)
 
                             logger.info(
-                                f"🎯 Found template zone '{zone_name}' from text '{content}': {width_val:.2f} {unit}×{height_val:.2f} {unit} at ({x_val:.2f} {unit}, {y_val:.2f} {unit})"
+                                f"🎯 Found template zone '{unique_zone_name}' from text '{content}': {width_val:.2f} {unit}×{height_val:.2f} {unit} at ({x_val:.2f} {unit}, {y_val:.2f} {unit})"
                             )
                             break  # Found a match, move to next element
 
