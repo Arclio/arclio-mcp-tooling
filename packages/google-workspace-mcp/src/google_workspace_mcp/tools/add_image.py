@@ -674,6 +674,9 @@ class PreciseSlidesPositioning(BaseGoogleService):
                 "summary slide title": "summary_slide_title",
                 "summary slide copy block": "summary_slide_copy_block",
                 "thank you copy": "thank_you_copy",
+                "graph a": "graph_a",
+                "graph b": "graph_b",
+                "graph title": "graph_title",
             }
 
             # Scan all text elements for template keywords

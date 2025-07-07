@@ -1540,7 +1540,7 @@ async def share_file(
     return return_data
 
 
-@mcp.tool(name="insert_chart_from_data")
+# @mcp.tool(name="insert_chart_from_data")
 async def insert_chart_from_data(
     presentation_id: str,
     slide_id: str,
