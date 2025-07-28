@@ -686,9 +686,11 @@ class DriveService(BaseGoogleService):
             )
 
             current_parents = current_file.get("parents", [])
+            logger.info(f"Current parents of file {file_id}: {current_parents}")
 
             # Set new parent
             new_parent = parent_folder_id if parent_folder_id else shared_drive_id
+            logger.info(f"New parent will be: {new_parent}")
 
             # Move the file by updating parents
             update_params = {
@@ -701,10 +703,13 @@ class DriveService(BaseGoogleService):
 
             if shared_drive_id:
                 update_params["driveId"] = shared_drive_id
+                
+            logger.info(f"Update params: {update_params}")
 
             updated_file = self.service.files().update(**update_params).execute()
-
-            logger.info(f"Successfully moved file '{file_id}' to new location")
+            
+            logger.info(f"Updated file result: {updated_file}")
+            logger.info(f"Successfully moved file '{file_id}' to new location. New parents: {updated_file.get('parents', [])}")
             return {"success": True, "file": updated_file}
 
         except Exception as e:

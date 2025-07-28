@@ -7,12 +7,11 @@ import logging
 import re
 from typing import Any
 
-from markdowndeck import create_presentation
-
 from google_workspace_mcp.auth import gauth
 from google_workspace_mcp.services.base import BaseGoogleService
 from google_workspace_mcp.utils.markdown_slides import MarkdownSlidesConverter
 from google_workspace_mcp.utils.unit_conversion import convert_template_zones
+from markdowndeck import create_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -68,13 +67,19 @@ class SlidesService(BaseGoogleService):
             body = {"title": title}
             presentation = self.service.presentations().create(body=body).execute()
 
+            # Initialize folder move status
+            folder_move_status = None
+
             # If folder parameters are specified, move the presentation using Drive API
             if parent_folder_id or shared_drive_id:
                 from .drive import DriveService
 
                 drive_service = DriveService()
-
                 presentation_id = presentation["presentationId"]
+
+                logger.info(
+                    f"Attempting to move presentation {presentation_id} to folder. parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+                )
 
                 # Move the presentation to the specified folder
                 move_result = drive_service._move_file_to_folder(
@@ -88,6 +93,24 @@ class SlidesService(BaseGoogleService):
                     logger.warning(
                         f"Failed to move presentation to folder: {move_result.get('message')}"
                     )
+                    folder_move_status = {
+                        "success": False,
+                        "error": move_result.get(
+                            "message", "Unknown error occurred during folder move"
+                        ),
+                    }
+                else:
+                    logger.info(
+                        f"Successfully moved presentation {presentation_id} to folder"
+                    )
+                    folder_move_status = {
+                        "success": True,
+                        "moved_to_folder_id": parent_folder_id or shared_drive_id,
+                    }
+
+            # Add folder move status to presentation result
+            if folder_move_status:
+                presentation["folder_move_status"] = folder_move_status
 
             return presentation
         except Exception as e:

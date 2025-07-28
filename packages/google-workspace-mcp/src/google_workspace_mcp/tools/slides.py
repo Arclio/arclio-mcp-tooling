@@ -126,7 +126,7 @@ async def create_presentation(
     if not presentation_id:
         raise ValueError("Failed to get presentation ID from creation result")
 
-    # Prepare clean response
+        # Prepare clean response
     clean_result = {
         "presentationId": presentation_id,
         "title": title,
@@ -134,11 +134,26 @@ async def create_presentation(
         "url": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
     }
 
-    # Add folder information if applicable
+    # Add folder information and move status if applicable
     if parent_folder_id_clean:
         clean_result["parent_folder_id"] = parent_folder_id_clean
     if shared_drive_id_clean:
         clean_result["shared_drive_id"] = shared_drive_id_clean
+
+    # Include folder move status
+    folder_move_status = result.get("folder_move_status")
+    if folder_move_status:
+        if folder_move_status.get("success"):
+            clean_result["folder_placement"] = "successful"
+            clean_result["moved_to_folder_id"] = folder_move_status.get(
+                "moved_to_folder_id"
+            )
+        else:
+            clean_result["folder_placement"] = "failed"
+            clean_result["folder_error"] = folder_move_status.get("error")
+    elif parent_folder_id_clean or shared_drive_id_clean:
+        # Folder was requested but no status found - this shouldn't happen
+        clean_result["folder_placement"] = "unknown"
 
     # If requested, delete the default slide
     if delete_default_slide and presentation_id:
