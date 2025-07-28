@@ -647,6 +647,69 @@ class DriveService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("share_file_publicly", e)
 
+    def _move_file_to_folder(
+        self,
+        file_id: str,
+        parent_folder_id: str | None = None,
+        shared_drive_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Move a file to a specific folder using the Drive API.
+
+        Args:
+            file_id: The ID of the file to move
+            parent_folder_id: Optional parent folder ID to move the file to
+            shared_drive_id: Optional shared drive ID
+
+        Returns:
+            Dict containing the move result or error information
+        """
+        try:
+            if not file_id or not file_id.strip():
+                return {"error": True, "message": "File ID cannot be empty"}
+
+            if not parent_folder_id and not shared_drive_id:
+                return {
+                    "error": True,
+                    "message": "Either parent_folder_id or shared_drive_id must be specified",
+                }
+
+            logger.info(
+                f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+            )
+
+            # Get current file metadata to retrieve current parents
+            current_file = (
+                self.service.files()
+                .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+                .execute()
+            )
+
+            current_parents = current_file.get("parents", [])
+
+            # Set new parent
+            new_parent = parent_folder_id if parent_folder_id else shared_drive_id
+
+            # Move the file by updating parents
+            update_params = {
+                "fileId": file_id,
+                "addParents": new_parent,
+                "removeParents": ",".join(current_parents),
+                "supportsAllDrives": True,
+                "fields": "id, name, parents",
+            }
+
+            if shared_drive_id:
+                update_params["driveId"] = shared_drive_id
+
+            updated_file = self.service.files().update(**update_params).execute()
+
+            logger.info(f"Successfully moved file '{file_id}' to new location")
+            return {"success": True, "file": updated_file}
+
+        except Exception as e:
+            return self.handle_api_error("_move_file_to_folder", e)
+
     def _get_or_create_data_folder(self) -> str:
         """
         Finds the dedicated folder for storing chart data, creating it if it doesn't exist.

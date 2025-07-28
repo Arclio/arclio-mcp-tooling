@@ -46,19 +46,50 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("get_presentation", e)
 
-    def create_presentation(self, title: str) -> dict[str, Any]:
+    def create_presentation(
+        self,
+        title: str,
+        parent_folder_id: str | None = None,
+        shared_drive_id: str | None = None,
+    ) -> dict[str, Any]:
         """
-        Create a new presentation with a title.
+        Create a new presentation with a title, optionally in a specific folder.
 
         Args:
             title: The title of the new presentation
+            parent_folder_id: Optional parent folder ID to create the presentation within
+            shared_drive_id: Optional shared drive ID to create the presentation in a shared drive
 
         Returns:
             Created presentation data or error information
         """
         try:
+            # First create the presentation (Google Slides API doesn't support folder creation directly)
             body = {"title": title}
-            return self.service.presentations().create(body=body).execute()
+            presentation = self.service.presentations().create(body=body).execute()
+
+            # If folder parameters are specified, move the presentation using Drive API
+            if parent_folder_id or shared_drive_id:
+                from .drive import DriveService
+
+                drive_service = DriveService()
+
+                presentation_id = presentation["presentationId"]
+
+                # Move the presentation to the specified folder
+                move_result = drive_service._move_file_to_folder(
+                    file_id=presentation_id,
+                    parent_folder_id=parent_folder_id,
+                    shared_drive_id=shared_drive_id,
+                )
+
+                if move_result.get("error"):
+                    # If move fails, log warning but don't fail the presentation creation
+                    logger.warning(
+                        f"Failed to move presentation to folder: {move_result.get('message')}"
+                    )
+
+            return presentation
         except Exception as e:
             return self.handle_api_error("create_presentation", e)
 

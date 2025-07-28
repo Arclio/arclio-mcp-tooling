@@ -79,26 +79,33 @@ async def get_slides(presentation_id: str) -> dict[str, Any]:
 )
 async def create_presentation(
     title: str,
+    parent_folder_id: str | None = None,
+    shared_drive_id: str | None = None,
     delete_default_slide: bool = False,
 ) -> dict[str, Any]:
     """
-    Create a new presentation.
+    Create a new presentation, optionally in a specific folder.
 
     Args:
         title: The title for the new presentation.
+        parent_folder_id: Optional parent folder ID to create the presentation within.
+        shared_drive_id: Optional shared drive ID to create the presentation in a shared drive.
         delete_default_slide: If True, deletes the default slide created by Google Slides API.
 
     Returns:
         Created presentation data or raises error.
     """
     logger.info(
-        f"Executing create_presentation with title: '{title}', delete_default_slide: {delete_default_slide}"
+        f"Executing create_presentation with title: '{title}', parent_folder_id: {parent_folder_id}, "
+        f"shared_drive_id: {shared_drive_id}, delete_default_slide: {delete_default_slide}"
     )
     if not title or not title.strip():
         raise ValueError("Presentation title cannot be empty")
 
     slides_service = SlidesService()
-    result = slides_service.create_presentation(title=title)
+    result = slides_service.create_presentation(
+        title=title, parent_folder_id=parent_folder_id, shared_drive_id=shared_drive_id
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error creating presentation"))
@@ -113,7 +120,14 @@ async def create_presentation(
         "presentationId": presentation_id,
         "title": title,
         "status": "created_successfully",
+        "url": f"https://docs.google.com/presentation/d/{presentation_id}/edit",
     }
+
+    # Add folder information if applicable
+    if parent_folder_id:
+        clean_result["parent_folder_id"] = parent_folder_id
+    if shared_drive_id:
+        clean_result["shared_drive_id"] = shared_drive_id
 
     # If requested, delete the default slide
     if delete_default_slide and presentation_id:
