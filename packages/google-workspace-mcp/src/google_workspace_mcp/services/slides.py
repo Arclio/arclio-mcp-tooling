@@ -4,14 +4,17 @@ Google Slides service implementation.
 
 import json
 import logging
+import os
 import re
 from typing import Any
+
+from googleapiclient.discovery import build
+from markdowndeck import create_presentation
 
 from google_workspace_mcp.auth import gauth
 from google_workspace_mcp.services.base import BaseGoogleService
 from google_workspace_mcp.utils.markdown_slides import MarkdownSlidesConverter
 from google_workspace_mcp.utils.unit_conversion import convert_template_zones
-from markdowndeck import create_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,101 @@ class SlidesService(BaseGoogleService):
         """Initialize the Slides service."""
         super().__init__("slides", "v1")
         self.markdown_converter = MarkdownSlidesConverter()
+        self.script_service = build("script", "v1", credentials=gauth.get_credentials())
+
+    def embed_private_drive_image_via_script(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        drive_file_id: str,
+        position: tuple[float, float] = (100, 100),
+        size: tuple[float, float] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Embed private Drive image using Apps Script API directly.
+        This maintains the same user authentication context as the MCP server.
+        """
+        try:
+            script_id = os.environ.get("GOOGLE_WORKSPACE_APPS_SCRIPT_ID")
+            if not script_id:
+                raise ValueError(
+                    "Apps Script ID not configured. Set GOOGLE_WORKSPACE_APPS_SCRIPT_ID environment variable."
+                )
+
+            # Validate that script_id is not a template placeholder
+            if script_id.startswith("{{") and script_id.endswith("}}"):
+                raise ValueError(
+                    f"Apps Script ID appears to be a template placeholder: {script_id}. "
+                    "Please set GOOGLE_WORKSPACE_APPS_SCRIPT_ID to your actual Apps Script ID."
+                )
+
+            # Prepare the function parameters
+            request_body = {
+                "function": "embedPrivateImage",
+                "parameters": [
+                    presentation_id,
+                    slide_id,
+                    drive_file_id,
+                    {"x": position[0], "y": position[1]},
+                    (
+                        {
+                            "width": size[0] if size else None,
+                            "height": size[1] if size else None,
+                        }
+                        if size
+                        else None
+                    ),
+                ],
+            }
+
+            logger.info(
+                f"Executing Apps Script function to embed private image {drive_file_id}"
+            )
+            logger.info(f"Using Apps Script ID: {script_id}")
+
+            # Execute the Apps Script function using the same OAuth context
+            response = (
+                self.script_service.scripts()
+                .run(scriptId=script_id, body=request_body)
+                .execute()
+            )
+
+            logger.info(f"Apps Script response: {json.dumps(response, indent=2)}")
+
+            if "error" in response:
+                error_details = (
+                    response["error"]["details"][0]
+                    if response["error"].get("details")
+                    else {}
+                )
+                error_message = error_details.get("errorMessage", "Unknown error")
+                logger.error(f"Apps Script execution failed: {error_message}")
+                raise ValueError(f"Apps Script execution failed: {error_message}")
+
+            result = response.get("response", {}).get("result", {})
+
+            if not result.get("success"):
+                error_msg = result.get("error", "Unknown error")
+                logger.error(f"Apps Script function failed: {error_msg}")
+                raise ValueError(f"Apps Script function failed: {error_msg}")
+
+            logger.info(
+                f"Successfully embedded private image {drive_file_id} via Apps Script"
+            )
+
+            return {
+                "presentationId": presentation_id,
+                "slideId": slide_id,
+                "driveFileId": drive_file_id,
+                "imageId": result.get("imageId"),
+                "operation": "embed_private_drive_image",
+                "result": "success",
+                "method": "apps_script_api",
+            }
+
+        except Exception as e:
+            logger.error(f"Error in embed_private_drive_image_via_script: {str(e)}")
+            return self.handle_api_error("embed_private_drive_image_via_script", e)
 
     def get_presentation(self, presentation_id: str) -> dict[str, Any]:
         """
@@ -1819,7 +1917,7 @@ class SlidesService(BaseGoogleService):
                 ]
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
             background_image_url: Optional slide background image URL (takes precedence over background_color)
-                                 Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
+            Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
             create_slide: If True, creates the slide first. If False, adds elements to existing slide. (default: False)
             layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
             insert_at_index: Position for new slide (only used if create_slide=True)
@@ -1845,7 +1943,6 @@ class SlidesService(BaseGoogleService):
                     }
                 }
 
-                # Add insertion index if specified
                 if insert_at_index is not None:
                     create_slide_request["createSlide"][
                         "insertionIndex"
@@ -1869,7 +1966,10 @@ class SlidesService(BaseGoogleService):
                     requests.append(bg_request)
                     logger.info("Added background request")
 
-            # Step 3: Create elements if provided
+            # Step 3: Process elements, separating regular and Apps Script images
+            regular_requests = []
+            apps_script_images = []
+
             if elements:
                 for i, element in enumerate(elements):
                     element_id = f"element_{int(time.time() * 1000)}_{i}"
@@ -1879,29 +1979,38 @@ class SlidesService(BaseGoogleService):
                         element_requests = self._build_textbox_requests_generic(
                             element_id, final_slide_id, element
                         )
-                        requests.extend(element_requests)
+                        regular_requests.extend(element_requests)
                     elif element_type == "image":
                         image_request = self._build_image_request_generic(
                             element_id, final_slide_id, element
                         )
-                        requests.append(image_request)
+
+                        if image_request and image_request.get("_apps_script_image"):
+                            # Queue for Apps Script processing
+                            apps_script_images.append(image_request)
+                        elif image_request:
+                            # Regular REST API image
+                            regular_requests.append(image_request)
                     elif element_type == "table":
                         table_requests = self._build_table_request_generic(
                             element_id, final_slide_id, element
                         )
-                        requests.extend(table_requests)
+                        regular_requests.extend(table_requests)
                     else:
                         logger.warning(f"Unknown element type: {element_type}")
 
-                logger.info(f"Added {len(elements)} element requests")
+                logger.info(
+                    f"Added {len(elements)} element requests ({len(regular_requests)} REST API, {len(apps_script_images)} Apps Script)"
+                )
 
-            # Execute batch update
-            if requests:
-                batch_result = self.batch_update(presentation_id, requests)
+            # Step 4: Execute regular requests via REST API
+            batch_result = None
+            if requests or regular_requests:
+                all_regular_requests = requests + regular_requests
+                batch_result = self.batch_update(presentation_id, all_regular_requests)
 
                 # Extract slide ID from response if we created a new slide
                 if create_slide and batch_result.get("replies"):
-                    # The first reply should be the createSlide response
                     create_slide_reply = batch_result["replies"][0].get(
                         "createSlide", {}
                     )
@@ -1910,26 +2019,74 @@ class SlidesService(BaseGoogleService):
                             "objectId", final_slide_id
                         )
 
-                return {
-                    "presentationId": presentation_id,
-                    "slideId": final_slide_id,
-                    "operation": (
-                        "create_slide_with_elements"
-                        if create_slide
-                        else "update_slide_with_elements"
-                    ),
-                    "result": "success",
-                    "slideCreated": create_slide,
-                    "elementsAdded": len(elements or []),
-                    "totalRequests": len(requests),
-                    "batchResult": batch_result,
-                }
+            # Step 5: Process Apps Script images separately
+            apps_script_results = []
+            apps_script_errors = []
+
+            for img_data in apps_script_images:
+                try:
+                    position = img_data["position"]
+                    result = self.embed_private_drive_image_via_script(
+                        presentation_id,
+                        final_slide_id,
+                        img_data["drive_file_id"],
+                        position=(position.get("x", 100), position.get("y", 100)),
+                        size=(
+                            (position.get("width"), position.get("height"))
+                            if position.get("width") and position.get("height")
+                            else None
+                        ),
+                    )
+
+                    # Check if the result indicates an error
+                    if isinstance(result, dict) and result.get("error"):
+                        error_msg = f"Failed to embed private Drive image {img_data['drive_file_id']}: {result.get('message', 'Unknown error')}"
+                        logger.error(error_msg)
+                        apps_script_errors.append(
+                            {
+                                "error": True,
+                                "message": error_msg,
+                                "drive_file_id": img_data["drive_file_id"],
+                            }
+                        )
+                    else:
+                        apps_script_results.append(result)
+                        logger.info(
+                            f"Successfully embedded private Drive image {img_data['drive_file_id']} via Apps Script"
+                        )
+
+                except Exception as e:
+                    error_msg = f"Failed to embed private Drive image {img_data['drive_file_id']}: {e}"
+                    logger.error(error_msg)
+                    apps_script_errors.append(
+                        {
+                            "error": True,
+                            "message": error_msg,
+                            "drive_file_id": img_data["drive_file_id"],
+                        }
+                    )
+
+            # Combine results and errors
+            all_apps_script_results = apps_script_results + apps_script_errors
+
             return {
                 "presentationId": presentation_id,
                 "slideId": final_slide_id,
-                "operation": "no_operation",
-                "result": "success",
-                "message": "No requests generated",
+                "operation": (
+                    "create_slide_with_elements_hybrid"
+                    if apps_script_images
+                    else "create_slide_with_elements"
+                ),
+                "result": "success" if not apps_script_errors else "partial_success",
+                "slideCreated": create_slide,
+                "elementsAdded": len(elements or []),
+                "totalRequests": len(requests + regular_requests),
+                "restApiRequests": len(regular_requests),
+                "appsScriptImages": len(apps_script_images),
+                "appsScriptSuccesses": len(apps_script_results),
+                "appsScriptErrors": len(apps_script_errors),
+                "batchResult": batch_result,
+                "appsScriptResults": all_apps_script_results,
             }
 
         except Exception as e:
@@ -2019,6 +2176,7 @@ class SlidesService(BaseGoogleService):
             all_requests = []
             slide_ids = []
             chart_data = []  # Store chart elements for post-processing
+            apps_script_images = []  # Store private Drive images for post-processing
             base_timestamp = int(time.time() * 1000)
 
             logger.info(f"Creating {len(slides_data)} slides in batch operation")
@@ -2075,7 +2233,13 @@ class SlidesService(BaseGoogleService):
                         image_request = self._build_image_request_generic(
                             element_id, slide_id, element
                         )
-                        all_requests.append(image_request)
+
+                        if image_request and image_request.get("_apps_script_image"):
+                            # Queue for Apps Script processing
+                            apps_script_images.append(image_request)
+                        elif image_request:
+                            # Regular REST API image
+                            all_requests.append(image_request)
                     elif element_type == "table":
                         table_requests = self._build_table_request_generic(
                             element_id, slide_id, element
@@ -2110,7 +2274,7 @@ class SlidesService(BaseGoogleService):
             # Extract actual slide IDs from response (in case Google changed them)
             created_slide_ids = []
             if batch_result.get("replies"):
-                for _i, reply in enumerate(batch_result["replies"]):
+                for reply in batch_result["replies"]:
                     if "createSlide" in reply:
                         actual_slide_id = reply["createSlide"].get("objectId")
                         if actual_slide_id:
@@ -2119,15 +2283,75 @@ class SlidesService(BaseGoogleService):
             # Use created IDs if available, otherwise use our generated ones
             final_slide_ids = created_slide_ids if created_slide_ids else slide_ids
 
+            # Process Apps Script images after slide creation is complete
+            apps_script_results = []
+            if apps_script_images:
+                logger.info(
+                    f"Processing {len(apps_script_images)} private Drive images via Apps Script"
+                )
+                for img_data in apps_script_images:
+                    try:
+                        # Find the actual slide ID for this image
+                        slide_index = next(
+                            i
+                            for i, sid in enumerate(slide_ids)
+                            if sid == img_data["slide_id"]
+                        )
+                        actual_slide_id = (
+                            final_slide_ids[slide_index]
+                            if slide_index < len(final_slide_ids)
+                            else img_data["slide_id"]
+                        )
+
+                        position = img_data["position"]
+                        result = self.embed_private_drive_image_via_script(
+                            presentation_id,
+                            actual_slide_id,
+                            img_data["drive_file_id"],
+                            position=(position.get("x", 100), position.get("y", 100)),
+                            size=(
+                                (position.get("width"), position.get("height"))
+                                if position.get("width") and position.get("height")
+                                else None
+                            ),
+                        )
+                        apps_script_results.append(result)
+                        logger.info(
+                            f"Successfully processed private Drive image: {img_data['element_id']}"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to process private Drive image {img_data['element_id']}: {e}"
+                        )
+                        apps_script_results.append(
+                            {
+                                "error": True,
+                                "message": f"Private image processing failed: {e}",
+                                "element_id": img_data["element_id"],
+                            }
+                        )
+
             # Process charts after slide creation is complete
             chart_results = []
             if chart_data:
                 logger.info(f"Processing {len(chart_data)} chart elements")
                 for chart_element in chart_data:
                     try:
+                        # Find the actual slide ID for this chart
+                        slide_index = next(
+                            i
+                            for i, sid in enumerate(slide_ids)
+                            if sid == chart_element["slide_id"]
+                        )
+                        actual_slide_id = (
+                            final_slide_ids[slide_index]
+                            if slide_index < len(final_slide_ids)
+                            else chart_element["slide_id"]
+                        )
+
                         chart_result = self._process_chart_element(
                             presentation_id,
-                            chart_element["slide_id"],
+                            actual_slide_id,
                             chart_element["chart_data"],
                             chart_element["element_id"],
                         )
@@ -2146,16 +2370,18 @@ class SlidesService(BaseGoogleService):
             return {
                 "presentationId": presentation_id,
                 "slideIds": final_slide_ids,
-                "operation": "create_multiple_slides_with_elements",
+                "operation": "create_multiple_slides_with_elements_hybrid",
                 "result": "success",
                 "slidesCreated": len(slides_data),
                 "totalRequests": len(all_requests),
                 "chartsProcessed": len(chart_data),
+                "appsScriptImages": len(apps_script_images),
                 "totalElements": sum(
                     len(slide.get("elements", [])) for slide in slides_data
                 ),
                 "batchResult": batch_result,
                 "chartResults": chart_results,
+                "appsScriptResults": apps_script_results,
             }
 
         except Exception as e:
@@ -2518,10 +2744,53 @@ class SlidesService(BaseGoogleService):
         logger.warning(f"Unsupported color format: {color_value}")
         return None
 
+    def _is_private_drive_url(self, url: str) -> bool:
+        """Check if URL is a private Google Drive URL"""
+        drive_patterns = [
+            r"drive\.google\.com/file/d/([^/]+)",
+            r"docs\.google\.com/.*id=([^&]+)",
+            r"drive\.google\.com/open\?id=([^&]+)",
+        ]
+        return any(re.search(pattern, url) for pattern in drive_patterns)
+
+    def _extract_drive_file_id(self, url: str) -> str | None:
+        """Extract Drive file ID from various Drive URL formats"""
+        patterns = [
+            r"drive\.google\.com/file/d/([a-zA-Z0-9-_]+)",
+            r"docs\.google\.com/.*id=([a-zA-Z0-9-_]+)",
+            r"drive\.google\.com/open\?id=([a-zA-Z0-9-_]+)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                return match.group(1)
+        return None
+
     def _build_image_request_generic(
         self, object_id: str, slide_id: str, element: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Generic helper to build image creation request with smart sizing support"""
+    ) -> dict[str, Any] | None:
+        """Enhanced image request builder that handles private Drive images"""
+
+        image_url = element["content"]
+
+        # Check if this is a private Google Drive URL
+        if self._is_private_drive_url(image_url):
+            # Extract file ID and defer to Apps Script
+            file_id = self._extract_drive_file_id(image_url)
+            if file_id:
+                logger.info(
+                    f"Detected private Drive image {file_id}, will use Apps Script"
+                )
+                # Return a special marker that indicates Apps Script processing needed
+                return {
+                    "_apps_script_image": True,
+                    "drive_file_id": file_id,
+                    "slide_id": slide_id,
+                    "position": element["position"],
+                    "element_id": object_id,
+                }
+
         pos = element["position"]
 
         request = {
@@ -3266,7 +3535,6 @@ class SlidesService(BaseGoogleService):
         element_id: str,
     ) -> dict[str, Any]:
         """Process a chart element by creating sheet, chart, and embedding into slide"""
-        import time
 
         from google_workspace_mcp.services.drive import DriveService
         from google_workspace_mcp.services.sheets_service import SheetsService
