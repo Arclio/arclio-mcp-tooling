@@ -2092,6 +2092,61 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_slide_with_elements", e)
 
+    def set_private_background_image_via_script(
+        self,
+        presentation_id: str,
+        slide_id: str,
+        drive_file_id: str,
+    ) -> dict[str, Any]:
+        """
+        Sets a slide's background using a private Drive image via Apps Script.
+        """
+        try:
+            script_id = os.environ.get("GOOGLE_WORKSPACE_APPS_SCRIPT_ID")
+            if not script_id or script_id.startswith("{{"):
+                raise ValueError("Apps Script ID is not configured correctly.")
+
+            request_body = {
+                "function": "setPrivateImageAsBackground",  # Call the new Apps Script function
+                "parameters": [
+                    presentation_id,
+                    slide_id,
+                    drive_file_id,
+                ],
+            }
+
+            logger.info(
+                f"Executing Apps Script to set private background image {drive_file_id} on slide {slide_id}"
+            )
+            response = (
+                self.script_service.scripts()
+                .run(scriptId=script_id, body=request_body)
+                .execute()
+            )
+
+            if "error" in response:
+                error_details = (
+                    response["error"]["details"][0]
+                    if response["error"].get("details")
+                    else {}
+                )
+                error_message = error_details.get("errorMessage", "Unknown error")
+                raise ValueError(f"Apps Script execution failed: {error_message}")
+
+            result = response.get("response", {}).get("result", {})
+            if not result.get("success"):
+                raise ValueError(
+                    f"Apps Script function failed: {result.get('error', 'Unknown error')}"
+                )
+
+            logger.info(
+                f"Successfully set private background image {drive_file_id} via Apps Script"
+            )
+            return result
+
+        except Exception as e:
+            return self.handle_api_error("set_private_background_image_via_script", e)
+
     def create_multiple_slides_with_elements(
         self,
         presentation_id: str,
@@ -2167,6 +2222,9 @@ class SlidesService(BaseGoogleService):
             )
             # Returns: {"slideIds": ["slide_1", "slide_2", ...], "slidesCreated": 5, "totalRequests": 25}
         """
+
+        logger.info("Running google workspace mcp version 1.4.7")
+
         try:
             import time
 
@@ -2176,7 +2234,9 @@ class SlidesService(BaseGoogleService):
             all_requests = []
             slide_ids = []
             chart_data = []  # Store chart elements for post-processing
+
             apps_script_images = []  # Store private Drive images for post-processing
+            apps_script_backgrounds = []  # List for private backgrounds
             base_timestamp = int(time.time() * 1000)
 
             logger.info(f"Creating {len(slides_data)} slides in batch operation")
@@ -2209,8 +2269,25 @@ class SlidesService(BaseGoogleService):
 
                 all_requests.append(create_slide_request)
 
-                # Step 2: Add background if specified
-                if background_image_url or background_color:
+                # Step 2: Add background, correctly handling private vs. public backgrounds
+                is_private_background = False
+                if background_image_url and self._is_private_drive_url(
+                    background_image_url
+                ):
+                    file_id = self._extract_drive_file_id(background_image_url)
+                    if file_id:
+                        logger.info(
+                            f"Detected private background image {file_id}, deferring to Apps Script."
+                        )
+                        apps_script_backgrounds.append(
+                            {"slide_id": slide_id, "drive_file_id": file_id}
+                        )
+                        is_private_background = True
+
+                # Only add background request to batch if it's NOT a deferred private image
+                if not is_private_background and (
+                    background_image_url or background_color
+                ):
                     bg_request = self._build_background_request(
                         slide_id, background_color, background_image_url
                     )
@@ -2233,12 +2310,9 @@ class SlidesService(BaseGoogleService):
                         image_request = self._build_image_request_generic(
                             element_id, slide_id, element
                         )
-
                         if image_request and image_request.get("_apps_script_image"):
-                            # Queue for Apps Script processing
                             apps_script_images.append(image_request)
                         elif image_request:
-                            # Regular REST API image
                             all_requests.append(image_request)
                     elif element_type == "table":
                         table_requests = self._build_table_request_generic(
@@ -2264,14 +2338,14 @@ class SlidesService(BaseGoogleService):
                     f"Slide {slide_index + 1}: {slide_id} with {len(elements)} elements"
                 )
 
-            # Execute all requests in single batch operation
+            # Execute all standard API requests in a single batch operation
             logger.info(
                 f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"
             )
 
             batch_result = self.batch_update(presentation_id, all_requests)
 
-            # Extract actual slide IDs from response (in case Google changed them)
+            # Extract actual slide IDs from response
             created_slide_ids = []
             if batch_result.get("replies"):
                 for reply in batch_result["replies"]:
@@ -2279,11 +2353,49 @@ class SlidesService(BaseGoogleService):
                         actual_slide_id = reply["createSlide"].get("objectId")
                         if actual_slide_id:
                             created_slide_ids.append(actual_slide_id)
-
-            # Use created IDs if available, otherwise use our generated ones
             final_slide_ids = created_slide_ids if created_slide_ids else slide_ids
 
-            # Process Apps Script images after slide creation is complete
+            # Process deferred private background images via Apps Script
+            apps_script_background_results = []
+            if apps_script_backgrounds:
+                logger.info(
+                    f"Processing {len(apps_script_backgrounds)} private background images via Apps Script"
+                )
+                for bg_data in apps_script_backgrounds:
+                    try:
+                        slide_index = next(
+                            (
+                                i
+                                for i, sid in enumerate(slide_ids)
+                                if sid == bg_data["slide_id"]
+                            ),
+                            -1,
+                        )
+                        if slide_index != -1 and slide_index < len(final_slide_ids):
+                            actual_slide_id = final_slide_ids[slide_index]
+                            result = self.set_private_background_image_via_script(
+                                presentation_id,
+                                actual_slide_id,
+                                bg_data["drive_file_id"],
+                            )
+                            apps_script_background_results.append(result)
+                        else:
+                            raise ValueError(
+                                f"Could not map temporary slide ID {bg_data['slide_id']} to a created slide."
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to set private background for slide {bg_data['slide_id']}: {e}"
+                        )
+                        apps_script_background_results.append(
+                            {
+                                "error": True,
+                                "message": f"Background processing failed: {e}",
+                                "slide_id": bg_data["slide_id"],
+                            }
+                        )
+
+            # Process deferred private image elements via Apps Script
             apps_script_results = []
             if apps_script_images:
                 logger.info(
@@ -2291,34 +2403,36 @@ class SlidesService(BaseGoogleService):
                 )
                 for img_data in apps_script_images:
                     try:
-                        # Find the actual slide ID for this image
                         slide_index = next(
-                            i
-                            for i, sid in enumerate(slide_ids)
-                            if sid == img_data["slide_id"]
-                        )
-                        actual_slide_id = (
-                            final_slide_ids[slide_index]
-                            if slide_index < len(final_slide_ids)
-                            else img_data["slide_id"]
-                        )
-
-                        position = img_data["position"]
-                        result = self.embed_private_drive_image_via_script(
-                            presentation_id,
-                            actual_slide_id,
-                            img_data["drive_file_id"],
-                            position=(position.get("x", 100), position.get("y", 100)),
-                            size=(
-                                (position.get("width"), position.get("height"))
-                                if position.get("width") and position.get("height")
-                                else None
+                            (
+                                i
+                                for i, sid in enumerate(slide_ids)
+                                if sid == img_data["slide_id"]
                             ),
+                            -1,
                         )
-                        apps_script_results.append(result)
-                        logger.info(
-                            f"Successfully processed private Drive image: {img_data['element_id']}"
-                        )
+                        if slide_index != -1 and slide_index < len(final_slide_ids):
+                            actual_slide_id = final_slide_ids[slide_index]
+                            position = img_data["position"]
+                            result = self.embed_private_drive_image_via_script(
+                                presentation_id,
+                                actual_slide_id,
+                                img_data["drive_file_id"],
+                                position=(
+                                    position.get("x", 100),
+                                    position.get("y", 100),
+                                ),
+                                size=(
+                                    (position.get("width"), position.get("height"))
+                                    if position.get("width") and position.get("height")
+                                    else None
+                                ),
+                            )
+                            apps_script_results.append(result)
+                        else:
+                            raise ValueError(
+                                f"Could not map temporary slide ID {img_data['slide_id']} to a created slide."
+                            )
                     except Exception as e:
                         logger.error(
                             f"Failed to process private Drive image {img_data['element_id']}: {e}"
@@ -2366,7 +2480,6 @@ class SlidesService(BaseGoogleService):
                         chart_results.append(
                             {"error": str(e), "element_id": chart_element["element_id"]}
                         )
-
             return {
                 "presentationId": presentation_id,
                 "slideIds": final_slide_ids,
@@ -2376,12 +2489,13 @@ class SlidesService(BaseGoogleService):
                 "totalRequests": len(all_requests),
                 "chartsProcessed": len(chart_data),
                 "appsScriptImages": len(apps_script_images),
+                "appsScriptBackgrounds": len(apps_script_backgrounds),
                 "totalElements": sum(
                     len(slide.get("elements", [])) for slide in slides_data
                 ),
                 "batchResult": batch_result,
-                "chartResults": chart_results,
-                "appsScriptResults": apps_script_results,
+                "appsScriptImageResults": apps_script_results,
+                "appsScriptBackgroundResults": apps_script_background_results,
             }
 
         except Exception as e:
@@ -2745,26 +2859,25 @@ class SlidesService(BaseGoogleService):
         return None
 
     def _is_private_drive_url(self, url: str) -> bool:
-        """Check if URL is a private Google Drive URL"""
-        drive_patterns = [
-            r"drive\.google\.com/file/d/([^/]+)",
-            r"docs\.google\.com/.*id=([^&]+)",
-            r"drive\.google\.com/open\?id=([^&]+)",
-        ]
-        return any(re.search(pattern, url) for pattern in drive_patterns)
+        """Check if URL is a private Google Drive URL by trying to extract an ID."""
+        return self._extract_drive_file_id(url) is not None
 
     def _extract_drive_file_id(self, url: str) -> str | None:
-        """Extract Drive file ID from various Drive URL formats"""
+        """Extract Drive file ID from various Google Drive URL formats."""
+        # This regex is designed to be robust and capture the ID from multiple common URL patterns
+        # e.g., /file/d/FILE_ID/edit, /uc?id=FILE_ID, /open?id=FILE_ID
         patterns = [
-            r"drive\.google\.com/file/d/([a-zA-Z0-9-_]+)",
-            r"docs\.google\.com/.*id=([a-zA-Z0-9-_]+)",
-            r"drive\.google\.com/open\?id=([a-zA-Z0-9-_]+)",
+            r"/file/d/([a-zA-Z0-9-_]+)",
+            r"id=([a-zA-Z0-9-_]+)",
         ]
 
         for pattern in patterns:
             match = re.search(pattern, url)
             if match:
+                # Return the first captured group
                 return match.group(1)
+
+        # If no pattern matches, it's not a recognizable Drive URL
         return None
 
     def _build_image_request_generic(
