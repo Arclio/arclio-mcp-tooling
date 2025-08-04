@@ -2859,8 +2859,26 @@ class SlidesService(BaseGoogleService):
         return None
 
     def _is_private_drive_url(self, url: str) -> bool:
-        """Check if URL is a private Google Drive URL by trying to extract an ID."""
-        return self._extract_drive_file_id(url) is not None
+        """Check if URL is a private Google Drive URL by analyzing the URL format."""
+        # Public Drive URLs typically use formats like:
+        # - https://drive.google.com/uc?id=FILE_ID (public sharing)
+        # - https://drive.google.com/file/d/FILE_ID/view?usp=sharing (public sharing)
+
+        # Private Drive URLs typically use formats like:
+        # - https://drive.google.com/file/d/FILE_ID/edit (requires permissions)
+        # - https://drive.google.com/open?id=FILE_ID (requires permissions)
+
+        if not self._extract_drive_file_id(url):
+            return False  # Not a Drive URL at all
+
+        # Check for public URL patterns
+        public_patterns = [
+            r"/uc\?id=",  # https://drive.google.com/uc?id=FILE_ID
+            r"/view\?usp=sharing",  # https://drive.google.com/file/d/FILE_ID/view?usp=sharing
+        ]
+
+        # If it contains a Drive file ID but doesn't match public patterns, assume private
+        return all(not re.search(pattern, url) for pattern in public_patterns)
 
     def _extract_drive_file_id(self, url: str) -> str | None:
         """Extract Drive file ID from various Google Drive URL formats."""
