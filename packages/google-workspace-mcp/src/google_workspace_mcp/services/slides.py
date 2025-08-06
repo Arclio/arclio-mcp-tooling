@@ -7,11 +7,13 @@ import logging
 import re
 from typing import Any
 
+from markdowndeck import create_presentation
+
 from google_workspace_mcp.auth import gauth
 from google_workspace_mcp.services.base import BaseGoogleService
+from google_workspace_mcp.services.drive import DriveService
 from google_workspace_mcp.utils.markdown_slides import MarkdownSlidesConverter
 from google_workspace_mcp.utils.unit_conversion import convert_template_zones
-from markdowndeck import create_presentation
 
 logger = logging.getLogger(__name__)
 
@@ -2016,6 +2018,27 @@ class SlidesService(BaseGoogleService):
             if not slides_data:
                 raise ValueError("slides_data cannot be empty")
 
+            # Track converted images for cleanup at the end
+            converted_images = []
+
+            # Pre-process slides data to convert private images to public
+            logger.info(
+                f"Pre-processing {len(slides_data)} slides for private image handling"
+            )
+            for slide_data in slides_data:
+                elements = slide_data.get("elements", [])
+                for element in elements:
+                    if element.get("type", "").lower() == "image":
+                        image_url = element.get("content", "")
+                        if image_url and self._is_private_drive_url(image_url):
+                            logger.info(
+                                f"Converting private image to public: {image_url}"
+                            )
+                            public_url = self._convert_private_image_to_public(
+                                image_url, converted_images
+                            )
+                            element["content"] = public_url
+
             all_requests = []
             slide_ids = []
             chart_data = []  # Store chart elements for post-processing
@@ -2143,6 +2166,9 @@ class SlidesService(BaseGoogleService):
                             {"error": str(e), "element_id": chart_element["element_id"]}
                         )
 
+            # Clean up: revert all converted images back to private
+            self._revert_images_to_private(converted_images)
+
             return {
                 "presentationId": presentation_id,
                 "slideIds": final_slide_ids,
@@ -2159,6 +2185,8 @@ class SlidesService(BaseGoogleService):
             }
 
         except Exception as e:
+            # Clean up: revert all converted images back to private even on error
+            self._revert_images_to_private(converted_images)
             return self.handle_api_error("create_multiple_slides_with_elements", e)
 
     def _build_textbox_requests_generic(
@@ -3266,7 +3294,6 @@ class SlidesService(BaseGoogleService):
         element_id: str,
     ) -> dict[str, Any]:
         """Process a chart element by creating sheet, chart, and embedding into slide"""
-        import time
 
         from google_workspace_mcp.services.drive import DriveService
         from google_workspace_mcp.services.sheets_service import SheetsService
@@ -3461,3 +3488,108 @@ class SlidesService(BaseGoogleService):
 
         except Exception as e:
             return self.handle_api_error("embed_sheets_chart", e)
+
+    def _is_private_drive_url(self, url: str) -> bool:
+        """Check if URL is a private Google Drive URL by trying to extract an ID."""
+        return self._extract_drive_file_id(url) is not None
+
+    def _extract_drive_file_id(self, url: str) -> str | None:
+        """Extract Drive file ID from various Google Drive URL formats."""
+        # This regex is designed to be robust and capture the ID from multiple common URL patterns
+        # e.g., /file/d/FILE_ID/edit, /uc?id=FILE_ID, /open?id=FILE_ID
+        patterns = [
+            r"/file/d/([a-zA-Z0-9-_]+)",
+            r"id=([a-zA-Z0-9-_]+)",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, url)
+            if match:
+                # Return the first captured group
+                return match.group(1)
+
+        # If no pattern matches, it's not a recognizable Drive URL
+        return None
+
+    def _convert_private_image_to_public(
+        self, image_url: str, converted_images_list: list
+    ) -> str:
+        """
+        Convert a private Google Drive image to public access and track it for later reversion.
+
+        Args:
+            image_url: The original image URL (private Drive URL)
+            converted_images_list: List to track file IDs that were converted to public
+
+        Returns:
+            The public Drive URL that can be used in Slides API
+        """
+        try:
+            # Extract Drive file ID from the URL
+            file_id = self._extract_drive_file_id(image_url)
+            if not file_id:
+                logger.warning(f"Could not extract file ID from URL: {image_url}")
+                return image_url  # Return original URL if not a Drive URL
+
+            # Make the file public using DriveService
+            drive_service = DriveService()
+            result = drive_service.share_file_publicly(file_id, role="reader")
+
+            if result.get("success"):
+                # Track this file for later reversion to private
+                converted_images_list.append(
+                    {
+                        "file_id": file_id,
+                        "permission_id": result.get("permission_id"),
+                        "original_url": image_url,
+                    }
+                )
+
+                # Return the public Drive URL
+                public_url = f"https://drive.google.com/uc?id={file_id}"
+                logger.info(
+                    f"Successfully converted private image to public: {file_id}"
+                )
+                return public_url
+            logger.error(f"Failed to make file public: {result}")
+            return image_url  # Return original URL on failure
+
+        except Exception as e:
+            logger.error(f"Error converting private image to public: {e}")
+            return image_url  # Return original URL on error
+
+    def _revert_images_to_private(self, converted_images: list) -> None:
+        """
+        Revert all converted images back to private by removing their public permissions.
+
+        Args:
+            converted_images: List of image data that were converted to public
+        """
+        if not converted_images:
+            return
+
+        logger.info(f"Reverting {len(converted_images)} images back to private")
+        drive_service = DriveService()
+
+        for image_data in converted_images:
+            try:
+                file_id = image_data.get("file_id")
+                permission_id = image_data.get("permission_id")
+
+                if file_id and permission_id:
+                    # Remove the public permission
+                    drive_service.service.permissions().delete(
+                        fileId=file_id,
+                        permissionId=permission_id,
+                        supportsAllDrives=True,
+                    ).execute()
+                    logger.info(f"Successfully reverted image to private: {file_id}")
+                else:
+                    logger.warning(
+                        f"Missing file_id or permission_id for image: {image_data}"
+                    )
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to revert image {image_data.get('file_id')} to private: {e}"
+                )
