@@ -2026,6 +2026,20 @@ class SlidesService(BaseGoogleService):
                 f"Pre-processing {len(slides_data)} slides for private image handling"
             )
             for slide_data in slides_data:
+                # Handle background images
+                background_image_url = slide_data.get("background_image_url", "")
+                if background_image_url and self._is_private_drive_url(
+                    background_image_url
+                ):
+                    logger.info(
+                        f"Converting private background image to public: {background_image_url}"
+                    )
+                    public_url = self._convert_private_image_to_public(
+                        background_image_url, converted_images
+                    )
+                    slide_data["background_image_url"] = public_url
+
+                # Handle element images
                 elements = slide_data.get("elements", [])
                 for element in elements:
                     if element.get("type", "").lower() == "image":
