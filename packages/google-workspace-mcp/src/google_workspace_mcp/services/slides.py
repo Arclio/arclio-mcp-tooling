@@ -55,6 +55,8 @@ class SlidesService(BaseGoogleService):
                     f"Apps Script ID appears to be a template placeholder: {script_id}. "
                     "Please set GOOGLE_WORKSPACE_APPS_SCRIPT_ID to your actual Apps Script ID."
                 )
+            logger.info(f"------PRIVATE IMAGE - Size: {size}")
+            logger.info(f"------PRIVATE IMAGE - position: {position}")
 
             # Prepare the function parameters
             request_body = {
@@ -79,6 +81,9 @@ class SlidesService(BaseGoogleService):
                 f"Executing Apps Script function to embed private image {drive_file_id}"
             )
             logger.info(f"Using Apps Script ID: {script_id}")
+            logger.info(f"Position: {position}")
+            logger.info(f"Size parameter: {size}")
+            logger.info(f"Size object being sent: {request_body['parameters'][4]}")
 
             # Execute the Apps Script function using the same OAuth context
             response = (
