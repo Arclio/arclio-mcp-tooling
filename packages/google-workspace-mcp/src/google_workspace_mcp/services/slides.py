@@ -1821,7 +1821,6 @@ class SlidesService(BaseGoogleService):
                 ]
             background_color: Optional slide background color (e.g., "#f8cdcd4f")
             background_image_url: Optional slide background image URL (takes precedence over background_color)
-                                 Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
             create_slide: If True, creates the slide first. If False, adds elements to existing slide. (default: False)
             layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
             insert_at_index: Position for new slide (only used if create_slide=True)
