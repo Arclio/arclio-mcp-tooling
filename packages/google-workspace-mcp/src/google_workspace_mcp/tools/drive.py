@@ -474,23 +474,23 @@ async def drive_find_folder_by_name(
 )
 async def move_file_to_folder(
     file_id: str,
-    parent_folder_id: str | None = None,
-    shared_drive_id: str | None = None,
+    parent_folder_id: str,
+    # shared_drive_id: str,
 ) -> dict[str, Any]:
     """
     Move a file to a specific folder using the Drive API.
 
     Args:
         file_id: The ID of the file to move
-        parent_folder_id: Optional parent folder ID to move the file to
-        shared_drive_id: Optional shared drive ID
+        parent_folder_id: Parent folder ID to move the file to
+        # shared_drive_id: Shared drive ID
 
     Returns:
         Dict containing the move result or error information
     """
     try:
         logger.info(
-            f"Executing move_file_to_folder with file_id: '{file_id}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"  # noqa: E501
+            f"Executing move_file_to_folder with file_id-::- '{file_id}', parent_folder_id: {parent_folder_id}"  # noqa: E501
         )
 
         if not file_id or not file_id.strip():
@@ -499,20 +499,20 @@ async def move_file_to_folder(
                 "message": "File ID cannot be empty",
                 "file_id": file_id,
                 "parent_folder_id": parent_folder_id,
-                "shared_drive_id": shared_drive_id,
+                # "shared_drive_id": shared_drive_id,
             }
 
-        if not parent_folder_id and not shared_drive_id:
+        if not parent_folder_id:
             return {
                 "error": True,
-                "message": "Either parent_folder_id or shared_drive_id must be specified",  # noqa: E501
+                "message": "parent_folder_id must be specified",  # noqa: E501
                 "file_id": file_id,
                 "parent_folder_id": parent_folder_id,
-                "shared_drive_id": shared_drive_id,
+                # "shared_drive_id": shared_drive_id,
             }
 
         logger.info(
-            f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"  # noqa: E501
+            f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}"  # noqa: E501
         )
 
         # Get current file metadata to retrieve current parents
@@ -527,20 +527,20 @@ async def move_file_to_folder(
         logger.info(f"Current parents of file {file_id}: {current_parents}")
 
         # Set new parent
-        new_parent = parent_folder_id if parent_folder_id else shared_drive_id
-        logger.info(f"New parent will be: {new_parent}")
+        logger.info(f"New parent will be: {parent_folder_id}")
 
         # Move the file by updating parents
         update_params = {
             "fileId": file_id,
-            "addParents": new_parent,
+            "addParents": parent_folder_id,
             "removeParents": ",".join(current_parents),
             "supportsAllDrives": True,
             "fields": "id, name, parents",
         }
 
-        if shared_drive_id:
-            update_params["driveId"] = shared_drive_id
+        # TODO: Add support for shared drives
+        # if shared_drive_id:
+        #     update_params["driveId"] = shared_drive_id
 
         logger.info(f"Update params: {update_params}")
 
