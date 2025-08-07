@@ -665,17 +665,30 @@ class DriveService(BaseGoogleService):
             Dict containing the move result or error information
         """
         try:
+            logger.info(
+                f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"  # noqa: E501
+            )
+
             if not file_id or not file_id.strip():
-                return {"error": True, "message": "File ID cannot be empty"}
+                return {
+                    "error": True,
+                    "message": "File ID cannot be empty",
+                    "file_id": file_id,
+                    "parent_folder_id": parent_folder_id,
+                    "shared_drive_id": shared_drive_id,
+                }
 
             if not parent_folder_id and not shared_drive_id:
                 return {
                     "error": True,
-                    "message": "Either parent_folder_id or shared_drive_id must be specified",
+                    "message": "Either parent_folder_id or shared_drive_id must be specified",  # noqa: E501
+                    "file_id": file_id,
+                    "parent_folder_id": parent_folder_id,
+                    "shared_drive_id": shared_drive_id,
                 }
 
             logger.info(
-                f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+                f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"  # noqa: E501
             )
 
             # Get current file metadata to retrieve current parents
@@ -703,13 +716,15 @@ class DriveService(BaseGoogleService):
 
             if shared_drive_id:
                 update_params["driveId"] = shared_drive_id
-                
+
             logger.info(f"Update params: {update_params}")
 
             updated_file = self.service.files().update(**update_params).execute()
-            
+
             logger.info(f"Updated file result: {updated_file}")
-            logger.info(f"Successfully moved file '{file_id}' to new location. New parents: {updated_file.get('parents', [])}")
+            logger.info(
+                f"Successfully moved file '{file_id}' to new location. New parents: {updated_file.get('parents', [])}"  # noqa: E501
+            )
             return {"success": True, "file": updated_file}
 
         except Exception as e:
@@ -717,14 +732,14 @@ class DriveService(BaseGoogleService):
 
     def _get_or_create_data_folder(self) -> str:
         """
-        Finds the dedicated folder for storing chart data, creating it if it doesn't exist.
+        Finds the dedicated folder for storing chart data, creating it if it doesn't exist. # noqa: E501
         The result is cached to avoid repeated API calls within the same session.
 
         Returns:
             The ID of the data folder.
         """
         folder_name = "[MCP] Generated Chart Data"
-        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+        query = f"name = '{folder_name}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false"  # noqa: E501
 
         logger.info(f"Searching for data folder: '{folder_name}'")
         search_result = self.search_files(query=query, page_size=1)
