@@ -544,9 +544,9 @@ async def add_slide_notes(
     return result
 
 
-@mcp.tool(
-    name="duplicate_slide",
-)
+# @mcp.tool(
+#     name="duplicate_slide",
+# )
 async def duplicate_slide(
     presentation_id: str,
     slide_id: str,
@@ -840,9 +840,9 @@ async def create_slide_from_template_data(
     return result
 
 
-@mcp.tool(
-    name="create_slide_with_elements",
-)
+# @mcp.tool(
+#     name="create_slide_with_elements",
+# )
 async def create_slide_with_elements(
     presentation_id: str,
     slide_id: str | None = None,
@@ -952,7 +952,6 @@ async def create_slide_with_elements(
                 ]
         background_color: Optional slide background color (e.g., "#f8cdcd4f")
         background_image_url: Optional slide background image URL (takes precedence over background_color)
-                             Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
         create_slide: If True, creates the slide first. If False, adds elements to existing slide. (default: False)
         layout: Layout for new slide (BLANK, TITLE_AND_BODY, etc.) - only used if create_slide=True
         insert_at_index: Position for new slide (only used if create_slide=True)
@@ -975,7 +974,6 @@ async def create_slide_with_elements(
         - Creates semi-transparent background for the entire text box shape
 
     Background Image Requirements:
-        - Must be publicly accessible without authentication
         - Maximum file size: 50 MB
         - Maximum resolution: 25 megapixels
         - Supported formats: PNG, JPEG, GIF only
@@ -1105,9 +1103,9 @@ async def create_slide_with_elements(
     return result
 
 
-@mcp.tool(
-    name="set_slide_background",
-)
+# @mcp.tool(
+#     name="set_slide_background",
+# )
 async def set_slide_background(
     presentation_id: str,
     slide_id: str,
@@ -1122,10 +1120,8 @@ async def set_slide_background(
         slide_id: The ID of the slide
         background_color: Optional background color (e.g., "#f8cdcd4f", "#ffffff")
         background_image_url: Optional background image URL (takes precedence over color)
-                             Must be publicly accessible (e.g., "https://drive.google.com/uc?id=FILE_ID")
 
     Background Image Requirements:
-        - Must be publicly accessible without authentication
         - Maximum file size: 50 MB
         - Maximum resolution: 25 megapixels
         - Supported formats: PNG, JPEG, GIF only
