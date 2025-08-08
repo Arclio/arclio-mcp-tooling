@@ -1274,6 +1274,7 @@ async def update_text_formatting(
 async def create_multiple_slides_with_elements(
     presentation_id: str,
     slides_data: list[dict[str, Any]],
+    folder_id: str | None = None,
 ) -> dict[str, Any]:
     """
     Create multiple slides with their elements in a single batch operation.
@@ -1452,7 +1453,9 @@ async def create_multiple_slides_with_elements(
 
     slides_service = SlidesService()
     result = slides_service.create_multiple_slides_with_elements(
-        presentation_id=presentation_id, slides_data=slides_data
+        presentation_id=presentation_id,
+        slides_data=slides_data,
+        folder_id=folder_id,
     )
 
     if isinstance(result, dict) and result.get("error"):
