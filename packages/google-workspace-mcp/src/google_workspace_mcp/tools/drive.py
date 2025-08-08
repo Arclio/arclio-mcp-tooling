@@ -467,3 +467,90 @@ async def drive_find_folder_by_name(
     result["file_count"] = len(files) if files else 0
 
     return result
+
+
+@mcp.tool(
+    name="move_file_to_folder",
+)
+async def move_file_to_folder(
+    file_id: str,
+    parent_folder_id: str,
+    # shared_drive_id: str,
+) -> dict[str, Any]:
+    """
+    Move a file to a specific folder using the Drive API.
+
+    Args:
+        file_id: The ID of the file to move
+        parent_folder_id: Parent folder ID to move the file to
+        # shared_drive_id: Shared drive ID
+
+    Returns:
+        Dict containing the move result or error information
+    """
+    try:
+        logger.info(
+            f"Executing move_file_to_folder with file_id-::- '{file_id}', parent_folder_id: {parent_folder_id}"  # noqa: E501
+        )
+
+        if not file_id or not file_id.strip():
+            return {
+                "error": True,
+                "message": "File ID cannot be empty",
+                "file_id": file_id,
+                "parent_folder_id": parent_folder_id,
+                # "shared_drive_id": shared_drive_id,
+            }
+
+        if not parent_folder_id:
+            return {
+                "error": True,
+                "message": "parent_folder_id must be specified",  # noqa: E501
+                "file_id": file_id,
+                "parent_folder_id": parent_folder_id,
+                # "shared_drive_id": shared_drive_id,
+            }
+
+        logger.info(
+            f"Moving file '{file_id}' to parent_folder_id: {parent_folder_id}"  # noqa: E501
+        )
+
+        # Get current file metadata to retrieve current parents
+        drive_service = DriveService()
+        current_file = (
+            drive_service.service.files()
+            .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+            .execute()
+        )
+
+        current_parents = current_file.get("parents", [])
+        logger.info(f"Current parents of file {file_id}: {current_parents}")
+
+        # Set new parent
+        logger.info(f"New parent will be: {parent_folder_id}")
+
+        # Move the file by updating parents
+        update_params = {
+            "fileId": file_id,
+            "addParents": parent_folder_id,
+            "removeParents": ",".join(current_parents),
+            "supportsAllDrives": True,
+            "fields": "id, name, parents",
+        }
+
+        # TODO: Add support for shared drives
+        # if shared_drive_id:
+        #     update_params["driveId"] = shared_drive_id
+
+        logger.info(f"Update params: {update_params}")
+
+        updated_file = drive_service.service.files().update(**update_params).execute()
+
+        logger.info(f"Updated file result: {updated_file}")
+        logger.info(
+            f"Successfully moved file '{file_id}' to new location. New parents: {updated_file.get('parents', [])}"  # noqa: E501
+        )
+        return {"success": True, "file": updated_file}
+
+    except Exception as e:
+        return drive_service.handle_api_error("move_file_to_folder", e)
