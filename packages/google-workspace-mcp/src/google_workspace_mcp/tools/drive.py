@@ -350,9 +350,9 @@ async def drive_get_folder_info(folder_id: str) -> dict[str, Any]:
     return folder_info
 
 
-@mcp.tool(
-    name="drive_find_folder_by_name",
-)
+# @mcp.tool(
+#     name="drive_find_folder_by_name",
+# )
 async def drive_find_folder_by_name(
     folder_name: str,
     include_files: bool = False,
