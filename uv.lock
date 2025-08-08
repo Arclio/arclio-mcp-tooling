@@ -589,7 +589,7 @@ wheels = [
 
 [[package]]
 name = "google-workspace-mcp-hotfix"
-version = "1.6.2"
+version = "1.6.3"
 source = { editable = "packages/google-workspace-mcp" }
 dependencies = [
     { name = "beautifulsoup4" },
