@@ -2026,7 +2026,7 @@ class SlidesService(BaseGoogleService):
             if folder_id and folder_id != "":
                 logger.info(f"Making folder {folder_id} public for image access")
                 drive_service = DriveService()
-                result = drive_service.share_folder_publicly(folder_id, role="reader")
+                result = drive_service.share_file_publicly(folder_id, role="reader")
                 if result.get("success"):
                     converted_folder_permission = {
                         "file_id": folder_id,
