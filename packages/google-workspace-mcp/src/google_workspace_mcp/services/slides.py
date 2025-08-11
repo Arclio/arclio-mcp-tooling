@@ -1482,7 +1482,7 @@ class SlidesService(BaseGoogleService):
         """
         try:
             logger.info(
-                f"Executing batch update with {len(requests)} requests on presentation {presentation_id}"
+                f"Executing batch update with {len(requests)} requests on presentation {presentation_id}"  # noqa: E501
             )
 
             # Execute all requests in a single batch operation
@@ -1495,7 +1495,7 @@ class SlidesService(BaseGoogleService):
             )
 
             logger.info(
-                f"Batch update completed successfully. Response: {json.dumps(response, indent=2)}"
+                f"Batch update completed successfully. Response: {json.dumps(response, indent=2)}"  # noqa: E501
             )
 
             return {
@@ -1940,7 +1940,7 @@ class SlidesService(BaseGoogleService):
         self,
         presentation_id: str,
         slides_data: list[dict[str, Any]],
-        folder_id: str | None = None,
+        folder_id: str = "",
     ) -> dict[str, Any]:
         """
         Create multiple slides with their elements in a single batch operation.
@@ -1968,6 +1968,7 @@ class SlidesService(BaseGoogleService):
                         }
                     ]
                 }
+            folder_id: Shared drive ID to fetch images from.
 
         Returns:
             Response data with all created slide IDs and operation details
@@ -2011,7 +2012,7 @@ class SlidesService(BaseGoogleService):
                 slides_data=slides_data
             )
             # Returns: {"slideIds": ["slide_1", "slide_2", ...], "slidesCreated": 5, "totalRequests": 25}
-        """
+        """  # noqa: E501
         try:
             import time
 
@@ -2022,10 +2023,10 @@ class SlidesService(BaseGoogleService):
             converted_images = []
             converted_folder_permission = None
 
-            if folder_id:
+            if folder_id and folder_id != "":
                 logger.info(f"Making folder {folder_id} public for image access")
                 drive_service = DriveService()
-                result = drive_service.share_file_publicly(folder_id, role="reader")
+                result = drive_service.share_folder_publicly(folder_id, role="reader")
                 if result.get("success"):
                     converted_folder_permission = {
                         "file_id": folder_id,
@@ -2175,7 +2176,7 @@ class SlidesService(BaseGoogleService):
 
             # Execute all requests in single batch operation
             logger.info(
-                f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"
+                f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"  # noqa: E501
             )
 
             batch_result = self.batch_update(presentation_id, all_requests)

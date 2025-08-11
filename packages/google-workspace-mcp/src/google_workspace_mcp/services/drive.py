@@ -611,7 +611,7 @@ class DriveService(BaseGoogleService):
 
         Returns:
             A dictionary containing the permission details or an error dictionary.
-        """
+        """  # noqa: E501
         try:
             if not file_id:
                 raise ValueError("File ID is required.")
@@ -632,7 +632,7 @@ class DriveService(BaseGoogleService):
             )
 
             logger.info(
-                f"Successfully created public permission ID: {permission_result.get('id')}"
+                f"Successfully created public permission ID: {permission_result.get('id')}"  # noqa: E501
             )
             return {
                 "success": True,
@@ -646,6 +646,42 @@ class DriveService(BaseGoogleService):
             return self.handle_api_error("share_file_publicly", error)
         except Exception as e:
             return self.handle_api_error("share_file_publicly", e)
+
+    def share_folder_publicly(
+        self, folder_id: str, role: str = "reader"
+    ) -> dict[str, Any]:
+        """
+        Shares a folder publicly (anyone with the link can access).
+        """
+        try:
+            if not folder_id:
+                raise ValueError("Folder ID is required.")
+
+            logger.info(f"Sharing folder {folder_id} publicly with role '{role}'")
+
+            permission = {"type": "anyone", "role": role}
+
+            permission_result = (
+                self.service.permissions()
+                .create(
+                    fileId=folder_id,
+                    body=permission,
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            return {
+                "success": True,
+                "folder_id": folder_id,
+                "permission_id": permission_result.get("id"),
+                "access_type": "public",
+                "role": role,
+            }
+        except HttpError as error:
+            return self.handle_api_error("share_folder_publicly", error)
+        except Exception as e:
+            return self.handle_api_error("share_folder_publicly", e)
 
     def _move_file_to_folder(
         self,

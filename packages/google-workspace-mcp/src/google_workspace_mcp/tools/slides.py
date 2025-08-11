@@ -1274,7 +1274,7 @@ async def update_text_formatting(
 async def create_multiple_slides_with_elements(
     presentation_id: str,
     slides_data: list[dict[str, Any]],
-    folder_id: str | None = None,
+    folder_id: str = "",
 ) -> dict[str, Any]:
     """
     Create multiple slides with their elements in a single batch operation.
@@ -1340,6 +1340,7 @@ async def create_multiple_slides_with_elements(
                 }
                 # ... add up to 3 more slides for a total of 5
             ]
+    folder_id: Shared drive ID to fetch images from.
 
     Returns:
         Response data with all created slide IDs and operation details:
