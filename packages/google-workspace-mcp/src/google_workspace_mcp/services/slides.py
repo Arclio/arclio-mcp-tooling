@@ -2032,31 +2032,70 @@ class SlidesService(BaseGoogleService):
                         "file_id": folder_id,
                         "permission_id": result.get("permission_id"),
                     }
+                    logger.info(f"Folder {folder_id} made public for image access")
+                    logger.info(f"Permission result: {result}")
+
+                    # Add a small delay for permission propagation
+                    import time
+
+                    logger.info("Waiting 2 seconds for permissions to propagate...")
+                    time.sleep(1)
                 else:
                     raise ValueError(f"Failed to make folder public: {result}")
 
-                # Update all private image URLs to public form
+                # Update all private image URLs to public form and log processing
+                logger.info("Processing image URLs for folder-based optimization...")
+                total_images_processed = 0
+
                 for slide_data in slides_data:
+                    # Background images
                     background_image_url = slide_data.get("background_image_url", "")
-                    if background_image_url and self._is_private_drive_url(
-                        background_image_url
-                    ):
-                        file_id = self._extract_drive_file_id(background_image_url)
-                        if file_id:
-                            slide_data["background_image_url"] = (
-                                f"https://drive.google.com/uc?id={file_id}"
+                    if background_image_url:
+                        logger.info(f"Background image URL: {background_image_url}")
+                        if self._is_private_drive_url(background_image_url):
+                            file_id = self._extract_drive_file_id(background_image_url)
+                            if file_id:
+                                new_url = f"https://drive.google.com/uc?id={file_id}"
+                                slide_data["background_image_url"] = new_url
+                                logger.info(
+                                    f"Converted background image: {background_image_url} → {new_url}"
+                                )
+                                total_images_processed += 1
+                        else:
+                            logger.info(
+                                f"Background image already in public format or not a Drive URL"
                             )
 
+                    # Element images
                     elements = slide_data.get("elements", [])
                     for element in elements:
                         if element.get("type", "").lower() == "image":
                             image_url = element.get("content", "")
-                            if image_url and self._is_private_drive_url(image_url):
-                                file_id = self._extract_drive_file_id(image_url)
-                                if file_id:
-                                    element["content"] = (
-                                        f"https://drive.google.com/uc?id={file_id}"
+                            if image_url:
+                                logger.info(f"Element image URL: {image_url}")
+                                logger.info(
+                                    f"Is private Drive URL: {self._is_private_drive_url(image_url)}"
+                                )
+                                if self._is_private_drive_url(image_url):
+                                    file_id = self._extract_drive_file_id(image_url)
+                                    if file_id:
+                                        new_url = (
+                                            f"https://drive.google.com/uc?id={file_id}"
+                                        )
+                                        element["content"] = new_url
+                                        logger.info(
+                                            f"Converted element image: {image_url} → {new_url}"
+                                        )
+                                        total_images_processed += 1
+                                else:
+                                    logger.info(
+                                        f"Element image already in public format: {image_url}"
                                     )
+
+                logger.info(f"Total images converted: {total_images_processed}")
+                logger.info(
+                    "Since folder is public, all images in folder should now be accessible!"
+                )
             else:
                 # Original per-image conversion
                 logger.info(
