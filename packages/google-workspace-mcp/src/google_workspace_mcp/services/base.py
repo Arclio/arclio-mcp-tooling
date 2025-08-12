@@ -30,7 +30,9 @@ class BaseGoogleService:
         """Lazy-load the Google API service client."""
         if self._service is None:
             credentials = gauth.get_credentials()
-            self._service = build(self.service_name, self.version, credentials=credentials)
+            self._service = build(
+                self.service_name, self.version, credentials=credentials
+            )
         return self._service
 
     def handle_api_error(self, operation: str, error: Exception) -> dict[str, Any]:
@@ -58,7 +60,9 @@ class BaseGoogleService:
             if hasattr(error, "error_details"):
                 error_details["details"] = error.error_details
 
-            logger.error(f"Google API error in {operation}: {error.resp.status} {error.resp.reason} - {error}")
+            logger.error(
+                f"Google API error in {operation}: {error.resp.status} {error.resp.reason} - {error}"
+            )
 
         else:
             # Handle non-HTTP errors
@@ -68,6 +72,8 @@ class BaseGoogleService:
                 "message": str(error),
                 "type": type(error).__name__,
             }
-            logger.error(f"Unexpected error in {operation}: {type(error).__name__} - {error}")
+            logger.error(
+                f"Unexpected error in {operation}: {type(error).__name__} - {error}"
+            )
 
         return error_details
