@@ -7,7 +7,7 @@
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-_Developed and maintained by [Arclio](https://arclio.com)_ - _Secure MCP service management for AI applications_
+_Developed and maintained by [Arclio](https://arclio.ai)_ - _Secure MCP service management for AI applications_
 
 </div>
 
