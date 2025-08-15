@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Built with: UV](https://img.shields.io/badge/built%20with-uv-blueviolet.svg)](https://github.com/astral-sh/uv)
 
-_Developed and maintained by [Arclio](https://arclio.com)_ - _Secure MCP service management for AI applications_
+_Developed and maintained by [Arclio](https://arclio.ai)_ - _Secure MCP service management for AI applications_
 
 </div>
 
