@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "google-workspace-mcp-hotfix"
 
-version = "1.6.4"
+version = "1.6.7"
 description = "MCP server for Google Workspace integration"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},
