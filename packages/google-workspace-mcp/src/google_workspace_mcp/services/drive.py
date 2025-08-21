@@ -611,7 +611,7 @@ class DriveService(BaseGoogleService):
 
         Returns:
             A dictionary containing the permission details or an error dictionary.
-        """
+        """  # noqa: E501
         try:
             if not file_id:
                 raise ValueError("File ID is required.")
@@ -632,7 +632,7 @@ class DriveService(BaseGoogleService):
             )
 
             logger.info(
-                f"Successfully created public permission ID: {permission_result.get('id')}"
+                f"Successfully created public permission ID: {permission_result.get('id')}"  # noqa: E501
             )
             return {
                 "success": True,

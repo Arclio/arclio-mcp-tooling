@@ -1482,7 +1482,7 @@ class SlidesService(BaseGoogleService):
         """
         try:
             logger.info(
-                f"Executing batch update with {len(requests)} requests on presentation {presentation_id}"
+                f"Executing batch update with {len(requests)} requests on presentation {presentation_id}"  # noqa: E501
             )
 
             # Execute all requests in a single batch operation
@@ -1495,7 +1495,7 @@ class SlidesService(BaseGoogleService):
             )
 
             logger.info(
-                f"Batch update completed successfully. Response: {json.dumps(response, indent=2)}"
+                f"Batch update completed successfully. Response: {json.dumps(response, indent=2)}"  # noqa: E501
             )
 
             return {
@@ -1940,6 +1940,7 @@ class SlidesService(BaseGoogleService):
         self,
         presentation_id: str,
         slides_data: list[dict[str, Any]],
+        folder_id: str = "",
     ) -> dict[str, Any]:
         """
         Create multiple slides with their elements in a single batch operation.
@@ -1967,6 +1968,7 @@ class SlidesService(BaseGoogleService):
                         }
                     ]
                 }
+            folder_id: Shared drive ID to fetch images from.
 
         Returns:
             Response data with all created slide IDs and operation details
@@ -2010,7 +2012,7 @@ class SlidesService(BaseGoogleService):
                 slides_data=slides_data
             )
             # Returns: {"slideIds": ["slide_1", "slide_2", ...], "slidesCreated": 5, "totalRequests": 25}
-        """
+        """  # noqa: E501
         try:
             import time
 
@@ -2019,38 +2021,113 @@ class SlidesService(BaseGoogleService):
 
             # Track converted images for cleanup at the end
             converted_images = []
+            converted_folder_permission = None
 
-            # Pre-process slides data to convert private images to public
-            logger.info(
-                f"Pre-processing {len(slides_data)} slides for private image handling"
-            )
-            for slide_data in slides_data:
-                # Handle background images
-                background_image_url = slide_data.get("background_image_url", "")
-                if background_image_url and self._is_private_drive_url(
-                    background_image_url
-                ):
-                    logger.info(
-                        f"Converting private background image to public: {background_image_url}"
-                    )
-                    public_url = self._convert_private_image_to_public(
-                        background_image_url, converted_images
-                    )
-                    slide_data["background_image_url"] = public_url
+            if folder_id and folder_id != "":
+                logger.info(f"Making folder {folder_id} public for image access")
+                drive_service = DriveService()
+                result = drive_service.share_file_publicly(folder_id, role="reader")
+                if result.get("success"):
+                    converted_folder_permission = {
+                        "file_id": folder_id,
+                        "permission_id": result.get("permission_id"),
+                    }
+                    logger.info(f"Folder {folder_id} made public for image access")
+                    logger.info(f"Permission result: {result}")
 
-                # Handle element images
-                elements = slide_data.get("elements", [])
-                for element in elements:
-                    if element.get("type", "").lower() == "image":
-                        image_url = element.get("content", "")
-                        if image_url and self._is_private_drive_url(image_url):
+                    # Add a small delay for permission propagation
+                    import time
+
+                    logger.info("Waiting 2 seconds for permissions to propagate...")
+                    time.sleep(1)
+                else:
+                    raise ValueError(f"Failed to make folder public: {result}")
+
+                # Update all private image URLs to public form and log processing
+                logger.info("Processing image URLs for folder-based optimization...")
+                total_images_processed = 0
+
+                for slide_data in slides_data:
+                    # Background images
+                    background_image_url = slide_data.get("background_image_url", "")
+                    if background_image_url:
+                        logger.info(f"Background image URL: {background_image_url}")
+                        if self._is_private_drive_url(background_image_url):
+                            file_id = self._extract_drive_file_id(background_image_url)
+                            if file_id:
+                                new_url = f"https://drive.google.com/uc?id={file_id}"
+                                slide_data["background_image_url"] = new_url
+                                logger.info(
+                                    f"Converted background image: {background_image_url} → {new_url}"
+                                )
+                                total_images_processed += 1
+                        else:
                             logger.info(
-                                f"Converting private image to public: {image_url}"
+                                f"Background image already in public format or not a Drive URL"
                             )
-                            public_url = self._convert_private_image_to_public(
-                                image_url, converted_images
-                            )
-                            element["content"] = public_url
+
+                    # Element images
+                    elements = slide_data.get("elements", [])
+                    for element in elements:
+                        if element.get("type", "").lower() == "image":
+                            image_url = element.get("content", "")
+                            if image_url:
+                                logger.info(f"Element image URL: {image_url}")
+                                logger.info(
+                                    f"Is private Drive URL: {self._is_private_drive_url(image_url)}"
+                                )
+                                if self._is_private_drive_url(image_url):
+                                    file_id = self._extract_drive_file_id(image_url)
+                                    if file_id:
+                                        new_url = (
+                                            f"https://drive.google.com/uc?id={file_id}"
+                                        )
+                                        element["content"] = new_url
+                                        logger.info(
+                                            f"Converted element image: {image_url} → {new_url}"
+                                        )
+                                        total_images_processed += 1
+                                else:
+                                    logger.info(
+                                        f"Element image already in public format: {image_url}"
+                                    )
+
+                logger.info(f"Total images converted: {total_images_processed}")
+                logger.info(
+                    "Since folder is public, all images in folder should now be accessible!"
+                )
+            else:
+                # Original per-image conversion
+                logger.info(
+                    f"Pre-processing {len(slides_data)} slides "
+                    f"for private image handling"
+                )
+                for slide_data in slides_data:
+                    background_image_url = slide_data.get("background_image_url", "")
+                    if background_image_url and self._is_private_drive_url(
+                        background_image_url
+                    ):
+                        logger.info(
+                            f"Converting private background image to public: "
+                            f"{background_image_url}"
+                        )
+                        public_url = self._convert_private_image_to_public(
+                            background_image_url, converted_images
+                        )
+                        slide_data["background_image_url"] = public_url
+
+                    elements = slide_data.get("elements", [])
+                    for element in elements:
+                        if element.get("type", "").lower() == "image":
+                            image_url = element.get("content", "")
+                            if image_url and self._is_private_drive_url(image_url):
+                                logger.info(
+                                    f"Converting private image to public: {image_url}"
+                                )
+                                public_url = self._convert_private_image_to_public(
+                                    image_url, converted_images
+                                )
+                                element["content"] = public_url
 
             all_requests = []
             slide_ids = []
@@ -2138,7 +2215,7 @@ class SlidesService(BaseGoogleService):
 
             # Execute all requests in single batch operation
             logger.info(
-                f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"
+                f"Executing batch creation of {len(slides_data)} slides with {len(all_requests)} total requests"  # noqa: E501
             )
 
             batch_result = self.batch_update(presentation_id, all_requests)
@@ -2179,8 +2256,10 @@ class SlidesService(BaseGoogleService):
                             {"error": str(e), "element_id": chart_element["element_id"]}
                         )
 
-            # Clean up: revert all converted images back to private
-            self._revert_images_to_private(converted_images)
+            if converted_folder_permission:
+                self._revert_folder_to_private(converted_folder_permission)
+            else:
+                self._revert_images_to_private(converted_images)
 
             return {
                 "presentationId": presentation_id,
@@ -2198,8 +2277,10 @@ class SlidesService(BaseGoogleService):
             }
 
         except Exception as e:
-            # Clean up: revert all converted images back to private even on error
-            self._revert_images_to_private(converted_images)
+            if converted_folder_permission:
+                self._revert_folder_to_private(converted_folder_permission)
+            else:
+                self._revert_images_to_private(converted_images)
             return self.handle_api_error("create_multiple_slides_with_elements", e)
 
     def _build_textbox_requests_generic(
@@ -3606,3 +3687,17 @@ class SlidesService(BaseGoogleService):
                 logger.error(
                     f"Failed to revert image {image_data.get('file_id')} to private: {e}"
                 )
+
+    def _revert_folder_to_private(self, permission_data: dict) -> None:
+        if not permission_data:
+            return
+        try:
+            drive_service = DriveService()
+            drive_service.service.permissions().delete(
+                fileId=permission_data["file_id"],
+                permissionId=permission_data["permission_id"],
+                supportsAllDrives=True,
+            ).execute()
+            logger.info(f"Reverted folder {permission_data['file_id']} to private")
+        except Exception as e:
+            logger.error(f"Failed to revert folder to private: {e}")
