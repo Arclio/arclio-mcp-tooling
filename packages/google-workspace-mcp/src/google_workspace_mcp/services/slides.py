@@ -1936,7 +1936,7 @@ class SlidesService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_slide_with_elements", e)
 
-def create_multiple_slides_with_elements(
+    def create_multiple_slides_with_elements(
         self,
         presentation_id: str,
         slides_data: list[dict[str, Any]],
