@@ -93,18 +93,14 @@ class TestMCPToolsIntegration:
         assert validate_result["collection_name"] == "TestProduct"
 
         # Step 3: Insert object
-        insert_result = await weaviate_insert_object(
-            collection_name="TestProduct", data=sample_object_data
-        )
+        insert_result = await weaviate_insert_object(collection_name="TestProduct", data=sample_object_data)
 
         assert insert_result["success"] is True
         assert insert_result["object_id"] == "test-uuid-123"
         mock_collection.data.insert.assert_called_once_with(sample_object_data)
 
         # Step 4: Search for the object
-        search_result = await weaviate_vector_search(
-            collection_name="TestProduct", query_text="wireless headphones"
-        )
+        search_result = await weaviate_vector_search(collection_name="TestProduct", query_text="wireless headphones")
 
         assert search_result["objects"][0]["title"] == sample_object_data["title"]
         assert search_result["objects"][0]["distance"] == 0.1
@@ -119,9 +115,7 @@ class TestMCPToolsIntegration:
     @patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient")
     @patch("weaviate_mcp.services.weaviate_service.get_weaviate_config")
     @patch("weaviate_mcp.services.weaviate_service.get_openai_api_key")
-    async def test_schema_validation_workflow(
-        self, mock_get_api_key, mock_get_config, mock_client_class
-    ):
+    async def test_schema_validation_workflow(self, mock_get_api_key, mock_get_config, mock_client_class):
         """Test schema validation and information retrieval workflow."""
         # Arrange
         mock_get_config.return_value = {
@@ -179,9 +173,7 @@ class TestMCPToolsIntegration:
         assert validate_result["object_count"] == 50
 
         # Step 3: Validate non-existent collection
-        validate_missing_result = await weaviate_validate_collection_exists(
-            "NonExistent"
-        )
+        validate_missing_result = await weaviate_validate_collection_exists("NonExistent")
 
         assert validate_missing_result["exists"] is False
         assert "NonExistent" in validate_missing_result["message"]
@@ -192,9 +184,7 @@ class TestMCPToolsIntegration:
     @patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient")
     @patch("weaviate_mcp.services.weaviate_service.get_weaviate_config")
     @patch("weaviate_mcp.services.weaviate_service.get_openai_api_key")
-    async def test_error_handling_workflow(
-        self, mock_get_api_key, mock_get_config, mock_client_class
-    ):
+    async def test_error_handling_workflow(self, mock_get_api_key, mock_get_config, mock_client_class):
         """Test error handling across different tools."""
         # Arrange
         mock_get_config.return_value = {
@@ -211,19 +201,13 @@ class TestMCPToolsIntegration:
         mock_client.collections.list_all.return_value = {}
 
         # Step 1: Try to insert into non-existent collection
-        insert_result = await weaviate_insert_object(
-            collection_name="NonExistentCollection", data={"title": "Test Product"}
-        )
+        insert_result = await weaviate_insert_object(collection_name="NonExistentCollection", data={"title": "Test Product"})
 
         # Should handle the error gracefully
-        assert (
-            insert_result.get("error") is True or insert_result.get("success") is False
-        )
+        assert insert_result.get("error") is True or insert_result.get("success") is False
 
         # Step 2: Try to search in non-existent collection
-        search_result = await weaviate_vector_search(
-            collection_name="NonExistentCollection", query_text="test query"
-        )
+        search_result = await weaviate_vector_search(collection_name="NonExistentCollection", query_text="test query")
 
         # Should handle the error gracefully
         assert search_result.get("error") is True or search_result.get("objects") == []
@@ -238,9 +222,7 @@ class TestMCPToolsIntegration:
     @patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient")
     @patch("weaviate_mcp.services.weaviate_service.get_weaviate_config")
     @patch("weaviate_mcp.services.weaviate_service.get_openai_api_key")
-    async def test_data_consistency_workflow(
-        self, mock_get_api_key, mock_get_config, mock_client_class, sample_object_data
-    ):
+    async def test_data_consistency_workflow(self, mock_get_api_key, mock_get_config, mock_client_class, sample_object_data):
         """Test data consistency across insert, retrieve, and search operations."""
         # Arrange
         mock_get_config.return_value = {
@@ -261,9 +243,7 @@ class TestMCPToolsIntegration:
         mock_get_result = MagicMock()
         mock_get_result.properties = sample_object_data.copy()
         mock_get_result.uuid = "consistent-uuid-123"
-        mock_collection.query.fetch_object_by_id = AsyncMock(
-            return_value=mock_get_result
-        )
+        mock_collection.query.fetch_object_by_id = AsyncMock(return_value=mock_get_result)
 
         # Mock search result with same data
         mock_search_obj = MagicMock()
@@ -280,26 +260,20 @@ class TestMCPToolsIntegration:
         mock_client.collections.get = MagicMock(return_value=mock_collection)
 
         # Step 1: Insert object
-        insert_result = await weaviate_insert_object(
-            collection_name="TestCollection", data=sample_object_data
-        )
+        insert_result = await weaviate_insert_object(collection_name="TestCollection", data=sample_object_data)
 
         assert insert_result["success"] is True
         inserted_uuid = insert_result["object_id"]
 
         # Step 2: Retrieve the same object by UUID
-        get_result = await weaviate_get_object(
-            collection_name="TestCollection", uuid=inserted_uuid
-        )
+        get_result = await weaviate_get_object(collection_name="TestCollection", uuid=inserted_uuid)
 
         assert get_result["title"] == sample_object_data["title"]
         assert get_result["price"] == sample_object_data["price"]
         assert get_result["id"] == inserted_uuid
 
         # Step 3: Search should find the same object
-        search_result = await weaviate_vector_search(
-            collection_name="TestCollection", query_text=sample_object_data["title"]
-        )
+        search_result = await weaviate_vector_search(collection_name="TestCollection", query_text=sample_object_data["title"])
 
         assert len(search_result["objects"]) == 1
         found_object = search_result["objects"][0]

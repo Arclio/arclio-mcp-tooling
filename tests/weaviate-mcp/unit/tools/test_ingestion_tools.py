@@ -31,16 +31,11 @@ class TestIngestionTools:
 
         with (
             patch("weaviate_mcp.tools.ingestion_tools.WeaviateService"),
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance.ingest_from_url = AsyncMock(
-                return_value=mock_result
-            )
+            mock_ingestion_instance.ingest_from_url = AsyncMock(return_value=mock_result)
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool
@@ -77,16 +72,11 @@ class TestIngestionTools:
 
         with (
             patch("weaviate_mcp.tools.ingestion_tools.WeaviateService"),
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance.ingest_from_url = AsyncMock(
-                return_value=mock_result
-            )
+            mock_ingestion_instance.ingest_from_url = AsyncMock(return_value=mock_result)
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool and expect ValueError
@@ -134,11 +124,8 @@ class TestIngestionTools:
         """Test URL ingestion tool with unexpected error."""
         with (
             patch("weaviate_mcp.tools.ingestion_tools.WeaviateService"),
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks to raise unexpected error
             mock_ingestion_service.side_effect = RuntimeError("Unexpected error")
 
@@ -160,25 +147,16 @@ class TestIngestionTools:
         }
 
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_weaviate_instance = MagicMock()
-            mock_weaviate_instance.batch_insert_objects = AsyncMock(
-                return_value=mock_batch_result
-            )
+            mock_weaviate_instance.batch_insert_objects = AsyncMock(return_value=mock_batch_result)
             mock_weaviate_service.return_value = mock_weaviate_instance
 
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance._create_optimal_chunks = MagicMock(
-                return_value=["Chunk 1 content", "Chunk 2 content"]
-            )
+            mock_ingestion_instance._create_optimal_chunks = MagicMock(return_value=["Chunk 1 content", "Chunk 2 content"])
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool
@@ -244,11 +222,8 @@ class TestIngestionTools:
         """Test text content ingestion when no chunks are created."""
         with (
             patch("weaviate_mcp.tools.ingestion_tools.WeaviateService"),
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_ingestion_instance = MagicMock()
             mock_ingestion_instance._create_optimal_chunks = MagicMock(return_value=[])
@@ -272,25 +247,16 @@ class TestIngestionTools:
         }
 
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_weaviate_instance = MagicMock()
-            mock_weaviate_instance.batch_insert_objects = AsyncMock(
-                return_value=mock_batch_result
-            )
+            mock_weaviate_instance.batch_insert_objects = AsyncMock(return_value=mock_batch_result)
             mock_weaviate_service.return_value = mock_weaviate_instance
 
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance._create_optimal_chunks = MagicMock(
-                return_value=["Chunk 1 content"]
-            )
+            mock_ingestion_instance._create_optimal_chunks = MagicMock(return_value=["Chunk 1 content"])
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool and expect ValueError
@@ -312,25 +278,16 @@ class TestIngestionTools:
         }
 
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_weaviate_instance = MagicMock()
-            mock_weaviate_instance.batch_insert_objects = AsyncMock(
-                return_value=mock_batch_result
-            )
+            mock_weaviate_instance.batch_insert_objects = AsyncMock(return_value=mock_batch_result)
             mock_weaviate_service.return_value = mock_weaviate_instance
 
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance._create_optimal_chunks = MagicMock(
-                return_value=["Single chunk content"]
-            )
+            mock_ingestion_instance._create_optimal_chunks = MagicMock(return_value=["Single chunk content"])
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool without title

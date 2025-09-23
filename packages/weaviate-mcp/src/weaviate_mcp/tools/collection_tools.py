@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @mcp.tool(
     name="weaviate_create_collection",
-    description="Create a new collection in Weaviate with specified properties and configuration.",
+    description="Create a new Weaviate collection with custom properties and optional vectorizer for semantic search. Use weaviate_create_collection_with_vectorizer for document ingestion.",
 )
 async def weaviate_create_collection(
     name: str,
@@ -39,8 +39,9 @@ async def weaviate_create_collection(
             - index_filterable: Whether the property can be filtered (default: True)
             - index_searchable: Whether the property can be searched (default: True)
         vectorizer_config: Optional vectorizer configuration dict with:
-            - model: Model name (e.g., "text-embedding-3-small")
-            - type: Vectorizer type (e.g., "text2vec_openai")
+            - type: Vectorizer type ("text2vec_openai", "text2vec_transformers", "text2vec_cohere", "text2vec_huggingface", "none")
+            - model: Model name (e.g., "text-embedding-3-small" for OpenAI, "sentence-transformers/all-MiniLM-L6-v2" for transformers)
+            - pooling_strategy: For transformers only ("masked_mean", "cls", "mean")
 
     Returns:
         Dictionary with success status and message or error details.
@@ -126,13 +127,38 @@ async def weaviate_create_collection(
         # Configure vectorizer if provided
         vectorizer = None
         if vectorizer_config:
-            if vectorizer_config.get("type") == "text2vec_openai":
+            vectorizer_type = vectorizer_config.get("type", "").lower()
+
+            if vectorizer_type == "text2vec_openai":
                 model = vectorizer_config.get("model", "text-embedding-3-small")
                 vectorizer = Configure.Vectorizer.text2vec_openai(model=model)
+            elif vectorizer_type == "text2vec_transformers":
+                # Support for local transformers vectorizer
+                model = vectorizer_config.get(
+                    "model", "sentence-transformers/all-MiniLM-L6-v2"
+                )
+                vectorizer = Configure.Vectorizer.text2vec_transformers(
+                    model_name=model,
+                    pooling_strategy=vectorizer_config.get(
+                        "pooling_strategy", "masked_mean"
+                    ),
+                )
+            elif vectorizer_type == "text2vec_cohere":
+                model = vectorizer_config.get("model", "embed-multilingual-v2.0")
+                vectorizer = Configure.Vectorizer.text2vec_cohere(model=model)
+            elif vectorizer_type == "text2vec_huggingface":
+                model = vectorizer_config.get(
+                    "model", "sentence-transformers/all-MiniLM-L6-v2"
+                )
+                vectorizer = Configure.Vectorizer.text2vec_huggingface(model=model)
+            elif vectorizer_type in ["none", "disabled", ""]:
+                # Explicitly no vectorizer
+                vectorizer = None
             else:
                 return {
                     "error": True,
-                    "message": f"Unsupported vectorizer type: {vectorizer_config.get('type')}",
+                    "message": f"Unsupported vectorizer type: '{vectorizer_config.get('type')}'. "
+                    f"Supported types: text2vec_openai, text2vec_transformers, text2vec_cohere, text2vec_huggingface, none",
                 }
 
         # Create the collection
@@ -214,4 +240,119 @@ async def weaviate_get_schema() -> dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Error in weaviate_get_schema: {e}")
+        return {"error": True, "message": str(e)}
+
+
+@mcp.tool(
+    name="weaviate_create_collection_with_vectorizer",
+    description="Create a new collection with optimal vectorizer settings for document ingestion and semantic search.",
+)
+async def weaviate_create_collection_with_vectorizer(
+    name: str,
+    description: str,
+    use_openai_vectorizer: bool = True,
+    openai_model: str = "text-embedding-3-small",
+) -> dict[str, Any]:
+    """
+    Create a new collection with optimal settings for document ingestion.
+
+    This is a convenience tool that creates a collection with standard properties
+    for document ingestion (content, title, source_url, chunk_index) and
+    configures an optimal vectorizer for semantic search.
+
+    Args:
+        name: Name of the collection to create
+        description: Description of the collection
+        use_openai_vectorizer: Whether to use OpenAI vectorizer (default: True)
+        openai_model: OpenAI model to use (default: "text-embedding-3-small")
+
+    Returns:
+        Dictionary with success status and message or error details.
+
+    Example:
+        ```python
+        await weaviate_create_collection_with_vectorizer(
+            name="Documents",
+            description="Collection for document chunks with semantic search",
+            use_openai_vectorizer=True,
+            openai_model="text-embedding-3-small"
+        )
+        ```
+    """
+    try:
+        # Define standard properties for document ingestion
+        properties = [
+            {
+                "name": "content",
+                "data_type": "text",
+                "description": "Text content of the document chunk",
+                "index_filterable": True,
+                "index_searchable": True,
+            },
+            {
+                "name": "title",
+                "data_type": "text",
+                "description": "Title of the source document",
+                "index_filterable": True,
+                "index_searchable": True,
+            },
+            {
+                "name": "source_url",
+                "data_type": "text",
+                "description": "Source URL or identifier",
+                "index_filterable": True,
+                "index_searchable": False,
+            },
+            {
+                "name": "chunk_index",
+                "data_type": "int",
+                "description": "Sequential chunk number for ordering",
+                "index_filterable": True,
+                "index_searchable": False,
+            },
+            {
+                "name": "total_chunks",
+                "data_type": "int",
+                "description": "Total number of chunks in the document",
+                "index_filterable": True,
+                "index_searchable": False,
+            },
+            {
+                "name": "content_type",
+                "data_type": "text",
+                "description": "MIME type of the original content",
+                "index_filterable": True,
+                "index_searchable": False,
+            },
+        ]
+
+        # Configure vectorizer
+        vectorizer_config = None
+        if use_openai_vectorizer:
+            vectorizer_config = {
+                "type": "text2vec_openai",
+                "model": openai_model,
+            }
+
+        # Create the collection using the main creation tool
+        result = await weaviate_create_collection(
+            name=name,
+            description=description,
+            properties=properties,
+            vectorizer_config=vectorizer_config,
+        )
+
+        if result.get("success"):
+            logger.info(
+                f"Created optimized collection '{name}' with vectorizer: {use_openai_vectorizer}"
+            )
+            result["message"] = (
+                f"Collection '{name}' created successfully with optimal settings for document ingestion. "
+                f"Vectorizer: {'OpenAI ' + openai_model if use_openai_vectorizer else 'None'}"
+            )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in weaviate_create_collection_with_vectorizer: {e}")
         return {"error": True, "message": str(e)}

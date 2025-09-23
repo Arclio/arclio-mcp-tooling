@@ -84,9 +84,7 @@ class TestIngestionIntegration:
         ingestion_service = IngestionService(mock_weaviate_service)
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             # Perform ingestion
             result = await ingestion_service.ingest_from_url(
@@ -170,9 +168,7 @@ class TestIngestionIntegration:
         ingestion_service = IngestionService(mock_weaviate_service)
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             # Perform ingestion
             result = await ingestion_service.ingest_from_url(
@@ -205,19 +201,12 @@ class TestIngestionIntegration:
         }
 
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup service mocks
             mock_ingestion_instance = MagicMock()
-            mock_ingestion_instance.ingest_from_url = AsyncMock(
-                return_value=mock_result
-            )
+            mock_ingestion_instance.ingest_from_url = AsyncMock(return_value=mock_result)
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the MCP tool
@@ -253,19 +242,12 @@ class TestIngestionIntegration:
         }
 
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup mocks
             mock_weaviate_instance = MagicMock()
-            mock_weaviate_instance.batch_insert_objects = AsyncMock(
-                return_value=mock_batch_result
-            )
+            mock_weaviate_instance.batch_insert_objects = AsyncMock(return_value=mock_batch_result)
             mock_weaviate_service.return_value = mock_weaviate_instance
 
             # Create realistic chunking behavior
@@ -293,9 +275,7 @@ class TestIngestionIntegration:
                 "There are several types of machine learning algorithms including supervised learning, unsupervised learning, and reinforcement learning. Supervised learning algorithms learn from labeled training data to make predictions on new, unseen data.",
                 "Unsupervised learning algorithms find patterns in data without labeled examples. Reinforcement learning algorithms learn through interaction with an environment.",
             ]
-            mock_ingestion_instance._create_optimal_chunks = MagicMock(
-                return_value=mock_chunks
-            )
+            mock_ingestion_instance._create_optimal_chunks = MagicMock(return_value=mock_chunks)
             mock_ingestion_service.return_value = mock_ingestion_instance
 
             # Call the tool
@@ -336,14 +316,9 @@ class TestIngestionIntegration:
         """Test error propagation through the integration layers."""
         # Test service layer error propagation
         with (
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-            ) as mock_weaviate_service,
-            patch(
-                "weaviate_mcp.tools.ingestion_tools.IngestionService"
-            ) as mock_ingestion_service,
+            patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service,
+            patch("weaviate_mcp.tools.ingestion_tools.IngestionService") as mock_ingestion_service,
         ):
-
             # Setup service to return error
             mock_ingestion_instance = MagicMock()
             mock_ingestion_instance.ingest_from_url = AsyncMock(
@@ -362,16 +337,12 @@ class TestIngestionIntegration:
                 )
 
         # Test unexpected exception propagation
-        with patch(
-            "weaviate_mcp.tools.ingestion_tools.WeaviateService"
-        ) as mock_weaviate_service:
+        with patch("weaviate_mcp.tools.ingestion_tools.WeaviateService") as mock_weaviate_service:
             # Setup service to raise unexpected exception
             mock_weaviate_service.side_effect = ConnectionError("Database unreachable")
 
             # Verify unexpected error is wrapped in ValueError
-            with pytest.raises(
-                ValueError, match="Ingestion error: Database unreachable"
-            ):
+            with pytest.raises(ValueError, match="Ingestion error: Database unreachable"):
                 await weaviate_ingest_from_url(
                     url="https://example.com/document",
                     collection_name="test_collection",

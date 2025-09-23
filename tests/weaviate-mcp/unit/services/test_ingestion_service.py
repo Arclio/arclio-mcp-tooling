@@ -34,9 +34,7 @@ class TestIngestionService:
         assert service._encoding is not None
 
     @pytest.mark.asyncio
-    async def test_ingest_from_url_success_html(
-        self, ingestion_service, mock_weaviate_service
-    ):
+    async def test_ingest_from_url_success_html(self, ingestion_service, mock_weaviate_service):
         """Test successful URL ingestion with HTML content."""
         # Mock HTTP response
         mock_response = MagicMock()
@@ -65,9 +63,7 @@ class TestIngestionService:
         }
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             result = await ingestion_service.ingest_from_url(
                 url="https://example.com/article",
@@ -89,15 +85,11 @@ class TestIngestionService:
         assert len(call_args[1]["objects"]) > 0
 
     @pytest.mark.asyncio
-    async def test_ingest_from_url_success_plain_text(
-        self, ingestion_service, mock_weaviate_service
-    ):
+    async def test_ingest_from_url_success_plain_text(self, ingestion_service, mock_weaviate_service):
         """Test successful URL ingestion with plain text content."""
         # Mock HTTP response
         mock_response = MagicMock()
-        mock_response.text = (
-            "This is a plain text document with multiple sentences. " * 50
-        )
+        mock_response.text = "This is a plain text document with multiple sentences. " * 50
         mock_response.headers = {"content-type": "text/plain"}
         mock_response.status_code = 200
         mock_response.content = mock_response.text.encode()
@@ -111,9 +103,7 @@ class TestIngestionService:
         }
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             result = await ingestion_service.ingest_from_url(
                 url="https://example.com/document.txt",
@@ -128,9 +118,7 @@ class TestIngestionService:
     async def test_ingest_from_url_http_error(self, ingestion_service):
         """Test URL ingestion with HTTP error."""
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                side_effect=Exception("HTTP 404 Not Found")
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(side_effect=Exception("HTTP 404 Not Found"))
 
             result = await ingestion_service.ingest_from_url(
                 url="https://example.com/nonexistent",
@@ -152,9 +140,7 @@ class TestIngestionService:
         mock_response.raise_for_status = MagicMock()
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             result = await ingestion_service.ingest_from_url(
                 url="https://example.com/empty",
@@ -165,15 +151,11 @@ class TestIngestionService:
         assert "No meaningful content" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_ingest_from_url_batch_insert_error(
-        self, ingestion_service, mock_weaviate_service
-    ):
+    async def test_ingest_from_url_batch_insert_error(self, ingestion_service, mock_weaviate_service):
         """Test URL ingestion with batch insertion error."""
         # Mock HTTP response
         mock_response = MagicMock()
-        mock_response.text = (
-            "This is a longer test content for batch insertion error. " * 20
-        )
+        mock_response.text = "This is a longer test content for batch insertion error. " * 20
         mock_response.headers = {"content-type": "text/plain"}
         mock_response.status_code = 200
         mock_response.content = mock_response.text.encode()
@@ -186,9 +168,7 @@ class TestIngestionService:
         }
 
         with patch("httpx.AsyncClient") as mock_client:
-            mock_client.return_value.__aenter__.return_value.get = AsyncMock(
-                return_value=mock_response
-            )
+            mock_client.return_value.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
 
             result = await ingestion_service.ingest_from_url(
                 url="https://example.com/test",
@@ -200,13 +180,9 @@ class TestIngestionService:
 
     def test_create_optimal_chunks_basic(self, ingestion_service):
         """Test basic text chunking functionality."""
-        text = (
-            "This is a test paragraph.\n\nThis is another paragraph with more content."
-        )
+        text = "This is a test paragraph.\n\nThis is another paragraph with more content."
 
-        chunks = ingestion_service._create_optimal_chunks(
-            text, max_tokens=50, overlap_tokens=10
-        )
+        chunks = ingestion_service._create_optimal_chunks(text, max_tokens=50, overlap_tokens=10)
 
         assert len(chunks) > 0
         assert all(isinstance(chunk, str) for chunk in chunks)
@@ -226,9 +202,7 @@ class TestIngestionService:
         paragraphs = [f"This is paragraph {i} with some content." for i in range(20)]
         text = "\n\n".join(paragraphs)
 
-        chunks = ingestion_service._create_optimal_chunks(
-            text, max_tokens=100, overlap_tokens=20
-        )
+        chunks = ingestion_service._create_optimal_chunks(text, max_tokens=100, overlap_tokens=20)
 
         assert len(chunks) > 1
         # Verify no chunk is too large (approximate check)
@@ -256,9 +230,7 @@ class TestIngestionService:
         </html>
         """
 
-        content, metadata = ingestion_service._extract_html_content(
-            html, "https://example.com"
-        )
+        content, metadata = ingestion_service._extract_html_content(html, "https://example.com")
 
         assert "Main Content" in content
         assert "This is the main content" in content
@@ -272,15 +244,11 @@ class TestIngestionService:
     def test_extract_title_from_url(self, ingestion_service):
         """Test title extraction from URL."""
         # Test with path
-        title = ingestion_service._extract_title_from_url(
-            "https://example.com/my-article"
-        )
+        title = ingestion_service._extract_title_from_url("https://example.com/my-article")
         assert title == "My Article"
 
         # Test with file extension
-        title = ingestion_service._extract_title_from_url(
-            "https://example.com/document.pdf"
-        )
+        title = ingestion_service._extract_title_from_url("https://example.com/document.pdf")
         assert title == "Document"
 
         # Test with no path

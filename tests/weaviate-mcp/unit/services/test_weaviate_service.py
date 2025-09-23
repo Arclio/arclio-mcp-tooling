@@ -37,9 +37,7 @@ class TestWeaviateService:
     async def test_get_schema_success(self, mock_env_vars):
         """Test successful schema retrieval."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.collections.list_all.return_value = {
                 "Collection1": {},
@@ -74,9 +72,7 @@ class TestWeaviateService:
     async def test_get_schema_exception(self, mock_env_vars):
         """Test schema retrieval with exception."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.collections.list_all.side_effect = Exception("Connection error")
             mock_client_class.return_value = mock_client
@@ -91,14 +87,10 @@ class TestWeaviateService:
             assert "Connection error" in result["message"]
 
     @pytest.mark.asyncio
-    async def test_create_collection_success(
-        self, mock_env_vars, sample_weaviate_properties
-    ):
+    async def test_create_collection_success(self, mock_env_vars, sample_weaviate_properties):
         """Test successful collection creation."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.collections.create = AsyncMock()
             mock_client_class.return_value = mock_client
@@ -121,9 +113,7 @@ class TestWeaviateService:
     async def test_delete_collection_success(self, mock_env_vars):
         """Test successful collection deletion."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.collections.delete = AsyncMock()
             mock_client_class.return_value = mock_client
@@ -142,9 +132,7 @@ class TestWeaviateService:
     async def test_insert_object_success(self, mock_env_vars, sample_object_data):
         """Test successful object insertion."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_collection.data.insert = AsyncMock(return_value="test-uuid-123")
@@ -163,15 +151,11 @@ class TestWeaviateService:
             mock_collection.data.insert.assert_called_once_with(sample_object_data)
 
     @pytest.mark.asyncio
-    async def test_insert_object_with_unique_properties_existing(
-        self, mock_env_vars, sample_object_data
-    ):
+    async def test_insert_object_with_unique_properties_existing(self, mock_env_vars, sample_object_data):
         """Test object insertion with unique properties when object already exists."""
         # Arrange
         with (
-            patch(
-                "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-            ) as mock_client_class,
+            patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class,
             patch("weaviate_mcp.services.weaviate_service.Filter") as mock_filter_class,
         ):
             mock_client = AsyncMock()
@@ -188,15 +172,11 @@ class TestWeaviateService:
 
             # Mock get_objects to return existing object
             service.get_objects = AsyncMock(
-                return_value={
-                    "objects": [{"id": "existing-uuid", "title": "Wireless Headphones"}]
-                }
+                return_value={"objects": [{"id": "existing-uuid", "title": "Wireless Headphones"}]}
             )
 
             # Act
-            result = await service.insert_object(
-                "TestCollection", sample_object_data, unique_properties=["title"]
-            )
+            result = await service.insert_object("TestCollection", sample_object_data, unique_properties=["title"])
 
             # Assert
             assert result["success"] is True
@@ -206,9 +186,7 @@ class TestWeaviateService:
     async def test_get_object_success(self, mock_env_vars):
         """Test successful object retrieval."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
 
@@ -216,9 +194,7 @@ class TestWeaviateService:
             mock_result.properties = {"title": "Test Product", "price": 99.99}
             mock_result.uuid = "test-uuid"
 
-            mock_collection.query.fetch_object_by_id = AsyncMock(
-                return_value=mock_result
-            )
+            mock_collection.query.fetch_object_by_id = AsyncMock(return_value=mock_result)
             mock_client.collections.get = MagicMock(return_value=mock_collection)
             mock_client_class.return_value = mock_client
 
@@ -236,9 +212,7 @@ class TestWeaviateService:
     async def test_get_object_not_found(self, mock_env_vars):
         """Test object retrieval when object not found."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_collection.query.fetch_object_by_id = AsyncMock(return_value=None)
@@ -258,14 +232,10 @@ class TestWeaviateService:
     async def test_search_success(self, mock_env_vars, sample_search_response):
         """Test successful vector search."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
-            mock_collection.query.near_text = AsyncMock(
-                return_value=sample_search_response
-            )
+            mock_collection.query.near_text = AsyncMock(return_value=sample_search_response)
             mock_client.collections.get = MagicMock(return_value=mock_collection)
             mock_client_class.return_value = mock_client
 
@@ -284,9 +254,7 @@ class TestWeaviateService:
     async def test_update_object_success(self, mock_env_vars):
         """Test successful object update."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_collection.data.update = AsyncMock()
@@ -296,24 +264,18 @@ class TestWeaviateService:
             service = WeaviateService()
 
             # Act
-            result = await service.update_object(
-                "TestCollection", "test-uuid", {"price": 89.99}
-            )
+            result = await service.update_object("TestCollection", "test-uuid", {"price": 89.99})
 
             # Assert
             assert result["success"] is True
             assert "updated successfully" in result["message"]
-            mock_collection.data.update.assert_called_once_with(
-                "test-uuid", {"price": 89.99}
-            )
+            mock_collection.data.update.assert_called_once_with("test-uuid", {"price": 89.99})
 
     @pytest.mark.asyncio
     async def test_delete_object_success(self, mock_env_vars):
         """Test successful object deletion."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_collection.data.delete_by_id = AsyncMock()
@@ -334,9 +296,7 @@ class TestWeaviateService:
     async def test_aggregate_success(self, mock_env_vars):
         """Test successful aggregation."""
         # Arrange
-        with patch(
-            "weaviate_mcp.services.weaviate_service.WeaviateAsyncClient"
-        ) as mock_client_class:
+        with patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_query = MagicMock()

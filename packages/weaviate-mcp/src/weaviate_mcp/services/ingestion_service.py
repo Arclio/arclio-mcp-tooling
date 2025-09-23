@@ -118,7 +118,15 @@ class IngestionService:
 
         except Exception as e:
             logger.error(f"Error during URL ingestion: {e}")
-            return {"error": True, "message": str(e)}
+            return {
+                "error": True,
+                "message": f"URL ingestion failed: {str(e)}",
+                "details": {
+                    "url": url,
+                    "collection_name": collection_name,
+                    "error_type": type(e).__name__,
+                },
+            }
 
     async def _download_and_extract_content(self, url: str) -> dict[str, Any]:
         """

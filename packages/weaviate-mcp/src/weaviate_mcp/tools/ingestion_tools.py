@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 @mcp.tool(
     name="weaviate_ingest_from_url",
-    description="Ingest and vectorize content from a public URL into a Weaviate collection with optimal chunking.",
+    description="Download, chunk, and ingest large documents from URLs into Weaviate for semantic search. Handles HTML, text, and JSON content with intelligent chunking.",
 )
 async def weaviate_ingest_from_url(
     url: str,
@@ -129,7 +129,7 @@ async def weaviate_ingest_from_url(
 
 @mcp.tool(
     name="weaviate_ingest_text_content",
-    description="Ingest raw text content directly into a Weaviate collection with optimal chunking.",
+    description="Process and ingest large text content directly into Weaviate with intelligent chunking. Ideal for books, articles, and long documents.",
 )
 async def weaviate_ingest_text_content(
     content: str,
