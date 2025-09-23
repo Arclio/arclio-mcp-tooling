@@ -10,6 +10,7 @@ from weaviate_mcp.app import mcp  # Import instance from central location
 from weaviate_mcp.tools import (
     collection_tools,  # noqa: F401
     data_tools,  # noqa: F401
+    ingestion_tools,  # noqa: F401
     schema_tools,  # noqa: F401
 )
 

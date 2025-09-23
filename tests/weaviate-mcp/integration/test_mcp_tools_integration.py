@@ -153,7 +153,12 @@ class TestMCPToolsIntegration:
         # Mock aggregation results
         mock_collection_instance = MagicMock()
         mock_aggregate_query = MagicMock()
-        mock_aggregate_query.over_all = AsyncMock(return_value={"total_count": 50})
+
+        # Create mock result object with attributes instead of dictionary
+        mock_aggregate_result = MagicMock()
+        mock_aggregate_result.total_count = 50
+        mock_aggregate_query.over_all = AsyncMock(return_value=mock_aggregate_result)
+
         mock_collection_instance.aggregate = mock_aggregate_query
         mock_client.collections.get = MagicMock(return_value=mock_collection_instance)
 

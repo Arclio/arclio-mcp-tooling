@@ -35,6 +35,7 @@ pythonpath = [
     ".",
     "packages/google-workspace-mcp/src",
     "packages/markdowndeck/src",
+    "packages/weaviate-mcp/src",
 ]
 markers = [
     "unit: marks tests as unit tests (fast, isolated)",
@@ -61,11 +62,13 @@ directory = "coverage_html"
 members = [
     "packages/google-workspace-mcp",
     "packages/markdowndeck",
+    "packages/weaviate-mcp",
 ]
 
 [tool.uv.sources]
 google-workspace-mcp = {workspace = true}
 markdowndeck = { workspace = true }
+weaviate-mcp = { workspace = true }
 
 
 [tool.hatch.build.targets.wheel]

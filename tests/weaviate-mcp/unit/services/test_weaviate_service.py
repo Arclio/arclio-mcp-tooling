@@ -11,29 +11,14 @@ from weaviate_mcp.services.weaviate_service import WeaviateService
 class TestWeaviateService:
     """Test cases for WeaviateService."""
 
-    @patch("weaviate_mcp.services.weaviate_service.get_weaviate_config")
-    @patch("weaviate_mcp.services.weaviate_service.get_openai_api_key")
-    @patch("weaviate_mcp.services.weaviate_service.WeaviateAsyncClient")
-    def test_init_success(self, mock_client_class, mock_get_api_key, mock_get_config):
+    def test_init_success(self):
         """Test successful initialization of WeaviateService."""
-        # Arrange
-        mock_get_config.return_value = {
-            "url": "localhost",
-            "http_port": 8080,
-            "grpc_port": 50051,
-        }
-        mock_get_api_key.return_value = "test-api-key"
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
-
         # Act
         service = WeaviateService()
 
-        # Assert
-        assert service._client == mock_client
-        mock_get_config.assert_called_once()
-        mock_get_api_key.assert_called_once()
-        mock_client_class.assert_called_once()
+        # Assert - client is None until _ensure_connected is called
+        assert service._client is None
+        assert service._connected is False
 
     @patch("weaviate_mcp.services.weaviate_service.get_weaviate_config")
     @patch("weaviate_mcp.services.weaviate_service.get_openai_api_key")
@@ -83,7 +68,7 @@ class TestWeaviateService:
 
         # Assert
         assert result["error"] is True
-        assert "not initialized" in result["message"]
+        assert "Failed to connect to Weaviate" in result["message"]
 
     @pytest.mark.asyncio
     async def test_get_schema_exception(self, mock_env_vars):
@@ -355,7 +340,12 @@ class TestWeaviateService:
             mock_client = AsyncMock()
             mock_collection = MagicMock()
             mock_query = MagicMock()
-            mock_query.over_all = AsyncMock(return_value={"total_count": 100})
+
+            # Create a mock result object with the expected attributes
+            mock_result = MagicMock()
+            mock_result.total_count = 100
+            mock_query.over_all = AsyncMock(return_value=mock_result)
+
             mock_collection.aggregate = mock_query
             mock_client.collections.get = MagicMock(return_value=mock_collection)
             mock_client_class.return_value = mock_client
@@ -366,5 +356,6 @@ class TestWeaviateService:
             result = await service.aggregate("TestCollection")
 
             # Assert
+            assert result["success"] is True
             assert result["results"]["total_count"] == 100
             mock_query.over_all.assert_called_once_with(total_count=True)

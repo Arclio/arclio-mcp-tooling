@@ -20,7 +20,7 @@ SOPS := sops
 # --- Directories & Package Definitions ---
 PACKAGES_ROOT_DIR := packages
 TESTS_ROOT_DIR := tests
-PKG_NAMES := google-workspace-mcp markdowndeck
+PKG_NAMES := google-workspace-mcp markdowndeck weaviate-mcp
 
 # --- Color Codes ---
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -173,6 +173,10 @@ add: setup
 run-google-workspace: setup
 	@echo "${CYAN}Running google-workspace-mcp server...${RESET}"
 	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m google_workspace_mcp
+
+run-weaviate: setup
+	@echo "${CYAN}Running weaviate-mcp server...${RESET}"
+	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m weaviate_mcp
 
 encrypt-pkg decrypt-pkg: setup
 	@CMD_NAME=$@; PKG_DIR_NAME="$(PKG_DIR)"; \

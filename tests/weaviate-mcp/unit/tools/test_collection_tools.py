@@ -17,9 +17,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_success(
-        self, mock_service_class, sample_properties
-    ):
+    async def test_weaviate_create_collection_success(self, mock_service_class, sample_properties):
         """Test successful collection creation."""
         # Arrange
         mock_service = AsyncMock()
@@ -43,9 +41,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_with_vectorizer(
-        self, mock_service_class, sample_properties
-    ):
+    async def test_weaviate_create_collection_with_vectorizer(self, mock_service_class, sample_properties):
         """Test collection creation with vectorizer configuration."""
         # Arrange
         mock_service = AsyncMock()
@@ -79,9 +75,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_invalid_data_type(
-        self, mock_service_class
-    ):
+    async def test_weaviate_create_collection_invalid_data_type(self, mock_service_class):
         """Test collection creation with invalid data type."""
         # Arrange
         mock_service_class.return_value = AsyncMock()
@@ -108,9 +102,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_unsupported_vectorizer(
-        self, mock_service_class, sample_properties
-    ):
+    async def test_weaviate_create_collection_unsupported_vectorizer(self, mock_service_class, sample_properties):
         """Test collection creation with unsupported vectorizer."""
         # Arrange
         mock_service_class.return_value = AsyncMock()
@@ -131,9 +123,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_service_error(
-        self, mock_service_class, sample_properties
-    ):
+    async def test_weaviate_create_collection_service_error(self, mock_service_class, sample_properties):
         """Test collection creation when service returns error."""
         # Arrange
         mock_service = AsyncMock()
@@ -156,9 +146,7 @@ class TestCollectionTools:
 
     @pytest.mark.asyncio
     @patch("weaviate_mcp.tools.collection_tools.WeaviateService")
-    async def test_weaviate_create_collection_exception(
-        self, mock_service_class, sample_properties
-    ):
+    async def test_weaviate_create_collection_exception(self, mock_service_class, sample_properties):
         """Test collection creation with exception."""
         # Arrange
         mock_service_class.side_effect = Exception("Connection error")

@@ -22,6 +22,7 @@ coverage.xml
 cython_debug/
 .cursor/
 docs/
+data/
 
 # Build and Distribution
 build/

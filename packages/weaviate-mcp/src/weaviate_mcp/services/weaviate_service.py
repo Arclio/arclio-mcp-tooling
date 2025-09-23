@@ -149,19 +149,11 @@ class WeaviateService:
 
             if unique_properties:
                 filters = Filter.all_of(
-                    *[
-                        Filter.by_property(prop).equal(data.get(prop))
-                        for prop in unique_properties
-                        if prop in data
-                    ]
+                    *[Filter.by_property(prop).equal(data.get(prop)) for prop in unique_properties if prop in data]
                 )
-                existing_result = await self.get_objects(
-                    collection_name, filters=filters, limit=1
-                )
+                existing_result = await self.get_objects(collection_name, filters=filters, limit=1)
                 if existing_result.get("objects"):
-                    logger.warning(
-                        f"Object with properties {unique_properties} already exists"
-                    )
+                    logger.warning(f"Object with properties {unique_properties} already exists")
                     return {
                         "success": True,
                         "object_id": existing_result["objects"][0]["id"],
@@ -234,9 +226,7 @@ class WeaviateService:
 
             return {"objects": objects, "count": len(objects)}
         except Exception as e:
-            logger.error(
-                f"Error retrieving objects from collection {collection_name}: {e}"
-            )
+            logger.error(f"Error retrieving objects from collection {collection_name}: {e}")
             return {"error": True, "message": str(e)}
 
     # Search operations
@@ -376,19 +366,11 @@ class WeaviateService:
                     if unique_properties:
                         # Check for existing objects with unique properties
                         filters = Filter.all_of(
-                            *[
-                                Filter.by_property(prop).equal(obj.get(prop))
-                                for prop in unique_properties
-                                if prop in obj
-                            ]
+                            *[Filter.by_property(prop).equal(obj.get(prop)) for prop in unique_properties if prop in obj]
                         )
-                        existing_result = await self.get_objects(
-                            collection_name, filters=filters, limit=1
-                        )
+                        existing_result = await self.get_objects(collection_name, filters=filters, limit=1)
                         if existing_result.get("objects"):
-                            logger.warning(
-                                f"Object with properties {unique_properties} already exists"
-                            )
+                            logger.warning(f"Object with properties {unique_properties} already exists")
                             chunk_results.append(existing_result["objects"][0]["id"])
                             continue
 
@@ -446,12 +428,8 @@ class WeaviateService:
                         group_dict["total_count"] = group.total_count
                     result_dict["groups"].append(group_dict)
 
-            logger.info(
-                f"Aggregation results for collection {collection_name}: {result_dict}"
-            )
+            logger.info(f"Aggregation results for collection {collection_name}: {result_dict}")
             return {"success": True, "results": result_dict}
         except Exception as e:
-            logger.error(
-                f"Error performing aggregation in collection {collection_name}: {e}"
-            )
+            logger.error(f"Error performing aggregation in collection {collection_name}: {e}")
             return {"error": True, "message": str(e)}
