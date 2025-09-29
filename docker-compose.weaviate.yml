@@ -1,0 +1,121 @@
+# Docker Compose for Weaviate MCP Server Development
+# This sets up a local Weaviate instance for testing the MCP server
+#
+# Usage:
+#   docker-compose -f docker-compose.weaviate.yml up -d
+#   docker-compose -f docker-compose.weaviate.yml down
+
+services:
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.27.0
+    container_name: weaviate-mcp-dev
+    ports:
+      - '8080:8080'
+      - '50051:50051'
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+    restart: unless-stopped
+    environment:
+      # Query settings
+      QUERY_DEFAULTS_LIMIT: 25
+
+      # Performance settings
+      ASYNC_INDEXING: 'true'
+
+      # Authentication (disabled for development)
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+
+      # Data persistence
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+
+      # Vectorizer configuration
+      DEFAULT_VECTORIZER_MODULE: 'text2vec-openai'
+      ENABLE_MODULES: 'text2vec-openai,generative-openai'
+
+      # Cluster settings
+      CLUSTER_HOSTNAME: 'node1'
+
+      # OpenAI integration (set your API key in .env file)
+      OPENAI_APIKEY: ${WEAVIATE_OPENAI_API_KEY:-}
+
+      # Additional performance settings
+      TRACK_VECTOR_DIMENSIONS: 'true'
+      REINDEX_VECTOR_DIMENSIONS_AT_STARTUP: 'false'
+
+      # Logging
+      LOG_LEVEL: 'info'
+
+      # CORS settings for development
+      ORIGIN: '*'
+
+      # Resource limits
+      GOMAXPROCS: '4'
+
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'wget',
+          '--no-verbose',
+          '--tries=3',
+          '--spider',
+          'http://localhost:8080/v1/.well-known/ready',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    # Resource limits for development
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+
+  # Optional: Redis for caching (if needed for advanced features)
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis-mcp-dev
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+
+volumes:
+  weaviate_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/weaviate
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data/redis
+
+# Networks (optional - using default bridge network)
+networks:
+  default:
+    name: weaviate-mcp-network
+    driver: bridge

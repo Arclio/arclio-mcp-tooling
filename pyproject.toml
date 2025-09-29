@@ -33,6 +33,7 @@ minversion = "7.0"
 testpaths = ["tests"]
 pythonpath = [
     ".",
+    "packages/aws-s3-mcp/src",
     "packages/google-workspace-mcp/src",
     "packages/markdowndeck/src",
     "packages/weaviate-mcp/src",
@@ -60,12 +61,14 @@ directory = "coverage_html"
 [tool.uv.workspace]
 # List all workspace packages
 members = [
+    "packages/aws-s3-mcp",
     "packages/google-workspace-mcp",
     "packages/markdowndeck",
     "packages/weaviate-mcp",
 ]
 
 [tool.uv.sources]
+aws-s3-mcp = { workspace = true }
 google-workspace-mcp = {workspace = true}
 markdowndeck = { workspace = true }
 weaviate-mcp = { workspace = true }
