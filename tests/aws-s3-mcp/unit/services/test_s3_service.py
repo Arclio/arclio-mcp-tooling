@@ -249,3 +249,161 @@ class TestS3Service:
             service._is_text_content("application/octet-stream", b"Hello\x00World")
             is False
         )
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
+    @patch("aws_s3_mcp.services.s3_service.config")
+    async def test_get_text_content_success_text_file(
+        self, mock_config, mock_session_class
+    ):
+        """Test successful text content retrieval for a text file."""
+        mock_config.s3_buckets = None
+        mock_config.aws_region = "us-east-1"
+
+        # Mock S3 response with text content
+        text_content = "# Sample Markdown\n\nThis is a test document."
+        mock_response = {
+            "Body": AsyncMock(),
+            "ContentType": "text/markdown",
+        }
+        mock_response["Body"].read = AsyncMock(
+            return_value=text_content.encode("utf-8")
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get_object = AsyncMock(return_value=mock_response)
+
+        mock_session = MagicMock()
+        mock_session.client.return_value.__aenter__.return_value = mock_client
+        mock_session.client.return_value.__aexit__.return_value = None
+        mock_session.get_credentials.return_value = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        service = S3Service()
+        result = await service.get_text_content("test-bucket", "docs/sample.md")
+
+        assert "error" not in result or result.get("error") is False
+        assert result["content"] == text_content
+        assert result["mime_type"] == "text/markdown"
+        assert result["size"] == len(text_content.encode("utf-8"))
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
+    @patch("aws_s3_mcp.services.s3_service.config")
+    async def test_get_text_content_fails_for_binary_file(
+        self, mock_config, mock_session_class
+    ):
+        """Test that get_text_content fails for binary files (e.g., PDF)."""
+        mock_config.s3_buckets = None
+        mock_config.aws_region = "us-east-1"
+
+        # Mock S3 response with PDF content
+        pdf_content = b"%PDF-1.4\n%binary content here"
+        mock_response = {
+            "Body": AsyncMock(),
+            "ContentType": "application/pdf",
+        }
+        mock_response["Body"].read = AsyncMock(return_value=pdf_content)
+
+        mock_client = AsyncMock()
+        mock_client.get_object = AsyncMock(return_value=mock_response)
+
+        mock_session = MagicMock()
+        mock_session.client.return_value.__aenter__.return_value = mock_client
+        mock_session.client.return_value.__aexit__.return_value = None
+        mock_session.get_credentials.return_value = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        service = S3Service()
+        result = await service.get_text_content("test-bucket", "docs/report.pdf")
+
+        assert result["error"] is True
+        assert "not a text file" in result["message"]
+        assert result["details"]["mime_type"] == "application/pdf"
+        assert "s3_get_object_content" in result["details"]["suggestion"]
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
+    @patch("aws_s3_mcp.services.s3_service.config")
+    async def test_get_text_content_fails_for_invalid_utf8(
+        self, mock_config, mock_session_class
+    ):
+        """Test that get_text_content fails for files that can't be decoded as UTF-8."""
+        mock_config.s3_buckets = None
+        mock_config.aws_region = "us-east-1"
+
+        # Mock S3 response with content that looks like text but isn't valid UTF-8
+        invalid_utf8_content = b"Hello\x80\x81World"
+        mock_response = {
+            "Body": AsyncMock(),
+            "ContentType": "text/plain",
+        }
+        mock_response["Body"].read = AsyncMock(return_value=invalid_utf8_content)
+
+        mock_client = AsyncMock()
+        mock_client.get_object = AsyncMock(return_value=mock_response)
+
+        mock_session = MagicMock()
+        mock_session.client.return_value.__aenter__.return_value = mock_client
+        mock_session.client.return_value.__aexit__.return_value = None
+        mock_session.get_credentials.return_value = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        service = S3Service()
+        result = await service.get_text_content("test-bucket", "docs/invalid.txt")
+
+        assert result["error"] is True
+        assert "could not be decoded as UTF-8" in result["message"]
+        assert "decode_error" in result["details"]
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
+    @patch("aws_s3_mcp.services.s3_service.config")
+    async def test_get_text_content_json_file(self, mock_config, mock_session_class):
+        """Test successful text content retrieval for JSON file."""
+        mock_config.s3_buckets = None
+        mock_config.aws_region = "us-east-1"
+
+        json_content = '{"name": "test", "value": 123}'
+        mock_response = {
+            "Body": AsyncMock(),
+            "ContentType": "application/json",
+        }
+        mock_response["Body"].read = AsyncMock(
+            return_value=json_content.encode("utf-8")
+        )
+
+        mock_client = AsyncMock()
+        mock_client.get_object = AsyncMock(return_value=mock_response)
+
+        mock_session = MagicMock()
+        mock_session.client.return_value.__aenter__.return_value = mock_client
+        mock_session.client.return_value.__aexit__.return_value = None
+        mock_session.get_credentials.return_value = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        service = S3Service()
+        result = await service.get_text_content("test-bucket", "config/settings.json")
+
+        assert "error" not in result or result.get("error") is False
+        assert result["content"] == json_content
+        assert result["mime_type"] == "application/json"
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
+    @patch("aws_s3_mcp.services.s3_service.config")
+    async def test_get_text_content_bucket_not_configured(
+        self, mock_config, mock_session_class
+    ):
+        """Test that get_text_content fails when bucket is not in configured list."""
+        mock_config.s3_buckets = ["allowed-bucket"]
+
+        mock_session = MagicMock()
+        mock_session.get_credentials.return_value = MagicMock()
+        mock_session_class.return_value = mock_session
+
+        service = S3Service()
+        result = await service.get_text_content("forbidden-bucket", "test.txt")
+
+        assert result["error"] is True
+        assert "not in configured bucket list" in result["message"]

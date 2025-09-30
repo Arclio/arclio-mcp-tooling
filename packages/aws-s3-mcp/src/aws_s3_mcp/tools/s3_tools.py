@@ -106,3 +106,152 @@ async def s3_get_object_content(bucket_name: str, key: str) -> dict[str, Any]:
         f"({result['size']} bytes, {result['encoding']} encoding)"
     )
     return result
+
+
+@mcp.tool()
+async def s3_get_text_content(bucket_name: str, key: str) -> dict[str, Any]:
+    """
+    Retrieve the text content of a specific object from S3 (text files only).
+
+    This tool is specifically designed for text file retrieval and will fail
+    for binary files (PDFs, images, etc.). Use this when you need plain text
+    content for processing, such as ingesting into vector databases.
+
+    Args:
+        bucket_name: The S3 bucket name
+        key: The full key path of the object (e.g., 'documents/article.txt')
+
+    Returns:
+        Dictionary with 'content', 'mime_type', and 'size'
+        - content: UTF-8 decoded text content (always a string, never base64)
+        - mime_type: Detected MIME type (e.g., 'text/plain', 'text/markdown')
+        - size: Size of the object in bytes
+
+    Raises:
+        ValueError: If the file is not a text file or cannot be decoded as UTF-8
+
+    Examples:
+        # Get text file content
+        result = await s3_get_text_content(
+            bucket_name="my-bucket",
+            key="documents/article.txt"
+        )
+        print(result["content"])  # Prints the actual text
+
+        # For binary files, use s3_get_object_content instead
+    """
+    logger.info(f"Getting text content for object '{key}' from bucket '{bucket_name}'")
+
+    # Validate inputs
+    if not bucket_name or not isinstance(bucket_name, str):
+        raise ValueError("bucket_name must be a non-empty string")
+
+    if not key or not isinstance(key, str):
+        raise ValueError("key must be a non-empty string")
+
+    # Call service layer
+    result = await s3_service.get_text_content(bucket_name, key)
+
+    # Handle service errors by raising ValueError for MCP
+    if result.get("error"):
+        error_message = result.get("message", "Unknown error occurred")
+        details = result.get("details", {})
+
+        # Provide helpful context for common errors
+        if (
+            "not a text file" in error_message
+            or "could not be decoded" in error_message
+        ):
+            suggestion = details.get("suggestion", "")
+            logger.error(f"S3 get text content failed: {error_message}. {suggestion}")
+            raise ValueError(f"{error_message}. {suggestion}")
+        logger.error(f"S3 get text content failed: {error_message}")
+        raise ValueError(error_message)
+
+    logger.info(
+        f"Successfully retrieved text content for object '{key}' from bucket '{bucket_name}' "
+        f"({result['size']} bytes)"
+    )
+    return result
+
+
+@mcp.tool()
+async def s3_extract_pdf_text(bucket_name: str, key: str) -> dict[str, Any]:
+    """
+    Extract text content from a PDF file in S3.
+
+    This tool downloads a PDF document from S3 and extracts all text content.
+    Use this for processing PDF documents for text analysis, search indexing,
+    or ingestion into vector databases like Weaviate.
+
+    Args:
+        bucket_name: The S3 bucket name
+        key: The full key path of the PDF file (e.g., 'documents/report.pdf')
+
+    Returns:
+        Dictionary with 'text', 'page_count', and 'size'
+        - text: Extracted text content from all pages
+        - page_count: Number of pages in the PDF
+        - size: Size of the PDF file in bytes
+
+    Raises:
+        ValueError: If the file is not a valid PDF, empty, or extraction fails
+
+    Examples:
+        # Extract text from a PDF for analysis
+        result = await s3_extract_pdf_text(
+            bucket_name="my-bucket",
+            key="research/paper.pdf"
+        )
+        print(f"Extracted {len(result['text'])} characters from {result['page_count']} pages")
+
+        # Use with Weaviate ingestion
+        pdf_text = await s3_extract_pdf_text(
+            bucket_name="documents",
+            key="reports/annual-report-2024.pdf"
+        )
+        await weaviate_ingest_text_content(
+            collection_name="Documents",
+            content=pdf_text["text"],
+            source_identifier=key
+        )
+
+    Note:
+        - This tool extracts text from text-based PDFs only
+        - For scanned PDFs (images), OCR would be required
+        - Large PDFs may take longer to process
+    """
+    logger.info(f"Extracting PDF text from object '{key}' in bucket '{bucket_name}'")
+
+    # Validate inputs
+    if not bucket_name or not isinstance(bucket_name, str):
+        raise ValueError("bucket_name must be a non-empty string")
+
+    if not key or not isinstance(key, str):
+        raise ValueError("key must be a non-empty string")
+
+    # Call service layer
+    result = await s3_service.extract_pdf_text(bucket_name, key)
+
+    # Handle service errors by raising ValueError for MCP
+    if result.get("error"):
+        error_message = result.get("message", "Unknown error occurred")
+        details = result.get("details", {})
+
+        # Provide helpful context for common errors
+        if (
+            "does not appear to be a valid PDF" in error_message
+            or "appears to be empty" in error_message
+            or "Failed to parse PDF" in error_message
+        ):
+            suggestion = details.get("suggestion", "")
+            logger.error(f"S3 PDF extraction failed: {error_message}. {suggestion}")
+            raise ValueError(f"{error_message}. {suggestion}")
+        logger.error(f"S3 PDF extraction failed: {error_message}")
+        raise ValueError(error_message)
+
+    logger.info(
+        f"Successfully extracted text from PDF '{key}' in bucket '{bucket_name}' "
+        f"({result['page_count']} pages, {len(result['text'])} characters)"
+    )
+    return result

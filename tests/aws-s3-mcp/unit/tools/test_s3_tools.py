@@ -8,7 +8,11 @@ error handling, and proper service integration.
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from aws_s3_mcp.tools.s3_tools import s3_get_object_content, s3_list_objects
+from aws_s3_mcp.tools.s3_tools import (
+    s3_get_object_content,
+    s3_get_text_content,
+    s3_list_objects,
+)
 
 
 class TestS3ListObjectsTool:
@@ -200,3 +204,142 @@ class TestS3GetObjectContentTool:
 
         with pytest.raises(ValueError, match="Object not found"):
             await s3_get_object_content("test-bucket", "nonexistent.txt")
+
+
+class TestS3GetTextContentTool:
+    """Test cases for s3_get_text_content MCP tool."""
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.tools.s3_tools.s3_service")
+    async def test_get_text_content_success(self, mock_service):
+        """Test successful text-only content retrieval through MCP tool."""
+        # Mock service response for text file
+        mock_service.get_text_content = AsyncMock(
+            return_value={
+                "content": "# Sample Document\n\nThis is a markdown file.",
+                "mime_type": "text/markdown",
+                "size": 43,
+            }
+        )
+
+        result = await s3_get_text_content("test-bucket", "docs/sample.md")
+
+        assert result["content"] == "# Sample Document\n\nThis is a markdown file."
+        assert result["mime_type"] == "text/markdown"
+        assert result["size"] == 43
+        assert "encoding" not in result  # Text-only tool doesn't return encoding
+
+        # Verify service was called with correct parameters
+        mock_service.get_text_content.assert_called_once_with(
+            "test-bucket", "docs/sample.md"
+        )
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.tools.s3_tools.s3_service")
+    async def test_get_text_content_json_file(self, mock_service):
+        """Test text content retrieval for JSON file."""
+        json_content = '{"name": "test", "value": 123}'
+        mock_service.get_text_content = AsyncMock(
+            return_value={
+                "content": json_content,
+                "mime_type": "application/json",
+                "size": len(json_content),
+            }
+        )
+
+        result = await s3_get_text_content("test-bucket", "config/settings.json")
+
+        assert result["content"] == json_content
+        assert result["mime_type"] == "application/json"
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.tools.s3_tools.s3_service")
+    async def test_get_text_content_fails_for_binary(self, mock_service):
+        """Test that tool properly handles binary file error from service."""
+        # Mock service error response for binary file
+        mock_service.get_text_content = AsyncMock(
+            return_value={
+                "error": True,
+                "message": "Object 'report.pdf' is not a text file (detected MIME type: application/pdf)",
+                "details": {
+                    "bucket_name": "test-bucket",
+                    "key": "report.pdf",
+                    "mime_type": "application/pdf",
+                    "size": 123456,
+                    "suggestion": "Use s3_get_object_content for binary files",
+                },
+            }
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            await s3_get_text_content("test-bucket", "report.pdf")
+
+        # Verify error message includes suggestion
+        assert "not a text file" in str(exc_info.value)
+        assert "s3_get_object_content" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.tools.s3_tools.s3_service")
+    async def test_get_text_content_fails_for_invalid_utf8(self, mock_service):
+        """Test that tool properly handles UTF-8 decode error from service."""
+        # Mock service error response for invalid UTF-8
+        mock_service.get_text_content = AsyncMock(
+            return_value={
+                "error": True,
+                "message": "Object 'invalid.txt' could not be decoded as UTF-8 text",
+                "details": {
+                    "bucket_name": "test-bucket",
+                    "key": "invalid.txt",
+                    "mime_type": "text/plain",
+                    "decode_error": "invalid start byte",
+                    "suggestion": "File may be using a different encoding or is binary",
+                },
+            }
+        )
+
+        with pytest.raises(ValueError) as exc_info:
+            await s3_get_text_content("test-bucket", "invalid.txt")
+
+        # Verify error message includes suggestion
+        assert "could not be decoded" in str(exc_info.value)
+        assert "different encoding" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_get_text_content_invalid_bucket_name(self):
+        """Test tool validation for invalid bucket name."""
+        with pytest.raises(ValueError, match="bucket_name must be a non-empty string"):
+            await s3_get_text_content("", "test.txt")
+
+        with pytest.raises(ValueError, match="bucket_name must be a non-empty string"):
+            await s3_get_text_content(None, "test.txt")
+
+        with pytest.raises(ValueError, match="bucket_name must be a non-empty string"):
+            await s3_get_text_content(123, "test.txt")
+
+    @pytest.mark.asyncio
+    async def test_get_text_content_invalid_key(self):
+        """Test tool validation for invalid object key."""
+        with pytest.raises(ValueError, match="key must be a non-empty string"):
+            await s3_get_text_content("test-bucket", "")
+
+        with pytest.raises(ValueError, match="key must be a non-empty string"):
+            await s3_get_text_content("test-bucket", None)
+
+        with pytest.raises(ValueError, match="key must be a non-empty string"):
+            await s3_get_text_content("test-bucket", 123)
+
+    @pytest.mark.asyncio
+    @patch("aws_s3_mcp.tools.s3_tools.s3_service")
+    async def test_get_text_content_service_error(self, mock_service):
+        """Test tool handling of general service errors."""
+        # Mock service error response
+        mock_service.get_text_content = AsyncMock(
+            return_value={
+                "error": True,
+                "message": "Object not found",
+                "details": {"error_code": "NoSuchKey"},
+            }
+        )
+
+        with pytest.raises(ValueError, match="Object not found"):
+            await s3_get_text_content("test-bucket", "nonexistent.txt")

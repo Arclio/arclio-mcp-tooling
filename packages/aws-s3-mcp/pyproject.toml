@@ -15,6 +15,7 @@ license = {text = "MIT"}
 dependencies = [
     "aioboto3>=13.2.0",
     "mcp>=1.7.0",
+    "pypdf>=5.1.0",
     "python-dotenv>=1.0.1",
 ]
 

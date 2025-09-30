@@ -20,7 +20,7 @@ SOPS := sops
 # --- Directories & Package Definitions ---
 PACKAGES_ROOT_DIR := packages
 TESTS_ROOT_DIR := tests
-PKG_NAMES := google-workspace-mcp markdowndeck weaviate-mcp
+PKG_NAMES := aws-s3-mcp google-workspace-mcp markdowndeck weaviate-mcp
 
 # --- Color Codes ---
 GREEN  := $(shell tput -Txterm setaf 2)
@@ -119,7 +119,7 @@ _run-tests: setup
 	if [ -n "$(COVERAGE)" ]; then COV_PKG=$$(echo $$TEST_PATH | cut -d'/' -f2); COV_ARG="--cov=packages/$${COV_PKG}/src --cov-report=$(COVERAGE)"; fi; \
 	echo "${CYAN}Executing pytest on path: '$$TEST_PATH' with extra args: '$$EXTRA_PYTEST_ARGS'${RESET}"; \
 	. "$(VENV_DIR)/bin/activate"; \
-	$(PYTEST) -v $$TEST_PATH $$COV_ARG $$EXTRA_PYTEST_ARGS; \
+	timeout 300 $(PYTEST) -v $$TEST_PATH $$COV_ARG $$EXTRA_PYTEST_ARGS; \
 	echo "${GREEN}Tests completed.${RESET}"
 
 test:
@@ -177,6 +177,10 @@ run-google-workspace: setup
 run-weaviate: setup
 	@echo "${CYAN}Running weaviate-mcp server...${RESET}"
 	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m weaviate_mcp
+
+run-aws-s3: setup
+	@echo "${CYAN}Running aws-s3-mcp server...${RESET}"
+	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m aws_s3_mcp
 
 encrypt-pkg decrypt-pkg: setup
 	@CMD_NAME=$@; PKG_DIR_NAME="$(PKG_DIR)"; \
