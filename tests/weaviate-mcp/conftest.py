@@ -2,10 +2,12 @@
 Pytest configuration and fixtures for weaviate-mcp tests.
 """
 
+import contextlib
 import os
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import pytest_asyncio
 from weaviate import WeaviateAsyncClient
 from weaviate.classes.config import DataType, Property
 
@@ -186,3 +188,66 @@ def sample_search_response():
 
 # Remove custom event_loop fixture to avoid deprecation warning
 # pytest-asyncio will handle event loop creation automatically
+
+
+# Integration test fixtures for real Weaviate instance
+
+
+@pytest_asyncio.fixture
+async def weaviate_service(mock_env_vars):
+    """Create a real WeaviateService instance for integration tests."""
+    from weaviate_mcp.services.weaviate_service import WeaviateService
+
+    service = WeaviateService()
+    await service._ensure_connected()
+    yield service
+    await service.close()
+
+
+@pytest_asyncio.fixture
+async def weaviate_test_collection(weaviate_service):
+    """Create a test collection for integration tests."""
+    collection_name = "BatchCheckTestCollection"
+
+    # Create collection with standard document properties
+    properties = [
+        Property(name="content", data_type=DataType.TEXT),
+        Property(name="source_pdf", data_type=DataType.TEXT),
+        Property(name="chunk_index", data_type=DataType.INT),
+        Property(name="title", data_type=DataType.TEXT),
+    ]
+
+    # Delete if exists
+    with contextlib.suppress(Exception):
+        await weaviate_service.delete_collection(collection_name)
+
+    # Create collection
+    result = await weaviate_service.create_collection(
+        name=collection_name,
+        description="Test collection for batch check tests",
+        properties=properties,
+    )
+
+    assert result.get("success"), f"Failed to create test collection: {result}"
+
+    yield collection_name
+
+    # Cleanup
+    with contextlib.suppress(Exception):
+        await weaviate_service.delete_collection(collection_name)
+
+
+@pytest.fixture
+def sample_documents():
+    """Sample document file names for testing."""
+    return [
+        "research_paper_001.pdf",
+        "research_paper_002.pdf",
+        "research_paper_003.pdf",
+    ]
+
+
+@pytest.fixture
+def large_file_list():
+    """Generate a large list of file names for stress testing."""
+    return [f"document_{i:04d}.pdf" for i in range(100)]

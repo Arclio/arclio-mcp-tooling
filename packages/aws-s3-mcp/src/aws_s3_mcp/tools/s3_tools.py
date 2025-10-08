@@ -169,8 +169,199 @@ async def s3_get_text_content(bucket_name: str, key: str) -> dict[str, Any]:
         raise ValueError(error_message)
 
     logger.info(
-        f"Successfully retrieved text content for object '{key}' from bucket '{bucket_name}' "
-        f"({result['size']} bytes)"
+        f"Successfully retrieved text content for object '{key}' from bucket '{bucket_name}' ({result['size']} bytes)"
+    )
+    return result
+
+
+@mcp.tool()
+async def s3_count_objects(bucket_name: str, prefix: str = "") -> dict[str, Any]:
+    """
+    Count total number of objects in an S3 bucket.
+
+    This tool efficiently counts all objects in a bucket (or with a specific prefix)
+    without loading object content. Useful for understanding bucket size before
+    processing or pagination.
+
+    Args:
+        bucket_name: The S3 bucket name
+        prefix: Limits count to keys beginning with this prefix (default: "")
+
+    Returns:
+        Dictionary with:
+        - count: Total number of objects
+        - bucket_name: Echo of the bucket name
+        - prefix: Echo of the prefix filter
+
+    Raises:
+        ValueError: If bucket doesn't exist or access is denied
+
+    Examples:
+        # Count all objects in bucket
+        result = await s3_count_objects(bucket_name="my-pdfs")
+        # Result: {"count": 1543, "bucket_name": "my-pdfs", "prefix": ""}
+
+        # Count objects with specific prefix
+        result = await s3_count_objects(
+            bucket_name="my-pdfs",
+            prefix="reports/"
+        )
+        # Result: {"count": 287, "bucket_name": "my-pdfs", "prefix": "reports/"}
+
+    Use Cases:
+        - Determine total files before starting batch processing
+        - Calculate how many batches will be needed
+        - Monitor bucket growth over time
+        - Verify upload completion
+    """
+    logger.info(f"Counting objects in bucket '{bucket_name}' with prefix '{prefix}'")
+
+    # Validate inputs
+    if not bucket_name or not isinstance(bucket_name, str):
+        raise ValueError("bucket_name must be a non-empty string")
+
+    if not isinstance(prefix, str):
+        raise ValueError("prefix must be a string")
+
+    # Call service layer
+    result = await s3_service.count_objects(bucket_name, prefix)
+
+    # Handle service errors by raising ValueError for MCP
+    if result.get("error"):
+        error_message = result.get("message", "Unknown error occurred")
+        logger.error(f"S3 count objects failed: {error_message}")
+        raise ValueError(error_message)
+
+    logger.info(
+        f"Successfully counted {result['count']} objects in bucket '{bucket_name}'"
+    )
+    return result
+
+
+@mcp.tool()
+async def s3_list_objects_paginated(
+    bucket_name: str,
+    prefix: str = "",
+    start_index: int = 0,
+    batch_size: int = 100,
+    continuation_token: str = "",
+) -> dict[str, Any]:
+    """
+    List objects in S3 with user-friendly numeric index pagination.
+
+    This tool provides INDEX-BASED pagination where you specify numeric indices
+    (0, 100, 200) instead of filenames. Perfect for processing large buckets
+    in manageable batches.
+
+    KEY FEATURES:
+    - 🎯 Numeric indices (0-99, 100-199, 200-299) - intuitive!
+    - ✅ Consistent results (same indices = same files, if bucket unchanged)
+    - 🚀 Efficient (only fetches requested batch)
+    - 📦 No bucket size limit
+    - 🔄 Deterministic (no LLM needed)
+
+    Args:
+        bucket_name: The S3 bucket name
+        prefix: Limits response to keys beginning with this prefix (default: "")
+        start_index: Zero-based index to start from - use 0, 100, 200, etc.
+        batch_size: Number of objects to return per batch (default: 100)
+        continuation_token: Opaque token from previous call (default: "")
+                           Copy this from the previous response's continuation_token
+
+    Returns:
+        Dictionary with:
+        - objects: Array of object metadata (key, size, last_modified, etag)
+        - keys: Convenience array of just the file keys
+        - count: Number of objects in THIS batch
+        - start_index: Index this batch started at (echoed from input)
+        - next_start_index: Index for next batch (start_index + batch_size)
+        - has_more: True if more objects exist beyond this batch
+        - continuation_token: Opaque token to pass to next call
+
+    Raises:
+        ValueError: If bucket doesn't exist or access is denied
+
+    Examples:
+        # First batch: Get files 0-99
+        batch1 = await s3_list_objects_paginated(
+            bucket_name="my-pdfs",
+            start_index=0,
+            batch_size=100
+        )
+        # Result: {
+        #   "keys": ["doc_000.pdf", ..., "doc_099.pdf"],
+        #   "count": 100,
+        #   "start_index": 0,
+        #   "next_start_index": 100,
+        #   "has_more": True,
+        #   "continuation_token": "eyJsYXN0X2tl...="
+        # }
+
+        # Second batch: Get files 100-199
+        batch2 = await s3_list_objects_paginated(
+            bucket_name="my-pdfs",
+            start_index=100,  # Simple numeric index!
+            batch_size=100,
+            continuation_token=batch1["continuation_token"]  # Copy from previous
+        )
+        # Result: {
+        #   "keys": ["doc_100.pdf", ..., "doc_199.pdf"],
+        #   "start_index": 100,
+        #   "next_start_index": 200,
+        #   ...
+        # }
+
+    Workflow Usage:
+        1. Run with start_index=0 (no token needed)
+        2. Process the returned files
+        3. If has_more=True, run again with:
+           - start_index = previous next_start_index
+           - continuation_token = previous continuation_token
+        4. Repeat until has_more=False
+
+    Consistency Guarantee:
+        As long as no files are added/removed between calls, the same start_index
+        always returns the same files (in alphabetical order by filename).
+
+    Note:
+        The continuation_token is an opaque string that internally stores the
+        last filename. You don't need to understand it - just copy it from the
+        previous response.
+    """
+    logger.info(
+        f"Listing objects (paginated) in bucket '{bucket_name}' start_index={start_index}, batch_size={batch_size}"
+    )
+
+    # Validate inputs
+    if not bucket_name or not isinstance(bucket_name, str):
+        raise ValueError("bucket_name must be a non-empty string")
+
+    if not isinstance(prefix, str):
+        raise ValueError("prefix must be a string")
+
+    if not isinstance(start_index, int) or start_index < 0:
+        raise ValueError("start_index must be a non-negative integer")
+
+    if not isinstance(batch_size, int) or batch_size <= 0:
+        raise ValueError("batch_size must be a positive integer")
+
+    if not isinstance(continuation_token, str):
+        raise ValueError("continuation_token must be a string")
+
+    # Call service layer
+    result = await s3_service.list_objects_paginated(
+        bucket_name, prefix, start_index, batch_size, continuation_token
+    )
+
+    # Handle service errors by raising ValueError for MCP
+    if result.get("error"):
+        error_message = result.get("message", "Unknown error occurred")
+        logger.error(f"S3 list objects paginated failed: {error_message}")
+        raise ValueError(error_message)
+
+    logger.info(
+        f"Successfully listed {result['count']} objects from bucket '{bucket_name}' "
+        f"(start_index={start_index}, has_more={result['has_more']})"
     )
     return result
 

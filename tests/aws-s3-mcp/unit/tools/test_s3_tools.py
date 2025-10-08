@@ -136,9 +136,7 @@ class TestS3GetObjectContentTool:
         assert result["size"] == 20
 
         # Verify service was called with correct parameters
-        mock_service.get_object_content.assert_called_once_with(
-            "test-bucket", "test.txt"
-        )
+        mock_service.get_object_content.assert_called_once_with("test-bucket", "test.txt")
 
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.tools.s3_tools.s3_service")
@@ -161,9 +159,7 @@ class TestS3GetObjectContentTool:
         assert len(result["content"]) > 0
 
         # Verify service was called with correct parameters
-        mock_service.get_object_content.assert_called_once_with(
-            "test-bucket", "image.png"
-        )
+        mock_service.get_object_content.assert_called_once_with("test-bucket", "image.png")
 
     @pytest.mark.asyncio
     async def test_get_object_content_invalid_bucket_name(self):
@@ -230,9 +226,7 @@ class TestS3GetTextContentTool:
         assert "encoding" not in result  # Text-only tool doesn't return encoding
 
         # Verify service was called with correct parameters
-        mock_service.get_text_content.assert_called_once_with(
-            "test-bucket", "docs/sample.md"
-        )
+        mock_service.get_text_content.assert_called_once_with("test-bucket", "docs/sample.md")
 
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.tools.s3_tools.s3_service")

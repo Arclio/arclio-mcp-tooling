@@ -17,9 +17,7 @@ class TestMCPToolsIntegration:
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_s3_list_objects_mcp_integration(
-        self, mock_config, mock_session_class
-    ):
+    async def test_s3_list_objects_mcp_integration(self, mock_config, mock_session_class):
         """Test s3_list_objects tool through MCP framework."""
         # Setup configuration
         mock_config.s3_buckets = None
@@ -57,9 +55,7 @@ class TestMCPToolsIntegration:
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_s3_get_object_content_mcp_integration(
-        self, mock_config, mock_session_class
-    ):
+    async def test_s3_get_object_content_mcp_integration(self, mock_config, mock_session_class):
         """Test s3_get_object_content tool through MCP framework."""
         # Setup configuration
         mock_config.s3_buckets = None

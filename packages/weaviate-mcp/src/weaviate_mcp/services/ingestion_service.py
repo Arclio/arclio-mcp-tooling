@@ -68,9 +68,7 @@ class IngestionService:
             metadata = content_result["metadata"]
 
             # Step 2: Perform optimal chunking
-            chunks = self._create_optimal_chunks(
-                content, max_tokens_per_chunk, chunk_overlap
-            )
+            chunks = self._create_optimal_chunks(content, max_tokens_per_chunk, chunk_overlap)
 
             if not chunks:
                 return {
@@ -103,9 +101,7 @@ class IngestionService:
             if insert_result.get("error"):
                 return insert_result
 
-            logger.info(
-                f"Successfully ingested {len(chunks)} chunks from {url} into collection '{collection_name}'"
-            )
+            logger.info(f"Successfully ingested {len(chunks)} chunks from {url} into collection '{collection_name}'")
 
             return {
                 "success": True,
@@ -159,9 +155,7 @@ class IngestionService:
 
                 # Handle different content types
                 if "text/html" in content_type:
-                    content, html_metadata = self._extract_html_content(
-                        response.text, url
-                    )
+                    content, html_metadata = self._extract_html_content(response.text, url)
                     metadata.update(html_metadata)
                 elif "text/plain" in content_type:
                     content = response.text
@@ -325,9 +319,7 @@ class IngestionService:
                     current_tokens = 0
 
                 # Split large paragraph
-                sub_chunks = self._split_large_text(
-                    paragraph, max_tokens, overlap_tokens
-                )
+                sub_chunks = self._split_large_text(paragraph, max_tokens, overlap_tokens)
                 chunks.extend(sub_chunks)
                 continue
 
@@ -338,9 +330,7 @@ class IngestionService:
 
                 # Start new chunk with overlap
                 overlap_text = self._get_overlap_text(current_chunk, overlap_tokens)
-                current_chunk = (
-                    overlap_text + "\n\n" + paragraph if overlap_text else paragraph
-                )
+                current_chunk = overlap_text + "\n\n" + paragraph if overlap_text else paragraph
                 current_tokens = len(self._encoding.encode(current_chunk))
             else:
                 # Add paragraph to current chunk
@@ -366,9 +356,7 @@ class IngestionService:
         sentences = re.split(r"(?<=[.!?])\s+", text)
         return [s.strip() for s in sentences if s.strip()]
 
-    def _split_large_text(
-        self, text: str, max_tokens: int, overlap_tokens: int
-    ) -> list[str]:
+    def _split_large_text(self, text: str, max_tokens: int, overlap_tokens: int) -> list[str]:
         """
         Split text that's too large into smaller chunks.
 
@@ -405,9 +393,7 @@ class IngestionService:
 
                 # Start new chunk with overlap
                 overlap_text = self._get_overlap_text(current_chunk, overlap_tokens)
-                current_chunk = (
-                    overlap_text + " " + sentence if overlap_text else sentence
-                )
+                current_chunk = overlap_text + " " + sentence if overlap_text else sentence
                 current_tokens = len(self._encoding.encode(current_chunk))
             else:
                 if current_chunk:

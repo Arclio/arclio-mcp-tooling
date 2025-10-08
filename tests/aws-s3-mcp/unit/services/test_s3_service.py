@@ -41,9 +41,7 @@ class TestS3Service:
 
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_list_objects_success(
-        self, mock_config, mock_session_class, mock_s3_client
-    ):
+    async def test_list_objects_success(self, mock_config, mock_session_class, mock_s3_client):
         """Test successful object listing."""
         # Setup mocks
         mock_config.s3_buckets = None
@@ -75,9 +73,7 @@ class TestS3Service:
 
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_list_objects_bucket_not_configured(
-        self, mock_config, mock_session_class
-    ):
+    async def test_list_objects_bucket_not_configured(self, mock_config, mock_session_class):
         """Test that listing fails when bucket is not in configured list."""
         mock_config.s3_buckets = ["allowed-bucket"]
         mock_session = MagicMock()
@@ -105,9 +101,7 @@ class TestS3Service:
                 "Message": "The specified bucket does not exist",
             }
         }
-        mock_client.list_objects_v2.side_effect = ClientError(
-            error_response, "ListObjectsV2"
-        )
+        mock_client.list_objects_v2.side_effect = ClientError(error_response, "ListObjectsV2")
 
         mock_session = MagicMock()
         mock_session.client.return_value.__aenter__.return_value = mock_client
@@ -124,9 +118,7 @@ class TestS3Service:
 
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_object_content_text_file(
-        self, mock_config, mock_session_class, sample_text_content
-    ):
+    async def test_get_object_content_text_file(self, mock_config, mock_session_class, sample_text_content):
         """Test getting content of a text file."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -157,9 +149,7 @@ class TestS3Service:
 
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_object_content_binary_file(
-        self, mock_config, mock_session_class, sample_binary_content
-    ):
+    async def test_get_object_content_binary_file(self, mock_config, mock_session_class, sample_binary_content):
         """Test getting content of a binary file."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -191,9 +181,7 @@ class TestS3Service:
 
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_object_content_no_such_key(
-        self, mock_config, mock_session_class
-    ):
+    async def test_get_object_content_no_such_key(self, mock_config, mock_session_class):
         """Test handling of missing object key."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -240,22 +228,15 @@ class TestS3Service:
         assert service._is_text_content("application/pdf", b"test") is False
 
         # Test heuristic for unknown MIME type with text content
-        assert (
-            service._is_text_content("application/octet-stream", b"Hello World") is True
-        )
+        assert service._is_text_content("application/octet-stream", b"Hello World") is True
 
         # Test heuristic for unknown MIME type with binary content (null bytes)
-        assert (
-            service._is_text_content("application/octet-stream", b"Hello\x00World")
-            is False
-        )
+        assert service._is_text_content("application/octet-stream", b"Hello\x00World") is False
 
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_text_content_success_text_file(
-        self, mock_config, mock_session_class
-    ):
+    async def test_get_text_content_success_text_file(self, mock_config, mock_session_class):
         """Test successful text content retrieval for a text file."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -266,9 +247,7 @@ class TestS3Service:
             "Body": AsyncMock(),
             "ContentType": "text/markdown",
         }
-        mock_response["Body"].read = AsyncMock(
-            return_value=text_content.encode("utf-8")
-        )
+        mock_response["Body"].read = AsyncMock(return_value=text_content.encode("utf-8"))
 
         mock_client = AsyncMock()
         mock_client.get_object = AsyncMock(return_value=mock_response)
@@ -290,9 +269,7 @@ class TestS3Service:
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_text_content_fails_for_binary_file(
-        self, mock_config, mock_session_class
-    ):
+    async def test_get_text_content_fails_for_binary_file(self, mock_config, mock_session_class):
         """Test that get_text_content fails for binary files (e.g., PDF)."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -325,9 +302,7 @@ class TestS3Service:
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_text_content_fails_for_invalid_utf8(
-        self, mock_config, mock_session_class
-    ):
+    async def test_get_text_content_fails_for_invalid_utf8(self, mock_config, mock_session_class):
         """Test that get_text_content fails for files that can't be decoded as UTF-8."""
         mock_config.s3_buckets = None
         mock_config.aws_region = "us-east-1"
@@ -369,9 +344,7 @@ class TestS3Service:
             "Body": AsyncMock(),
             "ContentType": "application/json",
         }
-        mock_response["Body"].read = AsyncMock(
-            return_value=json_content.encode("utf-8")
-        )
+        mock_response["Body"].read = AsyncMock(return_value=json_content.encode("utf-8"))
 
         mock_client = AsyncMock()
         mock_client.get_object = AsyncMock(return_value=mock_response)
@@ -392,9 +365,7 @@ class TestS3Service:
     @pytest.mark.asyncio
     @patch("aws_s3_mcp.services.s3_service.aioboto3.Session")
     @patch("aws_s3_mcp.services.s3_service.config")
-    async def test_get_text_content_bucket_not_configured(
-        self, mock_config, mock_session_class
-    ):
+    async def test_get_text_content_bucket_not_configured(self, mock_config, mock_session_class):
         """Test that get_text_content fails when bucket is not in configured list."""
         mock_config.s3_buckets = ["allowed-bucket"]
 

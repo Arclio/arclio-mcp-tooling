@@ -88,7 +88,6 @@ class S3Service:
             async with self.session.client(
                 "s3", region_name=config.aws_region, config=self.boto_config
             ) as s3_client:
-
                 logger.debug(
                     f"Listing objects in bucket '{bucket_name}' with prefix '{prefix}'"
                 )
@@ -168,7 +167,6 @@ class S3Service:
             async with self.session.client(
                 "s3", region_name=config.aws_region, config=self.boto_config
             ) as s3_client:
-
                 logger.debug(f"Getting object '{key}' from bucket '{bucket_name}'")
 
                 # Get the object with retry logic
@@ -303,11 +301,8 @@ class S3Service:
                 sample.decode("utf-8")
 
                 # Check for null bytes (common in binary files)
-                if b"\x00" in sample:
-                    return False
-
                 # If we can decode and no null bytes, likely text
-                return True
+                return b"\x00" not in sample
             except UnicodeDecodeError:
                 pass
 
@@ -341,7 +336,6 @@ class S3Service:
             async with self.session.client(
                 "s3", region_name=config.aws_region, config=self.boto_config
             ) as s3_client:
-
                 logger.debug(
                     f"Getting text content for object '{key}' from bucket '{bucket_name}'"
                 )
@@ -410,8 +404,7 @@ class S3Service:
             error_message = e.response["Error"]["Message"]
 
             logger.error(
-                f"S3 client error getting text content for '{key}' from bucket '{bucket_name}': "
-                f"{error_code} - {error_message}"
+                f"S3 client error getting text content for '{key}' from bucket '{bucket_name}': {error_code} - {error_message}"
             )
 
             return {
@@ -431,6 +424,260 @@ class S3Service:
                 "error": True,
                 "message": f"Unexpected error getting text content: {str(e)}",
                 "details": {"bucket_name": bucket_name, "key": key},
+            }
+
+    async def count_objects(self, bucket_name: str, prefix: str = "") -> dict[str, Any]:
+        """
+        Count total number of objects in an S3 bucket.
+
+        Args:
+            bucket_name: Name of the S3 bucket
+            prefix: Object prefix for filtering (default: "")
+
+        Returns:
+            Success: {"count": int, "bucket_name": str, "prefix": str}
+            Error: {"error": True, "message": str, "details": dict}
+        """
+        # Validate bucket access if configured buckets are specified
+        if config.s3_buckets and bucket_name not in config.s3_buckets:
+            return {
+                "error": True,
+                "message": f"Bucket '{bucket_name}' not in configured bucket list",
+                "details": {"configured_buckets": config.s3_buckets},
+            }
+
+        try:
+            async with self.session.client(
+                "s3", region_name=config.aws_region, config=self.boto_config
+            ) as s3_client:
+                logger.debug(
+                    f"Counting objects in bucket '{bucket_name}' with prefix '{prefix}'"
+                )
+
+                total_count = 0
+                continuation_token = None
+
+                # Paginate through all objects to count them
+                while True:
+                    params = {"Bucket": bucket_name}
+
+                    if prefix:
+                        params["Prefix"] = prefix
+
+                    if continuation_token:
+                        params["ContinuationToken"] = continuation_token
+
+                    response = await s3_client.list_objects_v2(**params)
+
+                    # Add count from this page
+                    total_count += response.get("KeyCount", 0)
+
+                    # Check if there are more pages
+                    if not response.get("IsTruncated", False):
+                        break
+
+                    continuation_token = response.get("NextContinuationToken")
+
+                result = {
+                    "count": total_count,
+                    "bucket_name": bucket_name,
+                    "prefix": prefix,
+                }
+
+                logger.info(
+                    f"Successfully counted {total_count} objects in bucket '{bucket_name}'"
+                )
+                return result
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+
+            logger.error(
+                f"S3 client error counting objects in bucket '{bucket_name}': {error_code} - {error_message}"
+            )
+
+            return {
+                "error": True,
+                "message": f"Failed to count objects in bucket '{bucket_name}': {error_message}",
+                "details": {
+                    "error_code": error_code,
+                    "bucket_name": bucket_name,
+                    "prefix": prefix,
+                },
+            }
+        except Exception as e:
+            logger.error(
+                f"Unexpected error counting objects in bucket '{bucket_name}': {str(e)}"
+            )
+            return {
+                "error": True,
+                "message": f"Unexpected error counting objects: {str(e)}",
+                "details": {"bucket_name": bucket_name, "prefix": prefix},
+            }
+
+    async def list_objects_paginated(
+        self,
+        bucket_name: str,
+        prefix: str = "",
+        start_index: int = 0,
+        batch_size: int = 100,
+        continuation_token: str = "",
+    ) -> dict[str, Any]:
+        """
+        List objects in S3 with user-friendly numeric index pagination.
+
+        This method provides index-based pagination (0-99, 100-199, etc.) while
+        internally using S3's filename-based pagination. The continuation_token
+        stores internal state to maintain consistency between calls.
+
+        Args:
+            bucket_name: Name of the S3 bucket
+            prefix: Object prefix for filtering (default: "")
+            start_index: Zero-based index to start from (0, 100, 200, etc.)
+            batch_size: Number of objects to return (default: 100)
+            continuation_token: Opaque token from previous call (default: "")
+                               Contains internal state (last filename)
+
+        Returns:
+            Success: {
+                "objects": list of object metadata dicts,
+                "keys": list of just the keys (convenience),
+                "count": number of objects returned in this batch,
+                "start_index": index this batch started at (echoed from input),
+                "next_start_index": index for next batch (start_index + batch_size),
+                "has_more": boolean, True if more objects exist,
+                "continuation_token": opaque token for next call
+            }
+            Error: {"error": True, "message": str, "details": dict}
+
+        Note:
+            Consistency guarantee: As long as no files are added/removed between
+            calls, the same start_index will always return the same files (in
+            alphabetical order by key).
+        """
+        # Validate bucket access if configured buckets are specified
+        if config.s3_buckets and bucket_name not in config.s3_buckets:
+            return {
+                "error": True,
+                "message": f"Bucket '{bucket_name}' not in configured bucket list",
+                "details": {"configured_buckets": config.s3_buckets},
+            }
+
+        try:
+            import base64
+            import json
+
+            async with self.session.client(
+                "s3", region_name=config.aws_region, config=self.boto_config
+            ) as s3_client:
+                logger.debug(
+                    f"Listing objects (paginated) in bucket '{bucket_name}' start_index={start_index}, batch_size={batch_size}"
+                )
+
+                # Decode continuation token to get the last key (filename)
+                start_after = ""
+                if continuation_token:
+                    try:
+                        decoded = base64.b64decode(continuation_token).decode("utf-8")
+                        token_data = json.loads(decoded)
+                        start_after = token_data.get("last_key", "")
+                        logger.debug(
+                            f"Decoded continuation_token, start_after={start_after}"
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Invalid continuation_token, starting fresh: {e}"
+                        )
+                        start_after = ""
+
+                # Build list_objects_v2 parameters
+                params = {
+                    "Bucket": bucket_name,
+                    "MaxKeys": min(batch_size, config.s3_object_max_keys),
+                }
+
+                if prefix:
+                    params["Prefix"] = prefix
+
+                if start_after:
+                    params["StartAfter"] = start_after
+
+                response = await s3_client.list_objects_v2(**params)
+
+                # Extract objects and keys
+                objects = []
+                keys = []
+
+                for obj in response.get("Contents", []):
+                    objects.append(
+                        {
+                            "key": obj["Key"],
+                            "last_modified": obj["LastModified"].isoformat(),
+                            "size": obj["Size"],
+                            "etag": obj["ETag"].strip('"'),  # Remove quotes from ETag
+                        }
+                    )
+                    keys.append(obj["Key"])
+
+                # Determine if there are more results
+                has_more = response.get("IsTruncated", False)
+
+                # Create continuation token for next batch (encodes last filename)
+                next_continuation_token = ""
+                if keys and has_more:
+                    token_data = {"last_key": keys[-1]}
+                    token_json = json.dumps(token_data)
+                    next_continuation_token = base64.b64encode(
+                        token_json.encode("utf-8")
+                    ).decode("utf-8")
+
+                result = {
+                    "objects": objects,
+                    "keys": keys,
+                    "count": len(objects),
+                    "start_index": start_index,
+                    "next_start_index": start_index + batch_size,
+                    "has_more": has_more,
+                    "continuation_token": next_continuation_token,
+                }
+
+                logger.info(
+                    f"Successfully listed {len(objects)} objects from bucket '{bucket_name}' "
+                    f"(start_index={start_index}, has_more={has_more})"
+                )
+                return result
+
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            error_message = e.response["Error"]["Message"]
+
+            logger.error(
+                f"S3 client error listing objects (paginated) in bucket '{bucket_name}': {error_code} - {error_message}"
+            )
+
+            return {
+                "error": True,
+                "message": f"Failed to list objects in bucket '{bucket_name}': {error_message}",
+                "details": {
+                    "error_code": error_code,
+                    "bucket_name": bucket_name,
+                    "prefix": prefix,
+                    "start_index": start_index,
+                },
+            }
+        except Exception as e:
+            logger.error(
+                f"Unexpected error listing objects (paginated) in bucket '{bucket_name}': {str(e)}"
+            )
+            return {
+                "error": True,
+                "message": f"Unexpected error listing objects: {str(e)}",
+                "details": {
+                    "bucket_name": bucket_name,
+                    "prefix": prefix,
+                    "start_index": start_index,
+                },
             }
 
     async def extract_pdf_text(self, bucket_name: str, key: str) -> dict[str, Any]:
@@ -461,7 +708,6 @@ class S3Service:
             async with self.session.client(
                 "s3", region_name=config.aws_region, config=self.boto_config
             ) as s3_client:
-
                 logger.debug(
                     f"Extracting PDF text from object '{key}' in bucket '{bucket_name}'"
                 )
@@ -551,8 +797,7 @@ class S3Service:
             error_message = e.response["Error"]["Message"]
 
             logger.error(
-                f"S3 client error extracting PDF text from '{key}' in bucket '{bucket_name}': "
-                f"{error_code} - {error_message}"
+                f"S3 client error extracting PDF text from '{key}' in bucket '{bucket_name}': {error_code} - {error_message}"
             )
 
             return {

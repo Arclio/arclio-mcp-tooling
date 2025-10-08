@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "weaviate-mcp"
-version = "0.1.0"
+version = "0.1.4"
 description = "MCP server for Weaviate vector database"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},

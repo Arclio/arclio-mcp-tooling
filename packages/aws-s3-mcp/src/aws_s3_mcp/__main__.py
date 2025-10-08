@@ -11,9 +11,7 @@ from aws_s3_mcp.app import mcp  # Import instance from central location
 from aws_s3_mcp.tools import s3_tools  # noqa: F401
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
 # Reduce noise from AWS libraries
 logging.getLogger("botocore").setLevel(logging.WARNING)

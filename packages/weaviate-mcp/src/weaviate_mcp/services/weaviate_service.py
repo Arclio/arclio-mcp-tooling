@@ -115,8 +115,21 @@ class WeaviateService:
                 "message": f"Collection '{name}' created successfully",
             }
         except Exception as e:
-            logger.error(f"Error creating collection {name}: {e}")
-            return {"error": True, "message": str(e)}
+            error_message = str(e)
+
+            # Provide more specific error messages for common cases
+            if "already exists" in error_message.lower():
+                error_message = f"Collection '{name}' already exists. Delete it first or use a different name."
+            elif (
+                "invalid" in error_message.lower()
+                and "property" in error_message.lower()
+            ):
+                error_message = f"Invalid property configuration for collection '{name}': {error_message}"
+            elif "unexpected status code: 422" in error_message:
+                error_message = f"Collection '{name}' may not have been created properly. Weaviate validation error: {error_message}"
+
+            logger.error(f"Error creating collection {name}: {error_message}")
+            return {"error": True, "message": error_message}
 
     async def delete_collection(self, name: str) -> dict[str, Any]:
         """Delete a collection."""
@@ -130,8 +143,23 @@ class WeaviateService:
                 "message": f"Collection '{name}' deleted successfully",
             }
         except Exception as e:
-            logger.error(f"Error deleting collection {name}: {e}")
-            return {"error": True, "message": str(e)}
+            error_message = str(e)
+
+            # Provide more specific error messages for common cases
+            if (
+                "not found" in error_message.lower()
+                or "does not exist" in error_message.lower()
+            ):
+                # Some Weaviate versions might error on non-existent collections
+                logger.warning(f"Attempted to delete non-existent collection '{name}'")
+                # Treat as success (idempotent) since the desired state is achieved
+                return {
+                    "success": True,
+                    "message": f"Collection '{name}' did not exist (already deleted or never created)",
+                }
+
+            logger.error(f"Error deleting collection {name}: {error_message}")
+            return {"error": True, "message": error_message}
 
     # Object operations
     async def insert_object(
@@ -464,5 +492,101 @@ class WeaviateService:
         except Exception as e:
             logger.error(
                 f"Error performing aggregation in collection {collection_name}: {e}"
+            )
+            return {"error": True, "message": str(e)}
+
+    async def batch_check_existing_files(
+        self,
+        collection_name: str,
+        file_keys: list[str],
+        source_field: str = "source_pdf",
+    ) -> dict[str, Any]:
+        """Check which files from a list already exist in Weaviate.
+
+        This method efficiently checks multiple files in a single query,
+        filtering them into 'new' and 'existing' categories based on
+        whether they already exist in the specified collection.
+
+        Args:
+            collection_name: Name of the Weaviate collection to check
+            file_keys: List of file identifiers to check (e.g., S3 keys, file paths)
+            source_field: Name of the field containing the source identifier
+                         (default: "source_pdf")
+
+        Returns:
+            Dictionary containing:
+                - new_files: Array of file keys that do NOT exist in Weaviate
+                - existing_files: Array of file keys that already exist
+                - new_count: Count of new files
+                - existing_count: Count of existing files
+                - total_checked: Total number of files checked
+
+        Note:
+            This method requires the collection schema to have a field
+            (specified by source_field) that stores file identifiers.
+        """
+        try:
+            if not await self._ensure_connected():
+                return {"error": True, "message": "Failed to connect to Weaviate"}
+
+            # Handle empty input
+            if not file_keys:
+                return {
+                    "new_files": [],
+                    "existing_files": [],
+                    "new_count": 0,
+                    "existing_count": 0,
+                    "total_checked": 0,
+                }
+
+            collection = self._client.collections.get(collection_name)
+
+            # Build OR filter for all file keys
+            # Use containsAny filter which is more efficient for this use case
+            filter_conditions = [
+                Filter.by_property(source_field).equal(file_key)
+                for file_key in file_keys
+            ]
+
+            # Combine with OR operator if we have multiple conditions
+            if len(filter_conditions) > 1:
+                filters = Filter.any_of(filter_conditions)
+            elif len(filter_conditions) == 1:
+                filters = filter_conditions[0]
+            else:
+                filters = None
+
+            # Query for objects with matching source field
+            # Use a high limit since each file may have multiple chunks
+            # We only need unique source_field values, but must fetch enough objects
+            results = await collection.query.fetch_objects(
+                filters=filters,
+                limit=10000,  # High limit to capture all unique files even with many chunks each
+                return_properties=[source_field],
+                include_vector=False,
+            )
+
+            # Extract unique existing file keys from results
+            existing_keys = set()
+            for obj in results.objects:
+                if source_field in obj.properties:
+                    existing_keys.add(obj.properties[source_field])
+
+            # Determine which files are new
+            file_keys_set = set(file_keys)
+            new_keys = file_keys_set - existing_keys
+
+            # Return sorted lists for consistency
+            return {
+                "new_files": sorted(new_keys),
+                "existing_files": sorted(existing_keys),
+                "new_count": len(new_keys),
+                "existing_count": len(existing_keys),
+                "total_checked": len(file_keys),
+            }
+
+        except Exception as e:
+            logger.error(
+                f"Error batch checking files in collection {collection_name}: {e}"
             )
             return {"error": True, "message": str(e)}

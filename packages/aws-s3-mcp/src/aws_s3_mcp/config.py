@@ -39,8 +39,7 @@ class S3Config:
         """Validate configuration and raise errors for missing required values."""
         if not self.aws_access_key_id or not self.aws_secret_access_key:
             logger.warning(
-                "AWS credentials not found in environment variables. "
-                "Will attempt to use default AWS credential chain."
+                "AWS credentials not found in environment variables. Will attempt to use default AWS credential chain."
             )
 
         if self.s3_max_buckets <= 0:
@@ -53,9 +52,7 @@ class S3Config:
         if self.s3_buckets:
             logger.info(f"Configured buckets: {self.s3_buckets}")
         else:
-            logger.info(
-                "No specific buckets configured - will expose all accessible buckets"
-            )
+            logger.info("No specific buckets configured - will expose all accessible buckets")
 
 
 # Global configuration instance

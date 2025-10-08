@@ -33,8 +33,8 @@ async def weaviate_get_schema_info() -> dict[str, Any]:
             pass  # Schema info available in return value
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         schema_result = await service.get_schema()
 
         if schema_result.get("error"):
@@ -88,6 +88,8 @@ async def weaviate_get_schema_info() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in weaviate_get_schema_info: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -111,8 +113,8 @@ async def weaviate_validate_collection_exists(collection_name: str) -> dict[str,
             pass  # Collection info available in return value
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         schema_result = await service.get_schema()
 
         if schema_result.get("error"):
@@ -150,6 +152,8 @@ async def weaviate_validate_collection_exists(collection_name: str) -> dict[str,
     except Exception as e:
         logger.error(f"Error in weaviate_validate_collection_exists: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -174,8 +178,8 @@ async def weaviate_get_collection_properties(collection_name: str) -> dict[str, 
             pass
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         schema_result = await service.get_schema()
 
         if schema_result.get("error"):
@@ -220,6 +224,8 @@ async def weaviate_get_collection_properties(collection_name: str) -> dict[str, 
     except Exception as e:
         logger.error(f"Error in weaviate_get_collection_properties: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -248,8 +254,8 @@ async def weaviate_compare_collections(
             pass
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         schema_result = await service.get_schema()
 
         if schema_result.get("error"):
@@ -330,6 +336,8 @@ async def weaviate_compare_collections(
     except Exception as e:
         logger.error(f"Error in weaviate_compare_collections: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -351,8 +359,8 @@ async def weaviate_get_database_stats() -> dict[str, Any]:
             pass
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         schema_result = await service.get_schema()
 
         if schema_result.get("error"):
@@ -383,3 +391,5 @@ async def weaviate_get_database_stats() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in weaviate_get_database_stats: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()

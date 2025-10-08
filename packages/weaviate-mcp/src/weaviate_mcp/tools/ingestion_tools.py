@@ -78,6 +78,7 @@ async def weaviate_ingest_from_url(
         - Comprehensive error handling and logging
         - Batch insertion for performance
     """
+    weaviate_service = None
     try:
         logger.info(f"Starting URL ingestion: {url} -> {collection_name}")
 
@@ -125,6 +126,9 @@ async def weaviate_ingest_from_url(
     except Exception as e:
         logger.error(f"Unexpected error in weaviate_ingest_from_url: {e}")
         raise ValueError(f"Ingestion error: {str(e)}") from e
+    finally:
+        if weaviate_service:
+            await weaviate_service.close()
 
 
 @mcp.tool(
@@ -170,6 +174,7 @@ async def weaviate_ingest_text_content(
         )
         ```
     """
+    weaviate_service = None
     try:
         logger.info(
             f"Starting text content ingestion: {source_identifier} -> {collection_name}"
@@ -250,3 +255,6 @@ async def weaviate_ingest_text_content(
     except Exception as e:
         logger.error(f"Unexpected error in weaviate_ingest_text_content: {e}")
         raise ValueError(f"Text ingestion error: {str(e)}") from e
+    finally:
+        if weaviate_service:
+            await weaviate_service.close()

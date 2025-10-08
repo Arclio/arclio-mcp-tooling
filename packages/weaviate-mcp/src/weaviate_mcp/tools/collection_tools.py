@@ -33,38 +33,63 @@ async def weaviate_create_collection(
         name: Name of the collection to create
         description: Description of the collection
         properties: List of property definitions, each containing:
-            - name: Property name
-            - data_type: Data type (text, number, int, boolean, text_array, etc.)
-            - description: Property description
-            - index_filterable: Whether the property can be filtered (default: True)
-            - index_searchable: Whether the property can be searched (default: True)
+            - name (required): Property name
+            - data_type (required): Single string value (NOT an array):
+                * "text" - for text content
+                * "number" - for floating-point numbers
+                * "int" - for integers
+                * "boolean" - for true/false values
+                * "text_array" - for arrays of text
+                * "int_array" - for arrays of integers
+                * "number_array" - for arrays of numbers
+                * "boolean_array" - for arrays of booleans
+            - description (optional): Property description
+            - index_filterable (optional): Whether the property can be filtered (default: True)
+            - index_searchable (optional): Whether the property can be full-text searched
+                * IMPORTANT: Only valid for "text" and "text_array" types
+                * Defaults to True for text types, False for others
+                * Setting this to True for non-text types will cause an error
         vectorizer_config: Optional vectorizer configuration dict with:
             - type: Vectorizer type ("text2vec_openai", "text2vec_transformers", "text2vec_cohere", "text2vec_huggingface", "none")
             - model: Model name (e.g., "text-embedding-3-small" for OpenAI, "sentence-transformers/all-MiniLM-L6-v2" for transformers)
             - pooling_strategy: For transformers only ("masked_mean", "cls", "mean")
 
     Returns:
-        Dictionary with success status and message or error details.
+        Dictionary with one of the following formats:
+        - Success: {"success": True, "message": "Collection 'X' created successfully"}
+        - Error: {"error": True, "message": "Error description"}
+
+        Common error cases:
+        - Collection already exists: "Collection 'X' already exists. Delete it first..."
+        - Invalid property: "Invalid property configuration..."
+        - Connection failure: "Failed to connect to Weaviate"
+
+        GUARANTEED: Always returns a dict, never None or empty string.
 
     Example:
         ```python
-        await weaviate_create_collection(
-            name="Product",
-            description="Product catalog",
+        result = await weaviate_create_collection(
+            name="ResearchPapers",
+            description="Collection for scientific research papers",
             properties=[
+                {
+                    "name": "content",
+                    "data_type": "text",  # Single string, NOT ["text"]
+                    "description": "Text content of the document chunk"
+                    # index_searchable defaults to True for text types
+                },
+                {
+                    "name": "chunk_index",
+                    "data_type": "int",  # Single string
+                    "description": "Sequential chunk number"
+                    # index_searchable defaults to False for non-text types
+                },
                 {
                     "name": "title",
                     "data_type": "text",
-                    "description": "Product title",
+                    "description": "Document title",
                     "index_filterable": True,
-                    "index_searchable": True
-                },
-                {
-                    "name": "price",
-                    "data_type": "number",
-                    "description": "Product price",
-                    "index_filterable": True,
-                    "index_searchable": False
+                    "index_searchable": True  # Explicitly enabled (text type)
                 }
             ],
             vectorizer_config={
@@ -74,9 +99,8 @@ async def weaviate_create_collection(
         )
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
-
         # Convert property dictionaries to Property objects
         weaviate_properties = []
         for prop in properties:
@@ -115,12 +139,32 @@ async def weaviate_create_collection(
                     f"Supported types: {list(data_type_map.keys())}",
                 }
 
+            # Determine if index_searchable should be enabled
+            # Only text and text_array types support index_searchable
+            is_text_type = prop["data_type"].lower() in [
+                "text",
+                "string",
+                "text_array",
+                "string_array",
+            ]
+
+            # Get user-specified values or use smart defaults
+            index_searchable = prop.get("index_searchable", is_text_type)
+
+            # Validate that index_searchable is only True for text types
+            if index_searchable and not is_text_type:
+                return {
+                    "error": True,
+                    "message": f"Property '{prop['name']}' has data_type '{prop['data_type']}' but index_searchable=True. "
+                    f"index_searchable is only allowed for text and text_array types. Set it to false or omit it.",
+                }
+
             weaviate_property = Property(
                 name=prop["name"],
                 data_type=data_type,
                 description=prop.get("description", ""),
                 index_filterable=prop.get("index_filterable", True),
-                index_searchable=prop.get("index_searchable", True),
+                index_searchable=index_searchable,
             )
             weaviate_properties.append(weaviate_property)
 
@@ -176,6 +220,8 @@ async def weaviate_create_collection(
     except Exception as e:
         logger.error(f"Error in weaviate_create_collection: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -190,15 +236,26 @@ async def weaviate_delete_collection(name: str) -> dict[str, Any]:
         name: Name of the collection to delete
 
     Returns:
-        Dictionary with success status and message or error details.
+        Dictionary with one of the following formats:
+        - Success: {"success": True, "message": "Collection 'X' deleted successfully"}
+        - Success (idempotent): {"success": True, "message": "Collection 'X' did not exist..."}
+        - Error: {"error": True, "message": "Error description"}
+
+        Note: This operation is idempotent. Attempting to delete a non-existent
+        collection will return success since the desired state (collection not existing)
+        is achieved.
 
     Example:
         ```python
-        await weaviate_delete_collection(name="Product")
+        result = await weaviate_delete_collection(name="Product")
+        if result.get("success"):
+            print(f"Deleted: {result['message']}")
+        else:
+            print(f"Error: {result['message']}")
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         result = await service.delete_collection(name)
 
         logger.info(f"Collection deletion result: {result}")
@@ -207,6 +264,8 @@ async def weaviate_delete_collection(name: str) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in weaviate_delete_collection: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -229,8 +288,8 @@ async def weaviate_get_schema() -> dict[str, Any]:
             pass
         ```
     """
+    service = WeaviateService()
     try:
-        service = WeaviateService()
         result = await service.get_schema()
 
         logger.info(
@@ -241,6 +300,8 @@ async def weaviate_get_schema() -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Error in weaviate_get_schema: {e}")
         return {"error": True, "message": str(e)}
+    finally:
+        await service.close()
 
 
 @mcp.tool(
@@ -287,42 +348,42 @@ async def weaviate_create_collection_with_vectorizer(
                 "data_type": "text",
                 "description": "Text content of the document chunk",
                 "index_filterable": True,
-                "index_searchable": True,
+                # index_searchable defaults to True for text types (omitted)
             },
             {
                 "name": "title",
                 "data_type": "text",
                 "description": "Title of the source document",
                 "index_filterable": True,
-                "index_searchable": True,
+                # index_searchable defaults to True for text types (omitted)
             },
             {
                 "name": "source_url",
                 "data_type": "text",
                 "description": "Source URL or identifier",
                 "index_filterable": True,
-                "index_searchable": False,
+                "index_searchable": False,  # Explicitly disabled for exact matching only
             },
             {
                 "name": "chunk_index",
                 "data_type": "int",
                 "description": "Sequential chunk number for ordering",
                 "index_filterable": True,
-                "index_searchable": False,
+                # index_searchable defaults to False for int types (omitted)
             },
             {
                 "name": "total_chunks",
                 "data_type": "int",
                 "description": "Total number of chunks in the document",
                 "index_filterable": True,
-                "index_searchable": False,
+                # index_searchable defaults to False for int types (omitted)
             },
             {
                 "name": "content_type",
                 "data_type": "text",
                 "description": "MIME type of the original content",
                 "index_filterable": True,
-                "index_searchable": False,
+                "index_searchable": False,  # Explicitly disabled for exact matching only
             },
         ]
 
