@@ -718,3 +718,169 @@ class GmailService(BaseGoogleService):
             return results.get("labels", [])
         except Exception as e:
             return self.handle_api_error("get_labels", e)
+
+    def create_label(self, name: str) -> dict[str, Any]:
+        """
+        Create a new Gmail label.
+
+        Args:
+            name: The display name of the label. Use '/' for nesting (e.g. 'Receipts/Groceries').
+
+        Returns:
+            Dictionary with the created label's id and name, or error dict.
+        """
+        if not name or not name.strip():
+            return {"success": False, "message": "Label name cannot be empty"}
+
+        try:
+            label_body = {
+                "name": name.strip(),
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+            }
+            result = self.service.users().labels().create(userId="me", body=label_body).execute()
+            return {
+                "success": True,
+                "id": result.get("id"),
+                "name": result.get("name"),
+                "message": f"Label '{result.get('name')}' created successfully.",
+            }
+        except Exception as e:
+            return self.handle_api_error("create_label", e)
+
+    def label_messages(
+        self,
+        message_ids: list[str],
+        add_label_ids: list[str] | None = None,
+        remove_label_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Add or remove labels from multiple messages.
+
+        Args:
+            message_ids: List of message IDs to modify.
+            add_label_ids: Label IDs to add to the messages.
+            remove_label_ids: Label IDs to remove from the messages.
+
+        Returns:
+            Dictionary with operation result.
+        """
+        if not message_ids:
+            return {"success": False, "message": "No message IDs provided"}
+
+        if not all(isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids):
+            return {
+                "success": False,
+                "message": "Invalid message IDs - all IDs must be non-empty strings",
+            }
+
+        if not add_label_ids and not remove_label_ids:
+            return {"success": False, "message": "At least one of add_label_ids or remove_label_ids must be provided"}
+
+        try:
+            max_batch_size = 1000
+            total_count = 0
+
+            body: dict[str, Any] = {"ids": []}
+            if add_label_ids:
+                body["addLabelIds"] = add_label_ids
+            if remove_label_ids:
+                body["removeLabelIds"] = remove_label_ids
+
+            for i in range(0, len(message_ids), max_batch_size):
+                if i > 0:
+                    time.sleep(0.5)
+
+                batch = message_ids[i : i + max_batch_size]
+                body["ids"] = batch
+
+                self.service.users().messages().batchModify(
+                    userId="me",
+                    body=body,
+                ).execute()
+
+                total_count += len(batch)
+
+            return {
+                "success": True,
+                "message": f"Successfully modified labels on {total_count} message(s).",
+                "count": total_count,
+            }
+        except Exception as e:
+            return self.handle_api_error("label_messages", e)
+
+    def list_filters(self) -> list[dict[str, Any]]:
+        """
+        List all Gmail filters for the authenticated user.
+
+        Returns:
+            List of filter dictionaries with id, criteria, and action.
+        """
+        try:
+            results = self.service.users().settings().filters().list(userId="me").execute()
+            return results.get("filter", [])
+        except Exception as e:
+            return self.handle_api_error("list_filters", e)
+
+    def create_filter(
+        self,
+        criteria: dict[str, Any],
+        action: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Create a new Gmail filter.
+
+        Args:
+            criteria: Filter criteria (from, to, subject, query, negatedQuery,
+                      hasAttachment, excludeChats, size, sizeComparison).
+            action: Filter action (addLabelIds, removeLabelIds, forward).
+
+        Returns:
+            Dictionary with the created filter details, or error dict.
+        """
+        if not criteria:
+            return {"success": False, "message": "Filter criteria cannot be empty"}
+        if not action:
+            return {"success": False, "message": "Filter action cannot be empty"}
+
+        try:
+            body = {
+                "criteria": criteria,
+                "action": action,
+            }
+            result = self.service.users().settings().filters().create(
+                userId="me", body=body
+            ).execute()
+            return {
+                "success": True,
+                "id": result.get("id"),
+                "criteria": result.get("criteria"),
+                "action": result.get("action"),
+                "message": "Filter created successfully.",
+            }
+        except Exception as e:
+            return self.handle_api_error("create_filter", e)
+
+    def delete_filter(self, filter_id: str) -> dict[str, Any]:
+        """
+        Delete a Gmail filter by its ID.
+
+        Args:
+            filter_id: The ID of the filter to delete.
+
+        Returns:
+            Dictionary with operation result.
+        """
+        if not filter_id or not filter_id.strip():
+            return {"success": False, "message": "Filter ID cannot be empty"}
+
+        try:
+            self.service.users().settings().filters().delete(
+                userId="me", id=filter_id
+            ).execute()
+            return {
+                "success": True,
+                "message": f"Filter '{filter_id}' deleted successfully.",
+            }
+        except Exception as e:
+            return self.handle_api_error("delete_filter", e)

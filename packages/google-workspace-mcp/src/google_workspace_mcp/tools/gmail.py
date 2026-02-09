@@ -337,6 +337,231 @@ async def gmail_archive_messages(
 
 
 @mcp.tool(
+    name="gmail_list_labels",
+    description="List all Gmail labels for the authenticated user.",
+)
+async def gmail_list_labels() -> dict[str, Any]:
+    """
+    Lists all Gmail labels (both system and user-created).
+
+    Returns:
+        A dictionary containing the list of labels.
+    """
+    logger.info("Executing gmail_list_labels tool")
+
+    gmail_service = GmailService()
+    result = gmail_service.get_labels()
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error listing labels"))
+
+    return {"count": len(result), "labels": result}
+
+
+@mcp.tool(
+    name="gmail_create_label",
+    description="Create a new Gmail label. Supports nested labels using '/' separator (e.g. 'Receipts/Groceries').",
+)
+async def gmail_create_label(name: str) -> dict[str, Any]:
+    """
+    Creates a new Gmail label.
+
+    Args:
+        name: The display name for the label. Use '/' for nesting.
+
+    Returns:
+        A dictionary containing the created label's id and name.
+    """
+    logger.info(f"Executing gmail_create_label tool with name: '{name}'")
+    if not name or not name.strip():
+        raise ValueError("Label name cannot be empty")
+
+    gmail_service = GmailService()
+    result = gmail_service.create_label(name=name)
+
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_msg = "Error creating label"
+        if isinstance(result, dict):
+            error_msg = result.get("message", error_msg)
+        raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
+    name="gmail_label_messages",
+    description="Add or remove labels from multiple Gmail messages. Use label IDs (not names) from gmail_list_labels or gmail_create_label.",
+)
+async def gmail_label_messages(
+    message_ids: list[str],
+    add_label_ids: list[str] | None = None,
+    remove_label_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Adds or removes labels from Gmail messages.
+
+    Args:
+        message_ids: A list of email message IDs to modify.
+        add_label_ids: Label IDs to add to the messages.
+        remove_label_ids: Label IDs to remove from the messages.
+
+    Returns:
+        A dictionary summarizing the label modification result.
+    """
+    if not isinstance(message_ids, list):
+        raise ValueError("Message IDs must be provided as a list")
+    if not message_ids:
+        raise ValueError("Message IDs list cannot be empty")
+    if not add_label_ids and not remove_label_ids:
+        raise ValueError("At least one of add_label_ids or remove_label_ids must be provided")
+
+    logger.info(f"Executing gmail_label_messages with {len(message_ids)} IDs")
+
+    gmail_service = GmailService()
+    result = gmail_service.label_messages(
+        message_ids=message_ids,
+        add_label_ids=add_label_ids,
+        remove_label_ids=remove_label_ids,
+    )
+
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_msg = "Error modifying labels"
+        if isinstance(result, dict):
+            error_msg = result.get("message", error_msg)
+        raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
+    name="gmail_list_filters",
+    description="List all Gmail filters for the authenticated user.",
+)
+async def gmail_list_filters() -> dict[str, Any]:
+    """
+    Lists all Gmail filters.
+
+    Returns:
+        A dictionary containing the list of filters with their criteria and actions.
+    """
+    logger.info("Executing gmail_list_filters tool")
+
+    gmail_service = GmailService()
+    result = gmail_service.list_filters()
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error listing filters"))
+
+    return {"count": len(result), "filters": result}
+
+
+@mcp.tool(
+    name="gmail_create_filter",
+    description="Create a Gmail filter to automatically process incoming emails. Requires at least one criteria and one action. Use label IDs (not names) for add_label_ids/remove_label_ids.",
+)
+async def gmail_create_filter(
+    from_address: str | None = None,
+    to_address: str | None = None,
+    subject: str | None = None,
+    query: str | None = None,
+    negated_query: str | None = None,
+    has_attachment: bool | None = None,
+    add_label_ids: list[str] | None = None,
+    remove_label_ids: list[str] | None = None,
+    forward_to: str | None = None,
+) -> dict[str, Any]:
+    """
+    Creates a Gmail filter for automatic email processing.
+
+    Args:
+        from_address: Match emails from this sender.
+        to_address: Match emails to this recipient.
+        subject: Match emails with this subject.
+        query: Match emails using Gmail search query syntax.
+        negated_query: Exclude emails matching this query.
+        has_attachment: If True, match only emails with attachments.
+        add_label_ids: Label IDs to apply to matching emails.
+        remove_label_ids: Label IDs to remove from matching emails.
+        forward_to: Email address to forward matching emails to.
+
+    Returns:
+        A dictionary containing the created filter details.
+    """
+    # Build criteria dict from provided parameters
+    criteria: dict[str, Any] = {}
+    if from_address:
+        criteria["from"] = from_address
+    if to_address:
+        criteria["to"] = to_address
+    if subject:
+        criteria["subject"] = subject
+    if query:
+        criteria["query"] = query
+    if negated_query:
+        criteria["negatedQuery"] = negated_query
+    if has_attachment is not None:
+        criteria["hasAttachment"] = has_attachment
+
+    if not criteria:
+        raise ValueError("At least one filter criteria must be provided (from_address, to_address, subject, query, etc.)")
+
+    # Build action dict from provided parameters
+    action: dict[str, Any] = {}
+    if add_label_ids:
+        action["addLabelIds"] = add_label_ids
+    if remove_label_ids:
+        action["removeLabelIds"] = remove_label_ids
+    if forward_to:
+        action["forward"] = forward_to
+
+    if not action:
+        raise ValueError("At least one filter action must be provided (add_label_ids, remove_label_ids, or forward_to)")
+
+    logger.info(f"Executing gmail_create_filter tool with criteria: {criteria}")
+
+    gmail_service = GmailService()
+    result = gmail_service.create_filter(criteria=criteria, action=action)
+
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_msg = "Error creating filter"
+        if isinstance(result, dict):
+            error_msg = result.get("message", error_msg)
+        raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
+    name="gmail_delete_filter",
+    description="Delete a Gmail filter by its ID. Use gmail_list_filters to find filter IDs.",
+)
+async def gmail_delete_filter(filter_id: str) -> dict[str, Any]:
+    """
+    Deletes a Gmail filter.
+
+    Args:
+        filter_id: The ID of the filter to delete.
+
+    Returns:
+        A dictionary confirming the deletion.
+    """
+    logger.info(f"Executing gmail_delete_filter tool with filter_id: '{filter_id}'")
+    if not filter_id or not filter_id.strip():
+        raise ValueError("Filter ID cannot be empty")
+
+    gmail_service = GmailService()
+    result = gmail_service.delete_filter(filter_id=filter_id)
+
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_msg = "Error deleting filter"
+        if isinstance(result, dict):
+            error_msg = result.get("message", error_msg)
+        raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
     name="gmail_send_email",
     description="Composes and sends an email directly.",
 )
