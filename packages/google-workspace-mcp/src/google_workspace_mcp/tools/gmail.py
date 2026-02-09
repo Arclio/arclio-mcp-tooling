@@ -301,6 +301,42 @@ async def gmail_bulk_delete_messages(
 
 
 @mcp.tool(
+    name="gmail_archive_messages",
+    description="Archive multiple emails at once, removing them from the inbox. They remain accessible in All Mail.",
+)
+async def gmail_archive_messages(
+    message_ids: list[str],
+) -> dict[str, Any]:
+    """
+    Archives multiple Gmail emails by removing the INBOX label.
+
+    Args:
+        message_ids: A list of email message IDs to archive.
+
+    Returns:
+        A dictionary summarizing the archive result.
+    """
+    if not isinstance(message_ids, list):
+        raise ValueError("Message IDs must be provided as a list")
+
+    if not message_ids:
+        raise ValueError("Message IDs list cannot be empty")
+
+    logger.info(f"Executing gmail_archive_messages with {len(message_ids)} IDs")
+
+    gmail_service = GmailService()
+    result = gmail_service.archive_messages(message_ids=message_ids)
+
+    if not result or (isinstance(result, dict) and result.get("error")):
+        error_msg = "Error during archiving"
+        if isinstance(result, dict):
+            error_msg = result.get("message", error_msg)
+        raise ValueError(error_msg)
+
+    return result
+
+
+@mcp.tool(
     name="gmail_send_email",
     description="Composes and sends an email directly.",
 )

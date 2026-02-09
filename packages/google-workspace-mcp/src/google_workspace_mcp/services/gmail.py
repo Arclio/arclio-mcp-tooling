@@ -640,6 +640,50 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("bulk_delete_messages", e)
 
+    def archive_messages(self, message_ids: list[str]) -> dict[str, Any]:
+        """
+        Archive multiple messages by removing the INBOX label.
+
+        Args:
+            message_ids: List of message IDs to archive
+
+        Returns:
+            Dictionary with operation result
+        """
+        if not message_ids:
+            return {"success": False, "message": "No message IDs provided"}
+
+        if not all(isinstance(msg_id, str) and msg_id.strip() for msg_id in message_ids):
+            return {
+                "success": False,
+                "message": "Invalid message IDs - all IDs must be non-empty strings",
+            }
+
+        try:
+            max_batch_size = 1000
+            total_count = 0
+
+            for i in range(0, len(message_ids), max_batch_size):
+                if i > 0:
+                    time.sleep(0.5)
+
+                batch = message_ids[i : i + max_batch_size]
+
+                self.service.users().messages().batchModify(
+                    userId="me",
+                    body={"ids": batch, "removeLabelIds": ["INBOX"]},
+                ).execute()
+
+                total_count += len(batch)
+
+            return {
+                "success": True,
+                "message": f"Successfully archived {total_count} message(s). They have been removed from the inbox but are still accessible in All Mail.",
+                "count": total_count,
+            }
+        except Exception as e:
+            return self.handle_api_error("archive_messages", e)
+
     def get_unread_count(self) -> int:
         """
         Get count of unread emails in the inbox.
