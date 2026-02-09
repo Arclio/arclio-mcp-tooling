@@ -88,34 +88,43 @@ Accessing Google Workspace APIs requires OAuth 2.0 credentials.
 
 1.  Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
 2.  Create a new project or select an existing one.
-3.  Enable the following APIs for your project:
+3.  **Enable APIs** — go to "APIs & Services" -> "Library" and enable:
     - Google Drive API
     - Gmail API
     - Google Calendar API
     - Google Docs API
     - Google Sheets API
     - Google Slides API
-4.  Go to "APIs & Services" -\> "Credentials".
-5.  Click "Create Credentials" -\> "OAuth 2.0 Client ID".
-6.  Select "Web application" as the application type.
-7.  Under "Authorized redirect URIs", add `https://developers.google.com/oauthplayground` (for easy refresh token generation) and any other URIs required for your specific setup (e.g., `http://localhost:8080/callback` if using the Python script method locally).
-8.  Note your `Client ID` and `Client Secret`.
+4.  **Configure the OAuth consent screen** — go to "APIs & Services" -> "OAuth consent screen":
+    - Select "External" user type (or "Internal" if using Google Workspace).
+    - Fill in the required app name and email fields.
+    - On the "Scopes" step, add the scopes listed in Step 2 below.
+    - Add your Google account as a test user (required while the app is in "Testing" status).
+5.  **Create OAuth credentials** — go to "APIs & Services" -> "Credentials":
+    - Click "Create Credentials" -> "OAuth client ID".
+    - Select **"Desktop app"** as the application type (this is required for the included auth script). If you plan to use the OAuth Playground instead, select "Web application" and add `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+    - Give it a name (e.g. "Google Workspace MCP").
+    - Click **Create**.
+6.  **Download the client secret file** — after creating the credentials:
+    - You'll see a dialog with your Client ID and Client Secret. Click **"Download JSON"** (or find the credential in the list and click the download icon).
+    - This downloads a file named like `client_secret_XXXXX.apps.googleusercontent.com.json`.
+    - Save this file somewhere accessible (e.g. your Downloads folder). You'll pass its path to the auth script in Step 2.
 
 ### Step 2: Obtain a Refresh Token
 
 **Option A: Using the included script (Recommended)**
 
-A helper script is included that runs a local OAuth flow and prints your refresh token:
+A helper script is included that runs a local OAuth flow and prints your refresh token. Pass it the client secret JSON file you downloaded in Step 1:
 
 ```bash
-# Using uv (no install needed):
-uv run scripts/get_refresh_token.py path/to/client_secret.json
+# Using uv (no install needed) — pass the path to your downloaded client secret file:
+uv run scripts/get_refresh_token.py ~/Downloads/client_secret_XXXXX.apps.googleusercontent.com.json
 
 # Or select only the services you need:
-uv run scripts/get_refresh_token.py client_secret.json --scopes gmail drive calendar
+uv run scripts/get_refresh_token.py ~/Downloads/client_secret_XXXXX.apps.googleusercontent.com.json --scopes gmail drive calendar
 ```
 
-Download your `client_secret.json` from: Google Cloud Console -> APIs & Services -> Credentials -> your OAuth 2.0 Client ID -> Download JSON.
+This will open your browser for Google sign-in. After authorizing, the script prints your refresh token and a ready-to-paste config snippet.
 
 **Option B: Using OAuth 2.0 Playground**
 
