@@ -3,6 +3,7 @@ Google Calendar service implementation.
 """
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -137,6 +138,7 @@ class CalendarService(BaseGoogleService):
         send_notifications: bool = True,
         timezone: str | None = None,
         calendar_id: str = "primary",
+        add_meet: bool = False,
     ) -> dict[str, Any] | None:
         """
         Create a new calendar event.
@@ -151,6 +153,7 @@ class CalendarService(BaseGoogleService):
             send_notifications: Whether to send notifications to attendees
             timezone: Timezone for the event (e.g. 'America/New_York')
             calendar_id: ID of the calendar to create the event in
+            add_meet: Attach a Google Meet conference to the event (default False)
 
         Returns:
             Created event data or None if creation fails
@@ -177,6 +180,19 @@ class CalendarService(BaseGoogleService):
             if attendees:
                 event["attendees"] = [{"email": email} for email in attendees]
 
+            # Attach a Google Meet conference when requested. Creating one
+            # requires a createRequest with a unique requestId plus
+            # conferenceDataVersion=1 on the insert call.
+            insert_kwargs: dict[str, Any] = {}
+            if add_meet:
+                event["conferenceData"] = {
+                    "createRequest": {
+                        "requestId": uuid.uuid4().hex,
+                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                    }
+                }
+                insert_kwargs["conferenceDataVersion"] = 1
+
             # Map boolean to required string for sendUpdates
             send_updates_value = "all" if send_notifications else "none"
 
@@ -187,6 +203,7 @@ class CalendarService(BaseGoogleService):
                     calendarId=calendar_id,
                     body=event,
                     sendUpdates=send_updates_value,
+                    **insert_kwargs,
                 )
                 .execute()
             )
