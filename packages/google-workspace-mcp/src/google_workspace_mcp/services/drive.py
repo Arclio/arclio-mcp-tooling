@@ -37,7 +37,11 @@ class DriveService(BaseGoogleService):
         super().__init__("drive", "v3")
 
     def search_files(
-        self, query: str, page_size: int = 10, shared_drive_id: str | None = None
+        self,
+        query: str,
+        page_size: int = 10,
+        shared_drive_id: str | None = None,
+        include_shared_drives: bool = False,
     ) -> list[dict[str, Any]]:
         """
         Search for files in Google Drive.
@@ -46,13 +50,19 @@ class DriveService(BaseGoogleService):
             query: Search query string
             page_size: Maximum number of files to return (1-1000)
             shared_drive_id: Optional shared drive ID to search within a specific shared drive
+            include_shared_drives: When True (and no specific shared_drive_id is
+                given), search across My Drive AND all shared drives/folders the
+                user can access (corpora="allDrives"). Needed to find files that
+                live in a Shared Drive by name. Defaults False to preserve the
+                user-only default behavior.
 
         Returns:
             List of file metadata dictionaries (id, name, mimeType, etc.) or an error dictionary
         """
         try:
             logger.info(
-                f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+                f"Searching files with query: '{query}', page_size: {page_size}, "
+                f"shared_drive_id: {shared_drive_id}, include_shared_drives: {include_shared_drives}"
             )
 
             # page_size is the desired TOTAL number of results. The Drive API
@@ -61,10 +71,11 @@ class DriveService(BaseGoogleService):
             # first page were silently lost).
             desired_total = max(1, page_size)
 
-            # Build list parameters with shared drive support
+            # Build list parameters with shared drive support. `parents` is
+            # included so folder-aware callers can inspect file location.
             list_params = {
                 "q": query,  # Use the query directly without modification
-                "fields": "nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
+                "fields": "nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink, parents)",
                 "supportsAllDrives": True,
                 "includeItemsFromAllDrives": True,
             }
@@ -74,6 +85,9 @@ class DriveService(BaseGoogleService):
                 list_params["corpora"] = (
                     "drive"  # Search within the specified shared drive
                 )
+            elif include_shared_drives:
+                # Search My Drive + all accessible shared drives/folders.
+                list_params["corpora"] = "allDrives"
             else:
                 list_params["corpora"] = (
                     "user"  # Default to user's files if no specific shared drive ID
