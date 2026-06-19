@@ -78,14 +78,16 @@ class CalendarService(BaseGoogleService):
             if not time_min:
                 time_min = datetime.now(pytz.UTC).isoformat()
 
-            # Ensure max_results is within limits
-            max_results = min(max(1, max_results), 2500)
+            # max_results is the desired TOTAL. The Calendar API returns at most
+            # 2500 events per request, so follow nextPageToken until we have
+            # enough (previously events past the first page were silently
+            # truncated).
+            desired_total = max(1, max_results)
 
             # Prepare parameters
             params = {
                 "calendarId": calendar_id,
                 "timeMin": time_min,
-                "maxResults": max_results,
                 "singleEvents": True,
                 "orderBy": "startTime",
                 "showDeleted": show_deleted,
@@ -95,11 +97,19 @@ class CalendarService(BaseGoogleService):
             if time_max:
                 params["timeMax"] = time_max
 
-            # Execute the events().list() method
-            events_result = self.service.events().list(**params).execute()
+            events: list[dict[str, Any]] = []
+            page_token: str | None = None
+            while len(events) < desired_total:
+                params["maxResults"] = min(desired_total - len(events), 2500)
+                if page_token:
+                    params["pageToken"] = page_token
+                events_result = self.service.events().list(**params).execute()
+                events.extend(events_result.get("items", []))
+                page_token = events_result.get("nextPageToken")
+                if not page_token:
+                    break
 
-            # Extract the events
-            events = events_result.get("items", [])
+            events = events[:desired_total]
 
             # Process and return the events
             processed_events = []
@@ -199,7 +209,7 @@ class CalendarService(BaseGoogleService):
         event_id: str,
         send_notifications: bool = True,
         calendar_id: str = "primary",
-    ) -> bool:
+    ) -> bool | dict[str, Any]:
         """
         Delete a calendar event by its ID.
 
@@ -209,7 +219,8 @@ class CalendarService(BaseGoogleService):
             calendar_id: ID of the calendar containing the event
 
         Returns:
-            True if deletion was successful, False otherwise
+            True on success, or an error dict (so the caller can surface Google's
+            real message instead of a bare boolean).
         """
         try:
             # Map boolean to required string for sendUpdates
@@ -223,8 +234,7 @@ class CalendarService(BaseGoogleService):
             return True
 
         except Exception as e:
-            self.handle_api_error("delete_event", e)
-            return False
+            return self.handle_api_error("delete_event", e)
 
     def get_event_details(self, event_id: str, calendar_id: str = "primary") -> dict[str, Any] | None:
         """

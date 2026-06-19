@@ -171,17 +171,12 @@ async def delete_gmail_draft(
         raise ValueError("Draft ID is required")
 
     gmail_service = GmailService()
-    success = gmail_service.delete_draft(draft_id=draft_id)
+    result = gmail_service.delete_draft(draft_id=draft_id)
 
-    if not success:
-        # Attempt to check if the service returned an error dict
-        # (Assuming handle_api_error might return dict or False/None)
-        # This part might need adjustment based on actual service error handling
-        error_info = getattr(gmail_service, "last_error", None)  # Hypothetical error capture
-        error_msg = "Failed to delete draft"
-        if isinstance(error_info, dict) and error_info.get("error"):
-            error_msg = error_info.get("message", error_msg)
-        raise ValueError(error_msg)
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Failed to delete draft"))
+    if not result:
+        raise ValueError("Failed to delete draft")
 
     return {
         "message": f"Draft with ID '{draft_id}' deleted successfully.",

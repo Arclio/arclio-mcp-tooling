@@ -44,7 +44,12 @@ async def sheets_create_spreadsheet(title: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="sheets_read_range",
-    description="Reads data from a specified range in a Google Spreadsheet (e.g., 'Sheet1!A1:B5').",
+    description=(
+        "Reads cell values from a Google Spreadsheet. The 'range_a1' parameter "
+        "takes A1 notation, e.g. 'Sheet1!A1:B5', or 'A1:B5' to read the first "
+        "tab. Omit the tab name if you don't know it; the response reports the "
+        "tab that was actually read."
+    ),
 )
 async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any]:
     """
@@ -64,6 +69,10 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
         raise ValueError("Range (A1 notation) cannot be empty.")
+    # Note: a bare tab name ("Sheet1"), a named range ("SalesData"), and full
+    # references ("Sheet1!A1:B5") are all valid here, so we don't try to
+    # pattern-match the shape — the Sheets API returns a clear error for
+    # genuinely malformed input.
 
     sheets_service = SheetsService()
     result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)

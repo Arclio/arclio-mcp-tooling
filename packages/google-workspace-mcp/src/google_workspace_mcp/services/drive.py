@@ -46,14 +46,16 @@ class DriveService(BaseGoogleService):
                 f"Searching files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
             )
 
-            # Validate and constrain page_size
-            page_size = max(1, min(page_size, 1000))
+            # page_size is the desired TOTAL number of results. The Drive API
+            # returns at most 1000 per request, so request in chunks and follow
+            # nextPageToken until we have enough (previously results past the
+            # first page were silently lost).
+            desired_total = max(1, page_size)
 
             # Build list parameters with shared drive support
             list_params = {
                 "q": query,  # Use the query directly without modification
-                "pageSize": page_size,
-                "fields": "files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
+                "fields": "nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink)",
                 "supportsAllDrives": True,
                 "includeItemsFromAllDrives": True,
             }
@@ -68,9 +70,19 @@ class DriveService(BaseGoogleService):
                     "user"  # Default to user's files if no specific shared drive ID
                 )
 
-            results = self.service.files().list(**list_params).execute()
-            files = results.get("files", [])
+            files: list[dict[str, Any]] = []
+            page_token: str | None = None
+            while len(files) < desired_total:
+                list_params["pageSize"] = min(desired_total - len(files), 1000)
+                if page_token:
+                    list_params["pageToken"] = page_token
+                results = self.service.files().list(**list_params).execute()
+                files.extend(results.get("files", []))
+                page_token = results.get("nextPageToken")
+                if not page_token:
+                    break
 
+            files = files[:desired_total]
             logger.info(f"Found {len(files)} files matching query '{query}'")
             return files
 
@@ -343,6 +355,22 @@ class DriveService(BaseGoogleService):
                     "error": True,
                     "error_type": "invalid_content",
                     "message": "Invalid base64 encoded content provided.",
+                    "operation": "upload_file_content",
+                }
+
+            # An empty (or whitespace-only) base64 string decodes to zero bytes,
+            # which would silently upload a 0-byte file. Reject it explicitly —
+            # this also catches the case where a large blob arrived empty as a
+            # tool argument.
+            if not content_bytes:
+                logger.error(f"Decoded content for file '{filename}' is empty.")
+                return {
+                    "error": True,
+                    "error_type": "invalid_content",
+                    "message": (
+                        "Decoded file content is empty (0 bytes). The content "
+                        "may have been lost in transit; provide non-empty bytes."
+                    ),
                     "operation": "upload_file_content",
                 }
 

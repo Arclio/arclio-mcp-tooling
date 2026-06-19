@@ -81,6 +81,15 @@ class TestDriveWriteOperations:
         assert result["message"] == "Invalid base64 encoded content provided."
         assert result["operation"] == "upload_file_content"
 
+    def test_upload_file_content_empty_decoded_bytes(self, mock_drive_service):
+        """An empty base64 string decodes to 0 bytes and must be rejected."""
+        result = mock_drive_service.upload_file_content("empty.txt", "")
+
+        mock_drive_service.service.files.return_value.create.assert_not_called()
+        assert result["error"] is True
+        assert result["error_type"] == "invalid_content"
+        assert "empty" in result["message"].lower()
+
     @patch("mimetypes.guess_type")
     def test_upload_file_content_unknown_mime_type(
         self, mock_guess_type, mock_drive_service

@@ -209,19 +209,16 @@ async def delete_calendar_event(
         raise ValueError("Event ID is required")
 
     calendar_service = CalendarService()
-    success = calendar_service.delete_event(
+    result = calendar_service.delete_event(
         event_id=event_id,
         send_notifications=send_notifications,
         calendar_id=calendar_id,
     )
 
-    if not success:
-        # Attempt to check if the service returned an error dict
-        error_info = getattr(calendar_service, "last_error", None)  # Hypothetical
-        error_msg = "Failed to delete calendar event"
-        if isinstance(error_info, dict) and error_info.get("error"):
-            error_msg = error_info.get("message", error_msg)
-        raise ValueError(error_msg)
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Failed to delete calendar event"))
+    if not result:
+        raise ValueError("Failed to delete calendar event")
 
     return {
         "message": f"Event with ID '{event_id}' deleted successfully from calendar '{calendar_id}'.",

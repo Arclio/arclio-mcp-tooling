@@ -9,6 +9,38 @@ import pytz
 from googleapiclient.errors import HttpError
 
 
+class TestCalendarGetEventsPagination:
+    """Pagination: events past the first page must not be silently truncated."""
+
+    def test_follows_next_page_token(self, mock_calendar_service):
+        page1 = {"items": [{"id": "a"}, {"id": "b"}], "nextPageToken": "tok"}
+        page2 = {"items": [{"id": "c"}]}
+        mock_calendar_service.service.events.return_value.list.return_value.execute.side_effect = [
+            page1,
+            page2,
+        ]
+
+        result = mock_calendar_service.get_events(
+            calendar_id="primary", max_results=3
+        )
+
+        assert [e["id"] for e in result] == ["a", "b", "c"]
+        assert mock_calendar_service.service.events.return_value.list.call_count == 2
+
+    def test_stops_when_desired_total_reached(self, mock_calendar_service):
+        page1 = {"items": [{"id": "a"}, {"id": "b"}, {"id": "c"}], "nextPageToken": "tok"}
+        mock_calendar_service.service.events.return_value.list.return_value.execute.side_effect = [
+            page1
+        ]
+
+        result = mock_calendar_service.get_events(
+            calendar_id="primary", max_results=2
+        )
+
+        assert [e["id"] for e in result] == ["a", "b"]
+        assert mock_calendar_service.service.events.return_value.list.call_count == 1
+
+
 class TestCalendarGetEvents:
     """Tests for the CalendarService.get_events method."""
 
