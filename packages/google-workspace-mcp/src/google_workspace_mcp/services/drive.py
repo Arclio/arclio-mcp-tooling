@@ -5,6 +5,7 @@ Provides comprehensive file management capabilities through Google Drive API.
 
 import base64
 import binascii
+import csv
 import io
 import logging
 import mimetypes
@@ -16,6 +17,14 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from google_workspace_mcp.services.base import BaseGoogleService
 
 logger = logging.getLogger(__name__)
+
+# Office Open XML mime types that are uploaded as opaque binaries to Drive
+# (i.e. NOT native Google Workspace files). Without dedicated handling these
+# fall through to a base64 dump that no downstream tool can read.
+XLSX_MIME_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
+NATIVE_SHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet"
 
 
 class DriveService(BaseGoogleService):
@@ -100,10 +109,10 @@ class DriveService(BaseGoogleService):
             Dict containing mimeType and content (possibly base64 encoded)
         """
         try:
-            # Get file metadata
+            # Get file metadata (supportsAllDrives so Shared Drive files resolve)
             file_metadata = (
                 self.service.files()
-                .get(fileId=file_id, fields="mimeType, name")
+                .get(fileId=file_id, fields="mimeType, name", supportsAllDrives=True)
                 .execute()
             )
 
@@ -304,10 +313,69 @@ class DriveService(BaseGoogleService):
                     "content": content,
                     "encoding": "base64",
                 }
-        else:
-            # Binary file
-            content = base64.b64encode(content_bytes).decode("utf-8")
-            return {"mimeType": mime_type, "content": content, "encoding": "base64"}
+
+        # Uploaded (non-native) .xlsx workbooks: parse into CSV-per-sheet text so
+        # the content is readable. Without this, an uploaded .xlsx is neither a
+        # native Google Sheet (no export path) nor text, so it would fall through
+        # to an unusable base64 dump.
+        if mime_type == XLSX_MIME_TYPE:
+            extracted = self._extract_xlsx_text(content_bytes, file_name)
+            if extracted is not None:
+                return {
+                    "mimeType": "text/csv",
+                    "content": extracted,
+                    "encoding": "utf-8",
+                    "sourceMimeType": mime_type,
+                }
+            logger.warning(
+                f"xlsx extraction failed for '{file_name}' ({file_id}); returning base64."
+            )
+
+        # Binary file
+        content = base64.b64encode(content_bytes).decode("utf-8")
+        return {"mimeType": mime_type, "content": content, "encoding": "base64"}
+
+    @staticmethod
+    def _extract_xlsx_text(content_bytes: bytes, file_name: str) -> str | None:
+        """Render an .xlsx workbook as CSV text, one block per sheet.
+
+        Returns None if the workbook cannot be parsed, so the caller can fall
+        back to base64. Multi-sheet workbooks are separated by a header line and
+        a blank line; each sheet is emitted as standard CSV preserving rows and
+        columns.
+        """
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            logger.warning("openpyxl not installed; cannot extract .xlsx text.")
+            return None
+
+        try:
+            workbook = load_workbook(
+                io.BytesIO(content_bytes), read_only=True, data_only=True
+            )
+        except Exception as e:
+            logger.warning(f"Failed to open .xlsx '{file_name}': {e}")
+            return None
+
+        try:
+            blocks: list[str] = []
+            multi_sheet = len(workbook.sheetnames) > 1
+            for sheet in workbook.worksheets:
+                buffer = io.StringIO()
+                writer = csv.writer(buffer, lineterminator="\n")
+                for row in sheet.iter_rows(values_only=True):
+                    writer.writerow(
+                        ["" if cell is None else cell for cell in row]
+                    )
+                sheet_csv = buffer.getvalue().rstrip("\r\n")
+                if multi_sheet:
+                    blocks.append(f"# Sheet: {sheet.title}\n{sheet_csv}")
+                else:
+                    blocks.append(sheet_csv)
+            return "\n\n".join(blocks)
+        finally:
+            workbook.close()
 
     def _download_content(self, request) -> bytes:
         """Download content from a request."""
@@ -411,6 +479,163 @@ class DriveService(BaseGoogleService):
                 "error_type": "local_error",
                 "message": f"Error uploading file from content: {str(e)}",
                 "operation": "upload_file_content",
+            }
+
+    def convert_xlsx_to_google_sheet(
+        self,
+        source_file_id: str,
+        new_name: str | None = None,
+        parent_folder_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Convert an .xlsx file already in Drive into a native Google Sheet.
+
+        Drive performs the conversion server-side when a file is copied with a
+        Google Workspace target mimeType, so this creates a NEW native Sheet and
+        leaves the original .xlsx untouched. The resulting Sheet is fully
+        editable by all Sheets tools (ranges, formulas, formatting), unlike an
+        uploaded .xlsx which can only be read.
+
+        Args:
+            source_file_id: ID of the .xlsx file in Drive to convert.
+            new_name: Optional name for the new Sheet. Defaults to the source
+                file's name (with any .xlsx extension stripped).
+            parent_folder_id: Optional folder to place the new Sheet in. Defaults
+                to the same parent(s) as the source file.
+
+        Returns:
+            Dict with the new Sheet's metadata (id, name, mimeType, webViewLink)
+            or error information.
+        """
+        try:
+            if not source_file_id:
+                return {"error": True, "message": "source_file_id cannot be empty"}
+
+            # Validate the source is actually an .xlsx before attempting a
+            # conversion that would otherwise produce a confusing API error.
+            source = (
+                self.service.files()
+                .get(
+                    fileId=source_file_id,
+                    fields="id, name, mimeType, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            source_mime = source.get("mimeType")
+            if source_mime != XLSX_MIME_TYPE:
+                return {
+                    "error": True,
+                    "error_type": "unsupported_type",
+                    "message": (
+                        f"Source file is '{source_mime}', not an .xlsx workbook. "
+                        "Only .xlsx files can be converted with this tool."
+                    ),
+                    "operation": "convert_xlsx_to_google_sheet",
+                }
+
+            if not new_name:
+                source_name = source.get("name", "Converted Sheet")
+                new_name = (
+                    source_name[: -len(".xlsx")]
+                    if source_name.lower().endswith(".xlsx")
+                    else source_name
+                )
+
+            body: dict[str, Any] = {
+                "name": new_name,
+                "mimeType": NATIVE_SHEET_MIME_TYPE,
+            }
+            if parent_folder_id:
+                body["parents"] = [parent_folder_id]
+
+            logger.info(
+                f"Converting .xlsx '{source_file_id}' to native Google Sheet '{new_name}'."
+            )
+            new_sheet = (
+                self.service.files()
+                .copy(
+                    fileId=source_file_id,
+                    body=body,
+                    fields="id, name, mimeType, webViewLink, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Successfully converted to Google Sheet with ID: {new_sheet.get('id')}"
+            )
+            return new_sheet
+
+        except HttpError as e:
+            return self.handle_api_error("convert_xlsx_to_google_sheet", e)
+        except Exception as e:
+            logger.error(f"Non-API error in convert_xlsx_to_google_sheet: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error converting .xlsx to Google Sheet: {str(e)}",
+                "operation": "convert_xlsx_to_google_sheet",
+            }
+
+    def move_file(
+        self,
+        file_id: str,
+        target_folder_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a file into a target folder, removing its existing parents.
+
+        Newly created native files (e.g. a Sheet made with
+        sheets_create_spreadsheet) land in Drive root; this relocates them into
+        the intended folder so deliverables are not stranded.
+
+        Args:
+            file_id: ID of the file to move.
+            target_folder_id: ID of the destination folder.
+
+        Returns:
+            Dict with the file's id, name, and new parents, or error information.
+        """
+        try:
+            if not file_id or not target_folder_id:
+                return {
+                    "error": True,
+                    "message": "file_id and target_folder_id are required.",
+                }
+
+            # Look up current parents so they can be removed in the same call.
+            current = (
+                self.service.files()
+                .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+                .execute()
+            )
+            previous_parents = ",".join(current.get("parents", []))
+
+            logger.info(f"Moving file {file_id} to folder {target_folder_id}.")
+            updated = (
+                self.service.files()
+                .update(
+                    fileId=file_id,
+                    addParents=target_folder_id,
+                    removeParents=previous_parents,
+                    fields="id, name, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            return updated
+
+        except HttpError as e:
+            return self.handle_api_error("move_file", e)
+        except Exception as e:
+            logger.error(f"Non-API error in move_file: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error moving file: {str(e)}",
+                "operation": "move_file",
             }
 
     def delete_file(self, file_id: str) -> dict[str, Any]:

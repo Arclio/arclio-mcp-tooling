@@ -385,3 +385,232 @@ class SheetsService(BaseGoogleService):
                 "message": str(e),
                 "operation": "get_spreadsheet_metadata",
             }
+
+    # --- Formatting helpers ---------------------------------------------- #
+
+    @staticmethod
+    def _col_to_index(col_letters: str) -> int:
+        """Convert spreadsheet column letters (A, B, ..., AA) to a 0-based index."""
+        index = 0
+        for char in col_letters.upper():
+            index = index * 26 + (ord(char) - ord("A") + 1)
+        return index - 1
+
+    @classmethod
+    def _a1_to_grid_range(cls, sheet_id: int, range_a1: str) -> dict[str, Any]:
+        """Convert an A1 range (without sheet name) to a Sheets API GridRange.
+
+        Accepts forms like 'A1:M5', 'A:C' (whole columns), '1:5' (whole rows),
+        or a single cell 'B2'. Returns a GridRange with half-open end indices as
+        the Sheets API expects.
+        """
+        import re
+
+        grid: dict[str, Any] = {"sheetId": sheet_id}
+        # Strip any leading "SheetName!" if present.
+        if "!" in range_a1:
+            range_a1 = range_a1.split("!", 1)[1]
+
+        parts = range_a1.split(":")
+
+        def parse_cell(token: str) -> tuple[int | None, int | None]:
+            match = re.match(r"^([A-Za-z]*)(\d*)$", token.strip())
+            if not match:
+                raise ValueError(f"Invalid A1 token: '{token}'")
+            col_part, row_part = match.group(1), match.group(2)
+            col = cls._col_to_index(col_part) if col_part else None
+            row = int(row_part) - 1 if row_part else None
+            return col, row
+
+        start_col, start_row = parse_cell(parts[0])
+        if len(parts) == 1:
+            end_col, end_row = start_col, start_row
+        else:
+            end_col, end_row = parse_cell(parts[1])
+
+        if start_row is not None:
+            grid["startRowIndex"] = start_row
+        if start_col is not None:
+            grid["startColumnIndex"] = start_col
+        if end_row is not None:
+            grid["endRowIndex"] = end_row + 1
+        if end_col is not None:
+            grid["endColumnIndex"] = end_col + 1
+        return grid
+
+    @staticmethod
+    def _hex_to_color(hex_color: str) -> dict[str, float]:
+        """Convert a hex color like '1B3A4B' or '#1B3A4B' to a Sheets Color."""
+        h = hex_color.lstrip("#")
+        if len(h) != 6:
+            raise ValueError(f"Expected a 6-digit hex color, got '{hex_color}'")
+        r, g, b = (int(h[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+        return {"red": r, "green": g, "blue": b}
+
+    def _batch_update(
+        self, spreadsheet_id: str, requests: list[dict], operation: str
+    ) -> dict[str, Any]:
+        """Run a batchUpdate with the given requests and uniform error handling."""
+        try:
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=spreadsheet_id, body={"requests": requests}
+            ).execute()
+            return {"spreadsheet_id": spreadsheet_id, "success": True}
+        except HttpError as error:
+            logger.error(f"Error in {operation} for {spreadsheet_id}: {error}")
+            return self.handle_api_error(operation, error)
+        except Exception as e:
+            logger.exception(f"Unexpected error in {operation} for {spreadsheet_id}")
+            return {
+                "error": True,
+                "error_type": "unexpected_service_error",
+                "message": str(e),
+                "operation": operation,
+            }
+
+    def format_cells(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        range_a1: str,
+        bold: bool | None = None,
+        background_hex: str | None = None,
+        font_hex: str | None = None,
+        font_size: int | None = None,
+        horizontal_alignment: str | None = None,
+        wrap: bool | None = None,
+    ) -> dict[str, Any]:
+        """Apply basic cell formatting to a range via repeatCell.
+
+        Only the provided attributes are changed (the update mask is built from
+        whichever arguments are not None), so callers can set just a header fill
+        or just text wrapping without disturbing other formatting.
+        """
+        cell_format: dict[str, Any] = {}
+        text_format: dict[str, Any] = {}
+        fields: list[str] = []
+
+        if background_hex is not None:
+            cell_format["backgroundColor"] = self._hex_to_color(background_hex)
+            fields.append("userEnteredFormat.backgroundColor")
+        if bold is not None:
+            text_format["bold"] = bold
+            fields.append("userEnteredFormat.textFormat.bold")
+        if font_hex is not None:
+            text_format["foregroundColor"] = self._hex_to_color(font_hex)
+            fields.append("userEnteredFormat.textFormat.foregroundColor")
+        if font_size is not None:
+            text_format["fontSize"] = font_size
+            fields.append("userEnteredFormat.textFormat.fontSize")
+        if text_format:
+            cell_format["textFormat"] = text_format
+        if horizontal_alignment is not None:
+            cell_format["horizontalAlignment"] = horizontal_alignment.upper()
+            fields.append("userEnteredFormat.horizontalAlignment")
+        if wrap is not None:
+            cell_format["wrapStrategy"] = "WRAP" if wrap else "OVERFLOW_CELL"
+            fields.append("userEnteredFormat.wrapStrategy")
+
+        if not fields:
+            return {
+                "error": True,
+                "error_type": "no_op",
+                "message": "No formatting attributes were provided.",
+                "operation": "format_cells",
+            }
+
+        requests = [
+            {
+                "repeatCell": {
+                    "range": self._a1_to_grid_range(sheet_id, range_a1),
+                    "cell": {"userEnteredFormat": cell_format},
+                    "fields": ",".join(fields),
+                }
+            }
+        ]
+        logger.info(f"Formatting {range_a1} on sheet {sheet_id} in {spreadsheet_id}")
+        return self._batch_update(spreadsheet_id, requests, "format_cells")
+
+    def freeze(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        rows: int = 0,
+        cols: int = 0,
+    ) -> dict[str, Any]:
+        """Freeze the given number of leading rows and/or columns."""
+        grid_properties: dict[str, int] = {}
+        fields: list[str] = []
+        if rows:
+            grid_properties["frozenRowCount"] = rows
+            fields.append("gridProperties.frozenRowCount")
+        if cols:
+            grid_properties["frozenColumnCount"] = cols
+            fields.append("gridProperties.frozenColumnCount")
+        if not fields:
+            return {
+                "error": True,
+                "error_type": "no_op",
+                "message": "Provide rows and/or cols to freeze.",
+                "operation": "freeze",
+            }
+        requests = [
+            {
+                "updateSheetProperties": {
+                    "properties": {
+                        "sheetId": sheet_id,
+                        "gridProperties": grid_properties,
+                    },
+                    "fields": ",".join(fields),
+                }
+            }
+        ]
+        logger.info(f"Freezing rows={rows} cols={cols} on sheet {sheet_id}")
+        return self._batch_update(spreadsheet_id, requests, "freeze")
+
+    def set_column_width(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        start_col: int,
+        end_col: int,
+        width: int,
+    ) -> dict[str, Any]:
+        """Set pixel width for columns [start_col, end_col) (0-based, half-open)."""
+        requests = [
+            {
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "dimension": "COLUMNS",
+                        "startIndex": start_col,
+                        "endIndex": end_col,
+                    },
+                    "properties": {"pixelSize": width},
+                    "fields": "pixelSize",
+                }
+            }
+        ]
+        logger.info(
+            f"Setting width {width}px for cols [{start_col},{end_col}) on sheet {sheet_id}"
+        )
+        return self._batch_update(spreadsheet_id, requests, "set_column_width")
+
+    def merge_cells(
+        self,
+        spreadsheet_id: str,
+        sheet_id: int,
+        range_a1: str,
+        merge_type: str = "MERGE_ALL",
+    ) -> dict[str, Any]:
+        """Merge the cells in an A1 range (e.g. a title banner row 'A1:M1')."""
+        requests = [
+            {
+                "mergeCells": {
+                    "range": self._a1_to_grid_range(sheet_id, range_a1),
+                    "mergeType": merge_type,
+                }
+            }
+        ]
+        logger.info(f"Merging {range_a1} ({merge_type}) on sheet {sheet_id}")
+        return self._batch_update(spreadsheet_id, requests, "merge_cells")
