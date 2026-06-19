@@ -148,7 +148,9 @@ class BaseGoogleService:
         """Exponential backoff with jitter, honoring a Retry-After header."""
         retry_after = None
         if error.resp:
-            header = error.resp.get("retry-after") or error.resp.get("Retry-After")
+            # httplib2 lowercases all response header keys, so look up the
+            # lowercase form only.
+            header = error.resp.get("retry-after")
             if header:
                 try:
                     retry_after = float(header)
