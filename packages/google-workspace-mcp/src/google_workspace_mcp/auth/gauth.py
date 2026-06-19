@@ -6,7 +6,6 @@ Handles OAuth 2.0 authentication using environment variables.
 
 import logging
 import os
-from functools import lru_cache
 
 import google.auth.exceptions
 import google.auth.transport.requests
@@ -15,13 +14,15 @@ from google.oauth2.credentials import Credentials
 logger = logging.getLogger(__name__)
 
 
-@lru_cache(maxsize=32)
 def get_credentials():
     """
     Retrieves Google OAuth credentials from environment variables.
 
-    The credentials are cached to avoid redundant processing, but will
-    be automatically refreshed when expired.
+    Builds a fresh Credentials object from the environment on each call. This is
+    cheap (no network) and intentionally NOT cached: a cache keyed on no args
+    would ignore an env-var token rotation mid-process, and in any shared model
+    would risk serving one identity's credentials to another. The google-auth
+    library refreshes the short-lived access token automatically on use.
 
     Returns:
         google.oauth2.credentials.Credentials: Initialized credentials object.

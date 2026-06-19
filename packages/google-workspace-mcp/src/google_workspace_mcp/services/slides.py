@@ -697,9 +697,6 @@ class SlidesService(BaseGoogleService):
             Response data or error information
         """
         try:
-            # Create a unique element ID
-            f"image_{slide_id}_{hash(image_url) % 10000}"
-
             # Define the base request
             create_image_request = {
                 "createImage": {
