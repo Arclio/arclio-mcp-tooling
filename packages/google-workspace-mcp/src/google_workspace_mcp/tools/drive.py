@@ -22,28 +22,42 @@ async def drive_search_files(
     query: str,
     page_size: int = 10,
     shared_drive_id: str | None = None,
+    include_trashed: bool = False,
 ) -> dict[str, Any]:
     """
     Search for files in Google Drive, optionally within a specific shared drive.
 
     Args:
         query: Search query string. Can be a simple text search or complex query with operators.
+            Note: in Drive query syntax, literal apostrophes inside quoted values must be
+            escaped as \\' (e.g. name = 'John\\'s Files').
         page_size: Maximum number of files to return (1 to 1000, default 10).
         shared_drive_id: Optional shared drive ID to search within a specific shared drive.
+        include_trashed: Whether to include trashed files in results (default False).
 
     Returns:
         A dictionary containing a list of files or an error message.
     """
     logger.info(
-        f"Executing drive_search_files with query: '{query}', page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+        f"Executing drive_search_files with query: '{query}', page_size: {page_size}, "
+        f"shared_drive_id: {shared_drive_id}, include_trashed: {include_trashed}"
     )
 
     if not query or not query.strip():
         raise ValueError("Query cannot be empty")
 
+    # Exclude trashed files unless explicitly requested. Only append the
+    # constraint when the caller hasn't already specified a trashed clause.
+    effective_query = query.strip()
+    if not include_trashed and "trashed" not in effective_query:
+        effective_query = f"({effective_query}) and trashed = false"
+
     drive_service = DriveService()
     files = drive_service.search_files(
-        query=query, page_size=page_size, shared_drive_id=shared_drive_id
+        query=effective_query,
+        page_size=page_size,
+        shared_drive_id=shared_drive_id,
+        include_shared_drives=shared_drive_id is None,
     )
 
     if isinstance(files, dict) and files.get("error"):
@@ -315,4 +329,173 @@ async def drive_move_file(file_id: str, target_folder_id: str) -> dict[str, Any]
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(f"Move failed: {result.get('message', 'Unknown error')}")
 
+    return result
+
+
+@mcp.tool(
+    name="drive_search_files_in_folder",
+    description="Search for files or folders within a specific folder ID (or a Shared Drive ID).",
+)
+async def drive_search_files_in_folder(
+    folder_id: str,
+    query: str = "",
+    page_size: int = 10,
+) -> dict[str, Any]:
+    """
+    Search for files or folders within a specific folder ID. Trashed items are excluded.
+
+    Works for both regular folders and Shared Drives (pass the Shared Drive's ID as folder_id).
+
+    Args:
+        folder_id: The ID of the folder or Shared Drive to search within.
+        query: Optional Drive query string. If empty, returns all items in the folder.
+            Example to find only sub-folders: "mimeType = 'application/vnd.google-apps.folder'".
+        page_size: Maximum number of files to return (1 to 1000, default 10).
+
+    Returns:
+        A dictionary with the folder_id and a list of files/folders.
+    """
+    logger.info(
+        f"Executing drive_search_files_in_folder with folder_id: '{folder_id}', "
+        f"query: '{query}', page_size: {page_size}"
+    )
+
+    if not folder_id or not folder_id.strip():
+        raise ValueError("Folder ID cannot be empty")
+
+    folder_constraint = f"'{folder_id}' in parents and trashed = false"
+    if query and query.strip():
+        # Auto-escape apostrophes in the user query so names like "Ko'a Kea" work.
+        escaped_query = query.strip().replace("'", "\\'")
+        combined_query = f"{escaped_query} and {folder_constraint}"
+    else:
+        combined_query = folder_constraint
+
+    drive_service = DriveService()
+    files = drive_service.search_files(
+        query=combined_query,
+        page_size=page_size,
+        include_shared_drives=True,  # folder searches may span shared drives
+    )
+
+    if isinstance(files, dict) and files.get("error"):
+        raise ValueError(
+            f"Folder search failed: {files.get('message', 'Unknown error')}"
+        )
+
+    return {"folder_id": folder_id, "files": files}
+
+
+@mcp.tool(
+    name="drive_find_folder_by_name",
+    description=(
+        "Find folders by name (exact match first, then partial), auto-escaping "
+        "apostrophes. Optionally also search for files inside the found folder."
+    ),
+)
+async def drive_find_folder_by_name(
+    folder_name: str,
+    include_files: bool = False,
+    file_query: str = "",
+    page_size: int = 10,
+    shared_drive_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Find folders by name using a two-step search: exact match, then partial match.
+
+    Automatically handles apostrophes in folder names and queries. Trashed items
+    are excluded. Finds regular folders within My Drive or a Shared Drive; it does
+    NOT list Shared Drives themselves (use drive_list_shared_drives for that).
+
+    Args:
+        folder_name: The folder name to search for.
+        include_files: Also search for files within the first matched folder (default False).
+        file_query: Optional query for files within the folder (only if include_files=True).
+        page_size: Maximum number of files to return (1 to 1000, default 10).
+        shared_drive_id: Optional shared drive ID to scope the search.
+
+    Returns:
+        A dictionary with folders_found and, if requested, file results.
+    """
+    logger.info(
+        f"Executing drive_find_folder_by_name with folder_name: '{folder_name}', "
+        f"include_files: {include_files}, file_query: '{file_query}', "
+        f"page_size: {page_size}, shared_drive_id: {shared_drive_id}"
+    )
+
+    if not folder_name or not folder_name.strip():
+        raise ValueError("Folder name cannot be empty")
+
+    drive_service = DriveService()
+    escaped_name = folder_name.strip().replace("'", "\\'")
+    folder_mime = "application/vnd.google-apps.folder"
+
+    # Step 1: exact match
+    exact_query = (
+        f"name = '{escaped_name}' and mimeType = '{folder_mime}' and trashed = false"
+    )
+    folders = drive_service.search_files(
+        query=exact_query,
+        page_size=5,
+        shared_drive_id=shared_drive_id,
+        include_shared_drives=True,
+    )
+
+    # Step 2: partial match fallback
+    if not folders:
+        contains_query = (
+            f"name contains '{escaped_name}' and mimeType = '{folder_mime}' "
+            "and trashed = false"
+        )
+        folders = drive_service.search_files(
+            query=contains_query,
+            page_size=5,
+            shared_drive_id=shared_drive_id,
+            include_shared_drives=True,
+        )
+
+    if isinstance(folders, dict) and folders.get("error"):
+        raise ValueError(
+            f"Folder search failed: {folders.get('message', 'Unknown error')}"
+        )
+
+    result: dict[str, Any] = {
+        "folder_name": folder_name,
+        "folders_found": folders,
+        "folder_count": len(folders) if folders else 0,
+    }
+
+    if not include_files:
+        return result
+
+    if not folders:
+        result["message"] = f"No folders found with name matching '{folder_name}'"
+        return result
+
+    target_folder = folders[0]
+    folder_constraint = f"'{target_folder['id']}' in parents and trashed = false"
+
+    if file_query and file_query.strip():
+        clean = file_query.strip()
+        if " " not in clean and ":" not in clean and "=" not in clean:
+            # Bare keyword -> full-text search, escaped.
+            wrapped = f"fullText contains '{clean.replace(chr(39), chr(92) + chr(39))}'"
+        else:
+            wrapped = clean.replace("'", "\\'")
+        combined_query = f"{wrapped} and {folder_constraint}"
+    else:
+        combined_query = folder_constraint
+
+    files = drive_service.search_files(
+        query=combined_query, page_size=page_size, include_shared_drives=True
+    )
+
+    if isinstance(files, dict) and files.get("error"):
+        raise ValueError(
+            f"File search in folder failed: {files.get('message', 'Unknown error')}"
+        )
+
+    result["target_folder"] = target_folder
+    result["files"] = files
+    result["file_count"] = len(files) if files else 0
     return result
