@@ -32,8 +32,13 @@ class TestDriveSearchFilesTool:
         result = await drive_search_files(query="test documents", page_size=5)
 
         assert result == {"files": mock_files}
+        # Tool wraps with trashed=false (default) and searches all drives when no
+        # specific shared drive is given.
         mock_drive_service_for_tool.search_files.assert_called_once_with(
-            query="test documents", page_size=5, shared_drive_id=None
+            query="(test documents) and trashed = false",
+            page_size=5,
+            shared_drive_id=None,
+            include_shared_drives=True,
         )
 
     async def test_tool_search_files_with_shared_drive(self, mock_drive_service_for_tool):
@@ -46,8 +51,12 @@ class TestDriveSearchFilesTool:
         result = await drive_search_files(query="shared documents", page_size=10, shared_drive_id="drive123")
 
         assert result == {"files": mock_files}
+        # A specific shared_drive_id -> include_shared_drives is False (scoped).
         mock_drive_service_for_tool.search_files.assert_called_once_with(
-            query="shared documents", page_size=10, shared_drive_id="drive123"
+            query="(shared documents) and trashed = false",
+            page_size=10,
+            shared_drive_id="drive123",
+            include_shared_drives=False,
         )
 
     async def test_tool_search_files_empty_results(self, mock_drive_service_for_tool):
@@ -96,5 +105,10 @@ class TestDriveSearchFilesTool:
         result = await drive_search_files(query="test")
 
         # Verify default parameters
-        mock_drive_service_for_tool.search_files.assert_called_once_with(query="test", page_size=10, shared_drive_id=None)
+        mock_drive_service_for_tool.search_files.assert_called_once_with(
+            query="(test) and trashed = false",
+            page_size=10,
+            shared_drive_id=None,
+            include_shared_drives=True,
+        )
         assert result == {"files": mock_files}

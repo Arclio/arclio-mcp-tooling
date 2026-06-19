@@ -47,9 +47,11 @@ async def drive_search_files(
         raise ValueError("Query cannot be empty")
 
     # Exclude trashed files unless explicitly requested. Only append the
-    # constraint when the caller hasn't already specified a trashed clause.
+    # constraint when the caller hasn't already used a trashed OPERATOR clause
+    # (match "trashed=" / "trashed =", not the word inside a quoted value).
     effective_query = query.strip()
-    if not include_trashed and "trashed" not in effective_query:
+    has_trashed_clause = "trashed=" in effective_query or "trashed =" in effective_query
+    if not include_trashed and not has_trashed_clause:
         effective_query = f"({effective_query}) and trashed = false"
 
     drive_service = DriveService()
@@ -365,9 +367,11 @@ async def drive_search_files_in_folder(
 
     folder_constraint = f"'{folder_id}' in parents and trashed = false"
     if query and query.strip():
-        # Auto-escape apostrophes in the user query so names like "Ko'a Kea" work.
-        escaped_query = query.strip().replace("'", "\\'")
-        combined_query = f"{escaped_query} and {folder_constraint}"
+        # `query` is a structured Drive query; pass it through verbatim (the
+        # caller escapes apostrophes inside their own value strings, as with
+        # drive_search_files). Escaping the whole string here would corrupt the
+        # query's own quote delimiters.
+        combined_query = f"{query.strip()} and {folder_constraint}"
     else:
         combined_query = folder_constraint
 
@@ -478,10 +482,14 @@ async def drive_find_folder_by_name(
     if file_query and file_query.strip():
         clean = file_query.strip()
         if " " not in clean and ":" not in clean and "=" not in clean:
-            # Bare keyword -> full-text search, escaped.
-            wrapped = f"fullText contains '{clean.replace(chr(39), chr(92) + chr(39))}'"
+            # Bare keyword -> wrap in a full-text predicate, escaping the
+            # apostrophes in the keyword value we interpolate.
+            escaped = clean.replace("'", "\\'")
+            wrapped = f"fullText contains '{escaped}'"
         else:
-            wrapped = clean.replace("'", "\\'")
+            # Already a structured query; pass through verbatim (caller escapes
+            # apostrophes inside their own value strings).
+            wrapped = clean
         combined_query = f"{wrapped} and {folder_constraint}"
     else:
         combined_query = folder_constraint
