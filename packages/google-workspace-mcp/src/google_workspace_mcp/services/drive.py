@@ -5,6 +5,7 @@ Provides comprehensive file management capabilities through Google Drive API.
 
 import base64
 import binascii
+import csv
 import io
 import logging
 import mimetypes
@@ -16,6 +17,13 @@ from googleapiclient.http import MediaIoBaseDownload, MediaIoBaseUpload
 from google_workspace_mcp.services.base import BaseGoogleService
 
 logger = logging.getLogger(__name__)
+
+# Office Open XML mime types that are uploaded as opaque binaries to Drive
+# (i.e. NOT native Google Workspace files). Without dedicated handling these
+# fall through to a base64 dump that no downstream tool can read.
+XLSX_MIME_TYPE = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 
 class DriveService(BaseGoogleService):
@@ -292,10 +300,69 @@ class DriveService(BaseGoogleService):
                     "content": content,
                     "encoding": "base64",
                 }
-        else:
-            # Binary file
-            content = base64.b64encode(content_bytes).decode("utf-8")
-            return {"mimeType": mime_type, "content": content, "encoding": "base64"}
+
+        # Uploaded (non-native) .xlsx workbooks: parse into CSV-per-sheet text so
+        # the content is readable. Without this, an uploaded .xlsx is neither a
+        # native Google Sheet (no export path) nor text, so it would fall through
+        # to an unusable base64 dump.
+        if mime_type == XLSX_MIME_TYPE:
+            extracted = self._extract_xlsx_text(content_bytes, file_name)
+            if extracted is not None:
+                return {
+                    "mimeType": "text/csv",
+                    "content": extracted,
+                    "encoding": "utf-8",
+                    "sourceMimeType": mime_type,
+                }
+            logger.warning(
+                f"xlsx extraction failed for '{file_name}' ({file_id}); returning base64."
+            )
+
+        # Binary file
+        content = base64.b64encode(content_bytes).decode("utf-8")
+        return {"mimeType": mime_type, "content": content, "encoding": "base64"}
+
+    @staticmethod
+    def _extract_xlsx_text(content_bytes: bytes, file_name: str) -> str | None:
+        """Render an .xlsx workbook as CSV text, one block per sheet.
+
+        Returns None if the workbook cannot be parsed, so the caller can fall
+        back to base64. Multi-sheet workbooks are separated by a header line and
+        a blank line; each sheet is emitted as standard CSV preserving rows and
+        columns.
+        """
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            logger.warning("openpyxl not installed; cannot extract .xlsx text.")
+            return None
+
+        try:
+            workbook = load_workbook(
+                io.BytesIO(content_bytes), read_only=True, data_only=True
+            )
+        except Exception as e:
+            logger.warning(f"Failed to open .xlsx '{file_name}': {e}")
+            return None
+
+        try:
+            blocks: list[str] = []
+            multi_sheet = len(workbook.sheetnames) > 1
+            for sheet in workbook.worksheets:
+                buffer = io.StringIO()
+                writer = csv.writer(buffer, lineterminator="\n")
+                for row in sheet.iter_rows(values_only=True):
+                    writer.writerow(
+                        ["" if cell is None else cell for cell in row]
+                    )
+                sheet_csv = buffer.getvalue().rstrip("\r\n")
+                if multi_sheet:
+                    blocks.append(f"# Sheet: {sheet.title}\n{sheet_csv}")
+                else:
+                    blocks.append(sheet_csv)
+            return "\n\n".join(blocks)
+        finally:
+            workbook.close()
 
     def _download_content(self, request) -> bytes:
         """Download content from a request."""
