@@ -476,3 +476,57 @@ async def create_presentation_from_markdown(
         raise ValueError(result.get("message", "Error creating presentation from Markdown"))
 
     return result
+
+
+@mcp.tool(
+    name="add_image_to_slide",
+    description="Adds an image from a public URL to a slide in a Google Slides presentation.",
+)
+async def add_image_to_slide(
+    presentation_id: str,
+    slide_id: str,
+    image_url: str,
+    position_x: float = 100.0,
+    position_y: float = 100.0,
+    size_width: float | None = None,
+    size_height: float | None = None,
+) -> dict[str, Any]:
+    """
+    Add an image to a slide from a publicly accessible URL.
+
+    Args:
+        presentation_id: The ID of the presentation.
+        slide_id: The ID of the slide (page object ID) to place the image on.
+        image_url: Publicly accessible URL of the image (https).
+        position_x: X coordinate in PT (default 100.0).
+        position_y: Y coordinate in PT (default 100.0).
+        size_width: Optional image width in PT. If omitted, Slides uses the
+            image's native size.
+        size_height: Optional image height in PT. Provide together with width.
+
+    Returns:
+        Response data including the created image's ID, or raises an error.
+    """
+    logger.info(f"Executing add_image_to_slide on slide '{slide_id}'")
+    if not presentation_id or not slide_id or not image_url:
+        raise ValueError("Presentation ID, Slide ID, and image URL are required")
+    if (size_width is None) != (size_height is None):
+        raise ValueError(
+            "Provide both size_width and size_height, or neither."
+        )
+
+    size = (size_width, size_height) if size_width is not None else None
+
+    slides_service = SlidesService()
+    result = slides_service.add_image(
+        presentation_id=presentation_id,
+        slide_id=slide_id,
+        image_url=image_url,
+        position=(position_x, position_y),
+        size=size,
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error adding image to slide"))
+
+    return result

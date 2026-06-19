@@ -320,8 +320,11 @@ class SlidesService(BaseGoogleService):
                             }
                         )
 
-                # Process italic text (making sure not to process text inside bold markers)
-                italic_pattern = r"\*(.*?)\*"
+                # Process italic text. Match a SINGLE asterisk pair only: the
+                # delimiters must not be adjacent to another asterisk, so the
+                # inner markers of **bold** are not picked up as italic. The
+                # bold-containment guard below is a second line of defense.
+                italic_pattern = r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)"
                 italic_matches = list(re.finditer(italic_pattern, formatted_text))
 
                 for match in italic_matches:
@@ -697,9 +700,6 @@ class SlidesService(BaseGoogleService):
             Response data or error information
         """
         try:
-            # Create a unique element ID
-            f"image_{slide_id}_{hash(image_url) % 10000}"
-
             # Define the base request
             create_image_request = {
                 "createImage": {
