@@ -209,7 +209,7 @@ class CalendarService(BaseGoogleService):
         event_id: str,
         send_notifications: bool = True,
         calendar_id: str = "primary",
-    ) -> bool:
+    ) -> bool | dict[str, Any]:
         """
         Delete a calendar event by its ID.
 
@@ -219,7 +219,8 @@ class CalendarService(BaseGoogleService):
             calendar_id: ID of the calendar containing the event
 
         Returns:
-            True if deletion was successful, False otherwise
+            True on success, or an error dict (so the caller can surface Google's
+            real message instead of a bare boolean).
         """
         try:
             # Map boolean to required string for sendUpdates
@@ -233,8 +234,7 @@ class CalendarService(BaseGoogleService):
             return True
 
         except Exception as e:
-            self.handle_api_error("delete_event", e)
-            return False
+            return self.handle_api_error("delete_event", e)
 
     def get_event_details(self, event_id: str, calendar_id: str = "primary") -> dict[str, Any] | None:
         """

@@ -112,8 +112,12 @@ class TestGmailDrafts:
             userId="me", id=draft_id
         )
 
-        # For draft deletion, the method returns False on error (it doesn't use handle_api_error)
-        assert result is False
+        # delete_draft now returns the error dict (surfacing Google's real
+        # message) rather than a bare False, so callers can report it.
+        assert isinstance(result, dict)
+        assert result["error"] is True
+        assert result["error_code"] == "NOT_FOUND"
+        assert result["message"] == "Draft not found"
 
     def test_send_draft_success(self, mock_gmail_service):
         """Test successful draft sending."""

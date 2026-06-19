@@ -79,5 +79,6 @@ class TestCalendarDeleteEvent:
         # Verify error handling
         mock_calendar_service.handle_api_error.assert_called_once_with("delete_event", http_error)
 
-        # For event deletion, the method returns False on error
-        assert result is False
+        # delete_event now returns the error dict so the caller can surface
+        # Google's real message instead of a bare False.
+        assert result == expected_error

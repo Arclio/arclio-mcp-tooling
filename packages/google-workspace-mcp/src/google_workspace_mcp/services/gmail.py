@@ -209,7 +209,7 @@ class GmailService(BaseGoogleService):
         except Exception as e:
             return self.handle_api_error("create_draft", e)
 
-    def delete_draft(self, draft_id: str) -> bool:
+    def delete_draft(self, draft_id: str) -> bool | dict[str, Any]:
         """
         Delete a draft email by its ID.
 
@@ -217,7 +217,8 @@ class GmailService(BaseGoogleService):
             draft_id: The ID of the draft to delete
 
         Returns:
-            True if draft was deleted successfully, False otherwise
+            True on success, or an error dict so the caller can surface Google's
+            real message instead of a bare boolean.
         """
         try:
             self.service.users().drafts().delete(userId="me", id=draft_id).execute()
@@ -225,7 +226,7 @@ class GmailService(BaseGoogleService):
 
         except Exception as e:
             logger.error(f"Error deleting draft {draft_id}: {e}")
-            return False
+            return self.handle_api_error("delete_draft", e)
 
     def send_draft(self, draft_id: str) -> dict[str, Any] | None:
         """
