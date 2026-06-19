@@ -8,6 +8,35 @@ from google_workspace_mcp.services.drive import DriveService
 from googleapiclient.errors import HttpError
 
 
+class TestDriveSearchPagination:
+    """Pagination: results past the first page must not be silently lost."""
+
+    def test_follows_next_page_token(self, mock_drive_service: DriveService):
+        page1 = {"files": [{"id": "a"}, {"id": "b"}], "nextPageToken": "tok"}
+        page2 = {"files": [{"id": "c"}, {"id": "d"}]}
+        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = [
+            page1,
+            page2,
+        ]
+
+        result = mock_drive_service.search_files(query="q", page_size=4)
+
+        assert [f["id"] for f in result] == ["a", "b", "c", "d"]
+        assert mock_drive_service.service.files.return_value.list.call_count == 2
+
+    def test_stops_at_desired_total(self, mock_drive_service: DriveService):
+        page1 = {"files": [{"id": "a"}, {"id": "b"}, {"id": "c"}], "nextPageToken": "tok"}
+        mock_drive_service.service.files.return_value.list.return_value.execute.side_effect = [
+            page1
+        ]
+
+        # Only 2 wanted; first page already satisfies it, no second call.
+        result = mock_drive_service.search_files(query="q", page_size=2)
+
+        assert [f["id"] for f in result] == ["a", "b"]
+        assert mock_drive_service.service.files.return_value.list.call_count == 1
+
+
 class TestDriveSearchFiles:
     """Tests for the DriveService.search_files method."""
 
