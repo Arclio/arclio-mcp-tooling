@@ -279,3 +279,40 @@ async def drive_convert_xlsx_to_google_sheet(
         )
 
     return result
+
+
+@mcp.tool(
+    name="drive_move_file",
+    description=(
+        "Move a file into a target folder (removing its current parents). Use "
+        "this to relocate a newly created native file out of Drive root into "
+        "its intended folder so deliverables are not stranded."
+    ),
+)
+async def drive_move_file(file_id: str, target_folder_id: str) -> dict[str, Any]:
+    """
+    Move a Drive file into a destination folder.
+
+    Args:
+        file_id: ID of the file to move.
+        target_folder_id: ID of the destination folder.
+
+    Returns:
+        A dictionary with the file's id, name, and new parents, or an error.
+    """
+    logger.info(f"Executing drive_move_file: {file_id} -> {target_folder_id}")
+
+    if not file_id or not file_id.strip():
+        raise ValueError("file_id cannot be empty")
+    if not target_folder_id or not target_folder_id.strip():
+        raise ValueError("target_folder_id cannot be empty")
+
+    drive_service = DriveService()
+    result = drive_service.move_file(
+        file_id=file_id, target_folder_id=target_folder_id
+    )
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(f"Move failed: {result.get('message', 'Unknown error')}")
+
+    return result

@@ -551,6 +551,65 @@ class DriveService(BaseGoogleService):
                 "operation": "convert_xlsx_to_google_sheet",
             }
 
+    def move_file(
+        self,
+        file_id: str,
+        target_folder_id: str,
+    ) -> dict[str, Any]:
+        """
+        Move a file into a target folder, removing its existing parents.
+
+        Newly created native files (e.g. a Sheet made with
+        sheets_create_spreadsheet) land in Drive root; this relocates them into
+        the intended folder so deliverables are not stranded.
+
+        Args:
+            file_id: ID of the file to move.
+            target_folder_id: ID of the destination folder.
+
+        Returns:
+            Dict with the file's id, name, and new parents, or error information.
+        """
+        try:
+            if not file_id or not target_folder_id:
+                return {
+                    "error": True,
+                    "message": "file_id and target_folder_id are required.",
+                }
+
+            # Look up current parents so they can be removed in the same call.
+            current = (
+                self.service.files()
+                .get(fileId=file_id, fields="parents", supportsAllDrives=True)
+                .execute()
+            )
+            previous_parents = ",".join(current.get("parents", []))
+
+            logger.info(f"Moving file {file_id} to folder {target_folder_id}.")
+            updated = (
+                self.service.files()
+                .update(
+                    fileId=file_id,
+                    addParents=target_folder_id,
+                    removeParents=previous_parents,
+                    fields="id, name, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            return updated
+
+        except HttpError as e:
+            return self.handle_api_error("move_file", e)
+        except Exception as e:
+            logger.error(f"Non-API error in move_file: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error moving file: {str(e)}",
+                "operation": "move_file",
+            }
+
     def delete_file(self, file_id: str) -> dict[str, Any]:
         """
         Delete a file from Google Drive.

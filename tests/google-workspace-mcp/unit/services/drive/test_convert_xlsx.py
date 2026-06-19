@@ -80,3 +80,24 @@ class TestConvertXlsxToGoogleSheet:
     def test_empty_source_id_errors(self, mock_drive_service):
         result = mock_drive_service.convert_xlsx_to_google_sheet("")
         assert result["error"] is True
+
+
+class TestMoveFile:
+    def test_move_removes_existing_parents(self, mock_drive_service):
+        _mock_get(mock_drive_service).return_value = {"parents": ["root", "old"]}
+        mock_drive_service.service.files.return_value.update.return_value.execute.return_value = {
+            "id": "f1",
+            "name": "deliverable.xlsx",
+            "parents": ["dest"],
+        }
+
+        result = mock_drive_service.move_file("f1", "dest")
+
+        _, kwargs = mock_drive_service.service.files.return_value.update.call_args
+        assert kwargs["addParents"] == "dest"
+        assert kwargs["removeParents"] == "root,old"
+        assert result["parents"] == ["dest"]
+
+    def test_move_requires_both_ids(self, mock_drive_service):
+        assert mock_drive_service.move_file("", "dest")["error"] is True
+        assert mock_drive_service.move_file("f1", "")["error"] is True

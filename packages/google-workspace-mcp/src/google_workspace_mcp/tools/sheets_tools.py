@@ -286,3 +286,174 @@ async def sheets_delete_sheet(spreadsheet_id: str, sheet_id: int) -> dict[str, A
         raise ValueError(f"Failed to delete sheet ID '{sheet_id}' from spreadsheet '{spreadsheet_id}'.")
 
     return result
+
+
+@mcp.tool(
+    name="sheets_format_cells",
+    description=(
+        "Apply basic formatting (bold, background color, font color/size, "
+        "alignment, text wrap) to a cell range in a native Google Sheet. "
+        "Colors are hex strings like '1B3A4B'. Only the provided attributes "
+        "change. Use this to make a generated Sheet presentable (e.g. a styled "
+        "header row) instead of producing a separate .xlsx."
+    ),
+)
+async def sheets_format_cells(
+    spreadsheet_id: str,
+    sheet_id: int,
+    range_a1: str,
+    bold: bool | None = None,
+    background_hex: str | None = None,
+    font_hex: str | None = None,
+    font_size: int | None = None,
+    horizontal_alignment: str | None = None,
+    wrap: bool | None = None,
+) -> dict[str, Any]:
+    """
+    Format a range of cells in a Google Sheet.
+
+    Args:
+        spreadsheet_id: The spreadsheet ID.
+        sheet_id: Numeric sheet (tab) ID, as returned by metadata/add_sheet.
+        range_a1: A1 range without the tab name, e.g. 'A5:M5'.
+        bold: Set text bold.
+        background_hex: Cell background color, hex like '1B3A4B'.
+        font_hex: Font color, hex like 'FFFFFF'.
+        font_size: Font size in points.
+        horizontal_alignment: 'LEFT', 'CENTER', or 'RIGHT'.
+        wrap: True to wrap text, False to overflow.
+
+    Returns:
+        Success dict or an error message.
+    """
+    if not spreadsheet_id or not range_a1:
+        raise ValueError("spreadsheet_id and range_a1 are required.")
+
+    service = SheetsService()
+    result = service.format_cells(
+        spreadsheet_id=spreadsheet_id,
+        sheet_id=sheet_id,
+        range_a1=range_a1,
+        bold=bold,
+        background_hex=background_hex,
+        font_hex=font_hex,
+        font_size=font_size,
+        horizontal_alignment=horizontal_alignment,
+        wrap=wrap,
+    )
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error formatting cells"))
+    return result
+
+
+@mcp.tool(
+    name="sheets_freeze",
+    description="Freeze leading rows and/or columns in a native Google Sheet (e.g. a header row).",
+)
+async def sheets_freeze(
+    spreadsheet_id: str,
+    sheet_id: int,
+    rows: int = 0,
+    cols: int = 0,
+) -> dict[str, Any]:
+    """
+    Freeze rows/columns so they stay visible when scrolling.
+
+    Args:
+        spreadsheet_id: The spreadsheet ID.
+        sheet_id: Numeric sheet (tab) ID.
+        rows: Number of leading rows to freeze.
+        cols: Number of leading columns to freeze.
+
+    Returns:
+        Success dict or an error message.
+    """
+    if not spreadsheet_id:
+        raise ValueError("spreadsheet_id is required.")
+
+    service = SheetsService()
+    result = service.freeze(
+        spreadsheet_id=spreadsheet_id, sheet_id=sheet_id, rows=rows, cols=cols
+    )
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error freezing rows/columns"))
+    return result
+
+
+@mcp.tool(
+    name="sheets_set_column_width",
+    description="Set the pixel width of a column range in a native Google Sheet.",
+)
+async def sheets_set_column_width(
+    spreadsheet_id: str,
+    sheet_id: int,
+    start_col: int,
+    end_col: int,
+    width: int,
+) -> dict[str, Any]:
+    """
+    Set pixel width for a half-open column range [start_col, end_col).
+
+    Args:
+        spreadsheet_id: The spreadsheet ID.
+        sheet_id: Numeric sheet (tab) ID.
+        start_col: 0-based first column index (A=0).
+        end_col: 0-based end column index, exclusive.
+        width: Width in pixels.
+
+    Returns:
+        Success dict or an error message.
+    """
+    if not spreadsheet_id:
+        raise ValueError("spreadsheet_id is required.")
+    if end_col <= start_col:
+        raise ValueError("end_col must be greater than start_col.")
+
+    service = SheetsService()
+    result = service.set_column_width(
+        spreadsheet_id=spreadsheet_id,
+        sheet_id=sheet_id,
+        start_col=start_col,
+        end_col=end_col,
+        width=width,
+    )
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error setting column width"))
+    return result
+
+
+@mcp.tool(
+    name="sheets_merge_cells",
+    description="Merge a range of cells in a native Google Sheet (e.g. a title banner row 'A1:M1').",
+)
+async def sheets_merge_cells(
+    spreadsheet_id: str,
+    sheet_id: int,
+    range_a1: str,
+    merge_type: str = "MERGE_ALL",
+) -> dict[str, Any]:
+    """
+    Merge cells in an A1 range.
+
+    Args:
+        spreadsheet_id: The spreadsheet ID.
+        sheet_id: Numeric sheet (tab) ID.
+        range_a1: A1 range without the tab name, e.g. 'A1:M1'.
+        merge_type: 'MERGE_ALL', 'MERGE_COLUMNS', or 'MERGE_ROWS'.
+
+    Returns:
+        Success dict or an error message.
+    """
+    if not spreadsheet_id or not range_a1:
+        raise ValueError("spreadsheet_id and range_a1 are required.")
+
+    service = SheetsService()
+    result = service.merge_cells(
+        spreadsheet_id=spreadsheet_id,
+        sheet_id=sheet_id,
+        range_a1=range_a1,
+        merge_type=merge_type,
+    )
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(result.get("message", "Error merging cells"))
+    return result
