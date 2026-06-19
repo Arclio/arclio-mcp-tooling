@@ -300,35 +300,43 @@ async def gmail_bulk_delete_messages(
     description="Composes and sends an email directly.",
 )
 async def gmail_send_email(
-    to: list[str],
+    to: list[str] | str,
     subject: str,
     body: str,
-    cc: list[str] | None = None,
-    bcc: list[str] | None = None,
+    cc: list[str] | str | None = None,
+    bcc: list[str] | str | None = None,
+    html_body: str | None = None,
 ) -> dict[str, Any]:
     """
     Composes and sends an email message.
 
     Args:
-        to: A list of primary recipient email addresses.
+        to: Primary recipient(s). A list of addresses, or a single address; a
+            JSON-array string is also accepted and normalized.
         subject: The subject line of the email.
         body: The plain text body content of the email.
-        cc: Optional. A list of CC recipient email addresses.
-        bcc: Optional. A list of BCC recipient email addresses.
+        cc: Optional. CC recipient(s), same accepted forms as ``to``.
+        bcc: Optional. BCC recipient(s), same accepted forms as ``to``.
+        html_body: Optional. HTML body; when provided the email is sent as
+            multipart/alternative (plain ``body`` + HTML).
 
     Returns:
         A dictionary containing the details of the sent message or an error.
     """
     logger.info(f"Executing gmail_send_email tool to: {to}, subject: '{subject}'")
-    if not to or not isinstance(to, list) or not all(isinstance(email, str) and email.strip() for email in to):
-        raise ValueError("Recipients 'to' must be a non-empty list of email strings.")
+    # The service normalizes str / JSON-array-string / list into a clean list and
+    # rejects an empty 'to', so accept any of those forms here.
+    if not to:
+        raise ValueError("Recipients 'to' cannot be empty.")
     if not subject or not subject.strip():
         raise ValueError("Subject cannot be empty.")
     if body is None:  # Allow empty string for body, but not None if it implies missing arg.
         raise ValueError("Body cannot be None (can be an empty string).")
 
     gmail_service = GmailService()
-    result = gmail_service.send_email(to=to, subject=subject, body=body, cc=cc, bcc=bcc)
+    result = gmail_service.send_email(
+        to=to, subject=subject, body=body, cc=cc, bcc=bcc, html_body=html_body
+    )
 
     if isinstance(result, dict) and result.get("error"):
         raise ValueError(result.get("message", "Error sending email"))
