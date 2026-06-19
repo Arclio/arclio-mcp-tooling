@@ -88,30 +88,54 @@ Accessing Google Workspace APIs requires OAuth 2.0 credentials.
 
 1.  Navigate to the [Google Cloud Console](https://console.cloud.google.com/).
 2.  Create a new project or select an existing one.
-3.  Enable the following APIs for your project:
+3.  **Enable APIs** — go to "APIs & Services" -> "Library" and enable:
     - Google Drive API
     - Gmail API
     - Google Calendar API
     - Google Docs API
     - Google Sheets API
     - Google Slides API
-4.  Go to "APIs & Services" -\> "Credentials".
-5.  Click "Create Credentials" -\> "OAuth 2.0 Client ID".
-6.  Select "Web application" as the application type.
-7.  Under "Authorized redirect URIs", add `https://developers.google.com/oauthplayground` (for easy refresh token generation) and any other URIs required for your specific setup (e.g., `http://localhost:8080/callback` if using the Python script method locally).
-8.  Note your `Client ID` and `Client Secret`.
+4.  **Configure the OAuth consent screen** — go to "APIs & Services" -> "OAuth consent screen":
+    - Select "External" user type (or "Internal" if using Google Workspace).
+    - Fill in the required app name and email fields.
+    - On the "Scopes" step, add the scopes listed in Step 2 below.
+    - Add your Google account as a test user (required while the app is in "Testing" status).
+5.  **Create OAuth credentials** — go to "APIs & Services" -> "Credentials":
+    - Click "Create Credentials" -> "OAuth client ID".
+    - Select **"Desktop app"** as the application type (this is required for the included auth script). If you plan to use the OAuth Playground instead, select "Web application" and add `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+    - Give it a name (e.g. "Google Workspace MCP").
+    - Click **Create**.
+6.  **Download the client secret file** — after creating the credentials:
+    - You'll see a dialog with your Client ID and Client Secret. Click **"Download JSON"** (or find the credential in the list and click the download icon).
+    - This downloads a file named like `client_secret_XXXXX.apps.googleusercontent.com.json`.
+    - Save this file somewhere accessible (e.g. your Downloads folder). You'll pass its path to the auth script in Step 2.
 
 ### Step 2: Obtain a Refresh Token
 
-**Option A: Using OAuth 2.0 Playground (Recommended)**
+**Option A: Using the included script (Recommended)**
+
+A helper script is included that runs a local OAuth flow and prints your refresh token. Pass it the client secret JSON file you downloaded in Step 1:
+
+```bash
+# Using uv (no install needed) — pass the path to your downloaded client secret file:
+uv run scripts/get_refresh_token.py ~/Downloads/client_secret_XXXXX.apps.googleusercontent.com.json
+
+# Or select only the services you need:
+uv run scripts/get_refresh_token.py ~/Downloads/client_secret_XXXXX.apps.googleusercontent.com.json --scopes gmail drive calendar
+```
+
+This will open your browser for Google sign-in. After authorizing, the script prints your refresh token and a ready-to-paste config snippet.
+
+**Option B: Using OAuth 2.0 Playground**
 
 1.  Go to the [OAuth 2.0 Playground](https://developers.google.com/oauthplayground/).
 2.  Click the gear icon (⚙️) in the top right corner.
 3.  Check the box "Use your own OAuth credentials."
 4.  Enter the `Client ID` and `Client Secret` obtained from the Google Cloud Console.
 5.  In "Step 1: Select & authorize APIs", input the following scopes (or select them from the list):
+    - `https://mail.google.com/` (full Gmail access: read, send, delete, manage)
+    - `https://www.googleapis.com/auth/gmail.settings.basic` (Gmail filters and settings)
     - `https://www.googleapis.com/auth/drive`
-    - `https://www.googleapis.com/auth/gmail.modify` (includes send, read, delete)
     - `https://www.googleapis.com/auth/calendar`
     - `https://www.googleapis.com/auth/docs`
     - `https://www.googleapis.com/auth/spreadsheets`
@@ -119,9 +143,6 @@ Accessing Google Workspace APIs requires OAuth 2.0 credentials.
 6.  Click "Authorize APIs." You will be prompted to sign in with the Google account you want the MCP server to act on behalf of and grant permissions.
 7.  After authorization, you'll be redirected back. In "Step 2: Exchange authorization code for tokens," click "Exchange authorization code for tokens."
 8.  Copy the `Refresh token` displayed.
-
-**Option B: Using a Python Script (Advanced)**
-You can adapt a Python script using the `google-auth-oauthlib` library to perform the OAuth flow and retrieve a refresh token. Ensure your script uses the correct client ID, client secret, redirect URI, and scopes as listed above.
 
 ### Step 3: Configure Environment Variables
 
@@ -260,6 +281,28 @@ This package exposes a variety of tools and resources for AI interaction.
   - `reply_all` (boolean, optional): Reply to all recipients if true (default: False).
 - **`gmail_bulk_delete_messages`**: Deletes multiple emails.
   - `message_ids` (list[string]): List of email message IDs.
+- **`gmail_archive_messages`**: Archives multiple emails (removes from inbox, keeps in All Mail).
+  - `message_ids` (list[string]): List of email message IDs.
+- **`gmail_list_labels`**: Lists all Gmail labels (system and user-created).
+- **`gmail_create_label`**: Creates a new Gmail label.
+  - `name` (string): Label name. Supports nesting with `/` (e.g. `"Receipts/Groceries"`).
+- **`gmail_label_messages`**: Adds or removes labels from messages.
+  - `message_ids` (list[string]): List of email message IDs.
+  - `add_label_ids` (list[string], optional): Label IDs to add.
+  - `remove_label_ids` (list[string], optional): Label IDs to remove.
+- **`gmail_list_filters`**: Lists all Gmail filters.
+- **`gmail_create_filter`**: Creates an automatic Gmail filter. Requires `gmail.settings.basic` scope.
+  - `from_address` (string, optional): Match sender.
+  - `to_address` (string, optional): Match recipient.
+  - `subject` (string, optional): Match subject.
+  - `query` (string, optional): Gmail search query.
+  - `negated_query` (string, optional): Exclude matching messages.
+  - `has_attachment` (boolean, optional): Filter by attachment presence.
+  - `add_label_ids` (list[string], optional): Labels to apply.
+  - `remove_label_ids` (list[string], optional): Labels to remove.
+  - `forward_to` (string, optional): Forwarding address.
+- **`gmail_delete_filter`**: Deletes a Gmail filter.
+  - `filter_id` (string): The ID of the filter to delete.
 
 ### Gmail Resources
 

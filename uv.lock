@@ -1050,7 +1050,7 @@ wheels = [
 
 [[package]]
 name = "google-workspace-mcp"
-version = "1.0.5"
+version = "2.0.0"
 source = { editable = "packages/google-workspace-mcp" }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1061,6 +1061,7 @@ dependencies = [
     { name = "markdown" },
     { name = "markdowndeck" },
     { name = "mcp" },
+    { name = "packaging" },
     { name = "python-dotenv" },
     { name = "pytz" },
 ]
@@ -1075,6 +1076,7 @@ requires-dist = [
     { name = "markdown", specifier = ">=3.5.0" },
     { name = "markdowndeck", editable = "packages/markdowndeck" },
     { name = "mcp", specifier = ">=1.7.0" },
+    { name = "packaging", specifier = ">=25.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "pytz", specifier = ">=2023.3" },
 ]
