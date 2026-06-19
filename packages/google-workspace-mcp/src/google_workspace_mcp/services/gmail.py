@@ -9,6 +9,7 @@ import time
 import traceback
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import formataddr, getaddresses
 from typing import Any
 
 from google_workspace_mcp.services.base import BaseGoogleService
@@ -38,8 +39,15 @@ def _normalize_recipients(value: str | list[str] | None) -> list[str]:
             except (ValueError, TypeError):
                 items = [stripped]
         elif "," in stripped:
-            # A comma-separated string of addresses.
-            items = stripped.split(",")
+            # A comma-separated string of addresses. Use getaddresses so a
+            # comma inside a quoted display name ("Doe, John" <j@x.com>) does
+            # not split the address into garbage fragments; re-format each so
+            # the display name is preserved and correctly quoted.
+            items = [
+                formataddr((name, addr))
+                for name, addr in getaddresses([stripped])
+                if addr
+            ]
         else:
             items = [stripped]
     else:
@@ -58,10 +66,12 @@ def _build_mime_message(
     """
     if html_body:
         message = MIMEMultipart("alternative")
-        message.attach(MIMEText(body or "", "plain"))
-        message.attach(MIMEText(html_body, "html"))
+        # Explicit utf-8 so non-ASCII content (accents, em-dashes, the ʻokina
+        # in "Koʻa Kea", emoji) doesn't raise UnicodeEncodeError on as_bytes().
+        message.attach(MIMEText(body or "", "plain", "utf-8"))
+        message.attach(MIMEText(html_body, "html", "utf-8"))
         return message
-    return MIMEText(body)
+    return MIMEText(body, "plain", "utf-8")
 
 
 class GmailService(BaseGoogleService):

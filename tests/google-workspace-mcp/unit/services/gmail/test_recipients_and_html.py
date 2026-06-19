@@ -42,6 +42,12 @@ class TestNormalizeRecipients:
     def test_strips_and_drops_blanks(self):
         assert _normalize_recipients(["  a@x.com  ", "", "  "]) == ["a@x.com"]
 
+    def test_display_name_with_comma_not_split(self):
+        # A comma inside a quoted display name must not split the address into
+        # garbage fragments.
+        result = _normalize_recipients('"Doe, John" <j@x.com>, a@y.com')
+        assert result == ['"Doe, John" <j@x.com>', "a@y.com"]
+
 
 class TestBuildMimeMessage:
     def test_plain_only(self):
@@ -54,7 +60,20 @@ class TestBuildMimeMessage:
         parts = msg.get_payload()
         assert parts[0].get_content_type() == "text/plain"
         assert parts[1].get_content_type() == "text/html"
-        assert "rich" in parts[1].get_payload()
+        # decode=True handles the transfer encoding (base64 under utf-8).
+        assert b"rich" in parts[1].get_payload(decode=True)
+
+    def test_non_ascii_html_encodes_without_error(self):
+        # The ʻokina, em-dash and emoji must not raise UnicodeEncodeError.
+        msg = _build_mime_message(
+            "Koʻa Kea — plain", html_body="<p>Koʻa Kea — rich 🌺</p>"
+        )
+        raw = msg.as_bytes()  # would raise without utf-8 charset
+        assert b"utf-8" in raw.lower()
+
+    def test_plain_only_non_ascii_encodes(self):
+        msg = _build_mime_message("Koʻa Kea — résumé")
+        assert msg.as_bytes()  # no UnicodeEncodeError
 
 
 def _decode_raw(call_kwargs):
@@ -92,4 +111,6 @@ class TestSendEmailIntegration:
         _, kwargs = mock_gmail_service.service.users.return_value.messages.return_value.send.call_args
         raw = _decode_raw(kwargs)
         assert "multipart/alternative" in raw
-        assert "<b>rich</b>" in raw
+        # The HTML part is present (its body is transfer-encoded under utf-8, so
+        # assert on the structural content-type marker rather than raw markup).
+        assert 'Content-Type: text/html; charset="utf-8"' in raw
