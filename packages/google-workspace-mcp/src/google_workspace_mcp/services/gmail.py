@@ -3,15 +3,65 @@ Google Gmail service implementation.
 """
 
 import base64
+import json
 import logging
 import time
 import traceback
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Any
 
 from google_workspace_mcp.services.base import BaseGoogleService
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_recipients(value: str | list[str] | None) -> list[str]:
+    """Coerce a recipient field into a clean list of address strings.
+
+    Agents frequently emit a JSON-encoded array as a STRING (e.g.
+    '["a@x.com", "b@y.com"]') for list parameters. Naively ", ".join()-ing that
+    string joins it per-character and mangles the header. This accepts a real
+    list, a JSON-array string, or a single bare address, and always returns a
+    list of trimmed non-empty strings.
+    """
+    if value is None:
+        return []
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            try:
+                parsed = json.loads(stripped)
+                items = parsed if isinstance(parsed, list) else [stripped]
+            except (ValueError, TypeError):
+                items = [stripped]
+        elif "," in stripped:
+            # A comma-separated string of addresses.
+            items = stripped.split(",")
+        else:
+            items = [stripped]
+    else:
+        items = [str(value)]
+    return [str(item).strip() for item in items if str(item).strip()]
+
+
+def _build_mime_message(
+    body: str, html_body: str | None = None
+) -> MIMEText | MIMEMultipart:
+    """Build a MIME message, multipart/alternative when HTML is provided.
+
+    A plain-text part is always included (required for accessibility and for
+    clients that don't render HTML); when html_body is given the message becomes
+    multipart/alternative with the HTML part last so clients prefer it.
+    """
+    if html_body:
+        message = MIMEMultipart("alternative")
+        message.attach(MIMEText(body or "", "plain"))
+        message.attach(MIMEText(html_body, "html"))
+        return message
+    return MIMEText(body)
 
 
 class GmailService(BaseGoogleService):
@@ -170,6 +220,7 @@ class GmailService(BaseGoogleService):
         body: str,
         cc: list[str] | None = None,
         bcc: list[str] | None = None,
+        html_body: str | None = None,
     ) -> dict[str, Any] | None:
         """
         Create a draft email message.
@@ -180,18 +231,23 @@ class GmailService(BaseGoogleService):
             body: Body content of the email
             cc: List of email addresses to CC
             bcc: List of email addresses to BCC (note: BCC is not visible in drafts)
+            html_body: Optional HTML body; when given the draft is sent as
+                multipart/alternative (plain + HTML).
 
         Returns:
             Draft message data including the draft ID if successful
         """
         try:
+            to_list = _normalize_recipients(to)
+            cc_list = _normalize_recipients(cc)
+
             # Create the message in MIME format
-            mime_message = MIMEText(body)
-            mime_message["to"] = to
+            mime_message = _build_mime_message(body, html_body)
+            mime_message["to"] = ", ".join(to_list)
             mime_message["subject"] = subject
 
-            if cc:
-                mime_message["cc"] = ",".join(cc)
+            if cc_list:
+                mime_message["cc"] = ", ".join(cc_list)
 
             # Note: BCC is typically not included in draft headers as it should remain hidden
             # But we accept the parameter for API compatibility
@@ -255,6 +311,7 @@ class GmailService(BaseGoogleService):
         body: str,
         cc: list[str] | None = None,
         bcc: list[str] | None = None,
+        html_body: str | None = None,
     ) -> dict[str, Any] | None:
         """
         Composes and sends an email message directly.
@@ -265,11 +322,17 @@ class GmailService(BaseGoogleService):
             body: Body content of the email (plain text).
             cc: Optional list of email addresses to CC.
             bcc: Optional list of email addresses to BCC.
+            html_body: Optional HTML body; when given the email is sent as
+                multipart/alternative (plain + HTML).
 
         Returns:
             The sent message object or an error dictionary.
         """
-        if not to:
+        to_list = _normalize_recipients(to)
+        cc_list = _normalize_recipients(cc)
+        bcc_list = _normalize_recipients(bcc)
+
+        if not to_list:
             logger.error("Recipient list 'to' cannot be empty for send_email.")
             # Consistent error structure with handle_api_error, though not an API error directly
             return {
@@ -280,14 +343,14 @@ class GmailService(BaseGoogleService):
             }
 
         try:
-            logger.info(f"Sending email to: {to}, subject: '{subject}'")
-            mime_message = MIMEText(body)
-            mime_message["To"] = ", ".join(to)
+            logger.info(f"Sending email to: {to_list}, subject: '{subject}'")
+            mime_message = _build_mime_message(body, html_body)
+            mime_message["To"] = ", ".join(to_list)
             mime_message["Subject"] = subject
-            if cc:
-                mime_message["Cc"] = ", ".join(cc)
-            if bcc:
-                mime_message["Bcc"] = ", ".join(bcc)
+            if cc_list:
+                mime_message["Cc"] = ", ".join(cc_list)
+            if bcc_list:
+                mime_message["Bcc"] = ", ".join(bcc_list)
 
             # From address is implicitly the authenticated user.
             # Gmail API usually sets the From header automatically based on the authenticated user.
@@ -351,8 +414,9 @@ class GmailService(BaseGoogleService):
             mime_message["to"] = to_address
             mime_message["subject"] = subject
 
-            if cc:
-                mime_message["cc"] = ",".join(cc)
+            cc_list = _normalize_recipients(cc)
+            if cc_list:
+                mime_message["cc"] = ", ".join(cc_list)
 
             # Set reply headers
             if "message_id" in original_message:
