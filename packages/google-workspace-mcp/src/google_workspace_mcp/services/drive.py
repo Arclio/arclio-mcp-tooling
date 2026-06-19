@@ -73,9 +73,15 @@ class DriveService(BaseGoogleService):
 
             # Build list parameters with shared drive support. `parents` is
             # included so folder-aware callers can inspect file location.
+            # `webContentLink` is the direct-download URL (present for binary
+            # files shared "Anyone with the link"); callers that move bytes
+            # server-side — e.g. a media-upload pipeline chaining the link into
+            # another service — need it so the file never has to be downloaded
+            # through the agent. `webViewLink` is the human viewer page, not a
+            # fetchable asset.
             list_params = {
                 "q": query,  # Use the query directly without modification
-                "fields": "nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, iconLink, parents)",
+                "fields": "nextPageToken, files(id, name, mimeType, modifiedTime, size, webViewLink, webContentLink, iconLink, parents)",
                 "supportsAllDrives": True,
                 "includeItemsFromAllDrives": True,
             }
