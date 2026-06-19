@@ -69,13 +69,10 @@ async def sheets_read_range(spreadsheet_id: str, range_a1: str) -> dict[str, Any
         raise ValueError("Spreadsheet ID cannot be empty.")
     if not range_a1 or not range_a1.strip():
         raise ValueError("Range (A1 notation) cannot be empty.")
-    # A cell reference (digit-and-letter) must appear somewhere; a bare value
-    # like "Sheet1" with no cells produces an opaque Google 400 otherwise.
-    if not any(ch.isdigit() for ch in range_a1) and ":" not in range_a1:
-        raise ValueError(
-            f"'{range_a1}' is not a valid A1 range. Use e.g. 'A1:B5' or "
-            "'Sheet1!A1:B5'."
-        )
+    # Note: a bare tab name ("Sheet1"), a named range ("SalesData"), and full
+    # references ("Sheet1!A1:B5") are all valid here, so we don't try to
+    # pattern-match the shape — the Sheets API returns a clear error for
+    # genuinely malformed input.
 
     sheets_service = SheetsService()
     result = sheets_service.read_range(spreadsheet_id=spreadsheet_id, range_a1=range_a1)
