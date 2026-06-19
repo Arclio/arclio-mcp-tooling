@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 XLSX_MIME_TYPE = (
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
+NATIVE_SHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet"
 
 
 class DriveService(BaseGoogleService):
@@ -450,6 +451,104 @@ class DriveService(BaseGoogleService):
                 "error_type": "local_error",
                 "message": f"Error uploading file from content: {str(e)}",
                 "operation": "upload_file_content",
+            }
+
+    def convert_xlsx_to_google_sheet(
+        self,
+        source_file_id: str,
+        new_name: str | None = None,
+        parent_folder_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Convert an .xlsx file already in Drive into a native Google Sheet.
+
+        Drive performs the conversion server-side when a file is copied with a
+        Google Workspace target mimeType, so this creates a NEW native Sheet and
+        leaves the original .xlsx untouched. The resulting Sheet is fully
+        editable by all Sheets tools (ranges, formulas, formatting), unlike an
+        uploaded .xlsx which can only be read.
+
+        Args:
+            source_file_id: ID of the .xlsx file in Drive to convert.
+            new_name: Optional name for the new Sheet. Defaults to the source
+                file's name (with any .xlsx extension stripped).
+            parent_folder_id: Optional folder to place the new Sheet in. Defaults
+                to the same parent(s) as the source file.
+
+        Returns:
+            Dict with the new Sheet's metadata (id, name, mimeType, webViewLink)
+            or error information.
+        """
+        try:
+            if not source_file_id:
+                return {"error": True, "message": "source_file_id cannot be empty"}
+
+            # Validate the source is actually an .xlsx before attempting a
+            # conversion that would otherwise produce a confusing API error.
+            source = (
+                self.service.files()
+                .get(
+                    fileId=source_file_id,
+                    fields="id, name, mimeType, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            source_mime = source.get("mimeType")
+            if source_mime != XLSX_MIME_TYPE:
+                return {
+                    "error": True,
+                    "error_type": "unsupported_type",
+                    "message": (
+                        f"Source file is '{source_mime}', not an .xlsx workbook. "
+                        "Only .xlsx files can be converted with this tool."
+                    ),
+                    "operation": "convert_xlsx_to_google_sheet",
+                }
+
+            if not new_name:
+                source_name = source.get("name", "Converted Sheet")
+                new_name = (
+                    source_name[: -len(".xlsx")]
+                    if source_name.lower().endswith(".xlsx")
+                    else source_name
+                )
+
+            body: dict[str, Any] = {
+                "name": new_name,
+                "mimeType": NATIVE_SHEET_MIME_TYPE,
+            }
+            if parent_folder_id:
+                body["parents"] = [parent_folder_id]
+
+            logger.info(
+                f"Converting .xlsx '{source_file_id}' to native Google Sheet '{new_name}'."
+            )
+            new_sheet = (
+                self.service.files()
+                .copy(
+                    fileId=source_file_id,
+                    body=body,
+                    fields="id, name, mimeType, webViewLink, parents",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+
+            logger.info(
+                f"Successfully converted to Google Sheet with ID: {new_sheet.get('id')}"
+            )
+            return new_sheet
+
+        except HttpError as e:
+            return self.handle_api_error("convert_xlsx_to_google_sheet", e)
+        except Exception as e:
+            logger.error(f"Non-API error in convert_xlsx_to_google_sheet: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error converting .xlsx to Google Sheet: {str(e)}",
+                "operation": "convert_xlsx_to_google_sheet",
             }
 
     def delete_file(self, file_id: str) -> dict[str, Any]:
