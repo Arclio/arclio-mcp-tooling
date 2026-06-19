@@ -97,10 +97,10 @@ class DriveService(BaseGoogleService):
             Dict containing mimeType and content (possibly base64 encoded)
         """
         try:
-            # Get file metadata
+            # Get file metadata (supportsAllDrives so Shared Drive files resolve)
             file_metadata = (
                 self.service.files()
-                .get(fileId=file_id, fields="mimeType, name")
+                .get(fileId=file_id, fields="mimeType, name", supportsAllDrives=True)
                 .execute()
             )
 
