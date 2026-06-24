@@ -418,6 +418,7 @@ class DriveService(BaseGoogleService):
         content_base64: str,
         parent_folder_id: str | None = None,
         shared_drive_id: str | None = None,
+        share: bool = True,
     ) -> dict[str, Any]:
         """
         Upload a file to Google Drive using its content.
@@ -427,9 +428,13 @@ class DriveService(BaseGoogleService):
             content_base64: Base64 encoded content of the file.
             parent_folder_id: Optional parent folder ID.
             shared_drive_id: Optional shared drive ID.
+            share: When True (default), grant an "anyone with the link → reader"
+                permission so the file is fetchable by its webContentLink without
+                authentication. Set False to keep the file private.
 
         Returns:
-            Dict containing file metadata on success, or error information on failure.
+            Dict containing file metadata (including webContentLink) on success,
+            or error information on failure.
         """
         try:
             logger.info(f"Uploading file '{filename}' from content.")
@@ -479,15 +484,48 @@ class DriveService(BaseGoogleService):
             create_params = {
                 "body": file_metadata,
                 "media_body": media,
-                "fields": "id,name,mimeType,modifiedTime,size,webViewLink",
+                "fields": "id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
                 "supportsAllDrives": True,
             }
             if shared_drive_id:
                 create_params["driveId"] = shared_drive_id
 
             file = self.service.files().create(**create_params).execute()
+            file_id = file.get("id")
+            logger.info(f"Successfully uploaded file with ID: {file_id}")
 
-            logger.info(f"Successfully uploaded file with ID: {file.get('id')}")
+            if share and file_id:
+                # Grant "anyone with the link" reader access so the file is
+                # fetchable by its webContentLink without authentication. The
+                # webContentLink is typically only populated after this, so
+                # re-fetch the metadata to return an accurate direct-download URL.
+                try:
+                    self.service.permissions().create(
+                        fileId=file_id,
+                        body={"type": "anyone", "role": "reader"},
+                        supportsAllDrives=True,
+                    ).execute()
+                    refreshed = (
+                        self.service.files()
+                        .get(
+                            fileId=file_id,
+                            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+                            supportsAllDrives=True,
+                        )
+                        .execute()
+                    )
+                    file = refreshed
+                    file["shared"] = True
+                except HttpError as e:
+                    # Upload succeeded; sharing failed. Return the file but flag
+                    # that it is not publicly fetchable rather than failing hard.
+                    logger.warning(
+                        f"Uploaded {file_id} but failed to set anyone-with-link "
+                        f"sharing: {e}"
+                    )
+                    file["shared"] = False
+                    file["share_error"] = "Failed to grant anyone-with-link access."
+
             return file
 
         except HttpError as e:

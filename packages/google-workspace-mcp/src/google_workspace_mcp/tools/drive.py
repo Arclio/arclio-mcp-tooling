@@ -100,13 +100,18 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="drive_upload_file",
-    description="Uploads a file to Google Drive by providing its content directly.",
+    description=(
+        "Uploads a file to Google Drive by providing its content directly. By "
+        "default the file is shared 'anyone with the link → reader' so it is "
+        "fetchable via its webContentLink; set share=False to keep it private."
+    ),
 )
 async def drive_upload_file(
     filename: str,
     content_base64: str,
     parent_folder_id: str | None = None,
     shared_drive_id: str | None = None,
+    share: bool = True,
 ) -> dict[str, Any]:
     """
     Uploads a file to Google Drive using its base64 encoded content.
@@ -116,12 +121,18 @@ async def drive_upload_file(
         content_base64: The content of the file, encoded in base64.
         parent_folder_id: Optional parent folder ID to upload the file to.
         shared_drive_id: Optional shared drive ID to upload the file to a shared drive.
+        share: When True (default), grant "anyone with the link → reader" so the
+            returned webContentLink is fetchable without authentication. Set
+            False to keep the file private.
 
     Returns:
-        A dictionary containing the uploaded file metadata or an error.
+        A dictionary containing the uploaded file metadata (including
+        webContentLink when shared) or an error.
     """
     logger.info(
-        f"Executing drive_upload_file with filename: '{filename}', parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}"
+        f"Executing drive_upload_file with filename: '{filename}', "
+        f"parent_folder_id: {parent_folder_id}, shared_drive_id: {shared_drive_id}, "
+        f"share: {share}"
     )
     if not filename or not filename.strip():
         raise ValueError("Filename cannot be empty")
@@ -134,6 +145,7 @@ async def drive_upload_file(
         content_base64=content_base64,
         parent_folder_id=parent_folder_id,
         shared_drive_id=shared_drive_id,
+        share=share,
     )
 
     if isinstance(result, dict) and result.get("error"):

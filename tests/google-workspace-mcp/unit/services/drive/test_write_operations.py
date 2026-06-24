@@ -26,15 +26,12 @@ class TestDriveWriteOperations:
             return drive_service
 
     @patch("mimetypes.guess_type")
-    def test_upload_file_content_success(self, mock_guess_type, mock_drive_service):
-        """Test successful file upload from content."""
-        # Setup test data
+    def test_upload_file_content_private(self, mock_guess_type, mock_drive_service):
+        """Upload with share=False creates the file and does not share it."""
         filename = "test.txt"
-        content = "Hello, World!"
-        content_base64 = base64.b64encode(content.encode()).decode()
+        content_base64 = base64.b64encode(b"Hello, World!").decode()
         mock_guess_type.return_value = ("text/plain", None)
 
-        # Mock the API response
         mock_file_metadata = {
             "id": "uploaded_file_id",
             "name": "test.txt",
@@ -44,22 +41,77 @@ class TestDriveWriteOperations:
             mock_file_metadata
         )
 
-        # Call the method
-        result = mock_drive_service.upload_file_content(filename, content_base64)
-
-        # Verify MIME type detection
-        mock_guess_type.assert_called_once_with(filename)
-
-        # Verify API call with ANY media_body
-        mock_drive_service.service.files.return_value.create.assert_called_once_with(
-            body={"name": "test.txt"},
-            media_body=ANY,  # Check that some media body was passed
-            fields="id,name,mimeType,modifiedTime,size,webViewLink",
-            supportsAllDrives=True,
+        result = mock_drive_service.upload_file_content(
+            filename, content_base64, share=False
         )
 
-        # Verify result
+        mock_guess_type.assert_called_once_with(filename)
+        # Now requests webContentLink in the fields, and does NOT share.
+        mock_drive_service.service.files.return_value.create.assert_called_once_with(
+            body={"name": "test.txt"},
+            media_body=ANY,
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+            supportsAllDrives=True,
+        )
+        mock_drive_service.service.permissions.return_value.create.assert_not_called()
         assert result == mock_file_metadata
+
+    @patch("mimetypes.guess_type")
+    def test_upload_file_content_shared_by_default(
+        self, mock_guess_type, mock_drive_service
+    ):
+        """Default upload grants anyone-with-link and returns webContentLink."""
+        filename = "image.png"
+        content_base64 = base64.b64encode(b"\x89PNG fake bytes").decode()
+        mock_guess_type.return_value = ("image/png", None)
+
+        created = {"id": "fid", "name": "image.png", "mimeType": "image/png"}
+        refreshed = {
+            **created,
+            "webContentLink": "https://drive.google.com/uc?id=fid",
+            "webViewLink": "https://drive.google.com/file/d/fid/view",
+        }
+        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = (
+            created
+        )
+        mock_drive_service.service.files.return_value.get.return_value.execute.return_value = (
+            refreshed
+        )
+
+        result = mock_drive_service.upload_file_content(filename, content_base64)
+
+        # An anyone/reader permission was created on the new file.
+        mock_drive_service.service.permissions.return_value.create.assert_called_once_with(
+            fileId="fid",
+            body={"type": "anyone", "role": "reader"},
+            supportsAllDrives=True,
+        )
+        # Result is the refreshed metadata with the direct-download URL + flag.
+        assert result["webContentLink"] == "https://drive.google.com/uc?id=fid"
+        assert result["shared"] is True
+
+    @patch("mimetypes.guess_type")
+    def test_upload_share_failure_is_soft(self, mock_guess_type, mock_drive_service):
+        """If sharing fails, the upload still returns the file, flagged unshared."""
+        mock_guess_type.return_value = ("image/png", None)
+        created = {"id": "fid", "name": "image.png", "mimeType": "image/png"}
+        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = (
+            created
+        )
+        resp = MagicMock()
+        resp.status = 403
+        resp.reason = "Forbidden"
+        mock_drive_service.service.permissions.return_value.create.return_value.execute.side_effect = HttpError(
+            resp, b'{"error": {"message": "insufficient permissions"}}'
+        )
+
+        result = mock_drive_service.upload_file_content(
+            "image.png", base64.b64encode(b"x").decode()
+        )
+
+        assert result["id"] == "fid"
+        assert result["shared"] is False
+        assert "share_error" in result
 
     def test_upload_file_content_invalid_base64(self, mock_drive_service):
         """Test upload_file_content with invalid base64 content."""
@@ -111,14 +163,16 @@ class TestDriveWriteOperations:
             mock_file_metadata
         )
 
-        # Call the method
-        result = mock_drive_service.upload_file_content(filename, content_base64)
+        # Call the method (share=False keeps this focused on mime fallback)
+        result = mock_drive_service.upload_file_content(
+            filename, content_base64, share=False
+        )
 
         # Verify API call with ANY media_body and correct fallback mime
         mock_drive_service.service.files.return_value.create.assert_called_once_with(
             body={"name": "unknown.bin"},
             media_body=ANY,
-            fields="id,name,mimeType,modifiedTime,size,webViewLink",
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
             supportsAllDrives=True,
         )
         # Verify result
@@ -165,7 +219,7 @@ class TestDriveWriteOperations:
         mock_drive_service.service.files.return_value.create.assert_called_once_with(
             body={"name": "test.txt"},
             media_body=ANY,
-            fields="id,name,mimeType,modifiedTime,size,webViewLink",
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
             supportsAllDrives=True,
         )
         mock_drive_service.service.files.return_value.create.return_value.execute.assert_called_once()
