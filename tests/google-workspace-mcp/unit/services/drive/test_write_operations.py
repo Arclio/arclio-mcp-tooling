@@ -111,7 +111,35 @@ class TestDriveWriteOperations:
 
         assert result["id"] == "fid"
         assert result["shared"] is False
-        assert "share_error" in result
+        # 403 -> policy-specific message, and the upload is NOT lost.
+        assert "policy" in result["share_error"].lower()
+        assert "webContentLink" in result  # key guaranteed present
+
+    @patch("mimetypes.guess_type")
+    def test_upload_refetch_failure_keeps_file_shared(
+        self, mock_guess_type, mock_drive_service
+    ):
+        """If the post-share re-fetch fails, the file is still returned shared."""
+        mock_guess_type.return_value = ("image/png", None)
+        created = {"id": "fid", "name": "image.png", "mimeType": "image/png"}
+        mock_drive_service.service.files.return_value.create.return_value.execute.return_value = (
+            created
+        )
+        # Permission grant succeeds...
+        mock_drive_service.service.permissions.return_value.create.return_value.execute.return_value = {}
+        # ...but the metadata re-fetch raises.
+        mock_drive_service.service.files.return_value.get.return_value.execute.side_effect = Exception(
+            "transient"
+        )
+
+        result = mock_drive_service.upload_file_content(
+            "image.png", base64.b64encode(b"x").decode()
+        )
+
+        # Upload + share both succeeded; only the link refresh was missed.
+        assert result["id"] == "fid"
+        assert result["shared"] is True
+        assert "share_error" not in result
 
     def test_upload_file_content_invalid_base64(self, mock_drive_service):
         """Test upload_file_content with invalid base64 content."""
