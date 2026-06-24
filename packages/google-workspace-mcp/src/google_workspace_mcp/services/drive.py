@@ -418,7 +418,7 @@ class DriveService(BaseGoogleService):
         content_base64: str,
         parent_folder_id: str | None = None,
         shared_drive_id: str | None = None,
-        share: bool = True,
+        share: bool = False,
     ) -> dict[str, Any]:
         """
         Upload a file to Google Drive using its content.
@@ -428,9 +428,10 @@ class DriveService(BaseGoogleService):
             content_base64: Base64 encoded content of the file.
             parent_folder_id: Optional parent folder ID.
             shared_drive_id: Optional shared drive ID.
-            share: When True (default), grant an "anyone with the link → reader"
-                permission so the file is fetchable by its webContentLink without
-                authentication. Set False to keep the file private.
+            share: When True, grant an "anyone with the link → reader" permission
+                so the file is fetchable by its webContentLink without
+                authentication. Defaults to False (the file stays private);
+                opt in when a caller needs an unauthenticated download URL.
 
         Returns:
             Dict containing file metadata (including webContentLink) on success,

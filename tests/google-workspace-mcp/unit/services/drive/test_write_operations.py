@@ -57,10 +57,10 @@ class TestDriveWriteOperations:
         assert result == mock_file_metadata
 
     @patch("mimetypes.guess_type")
-    def test_upload_file_content_shared_by_default(
+    def test_upload_file_content_shared_when_requested(
         self, mock_guess_type, mock_drive_service
     ):
-        """Default upload grants anyone-with-link and returns webContentLink."""
+        """Upload with share=True grants anyone-with-link and returns webContentLink."""
         filename = "image.png"
         content_base64 = base64.b64encode(b"\x89PNG fake bytes").decode()
         mock_guess_type.return_value = ("image/png", None)
@@ -78,7 +78,9 @@ class TestDriveWriteOperations:
             refreshed
         )
 
-        result = mock_drive_service.upload_file_content(filename, content_base64)
+        result = mock_drive_service.upload_file_content(
+            filename, content_base64, share=True
+        )
 
         # An anyone/reader permission was created on the new file.
         mock_drive_service.service.permissions.return_value.create.assert_called_once_with(
@@ -106,7 +108,7 @@ class TestDriveWriteOperations:
         )
 
         result = mock_drive_service.upload_file_content(
-            "image.png", base64.b64encode(b"x").decode()
+            "image.png", base64.b64encode(b"x").decode(), share=True
         )
 
         assert result["id"] == "fid"
@@ -133,7 +135,7 @@ class TestDriveWriteOperations:
         )
 
         result = mock_drive_service.upload_file_content(
-            "image.png", base64.b64encode(b"x").decode()
+            "image.png", base64.b64encode(b"x").decode(), share=True
         )
 
         # Upload + share both succeeded; only the link refresh was missed.

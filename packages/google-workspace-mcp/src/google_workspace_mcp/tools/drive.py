@@ -101,9 +101,9 @@ async def drive_read_file_content(file_id: str) -> dict[str, Any]:
 @mcp.tool(
     name="drive_upload_file",
     description=(
-        "Uploads a file to Google Drive by providing its content directly. By "
-        "default the file is shared 'anyone with the link → reader' so it is "
-        "fetchable via its webContentLink; set share=False to keep it private."
+        "Uploads a file to Google Drive by providing its content directly. The "
+        "file is private by default; pass share=true to grant 'anyone with the "
+        "link → reader' so it is fetchable via its webContentLink without auth."
     ),
 )
 async def drive_upload_file(
@@ -111,7 +111,7 @@ async def drive_upload_file(
     content_base64: str,
     parent_folder_id: str | None = None,
     shared_drive_id: str | None = None,
-    share: bool = True,
+    share: bool = False,
 ) -> dict[str, Any]:
     """
     Uploads a file to Google Drive using its base64 encoded content.
@@ -121,9 +121,9 @@ async def drive_upload_file(
         content_base64: The content of the file, encoded in base64.
         parent_folder_id: Optional parent folder ID to upload the file to.
         shared_drive_id: Optional shared drive ID to upload the file to a shared drive.
-        share: When True (default), grant "anyone with the link → reader" so the
-            returned webContentLink is fetchable without authentication. Set
-            False to keep the file private.
+        share: When True, grant "anyone with the link → reader" so the returned
+            webContentLink is fetchable without authentication. Defaults to False
+            (the file stays private).
 
     Returns:
         A dictionary containing the uploaded file metadata (including
