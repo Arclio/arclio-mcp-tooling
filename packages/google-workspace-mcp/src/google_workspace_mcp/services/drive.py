@@ -418,6 +418,7 @@ class DriveService(BaseGoogleService):
         content_base64: str,
         parent_folder_id: str | None = None,
         shared_drive_id: str | None = None,
+        share: bool = False,
     ) -> dict[str, Any]:
         """
         Upload a file to Google Drive using its content.
@@ -427,9 +428,14 @@ class DriveService(BaseGoogleService):
             content_base64: Base64 encoded content of the file.
             parent_folder_id: Optional parent folder ID.
             shared_drive_id: Optional shared drive ID.
+            share: When True, grant an "anyone with the link → reader" permission
+                so the file is fetchable by its webContentLink without
+                authentication. Defaults to False (the file stays private);
+                opt in when a caller needs an unauthenticated download URL.
 
         Returns:
-            Dict containing file metadata on success, or error information on failure.
+            Dict containing file metadata (including webContentLink) on success,
+            or error information on failure.
         """
         try:
             logger.info(f"Uploading file '{filename}' from content.")
@@ -479,15 +485,36 @@ class DriveService(BaseGoogleService):
             create_params = {
                 "body": file_metadata,
                 "media_body": media,
-                "fields": "id,name,mimeType,modifiedTime,size,webViewLink",
+                "fields": "id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
                 "supportsAllDrives": True,
             }
             if shared_drive_id:
                 create_params["driveId"] = shared_drive_id
 
             file = self.service.files().create(**create_params).execute()
+            file_id = file.get("id")
+            logger.info(f"Successfully uploaded file with ID: {file_id}")
 
-            logger.info(f"Successfully uploaded file with ID: {file.get('id')}")
+            if share and file_id:
+                # The upload already succeeded; from here we only enrich the
+                # result (grant sharing, refresh the link). Failures must NOT
+                # discard the uploaded file, so the grant and the re-fetch are
+                # guarded independently and never re-raise.
+                share_ok = self._grant_anyone_reader(file_id, shared_drive_id)
+                file["shared"] = share_ok["shared"]
+                if not share_ok["shared"]:
+                    file["share_error"] = share_ok["share_error"]
+                elif "webContentLink" not in file or not file.get("webContentLink"):
+                    # webContentLink is typically only populated after sharing,
+                    # so re-fetch to return an accurate direct-download URL.
+                    refreshed = self._refetch_metadata(file_id)
+                    if refreshed is not None:
+                        file = {**refreshed, "shared": True}
+
+            # Guarantee the key exists so callers can rely on .get / indexing
+            # (webContentLink is absent for Google-native files and some
+            # configurations even when shared).
+            file.setdefault("webContentLink", None)
             return file
 
         except HttpError as e:
@@ -500,6 +527,62 @@ class DriveService(BaseGoogleService):
                 "message": f"Error uploading file from content: {str(e)}",
                 "operation": "upload_file_content",
             }
+
+    def _grant_anyone_reader(
+        self, file_id: str, shared_drive_id: str | None = None
+    ) -> dict[str, Any]:
+        """Grant "anyone with the link → reader" on a file. Never raises.
+
+        Returns {"shared": True} on success, or {"shared": False,
+        "share_error": <message>} on failure. A 403 typically means an
+        organization/Shared Drive policy forbids "anyone with the link"
+        sharing, which is reported distinctly from other failures.
+        """
+        try:
+            self.service.permissions().create(
+                fileId=file_id,
+                body={"type": "anyone", "role": "reader"},
+                supportsAllDrives=True,
+            ).execute()
+            return {"shared": True}
+        except HttpError as e:
+            status = e.resp.status if e.resp else None
+            if status == 403:
+                msg = (
+                    "Anyone-with-link sharing is not permitted for this file "
+                    "(likely an organization or Shared Drive sharing policy)."
+                )
+            else:
+                msg = f"Failed to grant anyone-with-link access (HTTP {status})."
+            logger.warning(f"Sharing {file_id} failed: {e}")
+            return {"shared": False, "share_error": msg}
+        except Exception as e:
+            logger.warning(f"Sharing {file_id} failed (non-API): {e}")
+            return {
+                "shared": False,
+                "share_error": "Failed to grant anyone-with-link access.",
+            }
+
+    def _refetch_metadata(self, file_id: str) -> dict[str, Any] | None:
+        """Re-read a file's metadata (incl. webContentLink). None on failure.
+
+        Used after sharing to pick up the now-populated webContentLink. A
+        failure here is non-fatal — the upload already succeeded — so it returns
+        None instead of raising.
+        """
+        try:
+            return (
+                self.service.files()
+                .get(
+                    fileId=file_id,
+                    fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+        except Exception as e:
+            logger.warning(f"Could not re-fetch metadata for {file_id}: {e}")
+            return None
 
     def convert_xlsx_to_google_sheet(
         self,

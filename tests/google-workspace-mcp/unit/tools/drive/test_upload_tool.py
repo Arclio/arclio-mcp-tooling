@@ -53,6 +53,7 @@ class TestDriveUploadFile:
             content_base64=content_base64,
             parent_folder_id=None,
             shared_drive_id=None,
+            share=False,
         )
         assert result == mock_service_response
 
