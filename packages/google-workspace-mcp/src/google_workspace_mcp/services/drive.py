@@ -782,6 +782,54 @@ class DriveService(BaseGoogleService):
                 "operation": "rename_file",
             }
 
+    def share_file(
+        self, file_id: str, shared_drive_id: str | None = None
+    ) -> dict[str, Any]:
+        """Grant "anyone with the link → reader" on an existing file.
+
+        For files that already exist (uploaded earlier, or created outside this
+        tool) and need to become fetchable by their ``webContentLink`` without
+        authentication. Idempotent — granting access to an already-shared file
+        is a no-op. Returns the file's id + ``webContentLink`` plus the share
+        outcome.
+
+        Args:
+            file_id: ID of the file to share.
+            shared_drive_id: Optional Shared Drive id for ``supportsAllDrives``.
+
+        Returns:
+            Dict with id, webViewLink, webContentLink, shared, and (on failure)
+            share_error; or error information.
+        """
+        try:
+            if not file_id or not file_id.strip():
+                return {"error": True, "message": "file_id is required."}
+
+            logger.info(f"Sharing file {file_id} anyone-with-link → reader.")
+            share = self._grant_anyone_reader(file_id, shared_drive_id)
+
+            meta = (
+                self.service.files()
+                .get(
+                    fileId=file_id,
+                    fields="id, name, webViewLink, webContentLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            return {**meta, **share}
+
+        except HttpError as e:
+            return self.handle_api_error("share_file", e)
+        except Exception as e:
+            logger.error(f"Non-API error in share_file: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error sharing file: {str(e)}",
+                "operation": "share_file",
+            }
+
     def delete_file(self, file_id: str) -> dict[str, Any]:
         """
         Delete a file from Google Drive.
