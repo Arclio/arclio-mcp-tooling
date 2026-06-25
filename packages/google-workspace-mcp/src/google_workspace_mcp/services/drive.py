@@ -741,6 +741,47 @@ class DriveService(BaseGoogleService):
                 "operation": "move_file",
             }
 
+    def rename_file(self, file_id: str, new_name: str) -> dict[str, Any]:
+        """
+        Rename an existing Drive file.
+
+        Args:
+            file_id: ID of the file to rename.
+            new_name: The new name for the file.
+
+        Returns:
+            Dict with the file's id, name, and webViewLink, or error information.
+        """
+        try:
+            if not file_id or not file_id.strip():
+                return {"error": True, "message": "file_id is required."}
+            if not new_name or not new_name.strip():
+                return {"error": True, "message": "new_name cannot be empty."}
+
+            logger.info(f"Renaming file {file_id} to '{new_name}'.")
+            updated = (
+                self.service.files()
+                .update(
+                    fileId=file_id,
+                    body={"name": new_name.strip()},
+                    fields="id, name, webViewLink",
+                    supportsAllDrives=True,
+                )
+                .execute()
+            )
+            return updated
+
+        except HttpError as e:
+            return self.handle_api_error("rename_file", e)
+        except Exception as e:
+            logger.error(f"Non-API error in rename_file: {str(e)}")
+            return {
+                "error": True,
+                "error_type": "local_error",
+                "message": f"Error renaming file: {str(e)}",
+                "operation": "rename_file",
+            }
+
     def delete_file(self, file_id: str) -> dict[str, Any]:
         """
         Delete a file from Google Drive.
