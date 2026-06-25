@@ -378,6 +378,43 @@ async def drive_rename_file(file_id: str, new_name: str) -> dict[str, Any]:
 
 
 @mcp.tool(
+    name="drive_share_file",
+    description=(
+        "Grant 'anyone with the link → reader' access to an existing Google "
+        "Drive file, so it's fetchable by its webContentLink without "
+        "authentication. Use before handing a file's direct-download URL to an "
+        "external service. Idempotent."
+    ),
+)
+async def drive_share_file(
+    file_id: str, shared_drive_id: str | None = None
+) -> dict[str, Any]:
+    """
+    Share an existing Drive file anyone-with-link → reader.
+
+    Args:
+        file_id: ID of the file to share.
+        shared_drive_id: Optional Shared Drive id (for supportsAllDrives).
+
+    Returns:
+        A dict with id, name, webViewLink, webContentLink, and the share
+        outcome (shared / share_error), or an error.
+    """
+    logger.info(f"Executing drive_share_file: {file_id}")
+
+    if not file_id or not file_id.strip():
+        raise ValueError("file_id cannot be empty")
+
+    drive_service = DriveService()
+    result = drive_service.share_file(file_id=file_id, shared_drive_id=shared_drive_id)
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(f"Share failed: {result.get('message', 'Unknown error')}")
+
+    return result
+
+
+@mcp.tool(
     name="drive_search_files_in_folder",
     description="Search for files or folders within a specific folder ID (or a Shared Drive ID).",
 )
