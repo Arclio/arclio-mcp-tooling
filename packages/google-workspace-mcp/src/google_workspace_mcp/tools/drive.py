@@ -347,6 +347,37 @@ async def drive_move_file(file_id: str, target_folder_id: str) -> dict[str, Any]
 
 
 @mcp.tool(
+    name="drive_rename_file",
+    description="Rename an existing Google Drive file.",
+)
+async def drive_rename_file(file_id: str, new_name: str) -> dict[str, Any]:
+    """
+    Rename a Drive file.
+
+    Args:
+        file_id: ID of the file to rename.
+        new_name: The new name for the file.
+
+    Returns:
+        A dictionary with the file's id, name, and webViewLink, or an error.
+    """
+    logger.info(f"Executing drive_rename_file: {file_id} -> '{new_name}'")
+
+    if not file_id or not file_id.strip():
+        raise ValueError("file_id cannot be empty")
+    if not new_name or not new_name.strip():
+        raise ValueError("new_name cannot be empty")
+
+    drive_service = DriveService()
+    result = drive_service.rename_file(file_id=file_id, new_name=new_name)
+
+    if isinstance(result, dict) and result.get("error"):
+        raise ValueError(f"Rename failed: {result.get('message', 'Unknown error')}")
+
+    return result
+
+
+@mcp.tool(
     name="drive_search_files_in_folder",
     description="Search for files or folders within a specific folder ID (or a Shared Drive ID).",
 )

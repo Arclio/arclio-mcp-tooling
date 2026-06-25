@@ -101,3 +101,26 @@ class TestMoveFile:
     def test_move_requires_both_ids(self, mock_drive_service):
         assert mock_drive_service.move_file("", "dest")["error"] is True
         assert mock_drive_service.move_file("f1", "")["error"] is True
+
+
+class TestRenameFile:
+    def test_rename_updates_name(self, mock_drive_service):
+        mock_drive_service.service.files.return_value.update.return_value.execute.return_value = {
+            "id": "f1",
+            "name": "renamed.pdf",
+            "webViewLink": "http://x",
+        }
+
+        result = mock_drive_service.rename_file("f1", "  renamed.pdf  ")
+
+        _, kwargs = mock_drive_service.service.files.return_value.update.call_args
+        assert kwargs["fileId"] == "f1"
+        assert kwargs["body"] == {"name": "renamed.pdf"}  # trimmed
+        assert kwargs["supportsAllDrives"] is True
+        assert result["name"] == "renamed.pdf"
+
+    def test_rename_requires_id_and_name(self, mock_drive_service):
+        assert mock_drive_service.rename_file("", "x")["error"] is True
+        assert mock_drive_service.rename_file("f1", "")["error"] is True
+        assert mock_drive_service.rename_file("f1", "   ")["error"] is True
+        mock_drive_service.service.files.return_value.update.assert_not_called()
