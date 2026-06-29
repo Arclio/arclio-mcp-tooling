@@ -26,6 +26,45 @@ XLSX_MIME_TYPE = (
 )
 NATIVE_SHEET_MIME_TYPE = "application/vnd.google-apps.spreadsheet"
 
+# Native Google Workspace types are not byte-downloadable; a download_url for
+# them would be meaningless, so we skip building one for these.
+_GOOGLE_NATIVE_MIME_PREFIX = "application/vnd.google-apps."
+
+
+def _direct_download_url(file_id: str) -> str:
+    """Build a non-redirecting direct-download URL for a Drive file id.
+
+    Drive's ``webContentLink`` (``drive.google.com/uc?...&export=download``)
+    303-redirects to a virus-scan confirmation page for large files (e.g.
+    videos), which breaks consumers that don't follow redirects. The
+    ``drive.usercontent.google.com/download`` host with ``confirm=t`` serves
+    the bytes directly with no redirect and no scan interstitial.
+    """
+    return (
+        f"https://drive.usercontent.google.com/download?id={file_id}"
+        "&export=download&confirm=t"
+    )
+
+
+def _with_download_url(file_meta: dict[str, Any]) -> dict[str, Any]:
+    """Add a ``download_url`` to a file-metadata dict when applicable.
+
+    Adds the non-redirecting direct-download URL (see ``_direct_download_url``)
+    for byte-downloadable files that have an ``id``. Native Google Workspace
+    files (Docs/Sheets/Slides) are skipped since they aren't byte-downloadable;
+    they get ``download_url=None`` so callers can rely on the key existing.
+    Mutates and returns the same dict.
+    """
+    if not isinstance(file_meta, dict):
+        return file_meta
+    file_id = file_meta.get("id")
+    mime = file_meta.get("mimeType") or ""
+    if file_id and not mime.startswith(_GOOGLE_NATIVE_MIME_PREFIX):
+        file_meta["download_url"] = _direct_download_url(file_id)
+    else:
+        file_meta.setdefault("download_url", None)
+    return file_meta
+
 
 class DriveService(BaseGoogleService):
     """
@@ -112,6 +151,8 @@ class DriveService(BaseGoogleService):
                     break
 
             files = files[:desired_total]
+            for f in files:
+                _with_download_url(f)
             logger.info(f"Found {len(files)} files matching query '{query}'")
             return files
 
@@ -515,6 +556,9 @@ class DriveService(BaseGoogleService):
             # (webContentLink is absent for Google-native files and some
             # configurations even when shared).
             file.setdefault("webContentLink", None)
+            # Add the non-redirecting direct-download URL (reliable for large
+            # binary files, unlike webContentLink which 303s).
+            _with_download_url(file)
             return file
 
         except HttpError as e:
@@ -812,12 +856,12 @@ class DriveService(BaseGoogleService):
                 self.service.files()
                 .get(
                     fileId=file_id,
-                    fields="id, name, webViewLink, webContentLink",
+                    fields="id, name, mimeType, webViewLink, webContentLink",
                     supportsAllDrives=True,
                 )
                 .execute()
             )
-            return {**meta, **share}
+            return _with_download_url({**meta, **share})
 
         except HttpError as e:
             return self.handle_api_error("share_file", e)
