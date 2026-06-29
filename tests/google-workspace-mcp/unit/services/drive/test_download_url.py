@@ -50,6 +50,14 @@ class TestWithDownloadUrl:
         out = _with_download_url({"id": "fid"})
         assert out["download_url"] == _direct_download_url("fid")
 
+    def test_resource_key_appended(self):
+        # Resource-key-protected files need the key in the download URL.
+        out = _with_download_url(
+            {"id": "fid", "mimeType": "video/mp4", "resourceKey": "rk_abc"}
+        )
+        assert out["download_url"].endswith("&resourcekey=rk_abc")
+        assert out["download_url"] == _direct_download_url("fid", "rk_abc")
+
     def test_returns_same_dict_mutated(self):
         meta = {"id": "fid", "mimeType": "image/png"}
         assert _with_download_url(meta) is meta
