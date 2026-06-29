@@ -50,11 +50,18 @@ class TestDriveWriteOperations:
         mock_drive_service.service.files.return_value.create.assert_called_once_with(
             body={"name": "test.txt"},
             media_body=ANY,
-            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink,resourceKey",
             supportsAllDrives=True,
         )
         mock_drive_service.service.permissions.return_value.create.assert_not_called()
-        assert result == mock_file_metadata
+        # Even a private (share=False) upload now carries a download_url for the
+        # binary file (text/plain here).
+        assert result["id"] == "uploaded_file_id"
+        assert (
+            result["download_url"]
+            == "https://drive.usercontent.google.com/download?id=uploaded_file_id"
+            "&export=download&confirm=t"
+        )
 
     @patch("mimetypes.guess_type")
     def test_upload_file_content_shared_when_requested(
@@ -202,7 +209,7 @@ class TestDriveWriteOperations:
         mock_drive_service.service.files.return_value.create.assert_called_once_with(
             body={"name": "unknown.bin"},
             media_body=ANY,
-            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink,resourceKey",
             supportsAllDrives=True,
         )
         # Verify result
@@ -249,7 +256,7 @@ class TestDriveWriteOperations:
         mock_drive_service.service.files.return_value.create.assert_called_once_with(
             body={"name": "test.txt"},
             media_body=ANY,
-            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink",
+            fields="id,name,mimeType,modifiedTime,size,webViewLink,webContentLink,resourceKey",
             supportsAllDrives=True,
         )
         mock_drive_service.service.files.return_value.create.return_value.execute.assert_called_once()
