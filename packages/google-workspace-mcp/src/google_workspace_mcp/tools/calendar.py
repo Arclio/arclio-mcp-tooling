@@ -140,6 +140,7 @@ async def create_calendar_event(
     attendees: list[str] | None = None,
     send_notifications: bool = True,
     timezone: str | None = None,
+    add_meet: bool = False,
 ) -> dict[str, Any]:
     """
     Create a new calendar event.
@@ -154,6 +155,7 @@ async def create_calendar_event(
         attendees: List of attendee email addresses (optional).
         send_notifications: Whether to send notifications to attendees (default True).
         timezone: Timezone for the event (e.g., 'America/New_York', defaults to UTC).
+        add_meet: Attach a Google Meet conference to the event (default False).
 
     Returns:
         A dictionary containing the created event details.
@@ -173,6 +175,7 @@ async def create_calendar_event(
         send_notifications=send_notifications,
         timezone=timezone,
         calendar_id=calendar_id,
+        add_meet=add_meet,
     )
 
     if not result or (isinstance(result, dict) and result.get("error")):

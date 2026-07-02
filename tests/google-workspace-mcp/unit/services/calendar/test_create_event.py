@@ -141,3 +141,54 @@ class TestCalendarCreateEvent:
         # Verify error handling
         mock_calendar_service.handle_api_error.assert_called_once_with("create_event", http_error)
         assert result == expected_error
+
+    def test_create_event_with_meet(self, mock_calendar_service):
+        """Test that add_meet=True requests a Google Meet conference."""
+        summary = "Meeting with Meet"
+        start_time = "2023-01-01T10:00:00Z"
+        end_time = "2023-01-01T11:00:00Z"
+
+        mock_created_event = {
+            "id": "event123",
+            "summary": summary,
+            "conferenceData": {"entryPoints": [{"uri": "https://meet.google.com/abc-defg-hij"}]},
+        }
+        mock_execute = MagicMock(return_value=mock_created_event)
+        mock_calendar_service._service.events.return_value.insert.return_value.execute = mock_execute
+
+        result = mock_calendar_service.create_event(
+            summary=summary,
+            start_time=start_time,
+            end_time=end_time,
+            add_meet=True,
+        )
+
+        mock_calendar_service._service.events.return_value.insert.assert_called_once()
+        call_args = mock_calendar_service._service.events.return_value.insert.call_args
+        body_arg = call_args[1]["body"]
+
+        # A Meet conference is requested via conferenceData.createRequest ...
+        create_request = body_arg["conferenceData"]["createRequest"]
+        assert create_request["conferenceSolutionKey"]["type"] == "hangoutsMeet"
+        assert create_request["requestId"]  # non-empty unique request id
+        # ... and conferenceDataVersion=1 is required for the link to be generated.
+        assert call_args[1]["conferenceDataVersion"] == 1
+
+        assert result == mock_created_event
+
+    def test_create_event_no_meet_by_default(self, mock_calendar_service):
+        """Test that no Meet conference is attached unless add_meet is set."""
+        mock_created_event = {"id": "event123", "summary": "No Meet"}
+        mock_execute = MagicMock(return_value=mock_created_event)
+        mock_calendar_service._service.events.return_value.insert.return_value.execute = mock_execute
+
+        mock_calendar_service.create_event(
+            summary="No Meet",
+            start_time="2023-01-01T10:00:00Z",
+            end_time="2023-01-01T11:00:00Z",
+        )
+
+        call_args = mock_calendar_service._service.events.return_value.insert.call_args
+        body_arg = call_args[1]["body"]
+        assert "conferenceData" not in body_arg
+        assert "conferenceDataVersion" not in call_args[1]
