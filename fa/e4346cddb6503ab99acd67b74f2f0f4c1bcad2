@@ -1,0 +1,19 @@
+uv.lock
+  s_c619288c0261bd::t_371de2a2720104 2663,2665,2667
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "fae4346cddb6503ab99acd67b74f2f0f4c1bcad2",
+  "prompts": {},
+  "sessions": {
+    "s_c619288c0261bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e707fc5f-83a8-4cbf-a3ce-6a787530083c",
+        "model": "unknown"
+      },
+      "human_author": "jkotze <jacques.kotze@gmail.com>"
+    }
+  }
+}
