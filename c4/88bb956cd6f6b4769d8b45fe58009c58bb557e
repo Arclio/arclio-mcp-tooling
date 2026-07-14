@@ -1,0 +1,19 @@
+uv.lock
+  s_c619288c0261bd::t_29ac4f94506a9d 245,305-314,498,863-915,1086,1118,1243,1245,1247,1264,1489,1491,1493,1532,2266,2268,2270,2284,2289,2291,2296,2304,2307,2309,2314,2317,2319,2321,2323,2365,2367,2369,2591,2599,2601,2902-2923,2996
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "c488bb956cd6f6b4769d8b45fe58009c58bb557e",
+  "prompts": {},
+  "sessions": {
+    "s_c619288c0261bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e707fc5f-83a8-4cbf-a3ce-6a787530083c",
+        "model": "claude-opus-4-8"
+      },
+      "human_author": "jkotze <jacques.kotze@gmail.com>"
+    }
+  }
+}
