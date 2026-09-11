@@ -1,0 +1,21 @@
+packages/google-workspace-mcp/pyproject.toml
+  s_59be2ce1675f1b::t_7a408b0784cf4b 7,24-29
+uv.lock
+  s_59be2ce1675f1b::t_7825d52694c4e3 76,86,89-208,327,332,334,336,1422-1434,2760,2762,2764,2883-2895
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ea9f03f9d96d787347f7715cfdb25fd20464f616",
+  "prompts": {},
+  "sessions": {
+    "s_59be2ce1675f1b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d7541548-b51a-4635-a319-8381a3951b73",
+        "model": "claude-opus-5"
+      },
+      "human_author": "jkotze <jacques.kotze@gmail.com>"
+    }
+  }
+}
