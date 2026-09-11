@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "google-workspace-mcp"
-version = "2.0.8"
+version = "2.0.9"
 description = "MCP server for Google Workspace integration"
 authors = [
     {name = "Arclio Team", email = "info@arclio.com"},
@@ -21,7 +21,12 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "markdown>=3.5.0",
     "beautifulsoup4>=4.12.0",
-    "mcp>=1.7.0",
+    # mcp 2.0 removed the `mcp.server.fastmcp` module (FastMCP moved to the
+    # standalone `fastmcp` package); this server imports FastMCP + several
+    # `mcp.server.fastmcp.*` submodules, so cap at <2 until those imports are
+    # migrated. Without the cap, `uvx` resolves mcp 2.x and the worker crashes
+    # on startup with ModuleNotFoundError: No module named 'mcp.server.fastmcp'.
+    "mcp>=1.7.0,<2",
     "markdowndeck>=0.1.4",
     "packaging>=25.0",
     "openpyxl>=3.1.0",
