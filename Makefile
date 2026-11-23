@@ -1,6 +1,4 @@
-.PHONY: help setup setup-dev clean clean-debug lint format fix test install build publish add \
-	    encrypt-root decrypt-root encrypt-pkg decrypt-pkg encrypt decrypt init-key \
-	    run-google-workspace tree _run-tests _build-or-publish
+.PHONY: help setup setup-dev clean clean-debug lint format fix test install build publish add run-google-workspace tree _run-tests _build-or-publish
 
 .DEFAULT_GOAL := help
 
@@ -15,7 +13,6 @@ VENV_DIR := .venv
 UV := uv
 PYTEST := pytest
 RUFF := ruff
-SOPS := sops
 
 # --- Directories & Package Definitions ---
 PACKAGES_ROOT_DIR := packages
@@ -169,7 +166,7 @@ add: setup
 	. "$(VENV_DIR)/bin/activate"; $(UV) add "$$dep_spec" --package "$$pkg_for_uv"; \
 	echo "${GREEN}Dependency added.${RESET}"
 
-# --- SOPS & Servers ---
+# --- Servers ---
 run-google-workspace: setup
 	@echo "${CYAN}Running google-workspace-mcp server...${RESET}"
 	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m google_workspace_mcp
@@ -181,38 +178,6 @@ run-weaviate: setup
 run-aws-s3: setup
 	@echo "${CYAN}Running aws-s3-mcp server...${RESET}"
 	. "$(VENV_DIR)/bin/activate"; $(PYTHON) -m aws_s3_mcp
-
-encrypt-pkg decrypt-pkg: setup
-	@CMD_NAME=$@; PKG_DIR_NAME="$(PKG_DIR)"; \
-	if [ -z "$$PKG_DIR_NAME" ]; then echo "${RED}Error: PKG_DIR must be set.${RESET}"; exit 1; fi; \
-	env_file="$(PACKAGES_ROOT_DIR)/$$PKG_DIR_NAME/.env"; \
-	sops_file="$$env_file.sops"; \
-	if [ -z "$$SOPS_AGE_KEY_FILE" ]; then echo "${RED}Error: SOPS_AGE_KEY_FILE not set.${RESET}"; exit 1; fi; \
-	if [ "$$CMD_NAME" = "encrypt-pkg" ]; then \
-	    if [ ! -f "$$env_file" ]; then echo "${YELLOW}Skipping encryption: $$env_file not found.${RESET}"; exit 0; fi; \
-	    echo "${CYAN}Encrypting $$env_file...${RESET}"; \
-	    SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) -e "$$env_file" > "$$sops_file"; \
-	elif [ "$$CMD_NAME" = "decrypt-pkg" ]; then \
-	    if [ ! -f "$$sops_file" ]; then echo "${YELLOW}Skipping decryption: $$sops_file not found.${RESET}"; exit 0; fi; \
-	    echo "${CYAN}Decrypting $$sops_file...${RESET}"; \
-	    SOPS_AGE_KEY_FILE="$$SOPS_AGE_KEY_FILE" $(SOPS) -d "$$sops_file" > "$$env_file"; \
-	fi; echo "${GREEN}Package '$$PKG_DIR_NAME' SOPS operation complete.${RESET}"
-
-encrypt-root decrypt-root: setup
-	@# (SOPS logic for root remains unchanged)
-	@echo "SOPS logic for root here..."
-
-encrypt:
-	@$(MAKE) encrypt-root
-	@for pkg_dir in $(PKG_NAMES); do $(MAKE) encrypt-pkg PKG_DIR=$$pkg_dir; done
-
-decrypt:
-	@$(MAKE) decrypt-root
-	@for pkg_dir in $(PKG_NAMES); do $(MAKE) decrypt-pkg PKG_DIR=$$pkg_dir; done
-
-init-key:
-	@# (init-key logic remains unchanged)
-	@echo "SOPS init-key logic here..."
 
 # --- Help ---
 help:
